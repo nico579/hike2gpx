@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hike2gpx</title>
+<link rel="stylesheet" href="/leaflet/leaflet.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="carte" aria-label="Carte"></div>
+<aside id="panneau">
+  <header>
+    <h1>hike2gpx</h1>
+    <span id="version"></span>
+  </header>
+  <p class="aide">Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée.
+    Faites glisser un point pour le déplacer.</p>
+  <div class="boutons">
+    <button id="retirerDernier" type="button" disabled>Retirer le dernier point</button>
+    <button id="toutEffacer" type="button" disabled>Tout effacer</button>
+    <button id="exporter" type="button" class="principal" disabled>Exporter le GPX</button>
+  </div>
+  <label class="option"><input type="checkbox" id="strict"> Mode strict : éviter aussi les passages à vérifier</label>
+  <label class="option"><input type="checkbox" id="comparer" checked> Montrer le tracé qui ignore les barrières</label>
+  <p id="statut" role="status"></p>
+  <div id="actions"></div>
+  <section id="resultat" hidden>
+    <dl>
+      <dt>Distance</dt><dd id="distance"></dd>
+      <dt>Dénivelé positif</dt><dd id="denivele"></dd>
+    </dl>
+    <p id="comparaison"></p>
+    <h2>Points à vérifier sur le tracé</h2>
+    <p id="aucunAVerifier" class="note" hidden>Aucun franchissement connu sur ce tracé.</p>
+    <ol id="aVerifier"></ol>
+  </section>
+  <section class="legende">
+    <h2>Légende</h2>
+    <ul>
+      <li><span class="trait itineraire"></span> itinéraire hike2gpx</li>
+      <li><span class="trait naif"></span> tracé standard, qui ignore les barrières</li>
+      <li><span class="pastille bloque"></span> franchissement bloquant</li>
+      <li><span class="pastille verifier"></span> franchissement à vérifier</li>
+    </ul>
+  </section>
+  <details id="reglages">
+    <summary>Réglages</summary>
+    <label for="cleIgn">Clé IGN pour le SCAN 25</label>
+    <div class="ligne">
+      <input id="cleIgn" type="text" autocomplete="off" spellcheck="false">
+      <button id="enregistrerCle" type="button">Enregistrer</button>
+    </div>
+    <p class="note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN,
+      sous Licence Ouverte.</p>
+  </details>
+  <footer class="note">Barrières et chemins © contributeurs OpenStreetMap (ODbL), cartes © IGN,
+    calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain
+    a toujours le dernier mot.</footer>
+</aside>
+<script src="/leaflet/leaflet.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

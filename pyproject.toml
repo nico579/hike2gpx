@@ -23,8 +23,7 @@ hike2gpx = "hike2gpx.__main__:main"
 packages = ["hike2gpx", "hike2gpx.assets", "hike2gpx.assets.web"]
 
 [tool.setuptools.package-data]
-"hike2gpx.assets" = ["*.ico"]
-"hike2gpx.assets.web" = ["*.html", "*.js", "*.css", "leaflet/*", "leaflet/images/*"]
+"hike2gpx.assets.web" = ["*.html", "*.js", "*.css", "leaflet/*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "hike2gpx.__version__"}
