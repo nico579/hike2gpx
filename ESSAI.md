@@ -85,3 +85,31 @@ profil hike2gpx franchit la clôture en 93 m ; avec elles, il la contourne.
    seul gère déjà les portails privés ; ce que hike2gpx apporte, ce sont les
    clôtures en ligne, les portails verrouillés (`locked=yes`, absent de la
    table de BRouter) et les horaires.
+
+# Phase 2, premier essai : un chemin de la BD TOPO dans une tuile BRouter
+
+Le même jour, Nico a buté sur un itinéraire impossible : le seul chemin
+entre ses deux points n'existait que dans la BD TOPO. BRouter ne connaît que
+les tuiles qu'on lui donne, faites d'OSM ; la phase 2 consiste à fabriquer
+nos propres tuiles, OSM plus les chemins IGN qui y manquent.
+
+L'essai (`tools/essai_phase2.py`) le fait sur 2 × 2,4 km à l'est de
+Garéoult, autour d'un chemin IGN de 254 m absent d'OSM mais relié au réseau
+à ses deux bouts. Le chemin est raccordé par un nœud commun à la voie OSM la
+plus proche (à 2,5 m et 0,3 m), puis trois jeux de tuiles sont comparés :
+
+- entre les deux bouts du chemin, 1 028 m sur les tuiles standard comme sur
+  nos tuiles OSM seul, **255 m** sur nos tuiles OSM + IGN : BRouter emprunte
+  le chemin ajouté ;
+- sur un témoin de 2,5 km sans chemin IGN, 4 223 m sur les tuiles de
+  brouter.de, 4 158 m sur les nôtres : l'écart (1,5 %) vient des pseudo-tags
+  (bruit, forêt, rivière, que le profil de randonnée utilise 30 fois) et du
+  relief, absents de nos tuiles ;
+- fabrication et itinéraires en 7 s.
+
+Reste à faire pour la phase complète : une région entière (extrait
+Geofabrik et BD TOPO), le rapprochement à grande échelle (doublons,
+raccordements, ponts), une étiquette qui rende les chemins IGN plus coûteux
+et visibles comme « non vérifiés », les franchissements appliqués aussi à
+ces chemins, le relief (Copernicus converti en fichiers d'altitude BRouter),
+et la fabrication depuis hike2gpx.

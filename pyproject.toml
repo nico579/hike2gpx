@@ -17,6 +17,8 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+# Fabrication de tuiles BRouter OSM + BD TOPO (phase 2, tools/essai_phase2.py).
+tuiles = ["osmium>=4.3,<5"]
 
 [project.urls]
 Source = "https://github.com/nico579/hike2gpx"
