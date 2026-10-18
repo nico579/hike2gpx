@@ -16,8 +16,9 @@ from pathlib import Path
 
 from nico579_commons import atomique
 
-from . import __version__, brouter, franchissements
+from . import __version__, bdtopo, brouter, franchissements
 
+ZONE_CALQUE_MAX_DEG2 = 0.03  # une vue au zoom 14, avec sa marge ; au-delà, trop de tuiles à lire
 MARGE_DEG = 0.01            # environ 1 km autour des points
 MARGE_RELATIVE = 0.25
 POINTS_MAX = 50
@@ -41,6 +42,19 @@ def contient(zone, autre, marge_deg=0.002) -> bool:
 
 def union(a, b):
     return min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])
+
+
+def lire_zone(requete: dict):
+    """(sud, ouest, nord, est) des paramètres s, w, n, e d'une requête, ou
+    None s'ils manquent ou ne décrivent pas un rectangle valide."""
+    try:
+        sud, ouest, nord, est = (float(requete[c][0]) for c in ("s", "w", "n", "e"))
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+    if all(math.isfinite(v) for v in (sud, ouest, nord, est)) and -85 <= sud < nord <= 85 \
+            and -180 <= ouest < est <= 180:
+        return sud, ouest, nord, est
+    return None
 
 
 def valider_points(brut) -> list:
@@ -99,6 +113,7 @@ class Application:
         self.serveur = None
         self._verrou_moteur = threading.Lock()
         self._verrou_calcul = threading.Lock()
+        self._verrou_denivele = threading.Lock()
 
     # ---------------------------------------------------------- réglages
 
@@ -206,8 +221,42 @@ class Application:
             reponse["duree_s"] = round(time.monotonic() - debut, 2)
             return reponse
 
+    # ---------------------------------------------------------- dénivelé
+
+    def denivele(self, payload) -> dict:
+        """Dénivelé du tracé par gpx2elev, demandé par la page une fois
+        l'itinéraire affiché : le calcul de l'itinéraire n'attend pas le
+        modèle de terrain."""
+        from . import denivele      # numpy et rasterio ne se chargent qu'au premier calcul
+        with self._verrou_denivele:
+            try:
+                return denivele.calculer((payload or {}).get("coordonnees"), self.dossier)
+            except (ValueError, denivele.ErreurDenivele) as exc:
+                return {"erreur": str(exc)}
+
+    # ---------------------------------------------------------- calques
+
+    def _calque(self, zone, lire):
+        if zone is None:
+            return {"erreur": "Zone invalide."}
+        if (zone[2] - zone[0]) * (zone[3] - zone[1]) > ZONE_CALQUE_MAX_DEG2:
+            return {"erreur": "Zone trop grande : zoomez davantage."}
+        try:
+            return lire(*zone, self.dossier)
+        except franchissements.ErreurDonnees as exc:
+            return {"erreur": str(exc)}
+
+    def calque_osm(self, zone) -> dict:
+        return self._calque(zone, franchissements.voies_affichables)
+
+    def calque_bdtopo(self, zone) -> dict:
+        resultat = self._calque(zone, bdtopo.troncons_zone)
+        return resultat if isinstance(resultat, dict) else {"troncons": resultat}
+
     def routes(self):
-        get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages}
+        get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
+               "osm": self.calque_osm, "bdtopo": self.calque_bdtopo}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
-                "segment": self.telecharger_segment, "moteur": self.installer_moteur}
+                "segment": self.telecharger_segment, "moteur": self.installer_moteur,
+                "denivele": self.denivele}
         return get, post

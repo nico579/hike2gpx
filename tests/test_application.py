@@ -113,8 +113,53 @@ def test_itineraire_signale_les_donnees_manquantes(simulee, monkeypatch):
     assert r["segments_manquants"] == ["E5_N40"]
 
 
+@pytest.mark.parametrize("requete, attendu", [
+    ({"s": ["43.3"], "w": ["6.0"], "n": ["43.35"], "e": ["6.05"]}, (43.3, 6.0, 43.35, 6.05)),
+    ({"s": ["43.35"], "w": ["6.0"], "n": ["43.3"], "e": ["6.05"]}, None),
+    ({"s": ["43.3"], "w": ["6.0"], "n": ["43.35"]}, None),
+    ({"s": ["nan"], "w": ["6.0"], "n": ["43.35"], "e": ["6.05"]}, None),
+    ({"s": ["x"], "w": ["6.0"], "n": ["43.35"], "e": ["6.05"]}, None),
+])
+def test_lire_zone(requete, attendu):
+    assert appli.lire_zone(requete) == attendu
+
+
+def test_calques_refusent_une_zone_trop_grande_ou_invalide(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(franchissements, "voies_affichables", lambda *z: pytest.fail("lecture inutile"))
+    assert "trop grande" in a.calque_osm((43.0, 6.0, 43.5, 6.5))["erreur"]
+    assert "invalide" in a.calque_osm(None)["erreur"]
+
+
+def test_calque_bdtopo_et_panne(tmp_path, monkeypatch):
+    from hike2gpx import bdtopo
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(bdtopo, "troncons_zone", lambda *z: [{"id": "A-0"}])
+    assert a.calque_bdtopo((43.3, 6.0, 43.35, 6.05)) == {"troncons": [{"id": "A-0"}]}
+
+    def panne(*z):
+        raise franchissements.ErreurDonnees("BD TOPO indisponible (hors ligne).")
+
+    monkeypatch.setattr(bdtopo, "troncons_zone", panne)
+    assert a.calque_bdtopo((43.3, 6.0, 43.35, 6.05)) == {"erreur": "BD TOPO indisponible (hors ligne)."}
+
+
+def test_route_denivele(tmp_path, monkeypatch):
+    from hike2gpx import denivele
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(denivele, "calculer", lambda coordonnees, dossier: {"montee_m": 523, "dossier": dossier})
+    assert a.denivele({"coordonnees": [[6.0, 43.3], [6.01, 43.3]]}) == {"montee_m": 523, "dossier": tmp_path}
+
+    def invalide(coordonnees, dossier):
+        raise ValueError("Tracé invalide.")
+
+    monkeypatch.setattr(denivele, "calculer", invalide)
+    assert a.denivele({}) == {"erreur": "Tracé invalide."}
+
+
 def test_routes_init_annonce_l_application(tmp_path):
     get, post = appli.Application(tmp_path).routes()
     assert get["init"]()["app"] == "hike2gpx"
-    assert set(post) == {"itineraire", "reglages", "segment", "moteur"}
+    assert {"osm", "bdtopo"} <= set(get)
+    assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele"}
     assert "erreur" in post["segment"]({"nom": "../x"})

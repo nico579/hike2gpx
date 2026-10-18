@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -65,6 +66,20 @@ M_PAR_DEGRE = 111195.08
 
 PROBABLE = "Sentier balisé : passage probable, à vérifier"
 NIVEAU = "Niveau de franchissement à confirmer"
+
+# Genre d'une voie pour le calque des chemins OSM ; toute autre voie est une route.
+GENRES = {"path": "sentier", "footway": "sentier", "bridleway": "sentier", "steps": "sentier",
+          "pedestrian": "sentier", "cycleway": "sentier", "track": "piste"}
+
+# Une tuile n'est lue qu'une fois à la fois : le calque et un calcul
+# d'itinéraire qui la demandent ensemble n'interrogent pas Overpass deux fois.
+_verrou_global = threading.Lock()
+_verrous = {}
+
+
+def _verrou(cle) -> threading.Lock:
+    with _verrou_global:
+        return _verrous.setdefault(cle, threading.Lock())
 
 
 class ErreurDonnees(RuntimeError):
@@ -481,17 +496,18 @@ def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep) -> list:
 def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=interroger,
                   maintenant=time.time) -> dict:
     chemin = Path(dossier) / "overpass" / f"v{VERSION_DONNEES}_{i}_{j}.json"
-    cache = atomique.lire_json(chemin, None)
-    valide = isinstance(cache, dict) and isinstance(cache.get("elements"), list) \
-        and isinstance(cache.get("fetched_at"), (int, float))
-    if valide and (not en_ligne or maintenant() - cache["fetched_at"] < TTL_S):
-        return cache
-    if not en_ligne:
-        raise ErreurDonnees("Hors connexion : les barrières de cette zone n'ont jamais été chargées.")
-    donnees = {"version": VERSION_DONNEES, "fetched_at": maintenant(), "bornes": bornes_tuile(i, j),
-               "elements": interroger(requete(*bornes_tuile(i, j)))}
-    atomique.ecrire_json(chemin, donnees, indent=None)
-    return donnees
+    with _verrou(("overpass", i, j)):
+        cache = atomique.lire_json(chemin, None)
+        valide = isinstance(cache, dict) and isinstance(cache.get("elements"), list) \
+            and isinstance(cache.get("fetched_at"), (int, float))
+        if valide and (not en_ligne or maintenant() - cache["fetched_at"] < TTL_S):
+            return cache
+        if not en_ligne:
+            raise ErreurDonnees("Hors connexion : les barrières de cette zone n'ont jamais été chargées.")
+        donnees = {"version": VERSION_DONNEES, "fetched_at": maintenant(), "bornes": bornes_tuile(i, j),
+                   "elements": interroger(requete(*bornes_tuile(i, j)))}
+        atomique.ecrire_json(chemin, donnees, indent=None)
+        return donnees
 
 
 def franchissements_tuile(i: int, j: int, dossier, **options) -> list:
@@ -517,3 +533,23 @@ def franchissements_zone(sud: float, ouest: float, nord: float, est: float, doss
     for i, j in tuiles_zone(sud, ouest, nord, est):
         resultat.extend(franchissements_tuile(i, j, dossier, **options))
     return resultat
+
+
+def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier, **options) -> dict:
+    """Voies praticables (sentier, piste ou route) et barrières qui gênent un
+    piéton, telles que les tuiles Overpass les connaissent, pour le calque des
+    chemins OSM. Une bordure de trottoir n'y figure pas : elle se franchit."""
+    voies, barrieres = {}, {}
+    for i, j in tuiles_zone(sud, ouest, nord, est):
+        for e in charger_tuile(i, j, dossier, **options)["elements"]:
+            points = _geometrie(e) if e.get("type") == "way" else []
+            if not points:
+                continue
+            tags = e.get("tags", {})
+            ligne = [[round(lat, 6), round(lon, 6)] for lat, lon in points]
+            if _praticable(tags):
+                voies[e["id"]] = {"id": e["id"], "genre": GENRES.get(tags["highway"], "route"), "pts": ligne}
+            elif "barrier" in tags and "highway" not in tags and regles.status(tags, MODE)[0] != "passable":
+                barrieres[e["id"]] = {"id": e["id"], "nature": regles.LABELS.get(tags["barrier"], "Barrière"),
+                                      "pts": ligne}
+    return {"voies": list(voies.values()), "barrieres": list(barrieres.values())}

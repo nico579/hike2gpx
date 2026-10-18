@@ -201,6 +201,19 @@ def test_cloture_fermee_autour_d_un_champ_coupe_deux_fois():
         sorted(round(LON0 + x / KX, 6) for x in (-40, 40))
 
 
+def test_voies_affichables_par_genre_sans_les_bordures(tmp_path):
+    carte = Carte()
+    sentier = carte.chemin((-50, 0), (50, 0))
+    piste = carte.chemin((-50, 20), (50, 20), highway="track")
+    route = carte.chemin((-50, 40), (50, 40), highway="residential")
+    cloture = carte.cloture((0, -30), (0, 30))
+    carte.cloture((10, -30), (10, 30), barrier="kerb")
+    calque = fr.voies_affichables(43.31, 6.01, 43.32, 6.02, tmp_path, interroger=lambda texte: carte.elements)
+    assert {v["id"]: v["genre"] for v in calque["voies"]} == {sentier: "sentier", piste: "piste", route: "route"}
+    assert [(b["id"], b["nature"]) for b in calque["barrieres"]] == [(cloture, "Clôture")]
+    assert calque["voies"][0]["pts"][0] == [round(LAT0, 6), round(LON0 - 50 / KX, 6)]
+
+
 def test_tuiles_et_requete():
     assert fr.tuiles_zone(43.31, 6.01, 43.34, 6.06) == [(866, 120), (866, 121)]
     assert fr.bornes_tuile(866, 120) == (43.3, 6.0, 43.35, 6.05)

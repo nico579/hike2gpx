@@ -8,7 +8,7 @@ const DELAI_CALCUL_MS = 250;
 const CLE_VUE = "hike2gpx.vue";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
 
-const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "" };
+const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0 };
 const $ = (id) => document.getElementById(id);
 
 async function api(route, corps) {
@@ -63,6 +63,137 @@ let controleFonds = null;
 let fondActif = null;
 carte.on("baselayerchange", (e) => { fondActif = e.layer; });
 
+// ------------------------------------------------------------ calques de chemins
+
+// Le tracé et ses franchissements passent au-dessus des chemins dessinés.
+carte.createPane("trace").style.zIndex = 450;
+const rendu = L.canvas({ padding: 0.2 });
+const ZOOM_CALQUES = 14;
+const CLE_CALQUES = "hike2gpx.calques";
+const CALQUES = {
+  osm: { nom: "Chemins OSM", groupe: L.layerGroup(), charge: null, sequence: 0 },
+  bdtopo: { nom: "Chemins BD TOPO (IGN)", groupe: L.layerGroup(), charge: null, sequence: 0 },
+};
+const STYLES_OSM = {
+  sentier: { color: "#7b1fa2", weight: 3, dashArray: "6 4" },
+  piste: { color: "#7b1fa2", weight: 3 },
+  route: { color: "#7b1fa2", weight: 2, opacity: 0.45 },
+};
+
+function styleBdtopo(nature) {
+  if (["Sentier", "Chemin", "Escalier"].includes(nature)) return { color: "#00897b", weight: 3, dashArray: "4 4" };
+  if (nature === "Route empierrée") return { color: "#00897b", weight: 3 };
+  return { color: "#00897b", weight: 2, opacity: 0.45 };
+}
+
+function texte(contenu) {
+  return document.createTextNode(contenu);   // jamais d'étiquette OSM ou IGN interprétée en HTML
+}
+
+const DESSINS = {
+  osm(groupe, donnees) {
+    for (const v of donnees.voies) {
+      L.polyline(v.pts, { ...STYLES_OSM[v.genre], renderer: rendu, interactive: false }).addTo(groupe);
+    }
+    for (const b of donnees.barrieres) {
+      L.polyline(b.pts, { color: "#e53935", weight: 3, renderer: rendu })
+        .bindTooltip(texte(`${b.nature} (OSM)`), { sticky: true }).addTo(groupe);
+    }
+  },
+  bdtopo(groupe, donnees) {
+    for (const t of donnees.troncons) {
+      const details = [t.nature || "Tronçon"];
+      if (t.acces_pieton) details.push(`accès piéton : ${t.acces_pieton}`);
+      if (t.prive) details.push("privé");
+      L.polyline(t.pts, { ...styleBdtopo(t.nature), renderer: rendu })
+        .bindTooltip(texte(`${details.join(", ")} (BD TOPO)`), { sticky: true }).addTo(groupe);
+    }
+  },
+};
+
+function noteCalques(message) {
+  $("noteCalques").textContent = message || "";
+  $("noteCalques").hidden = !message;
+}
+
+function zoneVue(marge) {
+  const b = carte.getBounds().pad(marge);
+  return { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() };
+}
+
+function couvre(zone, vue) {
+  return Boolean(zone) && zone.s <= vue.s && zone.w <= vue.w && zone.n >= vue.n && zone.e >= vue.e;
+}
+
+async function chargerCalque(cle, zone) {
+  const calque = CALQUES[cle];
+  const numero = ++calque.sequence;
+  const parametres = new URLSearchParams(Object.entries(zone).map(([k, v]) => [k, v.toFixed(5)]));
+  noteCalques(`Chargement des ${calque.nom.charAt(0).toLowerCase()}${calque.nom.slice(1)}… (la première fois, jusqu'à une minute)`);
+  let donnees;
+  try {
+    donnees = await api(`${cle}?${parametres}`);
+  } catch (e) {
+    if (numero === calque.sequence) noteCalques(`${calque.nom} : ${e.message}`);
+    return;
+  }
+  if (numero !== calque.sequence || !carte.hasLayer(calque.groupe)) return;
+  if (donnees.erreur) {
+    noteCalques(`${calque.nom} : ${donnees.erreur}`);
+    return;
+  }
+  calque.groupe.clearLayers();
+  DESSINS[cle](calque.groupe, donnees);
+  calque.charge = zone;
+  noteCalques("");
+}
+
+async function rafraichirCalques() {
+  const actifs = Object.keys(CALQUES).filter((cle) => carte.hasLayer(CALQUES[cle].groupe));
+  if (!actifs.length) { noteCalques(""); return; }
+  if (carte.getZoom() < ZOOM_CALQUES) {
+    // Vider plutôt que garder un morceau de réseau : de loin, il ferait
+    // croire que le reste de la carte n'a pas de chemins.
+    for (const cle of actifs) {
+      CALQUES[cle].groupe.clearLayers();
+      CALQUES[cle].charge = null;
+      CALQUES[cle].sequence += 1;
+    }
+    noteCalques(`Zoomez davantage (niveau ${ZOOM_CALQUES}) pour voir les chemins.`);
+    return;
+  }
+  const vue = zoneVue(0);
+  await Promise.all(actifs.filter((cle) => !couvre(CALQUES[cle].charge, vue))
+    .map((cle) => chargerCalque(cle, zoneVue(0.15))));
+}
+
+let minuterieCalques = null;
+carte.on("moveend", () => {
+  clearTimeout(minuterieCalques);
+  minuterieCalques = setTimeout(rafraichirCalques, 400);
+});
+carte.on("overlayadd overlayremove", (e) => {
+  const calque = Object.values(CALQUES).find((c) => c.groupe === e.layer);
+  if (!calque) return;
+  if (e.type === "overlayremove") {
+    calque.groupe.clearLayers();
+    calque.charge = null;
+    calque.sequence += 1;    // une réponse encore en route ne redessine rien
+  }
+  try {
+    localStorage.setItem(CLE_CALQUES, JSON.stringify(Object.keys(CALQUES).filter((cle) => carte.hasLayer(CALQUES[cle].groupe))));
+  } catch (erreur) { /* sans importance */ }
+  rafraichirCalques();
+});
+
+function restaurerCalques() {
+  try {
+    for (const cle of JSON.parse(localStorage.getItem(CLE_CALQUES) || "[]")) {
+      if (CALQUES[cle]) CALQUES[cle].groupe.addTo(carte);
+    }
+  } catch (e) { /* stockage indisponible : calques éteints */ }
+}
+
 function construireFonds() {
   const fonds = {};
   if (etat.cleIgn) {
@@ -79,7 +210,8 @@ function construireFonds() {
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
   fondActif = Object.values(fonds)[0].addTo(carte);
-  controleFonds = L.control.layers(fonds, null, { collapsed: false, position: "topright" }).addTo(carte);
+  const calques = Object.fromEntries(Object.values(CALQUES).map((c) => [c.nom, c.groupe]));
+  controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
 }
 
 // ------------------------------------------------------------ points
@@ -247,17 +379,20 @@ function afficher(r) {
   etat.dernier = r;
   couches.clearLayers();
   if (r.naif && $("comparer").checked) {
-    L.polyline(lignes(r.naif), { color: "#555", weight: 4, opacity: 0.7, dashArray: "6 8", interactive: false })
+    L.polyline(lignes(r.naif), { color: "#555", weight: 4, opacity: 0.7, dashArray: "6 8", interactive: false, pane: "trace" })
       .addTo(couches);
   }
-  L.polyline(lignes(r.itineraire), { color: "#1565c0", weight: 5, opacity: 0.85, interactive: false }).addTo(couches);
+  L.polyline(lignes(r.itineraire), { color: "#1565c0", weight: 5, opacity: 0.85, interactive: false, pane: "trace" })
+    .addTo(couches);
   for (const f of r.franchissements) {
-    L.circleMarker([f.lat, f.lon], { radius: 6, weight: 2, color: "#fff", fillOpacity: 1, fillColor: COULEURS[f.statut] })
+    L.circleMarker([f.lat, f.lon], { radius: 6, weight: 2, color: "#fff", fillOpacity: 1, fillColor: COULEURS[f.statut], pane: "trace" })
       .bindPopup(() => bulleFranchissement(f))
       .addTo(couches);
   }
   $("distance").textContent = km(r.longueur_m);
-  $("denivele").textContent = r.denivele_m == null ? "?" : `${Math.round(r.denivele_m)} m`;
+  $("denivele").textContent = r.denivele_m == null ? "?" : `+${Math.round(r.denivele_m)} m`;
+  $("sourceDenivele").textContent = "Estimation de BRouter ; calcul de gpx2elev en cours…";
+  calculerDenivele(r);
   const n = (r.naif_traverse || []).length;
   $("comparaison").textContent = !r.naif ? "" :
     `Le tracé standard (profil Randonnée de BRouter, sans les barrières) mesure ${km(r.naif_longueur_m)}`
@@ -279,10 +414,42 @@ function afficher(r) {
   afficherStatut(`Calculé en ${String(r.duree_s).replace(".", ",")} s ; ${total} franchissement${total > 1 ? "s" : ""} connu${total > 1 ? "s" : ""} dans la zone examinée.`);
 }
 
+// ------------------------------------------------------------ dénivelé
+
+// Le dénivelé de gpx2elev arrive après l'itinéraire : le modèle de terrain
+// peut demander quelques secondes la première fois, la carte n'attend pas.
+async function calculerDenivele(r) {
+  const numero = ++etat.sequenceDenivele;
+  let d;
+  try {
+    d = await api("denivele", { coordonnees: r.itineraire.geometry.coordinates });
+  } catch (e) {
+    d = { erreur: e.message };
+  }
+  if (numero !== etat.sequenceDenivele || etat.dernier !== r) return;   // un tracé plus récent est affiché
+  if (d.erreur) {
+    $("sourceDenivele").textContent = `Estimation de BRouter ; gpx2elev indisponible : ${d.erreur}`;
+    return;
+  }
+  r.denivele = d;
+  $("denivele").textContent = `+${d.montee_m} m, −${d.descente_m} m`;
+  $("sourceDenivele").textContent = `gpx2elev, ${d.modele} : échantillonnage 5 m, lissage 20 m, `
+    + `hystérésis 2 m ; altitude de ${d.altitude_min_m} à ${d.altitude_max_m} m.`;
+}
+
 // ------------------------------------------------------------ GPX
 
 function echapper(texte) {
   return String(texte).replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]));
+}
+
+function descriptionGpx(r) {
+  const denivele = r.denivele
+    ? `D+ ${r.denivele.montee_m} m, D- ${r.denivele.descente_m} m (gpx2elev, ${r.denivele.modele})`
+    : `D+ ${Math.round(r.denivele_m ?? 0)} m (estimation BRouter)`;
+  const aVerifier = r.sur_le_trace.length;
+  return `Distance ${km(r.longueur_m)}, ${denivele}, ${aVerifier} passage${aVerifier > 1 ? "s" : ""} à vérifier. `
+    + "Barrières © contributeurs OpenStreetMap ; tracé hike2gpx.";
 }
 
 function gpx(r) {
@@ -293,7 +460,7 @@ function gpx(r) {
     + `${c.length > 2 && Number.isFinite(Number(c[2])) ? `<ele>${Number(c[2])}</ele>` : ""}</trkpt>\n`);
   return '<?xml version="1.0" encoding="UTF-8"?>\n'
     + `<gpx version="1.1" creator="hike2gpx ${echapper(etat.version)}" xmlns="http://www.topografix.com/GPX/1/1">\n`
-    + `  <metadata><name>${echapper(nom)}</name></metadata>\n`
+    + `  <metadata><name>${echapper(nom)}</name><desc>${echapper(descriptionGpx(r))}</desc></metadata>\n`
     + wpt.join("")
     + `  <trk>\n    <name>${echapper(nom)}</name>\n    <trkseg>\n${trkpt.join("")}    </trkseg>\n  </trk>\n</gpx>\n`;
 }
@@ -350,7 +517,9 @@ async function demarrer() {
   } catch (e) {
     afficherStatut(`Serveur injoignable : ${e.message}`, true);
   }
+  restaurerCalques();     // avant le contrôle des fonds, pour que ses cases soient cochées
   construireFonds();
+  rafraichirCalques();
 }
 
 demarrer();
