@@ -8,7 +8,7 @@ from pathlib import Path
 from nico579_commons import serveweb
 
 from . import __version__
-from .application import Application
+from .application import Application, lire_zone
 
 HOST = "127.0.0.1"
 PORT = 8795
@@ -20,6 +20,8 @@ class Handler(serveweb.Handler):
     fichiers_statiques = {**serveweb.FICHIERS_STATIQUES,
                           "/leaflet/leaflet.js": ("leaflet/leaflet.js", "text/javascript; charset=utf-8"),
                           "/leaflet/leaflet.css": ("leaflet/leaflet.css", "text/css; charset=utf-8")}
+    # Les calques lisent la zone de la vue : ?s=&w=&n=&e= (None si invalide).
+    arguments_get = {"osm": lambda q: (lire_zone(q),), "bdtopo": lambda q: (lire_zone(q),)}
 
 
 def demarrer(application: Application, port: int = PORT, plage: int = PLAGE):

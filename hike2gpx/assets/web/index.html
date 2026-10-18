@@ -24,6 +24,7 @@
   <label class="option"><input type="checkbox" id="strict"> Mode strict : éviter aussi les passages à vérifier</label>
   <label class="option"><input type="checkbox" id="comparer" checked> Montrer le tracé qui ignore les barrières</label>
   <p id="statut" role="status"></p>
+  <p id="noteCalques" class="note" hidden></p>
   <div id="actions"></div>
   <section id="resultat" hidden>
     <dl>
@@ -42,7 +43,12 @@
       <li><span class="trait naif"></span> tracé standard, qui ignore les barrières</li>
       <li><span class="pastille bloque"></span> franchissement bloquant</li>
       <li><span class="pastille verifier"></span> franchissement à vérifier</li>
+      <li><span class="trait osm"></span> chemins OSM (tirets : sentiers)</li>
+      <li><span class="trait barriere"></span> clôtures et murs connus d'OSM</li>
+      <li><span class="trait bdtopo"></span> chemins BD TOPO de l'IGN</li>
     </ul>
+    <p class="note">Les calques de chemins se cochent sur la carte, en haut à droite, et
+      s'affichent à partir du zoom 14.</p>
   </section>
   <details id="reglages">
     <summary>Réglages</summary>
