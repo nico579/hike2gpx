@@ -8,7 +8,7 @@ const DELAI_CALCUL_MS = 250;
 const CLE_VUE = "hike2gpx.vue";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
 
-const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "" };
+const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0 };
 const $ = (id) => document.getElementById(id);
 
 async function api(route, corps) {
@@ -390,7 +390,9 @@ function afficher(r) {
       .addTo(couches);
   }
   $("distance").textContent = km(r.longueur_m);
-  $("denivele").textContent = r.denivele_m == null ? "?" : `${Math.round(r.denivele_m)} m`;
+  $("denivele").textContent = r.denivele_m == null ? "?" : `+${Math.round(r.denivele_m)} m`;
+  $("sourceDenivele").textContent = "Estimation de BRouter ; calcul de gpx2elev en cours…";
+  calculerDenivele(r);
   const n = (r.naif_traverse || []).length;
   $("comparaison").textContent = !r.naif ? "" :
     `Le tracé standard (profil Randonnée de BRouter, sans les barrières) mesure ${km(r.naif_longueur_m)}`
@@ -412,10 +414,42 @@ function afficher(r) {
   afficherStatut(`Calculé en ${String(r.duree_s).replace(".", ",")} s ; ${total} franchissement${total > 1 ? "s" : ""} connu${total > 1 ? "s" : ""} dans la zone examinée.`);
 }
 
+// ------------------------------------------------------------ dénivelé
+
+// Le dénivelé de gpx2elev arrive après l'itinéraire : le modèle de terrain
+// peut demander quelques secondes la première fois, la carte n'attend pas.
+async function calculerDenivele(r) {
+  const numero = ++etat.sequenceDenivele;
+  let d;
+  try {
+    d = await api("denivele", { coordonnees: r.itineraire.geometry.coordinates });
+  } catch (e) {
+    d = { erreur: e.message };
+  }
+  if (numero !== etat.sequenceDenivele || etat.dernier !== r) return;   // un tracé plus récent est affiché
+  if (d.erreur) {
+    $("sourceDenivele").textContent = `Estimation de BRouter ; gpx2elev indisponible : ${d.erreur}`;
+    return;
+  }
+  r.denivele = d;
+  $("denivele").textContent = `+${d.montee_m} m, −${d.descente_m} m`;
+  $("sourceDenivele").textContent = `gpx2elev, ${d.modele} : échantillonnage 5 m, lissage 20 m, `
+    + `hystérésis 2 m ; altitude de ${d.altitude_min_m} à ${d.altitude_max_m} m.`;
+}
+
 // ------------------------------------------------------------ GPX
 
 function echapper(texte) {
   return String(texte).replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]));
+}
+
+function descriptionGpx(r) {
+  const denivele = r.denivele
+    ? `D+ ${r.denivele.montee_m} m, D- ${r.denivele.descente_m} m (gpx2elev, ${r.denivele.modele})`
+    : `D+ ${Math.round(r.denivele_m ?? 0)} m (estimation BRouter)`;
+  const aVerifier = r.sur_le_trace.length;
+  return `Distance ${km(r.longueur_m)}, ${denivele}, ${aVerifier} passage${aVerifier > 1 ? "s" : ""} à vérifier. `
+    + "Barrières © contributeurs OpenStreetMap ; tracé hike2gpx.";
 }
 
 function gpx(r) {
@@ -426,7 +460,7 @@ function gpx(r) {
     + `${c.length > 2 && Number.isFinite(Number(c[2])) ? `<ele>${Number(c[2])}</ele>` : ""}</trkpt>\n`);
   return '<?xml version="1.0" encoding="UTF-8"?>\n'
     + `<gpx version="1.1" creator="hike2gpx ${echapper(etat.version)}" xmlns="http://www.topografix.com/GPX/1/1">\n`
-    + `  <metadata><name>${echapper(nom)}</name></metadata>\n`
+    + `  <metadata><name>${echapper(nom)}</name><desc>${echapper(descriptionGpx(r))}</desc></metadata>\n`
     + wpt.join("")
     + `  <trk>\n    <name>${echapper(nom)}</name>\n    <trkseg>\n${trkpt.join("")}    </trkseg>\n  </trk>\n</gpx>\n`;
 }

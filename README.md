@@ -18,7 +18,7 @@ tard, par l'application BRouter pour Android.
 
 ## Comment ça marche
 
-Le calcul passe par trois pièces.
+Le calcul passe par quatre pièces.
 
 1. **Les franchissements.** Pour la zone du tracé, hike2gpx lit dans
    OpenStreetMap (par Overpass, en tuiles de 0,05° gardées sept jours) les
@@ -41,7 +41,16 @@ Le calcul passe par trois pièces.
    pour poser le départ, les étapes et l'arrivée, on déplace les points, et
    l'on exporte le GPX, avec en points de passage les franchissements à
    vérifier sur le tracé. Le tracé standard, qui ignore les barrières, peut
-   s'afficher en pointillé pour comparaison.
+   s'afficher en pointillé pour comparaison. Deux calques à cocher, à partir
+   du zoom 14, montrent les chemins que connaît OpenStreetMap (avec ses
+   clôtures et murs) et ceux de la BD TOPO de l'IGN : de quoi repérer un
+   sentier que le moteur ignore.
+4. **Le dénivelé.** Une fois l'itinéraire affiché, le moteur de
+   [gpx2elev](https://pypi.org/project/gpx2elev/) recalcule son dénivelé :
+   tracé échantillonné tous les 5 m, meilleur modèle de terrain disponible
+   (IGN LiDAR HD d'abord), lissage gaussien de 20 m, hystérésis de 2 m. Le
+   chiffre de BRouter, tiré d'un modèle mondial plus grossier, ne sert que
+   d'estimation en attendant.
 
 Ce que hike2gpx ajoute aux règles de gpx2elev, parce qu'il examine un réseau
 entier et non une seule trace :

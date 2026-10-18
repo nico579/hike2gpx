@@ -144,9 +144,22 @@ def test_calque_bdtopo_et_panne(tmp_path, monkeypatch):
     assert a.calque_bdtopo((43.3, 6.0, 43.35, 6.05)) == {"erreur": "BD TOPO indisponible (hors ligne)."}
 
 
+def test_route_denivele(tmp_path, monkeypatch):
+    from hike2gpx import denivele
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(denivele, "calculer", lambda coordonnees, dossier: {"montee_m": 523, "dossier": dossier})
+    assert a.denivele({"coordonnees": [[6.0, 43.3], [6.01, 43.3]]}) == {"montee_m": 523, "dossier": tmp_path}
+
+    def invalide(coordonnees, dossier):
+        raise ValueError("Tracé invalide.")
+
+    monkeypatch.setattr(denivele, "calculer", invalide)
+    assert a.denivele({}) == {"erreur": "Tracé invalide."}
+
+
 def test_routes_init_annonce_l_application(tmp_path):
     get, post = appli.Application(tmp_path).routes()
     assert get["init"]()["app"] == "hike2gpx"
     assert {"osm", "bdtopo"} <= set(get)
-    assert set(post) == {"itineraire", "reglages", "segment", "moteur"}
+    assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele"}
     assert "erreur" in post["segment"]({"nom": "../x"})

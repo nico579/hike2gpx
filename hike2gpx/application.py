@@ -113,6 +113,7 @@ class Application:
         self.serveur = None
         self._verrou_moteur = threading.Lock()
         self._verrou_calcul = threading.Lock()
+        self._verrou_denivele = threading.Lock()
 
     # ---------------------------------------------------------- réglages
 
@@ -220,6 +221,19 @@ class Application:
             reponse["duree_s"] = round(time.monotonic() - debut, 2)
             return reponse
 
+    # ---------------------------------------------------------- dénivelé
+
+    def denivele(self, payload) -> dict:
+        """Dénivelé du tracé par gpx2elev, demandé par la page une fois
+        l'itinéraire affiché : le calcul de l'itinéraire n'attend pas le
+        modèle de terrain."""
+        from . import denivele      # numpy et rasterio ne se chargent qu'au premier calcul
+        with self._verrou_denivele:
+            try:
+                return denivele.calculer((payload or {}).get("coordonnees"), self.dossier)
+            except (ValueError, denivele.ErreurDenivele) as exc:
+                return {"erreur": str(exc)}
+
     # ---------------------------------------------------------- calques
 
     def _calque(self, zone, lire):
@@ -243,5 +257,6 @@ class Application:
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
                "osm": self.calque_osm, "bdtopo": self.calque_bdtopo}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
-                "segment": self.telecharger_segment, "moteur": self.installer_moteur}
+                "segment": self.telecharger_segment, "moteur": self.installer_moteur,
+                "denivele": self.denivele}
         return get, post
