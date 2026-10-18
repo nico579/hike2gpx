@@ -107,8 +107,20 @@ plus proche (à 2,5 m et 0,3 m), puis trois jeux de tuiles sont comparés :
   relief, absents de nos tuiles ;
 - fabrication et itinéraires en 7 s.
 
-Reste à faire pour la phase complète : une région entière (extrait
-Geofabrik et BD TOPO), le rapprochement à grande échelle (doublons,
+Deuxième mesure, à la question de Nico : peut-on fabriquer la tuile au fil
+des zones consultées ? Oui. Un fichier `.rd5` n'a pas besoin d'être plein,
+et les tuiles Overpass gardées pour les franchissements contiennent tout ce
+dont BRouter a besoin (voies avec leurs nœuds numérotés et leur géométrie,
+nœuds étiquetés, itinéraires balisés). Sur les neuf tuiles en cache autour
+de Garéoult (250 km², 58 359 nœuds, 4 739 voies) : PBF écrit en 0,6 s,
+tuile fabriquée en 2,4 s (166 Ko). Mêmes itinéraires que brouter.de sur
+2,5 km (4 223 m) et 5 km (5 932 m) : l'écart du premier essai venait des
+itinéraires balisés, absents de l'export XML, pas des pseudo-tags. Une
+traversée de 12 km diffère encore (23 216 m contre 24 343 m), sans doute
+faute de relief.
+
+Reste à faire pour la phase complète : la fabrication au fil des zones, le
+rapprochement à grande échelle (doublons,
 raccordements, ponts), une étiquette qui rende les chemins IGN plus coûteux
 et visibles comme « non vérifiés », les franchissements appliqués aussi à
 ces chemins, le relief (Copernicus converti en fichiers d'altitude BRouter),
