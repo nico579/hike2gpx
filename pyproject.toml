@@ -34,3 +34,4 @@ version = {attr = "hike2gpx.__version__"}
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["integration: avec le vrai BRouter, sauté sans ses données (HIKE2GPX_HOME)"]
