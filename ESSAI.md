@@ -50,6 +50,24 @@ croisent la même clôture à 1,3 m l'un de l'autre. Les franchissements « sur 
 tracé » se reconnaissent désormais à ce que le tracé coupe leur coupe, et non
 à leur simple proximité.
 
+## Rejouer l'essai
+
+Les mesures viennent des outils de `tools/`, données dans `HIKE2GPX_HOME` :
+
+```
+$env:HIKE2GPX_HOME = 'D:\hike2gpx'
+.venv\Scripts\hike2gpx installer E5_N40
+.venv\Scripts\python.exe tools\essai_zone.py 43.25 5.95 43.3999 6.0999
+.venv\Scripts\python.exe tools\essai_routage.py 43.25 5.95 43.3999 6.0999 --statuts blocked
+.venv\Scripts\python.exe tools\essai_bdtopo.py 43.30 6.00 43.35 6.05
+```
+
+Les chiffres suivront les mises à jour d'OpenStreetMap. Le cas de la clôture
+en béton, lui, est figé dans `tests/donnees/gareoult_cloture.json` (extrait
+par `tools/extraire_cas.py`) et rejoué à chaque lancement des tests par
+`tests/test_integration.py`, avec le vrai BRouter : sans les coupes, le
+profil hike2gpx franchit la clôture en 93 m ; avec elles, il la contourne.
+
 ## Ce qu'on en tire
 
 1. **Le moteur est prêt, les données manquent.** Quand OpenStreetMap connaît

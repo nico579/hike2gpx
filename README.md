@@ -95,11 +95,17 @@ Ouverte.
 .venv\Scripts\python.exe -m pytest
 ```
 
-`test_regles.py` compare `regles.py` à sa source dans gpx2elev quand ce dépôt
-est présent sur la machine.
+Les tests unitaires tournent sans réseau ni BRouter. `test_regles.py` compare
+`regles.py` à sa source dans gpx2elev quand ce dépôt est présent sur la
+machine. `test_integration.py` rejoue un cas réel de Garéoult avec le vrai
+BRouter : il est sauté tant que BRouter et sa tuile E5_N40 manquent dans le
+dossier de données, et tourne en quelques secondes avec
+`$env:HIKE2GPX_HOME = 'D:\hike2gpx'`. Les outils de `tools/` rejouent l'essai
+décrit dans [ESSAI.md](ESSAI.md).
 
 ## Licence
 
 GPL-3.0-or-later. BRouter (MIT) est téléchargé à l'installation ; Leaflet 1.9.4
 (BSD-2-Clause) est fourni dans `hike2gpx/assets/web/leaflet`. Données ©
-contributeurs OpenStreetMap (ODbL), cartes © IGN.
+contributeurs OpenStreetMap (ODbL), y compris l'extrait de test
+`tests/donnees/gareoult_cloture.json` ; cartes © IGN.

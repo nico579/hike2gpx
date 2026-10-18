@@ -143,10 +143,16 @@ class Installation:
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     with zf.open(membre) as source, open(destination, "wb") as sortie:
                         shutil.copyfileobj(source, sortie)
-        source = (self.profils / "hiking-mountain.brf").read_text(encoding="utf-8")
-        (self.profils / f"{PROFIL}.brf").write_text(profil_hike2gpx(source), encoding="utf-8")
+        self.ecrire_profil()
         self.personnalises.mkdir(parents=True, exist_ok=True)
         self.segments.mkdir(parents=True, exist_ok=True)
+
+    def ecrire_profil(self) -> None:
+        """Réécrit hike2gpx.brf depuis hiking-mountain.brf : appelé aussi à
+        chaque démarrage, pour qu'un changement de REMPLACEMENTS s'applique
+        sans réinstaller BRouter."""
+        source = (self.profils / "hiking-mountain.brf").read_text(encoding="utf-8")
+        (self.profils / f"{PROFIL}.brf").write_text(profil_hike2gpx(source), encoding="utf-8")
 
     def segment_present(self, nom: str) -> bool:
         return (self.segments / f"{nom}.rd5").is_file()
@@ -182,6 +188,7 @@ class Serveur:
 
     def demarrer(self, attente_s: float = 30.0) -> None:
         inst = self.installation
+        inst.ecrire_profil()
         journal = open(inst.racine / "brouter.log", "ab")
         commande = [java(), MEMOIRE, f"-DmaxRunningTime={DELAI_CALCUL_S}", "-cp", str(inst.jar),
                     "btools.server.RouteServer", str(inst.segments), str(inst.profils),
