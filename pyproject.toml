@@ -10,7 +10,9 @@ license = "GPL-3.0-or-later"
 requires-python = ">=3.12,<3.13"
 dynamic = ["version"]
 dependencies = [
-    "nico579-commons>=0.5.1,<0.6",
+    # Commun des applications de nico579 ; l'extra tray apporte pystray et
+    # Pillow pour l'icône de la zone de notification.
+    "nico579-commons[tray]>=0.5.1,<0.6",
     # Moteur de dénivelé de gpx2elev (MNT, protocole 5 m / 20 m / 2 m) ; 0.6.2 : commun 0.5.
     "gpx2elev>=0.6.2,<0.7",
     # Écriture du réseau fusionné OSM + BD TOPO en PBF, le seul format que lit
@@ -34,6 +36,7 @@ hike2gpx = "hike2gpx.__main__:main"
 packages = ["hike2gpx", "hike2gpx.assets", "hike2gpx.assets.web"]
 
 [tool.setuptools.package-data]
+"hike2gpx.assets" = ["*.png", "*.ico"]
 "hike2gpx.assets.web" = ["*.html", "*.js", "*.css", "leaflet/*"]
 
 [tool.setuptools.dynamic]

@@ -50,8 +50,8 @@ def test_sur_le_trace_seulement_si_le_trace_coupe_la_coupe():
 def test_reglages_cle_ign(tmp_path):
     a = appli.Application(tmp_path)
     assert a.reglages() == {"cle_ign": ""}
-    assert a.enregistrer_reglages({"cle_ign": " ign_scan_ws "}) == {"cle_ign": "ign_scan_ws"}
-    assert appli.Application(tmp_path).reglages() == {"cle_ign": "ign_scan_ws"}
+    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1"}
+    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1"}
     assert "erreur" in a.enregistrer_reglages({"cle_ign": "<script>"})
 
 
