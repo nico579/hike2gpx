@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import shutil
@@ -33,6 +34,8 @@ from pathlib import Path
 from nico579_commons import atomique
 
 from . import __version__
+
+journal = logging.getLogger(__name__)
 
 VERSION = "1.7.10"
 ARCHIVE_URL = f"https://github.com/abrensch/brouter/releases/download/v{VERSION}/brouter-{VERSION}.zip"
@@ -302,26 +305,31 @@ class Serveur:
             inst.ecrire_profil()
         elif self.profils == inst.profils_maison:
             inst.ecrire_profil_maison()
-        journal = open(inst.racine / "brouter.log", "ab")
+        sortie = open(inst.racine / "brouter.log", "ab")
         commande = [java(), MEMOIRE, f"-DmaxRunningTime={DELAI_CALCUL_S}", "-cp", str(inst.jar),
                     "btools.server.RouteServer", str(self.segments or inst.segments), str(self.profils or inst.profils),
                     str(inst.personnalises), str(self.port), "4", "127.0.0.1"]
         options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+        debut = time.monotonic()
         try:
-            self.processus = subprocess.Popen(commande, cwd=inst.racine, stdout=journal,
+            self.processus = subprocess.Popen(commande, cwd=inst.racine, stdout=sortie,
                                               stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **options)
         finally:
-            journal.close()
-        fin = time.monotonic() + attente_s
+            sortie.close()
+        fin = debut + attente_s
         while time.monotonic() < fin:
             if self.processus.poll() is not None:
+                journal.error("BRouter s'est arrêté au démarrage (port %d, voir brouter.log)", self.port)
                 raise ErreurBRouter("BRouter s'est arrêté au démarrage (voir brouter.log).")
             try:
                 with socket.create_connection(("127.0.0.1", self.port), timeout=0.5):
+                    journal.info("BRouter démarré en %.1f s : port %d, PID %d, tuiles %s", time.monotonic() - debut,
+                                 self.port, self.processus.pid, self.segments or inst.segments)
                     return
             except OSError:
                 time.sleep(0.2)
         self.arreter()
+        journal.error("BRouter ne répond pas après %d s (port %d)", attente_s, self.port)
         raise ErreurBRouter("BRouter ne répond pas après son démarrage.")
 
     def arreter(self) -> None:
@@ -331,6 +339,7 @@ class Serveur:
                 self.processus.wait(5)
             except subprocess.TimeoutExpired:
                 self.processus.kill()
+            journal.info("BRouter arrêté : port %d, PID %d", self.port, self.processus.pid)
         self.processus = None
 
 

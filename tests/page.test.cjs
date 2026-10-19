@@ -21,23 +21,27 @@ function charger() {
   const couche = () => ({ addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
     on() { return this; }, setIcon() { return this; }, clearLayers() {}, remove() {}, closePopup() {} });
   const carte = { setView() { return this; }, on() {}, createPane() { return { style: {} }; },
-    hasLayer() { return false; }, getZoom() { return 14; } };
+    hasLayer() { return false; }, getZoom() { return 14; }, invalidateSize() {} };
   const requetes = [];
   const corps = element();
   const contexte = vm.createContext({
     console, URL, URLSearchParams, Blob, Date, Number, String,
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
-      createElement: element, createTextNode: String, body: corps },
+      createElement: element, createTextNode: String, body: corps, documentElement: element(),
+      addEventListener() {}, querySelectorAll() { return []; } },
     localStorage: { getItem() { return null; }, setItem() {} },
-    setTimeout() { return 0; }, clearTimeout() {},
+    setTimeout() { return 0; }, clearTimeout() {}, setInterval() { return 1; }, clearInterval() {},
     L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
       marker: couche, tileLayer: couche, divIcon: couche, control: { layers: couche },
-      latLng: (lat, lng) => ({ lat, lng }) },
+      latLng: (lat, lng) => ({ lat, lng }),
+      Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
+      DomEvent: { on() {}, disableClickPropagation() {} } },
     fetch(url, options) { return new Promise((resolve, reject) => requetes.push({ url, options, resolve, reject })); },
   });
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
-    + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler };", contexte);
+    + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
+    + " appliquerLangue, texteErreur };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps };
 }
@@ -103,12 +107,38 @@ test("revenir au départ ferme la boucle, une seule fois", () => {
   assert.equal(page.etat.points.length, 3);
 });
 
-test("pointeur d'attente le temps du calcul", async () => {
-  const { page, derniere, corps } = charger();
+test("pointeur d'attente et barre de progression le temps du calcul", async () => {
+  const { page, elements, derniere, corps } = charger();
   page.etat.points = [{ lat: 43.3, lon: 6 }, { lat: 43.3, lon: 6.01 }];
   const calcul = page.calculer();
   assert.equal(corps.classList.contains("calcul"), true);
+  assert.equal(elements.get("progression").hidden, false);
+  assert.match(elements.get("progressionTexte").textContent, /Préparation/);
   repondre(derniere(), resultat(6.01));
   await calcul;
   assert.equal(corps.classList.contains("calcul"), false);
+  assert.equal(elements.get("progression").hidden, true);
+});
+
+test("en anglais, la page traduit ses textes et les erreurs du serveur", async () => {
+  const { page, elements, derniere } = charger();
+  page.appliquerLangue("en");
+  page.ajouterPoint({ lat: 43.3, lng: 6 });
+  await page.calculer();
+  assert.equal(elements.get("statut").textContent, "Place a second point.");
+  const refus = { erreur: "Itinéraire refusé : …", code: "itineraire_refuse",
+    valeurs: { nature: "Clôture", statut: "blocked", distance_m: 1500 } };
+  assert.equal(page.texteErreur(refus), "Route refused: it passes a blocking crossing (Fence, 1.50 km from the start).");
+  assert.equal(page.texteErreur({ erreur: "Calcul trop long : rapprochez les points." }),
+    "Calculation too long: bring the points closer.");
+  page.appliquerLangue("fr");
+  assert.equal(elements.get("statut").textContent, "Posez un deuxième point.");
+});
+
+test("plein écran : la carte seule, puis la page revient", () => {
+  const { page, corps } = charger();
+  page.basculerPleinEcran();
+  assert.equal(corps.classList.contains("plein-ecran"), true);
+  page.basculerPleinEcran();
+  assert.equal(corps.classList.contains("plein-ecran"), false);
 });

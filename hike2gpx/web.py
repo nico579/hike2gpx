@@ -1,6 +1,7 @@
 """Serveur de la page de tracé, sur la boucle locale, par serveweb du commun."""
 from __future__ import annotations
 
+import logging
 import time
 import webbrowser
 from pathlib import Path
@@ -8,7 +9,7 @@ from pathlib import Path
 from nico579_commons import serveweb
 
 from . import __version__
-from .application import Application, lire_zone
+from .application import Application, configurer_journal, lire_zone
 
 HOST = "127.0.0.1"
 PORT = 8795
@@ -35,10 +36,12 @@ def demarrer(application: Application, port: int = PORT, plage: int = PLAGE):
 
 
 def servir(dossier: Path, port: int = PORT, ouvrir: bool = True) -> None:
+    chemin_journal = configurer_journal(dossier)
     application = Application(dossier)
     serveur, port = demarrer(application, port)
     url = f"http://{HOST}:{port}/"
-    print(f"hike2gpx {__version__} : {url} (données : {dossier})", flush=True)
+    print(f"hike2gpx {__version__} : {url} (données : {dossier}, journal : {chemin_journal})", flush=True)
+    logging.getLogger(__name__).info("hike2gpx %s démarré : %s, données %s", __version__, url, dossier)
     if ouvrir:
         webbrowser.open(url)
     try:

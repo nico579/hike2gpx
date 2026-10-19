@@ -34,9 +34,18 @@ html, body {
   padding: 14px 16px;
   border-right: 1px solid var(--bordure);
   background: var(--fond);
+  /* Ascenseur fin, invisible au repos et visible au survol : sa place ne
+     change jamais, rien ne bouge quand il apparaît. */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
+#panneau:hover, #panneau:focus-within { scrollbar-color: rgba(0, 0, 0, .35) transparent; }
 
 header { display: flex; align-items: baseline; gap: 8px; }
+/* Choix FR / EN du commun (nico579-langue.js), à droite de l'en-tête. */
+.langues { margin-left: auto; display: inline-flex; gap: 2px; }
+.bouton-langue { padding: 1px 6px; font-size: 11px; }
+.bouton-langue.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 h1 { font-size: 20px; margin: 0 0 6px; }
 h2 { font-size: 14px; margin: 14px 0 6px; }
 #version, .note { color: var(--discret); font-size: 12px; }
@@ -104,7 +113,40 @@ footer { margin-top: 16px; }
 body.calcul, body.calcul .leaflet-container, body.calcul .leaflet-grab,
 body.calcul .leaflet-interactive { cursor: progress; }
 
+/* Barre de progression en bas de la carte, le temps d'un calcul. */
+#progression {
+  position: absolute;
+  left: var(--panneau); right: 0; bottom: 0;
+  z-index: 1100;
+  padding: 6px 12px 8px;
+  background: rgba(255, 255, 255, .92);
+  border-top: 1px solid var(--bordure);
+  font-size: 13px;
+}
+#progression .piste { height: 6px; border-radius: 3px; background: #e3e8ee; overflow: hidden; margin-bottom: 4px; }
+#progressionBarre { height: 100%; width: 0; background: var(--accent); transition: width .4s ease; }
+
+/* Plein écran : la carte seule, sans le panneau ni le choix des fonds et calques. */
+.bouton-plein-ecran {
+  width: 34px; height: 34px; padding: 0;
+  font-size: 18px; line-height: 1;
+  background: #fff; border: 2px solid rgba(0, 0, 0, .2); border-radius: 4px;
+  background-clip: padding-box; cursor: pointer;
+}
+body.plein-ecran { --panneau: 0px; }
+body.plein-ecran #panneau, body.plein-ecran .leaflet-control-layers { display: none; }
+
+#journal { margin-top: 10px; }
+#journal summary { cursor: pointer; font-weight: 600; }
+#lignesJournal {
+  max-height: 260px; overflow: auto; margin: 6px 0 0; padding: 6px;
+  font-size: 11px; white-space: pre-wrap; word-break: break-word;
+  background: #f6f8fa; border: 1px solid var(--bordure); border-radius: 4px;
+}
+
 @media (max-width: 700px) {
   #carte { left: 0; bottom: 45vh; }
+  #progression { left: 0; bottom: 45vh; }
   #panneau { top: 55vh; width: 100%; border-right: 0; border-top: 1px solid var(--bordure); }
+  body.plein-ecran #carte, body.plein-ecran #progression { bottom: 0; }
 }
