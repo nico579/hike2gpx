@@ -11,7 +11,7 @@ from hike2gpx import regles
 
 SOURCE = Path(os.environ.get("GPX2ELEV_OBSTACLES", Path.home() / "Documents" / "gpxelev" / "android"
                              / "desktop" / "gpx2elev" / "obstacles.py"))
-NOMS = ("SOLID", "PASSAGES", "LABELS", "access", "status")
+NOMS = ("SOLID", "PASSAGES", "LABELS", "ACCESS_KEYS", "access", "status")
 
 
 def definitions(chemin):
