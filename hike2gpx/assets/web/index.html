@@ -17,67 +17,70 @@
   <header>
     <h1>hike2gpx</h1>
     <span id="version"></span>
+    <span class="langues" data-nico579-langue data-classe="bouton-langue"></span>
   </header>
-  <p class="aide">Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée.
+  <p class="aide" data-i18n="aide">Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée.
     Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.</p>
   <div class="boutons">
-    <button id="retirerDernier" type="button" disabled>Retirer le dernier point</button>
-    <button id="toutEffacer" type="button" disabled>Tout effacer</button>
-    <button id="boucler" type="button" disabled>Revenir au départ</button>
-    <button id="exporter" type="button" class="principal" disabled>Exporter le GPX</button>
+    <button id="retirerDernier" type="button" disabled data-i18n="bouton.retirerDernier">Retirer le dernier point</button>
+    <button id="toutEffacer" type="button" disabled data-i18n="bouton.toutEffacer">Tout effacer</button>
+    <button id="boucler" type="button" disabled data-i18n="bouton.boucler">Revenir au départ</button>
+    <button id="exporter" type="button" class="principal" disabled data-i18n="bouton.exporter">Exporter le GPX</button>
   </div>
-  <label class="option"><input type="checkbox" id="strict"> Mode strict : éviter aussi les passages à vérifier</label>
-  <label class="option"><input type="checkbox" id="ign" checked> Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</label>
-  <label class="option"><input type="checkbox" id="comparer" checked> Montrer le tracé qui ignore les barrières</label>
+  <label class="option"><input type="checkbox" id="strict"> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
+  <label class="option"><input type="checkbox" id="ign" checked> <span data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
+  <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
   <p id="statut" role="status"></p>
   <p id="noteCalques" class="note" hidden></p>
   <div id="actions"></div>
   <section id="resultat" hidden>
     <dl>
-      <dt>Distance</dt><dd id="distance"></dd>
-      <dt>Dénivelé</dt><dd id="denivele"></dd>
+      <dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd>
+      <dt data-i18n="resultat.denivele">Dénivelé</dt><dd id="denivele"></dd>
     </dl>
     <p id="sourceDenivele" class="note"></p>
     <p id="comparaison"></p>
-    <h2>Points à vérifier sur le tracé</h2>
-    <p id="aucunAVerifier" class="note" hidden>Aucun franchissement connu sur ce tracé.</p>
+    <h2 data-i18n="resultat.aVerifier">Points à vérifier sur le tracé</h2>
+    <p id="aucunAVerifier" class="note" hidden data-i18n="resultat.aucun">Aucun franchissement connu sur ce tracé.</p>
     <ol id="aVerifier"></ol>
   </section>
   <section class="legende">
-    <h2>Légende</h2>
+    <h2 data-i18n="legende.titre">Légende</h2>
     <ul>
-      <li><span class="trait itineraire"></span> itinéraire hike2gpx</li>
-      <li><span class="trait ign"></span> portion sur un chemin IGN absent d'OSM, à vérifier</li>
-      <li><span class="trait naif"></span> tracé standard, qui ignore les barrières</li>
-      <li><span class="pastille bloque"></span> franchissement bloquant</li>
-      <li><span class="pastille verifier"></span> franchissement à vérifier</li>
-      <li><span class="trait osm"></span> chemins OSM (tirets : sentiers)</li>
-      <li><span class="trait barriere"></span> clôtures et murs connus d'OSM</li>
-      <li><span class="trait bdtopo"></span> chemins BD TOPO de l'IGN</li>
+      <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
+      <li><span class="trait ign"></span> <span data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
+      <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
+      <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
+      <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
+      <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
+      <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
+      <li><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
     </ul>
-    <p class="note">Les calques de chemins se cochent sur la carte, en haut à droite, et
+    <p class="note" data-i18n="legende.note">Les calques de chemins se cochent sur la carte, en haut à droite, et
       s'affichent à partir du zoom 14.</p>
   </section>
   <details id="reglages">
-    <summary>Réglages</summary>
-    <label for="cleIgn">Clé IGN pour le SCAN 25</label>
+    <summary data-i18n="reglages.titre">Réglages</summary>
+    <label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label>
     <div class="ligne">
       <input id="cleIgn" type="text" autocomplete="off" spellcheck="false">
-      <button id="enregistrerCle" type="button">Enregistrer</button>
+      <button id="enregistrerCle" type="button" data-i18n="reglages.enregistrer">Enregistrer</button>
     </div>
-    <p class="note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN,
+    <p class="note" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN,
       sous Licence Ouverte.</p>
   </details>
   <details id="journal">
-    <summary>Journal des calculs</summary>
-    <p class="note">Erreurs, blocages et lenteurs, du plus ancien au plus récent : <span id="cheminJournal"></span></p>
+    <summary data-i18n="journal.titre">Journal des calculs</summary>
+    <p class="note"><span data-i18n="journal.note">Erreurs, blocages et lenteurs, du plus ancien au plus récent :</span>
+      <span id="cheminJournal"></span></p>
     <pre id="lignesJournal"></pre>
   </details>
-  <footer class="note">Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins BD TOPO
+  <footer class="note" data-i18n="pied">Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins BD TOPO
     et cartes © IGN, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain
     a toujours le dernier mot.</footer>
 </aside>
 <script src="/leaflet/leaflet.js"></script>
 <script src="/app.js"></script>
+<script src="/nico579-langue.js"></script>
 </body>
 </html>

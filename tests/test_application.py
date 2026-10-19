@@ -288,8 +288,19 @@ def test_routes_init_annonce_l_application(tmp_path):
     get, post = appli.Application(tmp_path).routes()
     assert get["init"]()["app"] == "hike2gpx"
     assert {"osm", "bdtopo"} <= set(get)
-    assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele"}
+    assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele", "langue"}
     assert "erreur" in post["segment"]({"nom": "../x"})
+
+
+def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
+    # /api/langue : le choix FR / EN du commun, à côté de la clé IGN.
+    a = appli.Application(tmp_path)
+    a.enregistrer_reglages({"cle_ign": "cle_test"})
+    get, post = a.routes()
+    assert get["langue"]()["code"] is None
+    assert post["langue"]({"code": "en"})["enregistre"]
+    autre = appli.Application(tmp_path)
+    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test"}
 
 
 def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch):

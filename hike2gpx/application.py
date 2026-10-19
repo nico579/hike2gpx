@@ -17,6 +17,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from nico579_commons import atomique
+from nico579_commons import langue as langue_commune
 
 from . import __version__, bdtopo, brouter, franchissements, maison
 
@@ -171,7 +172,8 @@ def portions_ign(trace) -> list:
 def entrees_ign(portions) -> list:
     """Les portions IGN comme points à vérifier sur le tracé."""
     return [{"cle": f"ign-{k}", "statut": "uncertain", "raison": RAISON_IGN,
-             "nature": f"Chemin IGN de {p['longueur_m']} m", "lat": p["coords"][0][0], "lon": p["coords"][0][1],
+             "nature": f"Chemin IGN de {p['longueur_m']} m", "longueur_m": p["longueur_m"],
+             "lat": p["coords"][0][0], "lon": p["coords"][0][1],
              "osm": None, "distance_m": p["debut_m"]} for k, p in enumerate(portions) if p["coords"]]
 
 
@@ -218,6 +220,18 @@ class Application:
         prefs["cle_ign"] = cle.strip()
         atomique.ecrire_json(self.preferences, prefs)
         return self.reglages()
+
+    def lire_langue(self):
+        """Langue choisie dans la page (« fr », « en »), ou None : le choix FR / EN
+        du commun prend alors celle du navigateur."""
+        prefs = atomique.lire_json(self.preferences, {})
+        return prefs.get("langue") if isinstance(prefs, dict) else None
+
+    def ecrire_langue(self, code: str) -> None:
+        prefs = atomique.lire_json(self.preferences, {})
+        prefs = prefs if isinstance(prefs, dict) else {}
+        prefs["langue"] = code
+        atomique.ecrire_json(self.preferences, prefs)
 
     def etat(self) -> dict:
         segments = sorted(p.stem for p in self.installation.segments.glob("*.rd5")) \
@@ -353,7 +367,7 @@ class Application:
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True}
         debut = time.monotonic()
         zone = zone_autour(points)
-        avertissement = None
+        avertissement = detail_avertissement = None
         journal.info("Itinéraire : %d points, %d tuiles, chemins IGN %s, mode strict %s", len(points),
                      len(franchissements.tuiles_zone(*zone)), "oui" if ign else "non", "oui" if strict else "non")
         try:
@@ -362,7 +376,8 @@ class Application:
                 nombre = len(franchissements.tuiles_zone(*zone))
                 if nombre > TUILES_MAX:
                     return {"erreur": f"Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus "
-                                      f"{TUILES_MAX}. Découpez le parcours en étapes plus courtes."}
+                                      f"{TUILES_MAX}. Découpez le parcours en étapes plus courtes.",
+                            "code": "zone_trop_etendue", "valeurs": {"nombre": nombre, "max": TUILES_MAX}}
                 manquants = [n for n in brouter.segments_zone(*zone)
                              if not self.installation.segment_present(n)]
                 if manquants:
@@ -385,6 +400,7 @@ class Application:
                     except (franchissements.ErreurDonnees, brouter.ErreurBRouter, OSError, ImportError,
                             ValueError) as exc:
                         avertissement = f"Chemins IGN indisponibles, calcul sur OSM seul : {exc}"
+                        detail_avertissement = str(exc)
                         journal.warning("Chemins IGN indisponibles : %s", exc)
                         ign = False     # pas de nouvel essai si la zone s'élargit
                     else:
@@ -417,6 +433,8 @@ class Application:
             mot = "bloquant" if f["statut"] == "blocked" else "à vérifier, en mode strict"
             return {"erreur": f"Itinéraire refusé : le tracé passe un franchissement {mot} "
                               f"({f['nature']}, à {km_texte(f['distance_m'])} du départ).",
+                    "code": "itineraire_refuse",
+                    "valeurs": {"nature": f["nature"], "statut": f["statut"], "distance_m": f["distance_m"]},
                     "traverses": traverses}
         portions = portions_ign(trace) if moteur_utilise == "maison" else []
         reponse = {"itineraire": trace, "zone": zone, "franchissements": liste,
@@ -424,7 +442,7 @@ class Application:
                    "denivele_m": _nombre(trace["properties"], "filtered ascend"),
                    "sur_le_trace": sorted(passages + entrees_ign(portions), key=lambda f: f["distance_m"]),
                    "portions_ign": portions, "moteur": moteur_utilise, "avertissement": avertissement,
-                   "strict": strict}
+                   "avertissement_detail": detail_avertissement, "strict": strict}
         if comparer:
             self._avancer("comparaison", 0.92)
             try:
@@ -476,10 +494,12 @@ class Application:
         return resultat if isinstance(resultat, dict) else {"troncons": resultat}
 
     def routes(self):
+        # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
+        get_langue, post_langue = langue_commune.routes(self.lire_langue, self.ecrire_langue)
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
                "osm": self.calque_osm, "bdtopo": self.calque_bdtopo,
-               "progression": self.progression, "journal": self.lire_journal}
+               "progression": self.progression, "journal": self.lire_journal, **get_langue}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
                 "segment": self.telecharger_segment, "moteur": self.installer_moteur,
-                "denivele": self.denivele}
+                "denivele": self.denivele, **post_langue}
         return get, post

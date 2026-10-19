@@ -42,6 +42,10 @@ html, body {
 #panneau:hover, #panneau:focus-within { scrollbar-color: rgba(0, 0, 0, .35) transparent; }
 
 header { display: flex; align-items: baseline; gap: 8px; }
+/* Choix FR / EN du commun (nico579-langue.js), à droite de l'en-tête. */
+.langues { margin-left: auto; display: inline-flex; gap: 2px; }
+.bouton-langue { padding: 1px 6px; font-size: 11px; }
+.bouton-langue.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 h1 { font-size: 20px; margin: 0 0 6px; }
 h2 { font-size: 14px; margin: 14px 0 6px; }
 #version, .note { color: var(--discret); font-size: 12px; }
