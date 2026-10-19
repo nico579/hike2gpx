@@ -73,6 +73,7 @@ dd { margin: 0; font-weight: 600; }
 .legende li { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
 .trait { display: inline-block; width: 26px; height: 0; border-top: 4px solid var(--accent); }
 .trait.naif { border-top: 3px dashed var(--naif); }
+.trait.ign { border-top: 4px dashed var(--verifier); }
 .trait.osm { border-top: 3px dashed #7b1fa2; }
 .trait.barriere { border-top: 3px solid #e53935; }
 .trait.bdtopo { border-top: 3px dashed #00897b; }

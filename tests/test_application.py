@@ -67,7 +67,103 @@ def simulee(tmp_path, monkeypatch):
         return [bloquant]
 
     monkeypatch.setattr(franchissements, "franchissements_zone", zone)
+
+    def sans_tuiles_maison(tuiles):
+        raise brouter.ErreurBRouter("tuiles maison hors de cet essai")
+
+    # Les essais du moteur standard passent par le repli : jamais de réseau ici.
+    monkeypatch.setattr(a.maison, "preparer", sans_tuiles_maison)
     return a, zones, appels, bloquant
+
+
+ENTETE = ["Longitude", "Latitude", "Elevation", "Distance", "CostPerKm", "ElevCost", "TurnCost", "NodeCost",
+          "InitialCost", "WayTags", "NodeTags", "Time", "Energy"]
+DETOUR = [(43.3, 6.0), (43.302, 6.003), (43.302, 6.007), (43.3, 6.01)]
+
+
+def trace_messages(points, morceaux):
+    """Tracé avec les messages de BRouter : morceaux = [(rang du dernier
+    point, longueur, étiquettes)], comme le serveur les écrit."""
+    t = trace(*points)
+    t["properties"]["messages"] = [ENTETE] + [
+        [str(round(points[k][1] * 1e6)), str(round(points[k][0] * 1e6)), "-8192", str(longueur),
+         "0", "0", "0", "0", "0", tags, "", "0", "0"] for k, longueur, tags in morceaux]
+    return t
+
+
+def test_portions_ign_lues_dans_les_messages():
+    t = trace_messages(DETOUR, [(1, 300, "highway=path"), (2, 324, "highway=path hike2gpx=ign"),
+                                (3, 300, "highway=track")])
+    assert appli.portions_ign(t) == [{"debut_m": 300, "longueur_m": 324,
+                                      "coords": [[43.302, 6.003], [43.302, 6.007]]}]
+    # Deux morceaux IGN de suite ne font qu'une portion.
+    t = trace_messages(DETOUR, [(1, 300, "highway=path hike2gpx=ign"), (2, 324, "foot=private hike2gpx=ign"),
+                                (3, 300, "highway=track")])
+    [p] = appli.portions_ign(t)
+    assert (p["debut_m"], p["longueur_m"], len(p["coords"])) == (0, 624, 3)
+    assert appli.portions_ign(trace(*DETOUR)) == []
+
+
+def test_itineraire_sur_les_tuiles_maison(simulee, monkeypatch):
+    a, zones, appels, bloquant = simulee
+    monkeypatch.setattr(a.maison, "preparer", lambda tuiles: ("segments-maison", [bloquant]))
+    monkeypatch.setattr(a, "moteur_maison", lambda segments: 2 if segments == "segments-maison" else 0)
+
+    def calculer(port, points, liste=(), **options):
+        appels.append((port, options.get("profil", "hike2gpx"), len(liste)))
+        if port == 2:
+            return trace_messages(DETOUR, [(1, 300, "highway=path"), (2, 324, "highway=path hike2gpx=ign"),
+                                           (3, 300, "highway=track")])
+        return trace((43.3, 6.0), (43.3, 6.01), longueur="800")
+
+    monkeypatch.setattr(brouter, "calculer", calculer)
+    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
+    assert r["moteur"] == "maison" and r["avertissement"] is None
+    # Les franchissements viennent du réseau fusionné, pas d'OSM seul.
+    assert zones == [] and appels == [(2, "hike2gpx", 1), (1, "hiking-mountain", 0)]
+    assert [p["longueur_m"] for p in r["portions_ign"]] == [324]
+    [f] = r["sur_le_trace"]
+    assert f["statut"] == "uncertain" and f["osm"] is None and f["distance_m"] == 300
+    assert [f["cle"] for f in r["naif_traverse"]] == ["x"]
+
+
+def test_itineraire_repli_sur_osm_quand_les_tuiles_maison_echouent(simulee, monkeypatch):
+    a, zones, _, _ = simulee
+    essais = []
+
+    def panne(tuiles):
+        essais.append(tuiles)
+        raise brouter.ErreurBRouter("Fabrication des tuiles impossible (WayLinker)")
+
+    monkeypatch.setattr(a.maison, "preparer", panne)
+    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o:
+                        trace((43.3, 6.0), (43.35, 6.005), (43.3, 6.01)))
+    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]], "comparer": False})
+    assert r["moteur"] == "standard" and "OSM seul" in r["avertissement"] and "WayLinker" in r["avertissement"]
+    # La zone s'élargit une fois ; les tuiles maison ne sont pas retentées.
+    assert len(essais) == 1 and len(zones) == 2 and r["portions_ign"] == []
+
+
+def test_itineraire_introuvable_sur_les_tuiles_maison_reste_une_erreur(simulee, monkeypatch):
+    a, zones, _, bloquant = simulee
+    monkeypatch.setattr(a.maison, "preparer", lambda tuiles: ("segments-maison", [bloquant]))
+    monkeypatch.setattr(a, "moteur_maison", lambda segments: 2)
+
+    def calculer(port, points, liste=(), **options):
+        if port != 2:
+            pytest.fail("repli sur OSM seul après un itinéraire introuvable")
+        raise brouter.ErreurBRouter("Aucun itinéraire ne respecte les barrières entre ces points.")
+
+    monkeypatch.setattr(brouter, "calculer", calculer)
+    assert "barrières" in a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})["erreur"]
+
+
+def test_itineraire_sans_les_chemins_ign(simulee, monkeypatch):
+    a, zones, _, _ = simulee
+    monkeypatch.setattr(a.maison, "preparer", lambda tuiles: pytest.fail("tuiles maison demandées"))
+    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace((43.3, 6.0), (43.3, 6.01)))
+    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]], "ign": False, "comparer": False})
+    assert r["moteur"] == "standard" and r["avertissement"] is None and len(zones) == 1
 
 
 def test_itineraire_et_comparaison(simulee, monkeypatch):

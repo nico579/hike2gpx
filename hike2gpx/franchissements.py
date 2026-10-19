@@ -443,6 +443,10 @@ def tuiles_zone(sud: float, ouest: float, nord: float, est: float) -> list:
     return [(i, j) for i in range(_rang(sud), _rang(nord) + 1) for j in range(_rang(ouest), _rang(est) + 1)]
 
 
+def tuile_du_point(lat: float, lon: float) -> tuple:
+    return _rang(lat), _rang(lon)
+
+
 def bornes_tuile(i: int, j: int) -> tuple:
     return (round(i * TUILE_DEG, 6), round(j * TUILE_DEG, 6),
             round((i + 1) * TUILE_DEG, 6), round((j + 1) * TUILE_DEG, 6))

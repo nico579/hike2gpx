@@ -13,6 +13,9 @@ dependencies = [
     "nico579-commons>=0.5.1,<0.6",
     # Moteur de dénivelé de gpx2elev (MNT, protocole 5 m / 20 m / 2 m) ; 0.6.2 : commun 0.5.
     "gpx2elev>=0.6.2,<0.7",
+    # Écriture du réseau fusionné OSM + BD TOPO en PBF, le seul format que lit
+    # le créateur de tuiles de BRouter (maison.py).
+    "osmium>=4.3,<5",
 ]
 
 [project.optional-dependencies]

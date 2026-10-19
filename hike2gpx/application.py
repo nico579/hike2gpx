@@ -16,7 +16,7 @@ from pathlib import Path
 
 from nico579_commons import atomique
 
-from . import __version__, bdtopo, brouter, franchissements
+from . import __version__, bdtopo, brouter, franchissements, maison
 
 ZONE_CALQUE_MAX_DEG2 = 0.03  # une vue au zoom 14, avec sa marge ; au-delà, trop de tuiles à lire
 MARGE_DEG = 0.01            # environ 1 km autour des points
@@ -98,6 +98,52 @@ def sur_le_trace(coordonnees, liste) -> list:
     return sorted(resultat, key=lambda f: f["distance_m"])
 
 
+RAISON_IGN = "Chemin de la BD TOPO absent d'OpenStreetMap : existence et accès à vérifier"
+
+
+def portions_ign(trace) -> list:
+    """Portions du tracé sur des chemins IGN, lues dans les messages de
+    BRouter : chaque ligne y résume un morceau de mêmes étiquettes, avec sa
+    longueur et la position, en millionièmes de degré, de son dernier point
+    (constaté le 19 octobre : c'est exactement un point du tracé)."""
+    messages = (trace.get("properties") or {}).get("messages") or []
+    if len(messages) < 2 or "WayTags" not in messages[0]:
+        return []
+    entete = messages[0]
+    i_lon, i_lat, i_dist, i_tags = (entete.index(c) for c in ("Longitude", "Latitude", "Distance", "WayTags"))
+    coords = trace["geometry"]["coordinates"]
+    micro = [(round(c[0] * 1e6), round(c[1] * 1e6)) for c in coords]
+
+    def rang(position, depuis):
+        for k in range(depuis, len(micro)):
+            if micro[k] == position:
+                return k
+        return min(range(depuis, len(micro)),       # arrondi inattendu : le plus proche
+                   key=lambda k: abs(micro[k][0] - position[0]) + abs(micro[k][1] - position[1]))
+
+    portions, cumul, debut_rang = [], 0.0, 0
+    for ligne in messages[1:]:
+        longueur = float(ligne[i_dist])
+        fin_rang = rang((int(ligne[i_lon]), int(ligne[i_lat])), debut_rang)
+        if "hike2gpx=ign" in ligne[i_tags]:
+            if portions and portions[-1]["fin_rang"] == debut_rang:
+                portions[-1].update(fin_rang=fin_rang, longueur_m=portions[-1]["longueur_m"] + longueur)
+            else:
+                portions.append({"debut_m": round(cumul), "longueur_m": longueur, "debut_rang": debut_rang,
+                                 "fin_rang": fin_rang})
+        cumul += longueur
+        debut_rang = fin_rang
+    return [{"debut_m": p["debut_m"], "longueur_m": round(p["longueur_m"]),
+             "coords": [[c[1], c[0]] for c in coords[p["debut_rang"]:p["fin_rang"] + 1]]} for p in portions]
+
+
+def entrees_ign(portions) -> list:
+    """Les portions IGN comme points à vérifier sur le tracé."""
+    return [{"cle": f"ign-{k}", "statut": "uncertain", "raison": RAISON_IGN,
+             "nature": f"Chemin IGN de {p['longueur_m']} m", "lat": p["coords"][0][0], "lon": p["coords"][0][1],
+             "osm": None, "distance_m": p["debut_m"]} for k, p in enumerate(portions) if p["coords"]]
+
+
 def _nombre(proprietes, cle):
     try:
         return float(proprietes.get(cle))
@@ -109,8 +155,10 @@ class Application:
     def __init__(self, dossier: Path):
         self.dossier = Path(dossier)
         self.installation = brouter.Installation(self.dossier)
+        self.maison = maison.TuilesMaison(self.installation, self.dossier)
         self.preferences = self.dossier / "preferences.json"
         self.serveur = None
+        self.serveur_maison = None
         self._verrou_moteur = threading.Lock()
         self._verrou_calcul = threading.Lock()
         self._verrou_denivele = threading.Lock()
@@ -149,11 +197,25 @@ class Application:
                 self.serveur = serveur
             return self.serveur.port
 
+    def moteur_maison(self, segments) -> int:
+        """Serveur BRouter sur les tuiles maison, relancé quand elles changent
+        de dossier (une nouvelle fabrication)."""
+        with self._verrou_moteur:
+            s = self.serveur_maison
+            if s is None or s.segments != segments or s.processus is None or s.processus.poll() is not None:
+                if s is not None:
+                    s.arreter()
+                s = brouter.Serveur(self.installation, segments=segments, profils=self.installation.profils_maison)
+                s.demarrer()
+                self.serveur_maison = s
+            return s.port
+
     def arreter(self) -> None:
         with self._verrou_moteur:
-            if self.serveur is not None:
-                self.serveur.arreter()
-                self.serveur = None
+            for serveur in (self.serveur, self.serveur_maison):
+                if serveur is not None:
+                    serveur.arreter()
+            self.serveur = self.serveur_maison = None
 
     def installer_moteur(self, _payload=None) -> dict:
         try:
@@ -181,11 +243,13 @@ class Application:
         except ValueError as exc:
             return {"erreur": str(exc)}
         strict, comparer = bool(payload.get("strict")), bool(payload.get("comparer", True))
+        ign = bool(payload.get("ign", True))
         if not self.installation.installee():
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True}
         with self._verrou_calcul:
             debut = time.monotonic()
             zone = zone_autour(points)
+            avertissement = None
             try:
                 for essai in range(ELARGISSEMENTS):
                     manquants = [n for n in brouter.segments_zone(*zone)
@@ -193,8 +257,25 @@ class Application:
                     if manquants:
                         return {"erreur": "Données BRouter absentes pour cette zone.",
                                 "segments_manquants": manquants}
-                    liste = franchissements.franchissements_zone(*zone, self.dossier)
-                    trace = brouter.calculer(self.moteur(), points, liste, strict=strict)
+                    trace, moteur_utilise = None, "standard"
+                    if ign:
+                        # Tuiles maison : OSM plus les chemins IGN qui y manquent, avec
+                        # les franchissements du réseau fusionné. Si elles ne peuvent se
+                        # faire, le moteur standard calcule sur OSM seul ; un itinéraire
+                        # introuvable sur elles reste une erreur.
+                        try:
+                            segments, liste = self.maison.preparer(franchissements.tuiles_zone(*zone))
+                            port = self.moteur_maison(segments)
+                        except (franchissements.ErreurDonnees, brouter.ErreurBRouter, OSError, ImportError,
+                                ValueError) as exc:
+                            avertissement = f"Chemins IGN indisponibles, calcul sur OSM seul : {exc}"
+                            ign = False     # pas de nouvel essai si la zone s'élargit
+                        else:
+                            trace = brouter.calculer(port, points, liste, strict=strict)
+                            moteur_utilise = "maison"
+                    if trace is None:
+                        liste = franchissements.franchissements_zone(*zone, self.dossier)
+                        trace = brouter.calculer(self.moteur(), points, liste, strict=strict)
                     coords = trace["geometry"]["coordinates"]
                     etendue = (min(c[1] for c in coords), min(c[0] for c in coords),
                                max(c[1] for c in coords), max(c[0] for c in coords))
@@ -205,10 +286,14 @@ class Application:
                     return {"erreur": "Le tracé sort sans cesse de la zone examinée : rapprochez les points."}
             except (franchissements.ErreurDonnees, brouter.ErreurBRouter) as exc:
                 return {"erreur": str(exc)}
+            portions = portions_ign(trace) if moteur_utilise == "maison" else []
             reponse = {"itineraire": trace, "zone": zone, "franchissements": liste,
                        "longueur_m": _nombre(trace["properties"], "track-length"),
                        "denivele_m": _nombre(trace["properties"], "filtered ascend"),
-                       "sur_le_trace": sur_le_trace(coords, liste), "strict": strict}
+                       "sur_le_trace": sorted(sur_le_trace(coords, liste) + entrees_ign(portions),
+                                              key=lambda f: f["distance_m"]),
+                       "portions_ign": portions, "moteur": moteur_utilise, "avertissement": avertissement,
+                       "strict": strict}
             if comparer:
                 try:
                     naif = brouter.calculer(self.moteur(), points, profil="hiking-mountain")

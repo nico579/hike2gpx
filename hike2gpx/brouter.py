@@ -58,6 +58,20 @@ REMPLACEMENTS = (
      "assign initialcost switch or nodeaccessgranted=yes footaccess 0 1000000"),
 )
 
+# Tuiles maison (OSM + BD TOPO, voir fusion.py et maison.py) : une clé de plus
+# dans la table de tags marque les chemins IGN, que le profil maison rend une
+# fois et demie plus coûteux qu'un chemin OSM équivalent.
+CLE_IGN = "hike2gpx;0000000001 ign\n\n"
+PENALITE_IGN = 0.5
+REMPLACEMENT_IGN = ("assign costfactor\nadd town_penalty",
+                    f"assign ign_penalty switch hike2gpx=ign {PENALITE_IGN} 0\n\n"
+                    "assign costfactor\nadd ign_penalty\nadd town_penalty")
+# Profils que lit le créateur de tuiles, absents de l'archive : pris dans le
+# dépôt de BRouter, au tag de la version installée, et vérifiés.
+PROFILS_CREATION_URL = f"https://raw.githubusercontent.com/abrensch/brouter/v{VERSION}/misc/profiles2/"
+PROFILS_CREATION = {"all.brf": "87d49d6a2850db277e2c86a81de5e2e6727e0498e47f10662ababa0a9b56f144",
+                    "softaccess.brf": "0c04a5889d61bef88b62a8abd22e76555b2d3a2299e33811b2f7e15ac7587190"}
+
 MESSAGES = (
     ("datafile", "Données BRouter absentes pour cette zone."),
     ("not found", "Aucun chemin praticable trouvé près d'un des points."),
@@ -79,6 +93,20 @@ def profil_hike2gpx(source: str) -> str:
         texte = texte.replace(avant, apres)
     return (f"# hike2gpx : hiking-mountain de BRouter {VERSION}, foot=no respecté sur les voies\n"
             "# et les nœuds (voir hike2gpx/brouter.py, REMPLACEMENTS).\n" + texte)
+
+
+def lookups_ign(source: str) -> str:
+    """Table de tags de BRouter, plus la clé hike2gpx=ign à la fin du contexte way."""
+    if source.count("---context:node") != 1 or "\nhike2gpx;" in source:
+        raise ValueError("Table de tags BRouter inattendue.")
+    return source.replace("---context:node", CLE_IGN + "---context:node")
+
+
+def profil_maison(source: str) -> str:
+    """Profil hike2gpx des tuiles maison : les chemins IGN coûtent davantage."""
+    if source.count(REMPLACEMENT_IGN[0]) != 1:
+        raise ValueError("Profil BRouter inattendu : assemblage du coût introuvable.")
+    return source.replace(*REMPLACEMENT_IGN)
 
 
 def nom_segment(lat: float, lon: float) -> str:
@@ -123,14 +151,29 @@ class Installation:
         self.profils = self.programme / "profiles2"
         self.personnalises = self.racine / "customprofiles"
         self.segments = self.racine / "segments4"
+        self.maison = self.racine / "maison"
+        self.profils_maison = self.maison / "profils"
+        self.creation = self.maison / "creation"
 
     def installee(self) -> bool:
         return self.jar.is_file() and (self.profils / f"{PROFIL}.brf").is_file()
 
+    def _archive(self) -> Path:
+        """L'archive épinglée, reprise telle quelle si elle est déjà là et intacte."""
+        archive = self.racine / f"brouter-{VERSION}.zip"
+        if archive.is_file():
+            empreinte = hashlib.sha256()
+            with open(archive, "rb") as f:
+                while bloc := f.read(1 << 20):
+                    empreinte.update(bloc)
+            if empreinte.hexdigest() == ARCHIVE_SHA256:
+                return archive
+        return _telecharger(ARCHIVE_URL, archive, ARCHIVE_SHA256)
+
     def installer(self) -> None:
-        """Télécharge l'archive épinglée, en extrait le serveur et les profils,
-        puis écrit le profil hike2gpx."""
-        archive = _telecharger(ARCHIVE_URL, self.racine / f"brouter-{VERSION}.zip", ARCHIVE_SHA256)
+        """Extrait de l'archive épinglée le serveur et les profils, puis écrit
+        le profil hike2gpx."""
+        archive = self._archive()
         prefixe = f"brouter-{VERSION}/"
         with zipfile.ZipFile(archive) as zf:
             for membre in zf.infolist():
@@ -138,7 +181,9 @@ class Installation:
                 if membre.is_dir() or not nom.startswith(prefixe):
                     continue
                 relatif = nom[len(prefixe):]
-                if relatif == self.jar.name or (relatif.startswith("profiles2/") and "/" not in relatif[10:]):
+                # lib/ : les deux jars dont le créateur de tuiles a besoin pour lire le PBF.
+                if relatif == self.jar.name or (relatif.startswith("profiles2/") and "/" not in relatif[10:]) \
+                        or (relatif.startswith("lib/") and relatif.endswith(".jar") and "/" not in relatif[4:]):
                     destination = self.programme / relatif
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     with zf.open(membre) as source, open(destination, "wb") as sortie:
@@ -153,6 +198,23 @@ class Installation:
         sans réinstaller BRouter."""
         source = (self.profils / "hiking-mountain.brf").read_text(encoding="utf-8")
         (self.profils / f"{PROFIL}.brf").write_text(profil_hike2gpx(source), encoding="utf-8")
+
+    def preparer_maison(self) -> None:
+        """Table de tags étendue et profils des tuiles maison, à côté de ceux
+        de BRouter, qui restent intacts pour le moteur standard."""
+        if not any((self.programme / "lib").glob("*.jar")):
+            self.installer()        # installation d'avant les tuiles maison, sans lib/
+        self.creation.mkdir(parents=True, exist_ok=True)
+        self.profils_maison.mkdir(parents=True, exist_ok=True)
+        for nom, empreinte in PROFILS_CREATION.items():
+            if not (self.creation / nom).is_file():
+                _telecharger(PROFILS_CREATION_URL + nom, self.creation / nom, empreinte)
+        shutil.copy2(self.profils / "trekking.brf", self.creation / "trekking.brf")
+        lookups = lookups_ign((self.profils / "lookups.dat").read_text(encoding="utf-8"))
+        for dossier in (self.creation, self.profils_maison):
+            (dossier / "lookups.dat").write_text(lookups, encoding="utf-8")
+        source = (self.profils / "hiking-mountain.brf").read_text(encoding="utf-8")
+        (self.profils_maison / f"{PROFIL}.brf").write_text(profil_maison(profil_hike2gpx(source)), encoding="utf-8")
 
     def segment_present(self, nom: str) -> bool:
         return (self.segments / f"{nom}.rd5").is_file()
@@ -179,19 +241,55 @@ def port_libre() -> int:
         return s.getsockname()[1]
 
 
-class Serveur:
-    """Le serveur BRouter de cette instance, arrêté par son propre PID."""
+def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path) -> Path:
+    """Tuiles .rd5 d'un fichier OSM (PBF) par le créateur de tuiles de BRouter,
+    dans dossier/segments. Options du script officiel, plus avoidMapPolling :
+    sans elle, le lecteur attend 10 s par tour que le fichier grossisse."""
+    librairies = sorted((inst.programme / "lib").glob("*.jar"))
+    if not librairies:
+        raise ErreurBRouter("BRouter incomplet pour fabriquer des tuiles : réinstallez-le.")
+    shutil.rmtree(dossier, ignore_errors=True)
+    for d in ("nodetiles", "waytiles", "waytiles55", "nodes55", "unodes55", "segments", "srtm1", "srtm3"):
+        (dossier / d).mkdir(parents=True)
+    commande = [java(), "-Xmx1g", "-DuseDenseMaps=true", "-DavoidMapPolling=true",
+                "-cp", os.pathsep.join(str(p) for p in [inst.jar, *librairies])]
+    creation = inst.creation
+    etapes = [
+        ["btools.mapcreator.OsmFastCutter", str(creation / "lookups.dat"), "nodetiles", "waytiles", "nodes55",
+         "waytiles55", "bordernids.dat", "relations.dat", "restrictions.dat", str(creation / "all.brf"),
+         str(creation / "trekking.brf"), str(creation / "softaccess.brf"), str(pbf)],
+        ["btools.mapcreator.PosUnifier", "nodes55", "unodes55", "bordernids.dat", "bordernodes.dat", "srtm1", "srtm3"],
+        ["-DskipEncodingCheck=true", "btools.mapcreator.WayLinker", "unodes55", "waytiles55", "bordernodes.dat",
+         "restrictions.dat", str(creation / "lookups.dat"), str(creation / "all.brf"), "segments", "rd5"],
+    ]
+    options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+    for etape in etapes:
+        r = subprocess.run(commande + etape, cwd=dossier, capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", stdin=subprocess.DEVNULL, **options)
+        if r.returncode:
+            classe = next(e for e in etape if e.startswith("btools")).rsplit(".", 1)[-1]
+            raise ErreurBRouter(f"Fabrication des tuiles impossible ({classe}) : {(r.stderr or r.stdout).strip()[-300:]}")
+    return dossier / "segments"
 
-    def __init__(self, installation: Installation, port: int | None = None):
+
+class Serveur:
+    """Un serveur BRouter de cette instance, arrêté par son propre PID. Par
+    défaut sur les tuiles et profils de BRouter ; les tuiles maison passent
+    leurs propres dossiers."""
+
+    def __init__(self, installation: Installation, port: int | None = None, *,
+                 segments: Path | None = None, profils: Path | None = None):
         self.installation, self.port = installation, port or port_libre()
+        self.segments, self.profils = segments, profils
         self.processus = None
 
     def demarrer(self, attente_s: float = 30.0) -> None:
         inst = self.installation
-        inst.ecrire_profil()
+        if self.profils is None:
+            inst.ecrire_profil()
         journal = open(inst.racine / "brouter.log", "ab")
         commande = [java(), MEMOIRE, f"-DmaxRunningTime={DELAI_CALCUL_S}", "-cp", str(inst.jar),
-                    "btools.server.RouteServer", str(inst.segments), str(inst.profils),
+                    "btools.server.RouteServer", str(self.segments or inst.segments), str(self.profils or inst.profils),
                     str(inst.personnalises), str(self.port), "4", "127.0.0.1"]
         options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
         try:

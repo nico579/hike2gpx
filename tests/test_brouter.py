@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -52,3 +53,34 @@ def test_requete_coupes_interdites_et_ponderees():
 
 def test_requete_sans_franchissement_sans_polylines():
     assert "polylines" not in brouter.requete([(43.0, 6.0), (43.5, 6.5)])
+
+
+def test_lookups_ign_ajoute_la_cle_au_contexte_des_voies():
+    source = "---lookupversion:10\n---context:way\nhighway;0000000001 path\n\n---context:node\nbarrier;0000000001 gate\n"
+    voies, noeuds = brouter.lookups_ign(source).split("---context:node")
+    assert voies.endswith("highway;0000000001 path\n\nhike2gpx;0000000001 ign\n\n") and "hike2gpx" not in noeuds
+    with pytest.raises(ValueError):
+        brouter.lookups_ign(brouter.lookups_ign(source))       # jamais deux fois
+
+
+def test_profil_maison_rend_les_chemins_ign_plus_couteux():
+    profil = brouter.profil_maison(brouter.profil_hike2gpx(REFERENCE.read_text(encoding="utf-8")))
+    assert f"assign ign_penalty switch hike2gpx=ign {brouter.PENALITE_IGN} 0" in profil
+    assert "assign costfactor\nadd ign_penalty\nadd town_penalty" in profil
+    with pytest.raises(ValueError):
+        brouter.profil_maison("assign dummy 0\n")
+
+
+def test_archive_reprise_si_intacte(tmp_path, monkeypatch):
+    inst = brouter.Installation(tmp_path)
+    inst.racine.mkdir(parents=True)
+    archive = inst.racine / f"brouter-{brouter.VERSION}.zip"
+    archive.write_bytes(b"archive")
+    monkeypatch.setattr(brouter, "ARCHIVE_SHA256", hashlib.sha256(b"archive").hexdigest())
+    monkeypatch.setattr(brouter, "_telecharger", lambda *a: pytest.fail("archive téléchargée à nouveau"))
+    assert inst._archive() == archive
+    archive.write_bytes(b"abimee")
+    telechargees = []
+    monkeypatch.setattr(brouter, "_telecharger", lambda url, cible, empreinte: telechargees.append(cible) or cible)
+    inst._archive()
+    assert telechargees == [archive]
