@@ -242,9 +242,19 @@ class Installation:
 
 
 def java() -> str:
+    """Le Java qui fait tourner BRouter. Le programme figé n'emploie que celui
+    qu'il embarque (_internal/jre, posé par build.py), la version éprouvée
+    avec lui, jamais un Java du système ; depuis les sources, c'est celui du
+    système."""
+    nom = "java.exe" if os.name == "nt" else "java"
+    if getattr(sys, "frozen", False):
+        embarque = Path(sys._MEIPASS) / "jre" / "bin" / nom
+        if embarque.is_file():
+            return str(embarque)
+        raise ErreurBRouter("Le Java du programme est introuvable : réinstallez hike2gpx.")
     candidats = [shutil.which("java")]
     if os.environ.get("JAVA_HOME"):
-        candidats.append(str(Path(os.environ["JAVA_HOME"]) / "bin" / ("java.exe" if os.name == "nt" else "java")))
+        candidats.append(str(Path(os.environ["JAVA_HOME"]) / "bin" / nom))
     for chemin in candidats:
         if chemin and Path(chemin).is_file():
             return chemin

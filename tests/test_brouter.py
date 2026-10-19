@@ -93,3 +93,17 @@ def test_archive_reprise_si_intacte(tmp_path, monkeypatch):
     monkeypatch.setattr(brouter, "_telecharger", lambda url, cible, empreinte: telechargees.append(cible) or cible)
     inst._archive()
     assert telechargees == [archive]
+
+
+def test_programme_fige_n_emploie_que_son_java(monkeypatch, tmp_path):
+    # Figé, hike2gpx prend le JRE embarqué (_internal/jre), jamais le Java du
+    # système, même présent : c'est la version éprouvée avec le programme.
+    monkeypatch.setattr(brouter.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(brouter.sys, "_MEIPASS", str(tmp_path), raising=False)
+    monkeypatch.setattr(brouter.shutil, "which", lambda nom: pytest.fail("Java du système consulté"))
+    with pytest.raises(brouter.ErreurBRouter, match="réinstallez"):
+        brouter.java()
+    java = tmp_path / "jre" / "bin" / ("java.exe" if brouter.os.name == "nt" else "java")
+    java.parent.mkdir(parents=True)
+    java.write_bytes(b"")
+    assert brouter.java() == str(java)

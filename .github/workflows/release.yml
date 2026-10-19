@@ -1,0 +1,151 @@
+name: Release (programmes des 3 systèmes)
+
+# Construit le programme hike2gpx sur chaque système (PyInstaller n'est pas un
+# compilateur croisé : chaque binaire naît sur son système), l'éprouve par son
+# auto-test, puis le publie au tag. Même schéma que gpxsolar.
+#
+# Déclenchement :
+#   - push d'un tag v*      (git tag v0.2.0 && git push origin v0.2.0) : publie
+#   - pull request qui change ce qui entre dans le programme : construit et
+#     éprouve les quatre binaires sans rien publier
+#   - manuel (workflow_dispatch) avec le tag ; publier=false construit et
+#     éprouve seulement
+#
+# Archives, sous le nom que donne nico579_commons.maj_install.archive_standard
+# (celui que cherchera la mise à jour automatique), chacune avec son .sha256 :
+#   hike2gpx-windows-x86_64.zip     dossier hike2gpx-windows-x86_64 (hike2gpx.exe + _internal/)
+#   hike2gpx-linux-x86_64.tar.gz    dossier hike2gpx-linux-x86_64 (hike2gpx + _internal/)
+#   hike2gpx-macos-arm64.zip        hike2gpx.app, Apple Silicon
+#   hike2gpx-macos-x86_64.zip       hike2gpx.app, Mac Intel
+# Java (JRE Temurin 21, pour BRouter) est dans le programme. Sous macOS, il
+# faut macOS 15 ou plus : les roues de rasterio 1.5 ne descendent pas plus bas.
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'hike2gpx/**'
+      - 'lanceur.py'
+      - 'hike2gpx.spec'
+      - 'build.py'
+      - 'requirements*.in'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'LICENSE'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag de la release (ex : v0.2.0)'
+        required: true
+      publier:
+        description: 'Publier la release (décocher : construire et éprouver seulement)'
+        type: boolean
+        default: true
+
+# Droits minimaux du GITHUB_TOKEN : lecture seule. Le job qui publie déclare
+# lui-même le droit d'écriture dont il a besoin.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu-22.04 : la glibc la plus ancienne des runners, donc le
+        # programme Linux qui tourne sur le plus de distributions (comme
+        # blink2video et watch2notif). macos-latest est Apple Silicon ;
+        # macos-15-intel, dernier runner x86_64, est annoncé jusqu'à août 2027.
+        os: [windows-latest, ubuntu-22.04, macos-latest, macos-15-intel]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Vérifier le tag et la version
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          version=$(python build.py --version)
+          test "$TAG" = "v$version" || { echo "::error::$TAG ne correspond pas à la version $version"; exit 1; }
+
+      # build.py fait tout, comme en local : environnement isolé rempli du
+      # verrou, Java embarqué, PyInstaller, auto-test du programme construit
+      # (Java, pyosmium, rasterio, page), archive et empreinte.
+      - name: Construire, éprouver et emballer
+        run: python build.py --archive
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          # matrix.os et non runner.os : les deux jobs macOS donneraient tous
+          # deux « macOS », et deux artefacts ne peuvent porter le même nom.
+          name: asset-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            dist/hike2gpx-*.zip
+            dist/hike2gpx-*.tar.gz
+            dist/hike2gpx-*.sha256
+
+  publish:
+    name: publier la release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publier)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artefacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Composer le texte et publier
+        working-directory: artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Pas de checkout dans ce job, donc pas de .git : gh reçoit le dépôt.
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          for fichier in hike2gpx-windows-x86_64.zip hike2gpx-linux-x86_64.tar.gz \
+                         hike2gpx-macos-arm64.zip hike2gpx-macos-x86_64.zip; do
+            test -s "$fichier" && test -s "$fichier.sha256"
+          done
+          {
+            printf '## hike2gpx %s\n\n' "$TAG"
+            printf 'Programme autonome : Python, ses bibliothèques et Java (pour BRouter) sont dedans, rien à installer. '
+            printf 'Décompresser l’archive de son système puis lancer hike2gpx (sous macOS, hike2gpx.app, macOS 15 ou plus).\n\n'
+            printf '| Fichier | SHA256 |\n|---|---|\n'
+            for sha in *.sha256; do
+              printf '| `%s` | `%s` |\n' "${sha%.sha256}" "$(cut -d' ' -f1 "$sha")"
+            done
+          } > "$RUNNER_TEMP/body.md"
+          cat "$RUNNER_TEMP/body.md"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/body.md"
+            gh release upload "$TAG" hike2gpx-* --clobber
+          else
+            gh release create "$TAG" hike2gpx-* --title "hike2gpx $TAG" \
+              --notes-file "$RUNNER_TEMP/body.md" --verify-tag
+          fi

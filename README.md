@@ -149,10 +149,37 @@ coupes respectent les interdictions. `test_page.py` fait tourner la page sous
 Node, quand Node est installé. Les outils de `tools/` rejouent l'essai décrit
 dans [ESSAI.md](ESSAI.md).
 
+## Construire le programme
+
+```
+python build.py --archive
+```
+
+`build.py` crée un environnement isolé, l'emplit du verrou
+`requirements-build.txt` (versions et empreintes exactes, PyInstaller
+compris), télécharge le JRE Temurin 21 de ce système en vérifiant l'empreinte
+que publie Adoptium, construit le programme avec `hike2gpx.spec`, puis lance
+son auto-test (`--self-test-version`) : Java embarqué, pyosmium, rasterio,
+page. Avec `--archive`, il emballe l'archive publiée et son `.sha256`, sous le
+nom qu'attend la mise à jour automatique du commun. Le programme figé n'emploie
+que son Java ; depuis les sources, hike2gpx prend celui du système. Sur
+GitHub, `release.yml` fait la même chose sur les quatre systèmes à chaque tag,
+et sur chaque pull request qui touche au programme. Sous macOS, il faut
+macOS 15 ou plus, comme pour les roues de rasterio.
+
+Les verrous se régénèrent avec uv :
+
+```
+uv pip compile pyproject.toml --universal --python-version 3.12 --generate-hashes -o requirements.txt
+uv pip compile requirements-build.in --universal --python-version 3.12 --generate-hashes -o requirements-build.txt
+```
+
 ## Licence
 
 GPL-3.0-or-later. BRouter (MIT) est téléchargé à l'installation ; Leaflet 1.9.4
-(BSD-2-Clause) est fourni dans `hike2gpx/assets/web/leaflet`. Données ©
+(BSD-2-Clause) est fourni dans `hike2gpx/assets/web/leaflet`. Le programme
+publié embarque le JRE Temurin 21 d'Eclipse Adoptium (GPL-2.0 avec exception
+Classpath, textes dans `_internal/jre/legal`). Données ©
 contributeurs OpenStreetMap (ODbL), y compris l'extrait de test
 `tests/donnees/gareoult_cloture.json` ; BD TOPO © IGN (Licence Ouverte) ;
 cartes © IGN.

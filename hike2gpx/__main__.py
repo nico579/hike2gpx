@@ -5,6 +5,7 @@ import argparse
 import collections
 import sys
 
+from nico579_commons import environnement
 from nico579_commons.dossiers import Dossiers
 
 from . import __version__, brouter, franchissements
@@ -13,9 +14,13 @@ DOSSIERS = Dossiers("hike2gpx", variable_home="HIKE2GPX_HOME")
 
 
 def main(argv=None) -> int:
+    # Figé sous Linux, rend aux programmes lancés (Java, navigateur) le
+    # LD_LIBRARY_PATH du système au lieu des bibliothèques de _internal.
+    environnement.retablir_environnement_systeme()
     parser = argparse.ArgumentParser(prog="hike2gpx", description="Tracé de randonnée qui respecte "
                                      "les clôtures, barrières et interdictions d'OpenStreetMap.")
     parser.add_argument("--version", action="version", version=f"hike2gpx {__version__}")
+    parser.add_argument("--self-test-version", metavar="VERSION", help=argparse.SUPPRESS)
     sous = parser.add_subparsers(dest="commande")
     serve = sous.add_parser("serve", help="ouvre la page de tracé (par défaut)")
     serve.add_argument("--port", type=int, default=None)
@@ -27,6 +32,9 @@ def main(argv=None) -> int:
     for nom in ("sud", "ouest", "nord", "est"):
         analyser.add_argument(nom, type=float)
     args = parser.parse_args(argv)
+    if args.self_test_version:      # avant tout dossier : ne touche pas aux données
+        from . import autotest
+        return autotest.verifier(args.self_test_version)
     dossier = DOSSIERS.dossier_etat()
 
     if args.commande == "installer":
