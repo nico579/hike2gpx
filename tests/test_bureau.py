@@ -1,6 +1,7 @@
 """Intégration au bureau par le commun : relance, raccourci, menu de l'icône,
 instance unique."""
 import sys
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,18 @@ def test_menu_commun(monkeypatch):
     actions.mettre_a_jour()
     assert ouverts == ["http://127.0.0.1:8795/", "https://exemple/v0.2.0"]
     assert bureau.actions("u", lambda: None, Verificateur(), lambda: None, Path(".")).version_disponible() is None
+
+
+def test_onglet_de_la_page_porte_l_icone(tmp_path):
+    from hike2gpx.application import Application
+    serveur, port = web.demarrer(Application(tmp_path), port=8840, plage=20)
+    try:
+        with urllib.request.urlopen(f"http://{web.HOST}:{port}/favicon.ico", timeout=5) as reponse:
+            assert reponse.headers["Content-Type"] == "image/x-icon"
+            assert reponse.read() == bureau.ICONE.read_bytes()
+    finally:
+        serveur.shutdown()
+        serveur.server_close()
 
 
 def test_relance_rouvre_le_serveur_deja_lance(monkeypatch, tmp_path):

@@ -33,7 +33,8 @@ def demarrer(application: Application, port: int = PORT, plage: int = PLAGE):
     get, post = application.routes()
     handler = type("Hike2gpxHandler", (Handler,), {})   # chaque serveur garde ses routes
     serveur, port = serveweb.premier_port_libre(HOST, port, plage, trusted_host="", gui_dir=GUI,
-                                                api_routes=get, post_routes=post, handler=handler)
+                                                api_routes=get, post_routes=post, handler=handler,
+                                                favicon=bureau.ICONE)
     if serveur is None:
         raise OSError("Aucun port disponible pour la page de hike2gpx.")
     return serveur, port
