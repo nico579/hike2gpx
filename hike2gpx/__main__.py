@@ -20,6 +20,7 @@ def main(argv=None) -> int:
     serve = sous.add_parser("serve", help="ouvre la page de tracé (par défaut)")
     serve.add_argument("--port", type=int, default=None)
     serve.add_argument("--sans-navigateur", action="store_true", help="ne pas ouvrir le navigateur")
+    serve.add_argument("--sans-icone", action="store_true", help="pas d'icône dans la zone de notification")
     installer = sous.add_parser("installer", help="installe BRouter et des tuiles de données (E5_N40...)")
     installer.add_argument("segments", nargs="*", help="tuiles BRouter à télécharger")
     analyser = sous.add_parser("analyser", help="compte les franchissements d'une zone")
@@ -43,7 +44,8 @@ def main(argv=None) -> int:
             print(f"{n:6d}  {statut:9s}  {nature:18s}  {raison}")
         return 0
     from . import web
-    web.servir(dossier, getattr(args, "port", None) or web.PORT, not getattr(args, "sans_navigateur", False))
+    web.servir(dossier, getattr(args, "port", None) or web.PORT, not getattr(args, "sans_navigateur", False),
+               icone=not getattr(args, "sans_icone", False))
     return 0
 
 
