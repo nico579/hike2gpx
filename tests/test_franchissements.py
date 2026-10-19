@@ -253,7 +253,7 @@ def test_voies_affichables_par_genre_sans_les_bordures(tmp_path):
     route = carte.chemin((-50, 40), (50, 40), highway="residential")
     cloture = carte.cloture((0, -30), (0, 30))
     carte.cloture((10, -30), (10, 30), barrier="kerb")
-    calque = fr.voies_affichables(43.31, 6.01, 43.32, 6.02, tmp_path, interroger=lambda texte: carte.elements)
+    calque = fr.voies_affichables(43.31, 6.01, 43.32, 6.02, tmp_path, interroger=lambda texte, **_: carte.elements)
     assert {v["id"]: v["genre"] for v in calque["voies"]} == {sentier: "sentier", piste: "piste", route: "route"}
     assert [(b["id"], b["nature"]) for b in calque["barrieres"]] == [(cloture, "Clôture")]
     assert calque["voies"][0]["pts"][0] == [round(LAT0, 6), round(LON0 - 50 / KX, 6)]
@@ -267,12 +267,14 @@ def test_tuiles_et_requete():
     texte = fr.requete(*fr.bornes_tuile(866, 120))
     assert "(43.300000,6.000000,43.350000,6.050000)" in texte and "motorway" in texte
     assert 'rel(bw.voies)["route"~"^(hiking|foot)$"]' in texte
+    # Ce qu'un calque lit vraiment : les tuiles entières autour de la vue.
+    assert fr.bornes_zone(43.31, 6.01, 43.34, 6.06) == (43.3, 6.0, 43.35, 6.1)
 
 
 def test_cache_de_tuile(tmp_path):
     appels = []
 
-    def interroger(texte):
+    def interroger(texte, **_):
         appels.append(texte)
         carte = Carte()
         carte.chemin((-50, 0), (50, 0))
@@ -305,3 +307,60 @@ def test_overpass_refus_definitif_et_passager(monkeypatch):
     with pytest.raises(fr.ErreurDonnees, match="ne répond pas"):
         fr.interroger("x", attendre=lambda s: None)
     assert len(tentatives) == fr.TENTATIVES
+
+
+def test_overpass_jamais_plus_de_deux_requetes_a_la_fois(monkeypatch):
+    # overpass-api.de répond 429 au-delà de deux requêtes simultanées par
+    # adresse : six lectures lancées ensemble passent deux par deux.
+    import io
+    import threading
+    import time
+
+    actives, maximum, verrou = [0], [0], threading.Lock()
+
+    def lire(demande, timeout):
+        with verrou:
+            actives[0] += 1
+            maximum[0] = max(maximum[0], actives[0])
+        time.sleep(0.05)
+        with verrou:
+            actives[0] -= 1
+        return io.BytesIO(b'{"elements": []}')
+
+    monkeypatch.setattr(fr.urllib.request, "urlopen", lire)
+    fils = [threading.Thread(target=fr.interroger, args=("x",)) for _ in range(6)]
+    for fil in fils:
+        fil.start()
+    for fil in fils:
+        fil.join()
+    assert maximum[0] == fr.CRENEAUX == 2
+
+
+def test_vue_quittee_renonce_a_overpass(monkeypatch):
+    # Une vue que la carte a quittée n'attend pas de créneau et n'interroge
+    # plus Overpass : c'était l'empilement des calques du 2026-10-19.
+    monkeypatch.setattr(fr.urllib.request, "urlopen", lambda *a, **o: pytest.fail("Overpass interrogé"))
+    with pytest.raises(fr.VueRemplacee):
+        fr.interroger("x", continuer=lambda: False)
+    for _ in range(fr.CRENEAUX):
+        fr._creneaux.acquire()
+    try:
+        with pytest.raises(fr.VueRemplacee):      # créneaux pris : elle renonce à attendre
+            fr.interroger("x", continuer=lambda: False)
+    finally:
+        for _ in range(fr.CRENEAUX):
+            fr._creneaux.release()
+
+
+def test_calque_osm_s_arrete_avant_la_tuile_suivante(tmp_path):
+    lues = []
+
+    def interroger(texte, **_):
+        lues.append(texte)
+        return []
+
+    restantes = iter([True, False])
+    with pytest.raises(fr.VueRemplacee):
+        fr.voies_affichables(43.31, 6.01, 43.34, 6.06, tmp_path, interroger=interroger,
+                             continuer=lambda: next(restantes, False))
+    assert len(lues) == 1

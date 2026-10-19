@@ -23,7 +23,7 @@ from pathlib import Path
 from nico579_commons import atomique
 
 from . import __version__
-from .franchissements import ErreurDonnees, bornes_tuile, tuiles_zone
+from .franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
 
 journal = logging.getLogger(__name__)
 
@@ -125,11 +125,14 @@ def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=
         return troncons
 
 
-def troncons_zone(sud: float, ouest: float, nord: float, est: float, dossier, **options) -> list:
+def troncons_zone(sud: float, ouest: float, nord: float, est: float, dossier, *, continuer=None,
+                  **options) -> list:
     """Tronçons des tuiles de la zone ; un tronçon à cheval sur deux tuiles
-    n'est rendu qu'une fois."""
+    n'est rendu qu'une fois. continuer() faux (vue quittée) arrête la lecture."""
     vus, resultat = set(), []
     for i, j in tuiles_zone(sud, ouest, nord, est):
+        if continuer and not continuer():
+            raise VueRemplacee()
         for t in charger_tuile(i, j, dossier, **options):
             if t["id"] not in vus:
                 vus.add(t["id"])

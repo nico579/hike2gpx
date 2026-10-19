@@ -75,6 +75,11 @@ def test_un_troncon_a_cheval_sur_deux_tuiles_n_est_rendu_qu_une_fois(tmp_path):
 
     troncons = bdtopo.troncons_zone(43.31, 6.04, 43.32, 6.06, tmp_path, interroger=interroger)
     assert sorted(t["id"] for t in troncons) == ["A-0", "B-0"]
+    # Vue quittée : la lecture s'arrête avant la tuile suivante.
+    restantes = iter([True, False])
+    with pytest.raises(bdtopo.VueRemplacee):
+        bdtopo.troncons_zone(43.31, 6.04, 43.32, 6.06, tmp_path / "autre", interroger=interroger,
+                             continuer=lambda: next(restantes))
 
 
 def test_reponse_inattendue(monkeypatch):
