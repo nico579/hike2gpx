@@ -31,7 +31,7 @@ LENT_S = 60.0               # au-delà, l'itinéraire est signalé lent dans le 
 NOMS_ETAPES = {"debut": "préparation", "donnees": "lecture des données", "fusion": "fusion IGN",
                "tuiles": "tuile BRouter", "analyse": "franchissements", "itineraire": "calcul BRouter",
                "comparaison": "tracé standard"}
-ZONE_CALQUE_MAX_DEG2 = 0.03  # une vue au zoom 14, avec sa marge ; au-delà, trop de tuiles à lire
+ZONE_CALQUE_MAX_DEG2 = 0.03  # un grand écran au zoom 14 ; au-delà, trop de tuiles à lire
 MARGE_DEG = 0.01            # environ 1 km autour des points
 MARGE_RELATIVE = 0.25
 POINTS_MAX = 50
@@ -200,6 +200,10 @@ class Application:
         self._verrou_moteur = threading.Lock()
         self._verrou_calcul = threading.Lock()
         self._verrou_denivele = threading.Lock()
+        # Numéro de la vue en cours de chaque calque : une vue plus récente
+        # arrête la lecture des tuiles de la précédente.
+        self._vues = {"osm": 0, "bdtopo": 0}
+        self._verrou_vues = threading.Lock()
         self._progression = {"actif": False}
         self._debut_calcul = time.monotonic()
         self._temps_etapes, self._etape_courante = {}, None
@@ -476,22 +480,43 @@ class Application:
 
     # ---------------------------------------------------------- calques
 
-    def _calque(self, zone, lire):
+    def _calque(self, cle, zone, lire):
+        """Un calque pour la vue de la page, une vue à la fois : la demande
+        d'une nouvelle vue arrête la lecture des tuiles de la précédente, que
+        plus personne ne regarde. Le résultat donne les bornes des tuiles
+        lues, que la page n'a pas à redemander tant que la vue y reste."""
+        with self._verrou_vues:
+            self._vues[cle] += 1
+            numero = self._vues[cle]
         if zone is None:
             return {"erreur": "Zone invalide."}
         if (zone[2] - zone[0]) * (zone[3] - zone[1]) > ZONE_CALQUE_MAX_DEG2:
             return {"erreur": "Zone trop grande : zoomez davantage."}
         try:
-            return lire(*zone, self.dossier)
+            resultat = lire(*zone, self.dossier, continuer=lambda: self._vues[cle] == numero)
+        except franchissements.VueRemplacee:
+            return {"erreur": "Vue remplacée par une autre.", "code": "vue_remplacee"}
         except franchissements.ErreurDonnees as exc:
             return {"erreur": str(exc)}
+        return {**resultat, "bornes": franchissements.bornes_zone(*zone)}
 
     def calque_osm(self, zone) -> dict:
-        return self._calque(zone, franchissements.voies_affichables)
+        return self._calque("osm", zone, franchissements.voies_affichables)
 
     def calque_bdtopo(self, zone) -> dict:
-        resultat = self._calque(zone, bdtopo.troncons_zone)
-        return resultat if isinstance(resultat, dict) else {"troncons": resultat}
+        def lire(*bornes, **options):
+            return {"troncons": bdtopo.troncons_zone(*bornes, **options)}
+        return self._calque("bdtopo", zone, lire)
+
+    def arreter_calques(self, corps=None) -> dict:
+        """La page n'affiche plus ces calques (zoom trop faible, calque masqué) :
+        leurs lectures en cours s'arrêtent avant la tuile suivante."""
+        demandes = (corps or {}).get("calques")
+        cles = [c for c in self._vues if not isinstance(demandes, list) or c in demandes]
+        with self._verrou_vues:
+            for cle in cles:
+                self._vues[cle] += 1
+        return {"arretes": cles}
 
     def routes(self):
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
@@ -501,5 +526,5 @@ class Application:
                "progression": self.progression, "journal": self.lire_journal, **get_langue}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
                 "segment": self.telecharger_segment, "moteur": self.installer_moteur,
-                "denivele": self.denivele, **post_langue}
+                "denivele": self.denivele, "arreter_calques": self.arreter_calques, **post_langue}
         return get, post

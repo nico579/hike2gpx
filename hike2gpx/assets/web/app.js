@@ -311,11 +311,12 @@ function appliquerLangue(code) {
 
 document.addEventListener("nico579-langue", (e) => appliquerLangue(e.detail.code));
 
-async function api(route, corps) {
-  const options = corps === undefined ? {} : {
+async function api(route, corps, signal) {
+  const options = corps === undefined ? { signal } : {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(corps),
+    signal,
   };
   const reponse = await fetch(`/api/${route}`, options);
   const donnees = await reponse.json().catch(() => ({}));
@@ -370,9 +371,10 @@ carte.createPane("trace").style.zIndex = 450;
 const rendu = L.canvas({ padding: 0.2 });
 const ZOOM_CALQUES = 14;
 const CLE_CALQUES = "hike2gpx.calques";
+// charge : bornes des tuiles déjà dessinées ; annulation : la requête en cours.
 const CALQUES = {
-  osm: { groupe: L.layerGroup(), charge: null, sequence: 0 },
-  bdtopo: { groupe: L.layerGroup(), charge: null, sequence: 0 },
+  osm: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
+  bdtopo: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
 };
 const STYLES_OSM = {
   sentier: { color: "#7b1fa2", weight: 3, dashArray: "6 4" },
@@ -416,8 +418,10 @@ function noteCalques(message) {
   $("noteCalques").hidden = !message;
 }
 
-function zoneVue(marge) {
-  const b = carte.getBounds().pad(marge);
+// La vue telle qu'affichée, sans marge : le serveur la complète déjà aux
+// tuiles de 0,05° qui la couvrent, et renvoie leurs bornes.
+function zoneVue() {
+  const b = carte.getBounds();
   return { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() };
 }
 
@@ -425,27 +429,49 @@ function couvre(zone, vue) {
   return Boolean(zone) && zone.s <= vue.s && zone.w <= vue.w && zone.n >= vue.n && zone.e >= vue.e;
 }
 
+// Abandonne la vue en cours d'un calque : sa requête est coupée et une réponse
+// encore en route ne redessine rien. Rend vrai si une lecture était en cours.
+function abandonner(calque) {
+  const enCours = Boolean(calque.annulation);
+  calque.sequence += 1;
+  if (calque.annulation) calque.annulation.abort();
+  calque.annulation = null;
+  return enCours;
+}
+
+// Le serveur arrête de lui-même la vue précédente quand une nouvelle arrive ;
+// sans nouvelle vue (zoom trop faible, calque masqué), il faut le lui dire.
+function arreterAuServeur(cles) {
+  if (cles.length) api("arreter_calques", { calques: cles }).catch(() => {});
+}
+
 async function chargerCalque(cle, zone) {
   const calque = CALQUES[cle];
-  const numero = ++calque.sequence;
+  abandonner(calque);
+  const numero = calque.sequence;
+  const annulation = calque.annulation = new AbortController();
   const nom = t(`calque.${cle}`);
   const parametres = new URLSearchParams(Object.entries(zone).map(([k, v]) => [k, v.toFixed(5)]));
   noteCalques(t("calque.chargement", { nom: `${nom.charAt(0).toLowerCase()}${nom.slice(1)}` }));
   let donnees;
   try {
-    donnees = await api(`${cle}?${parametres}`);
+    donnees = await api(`${cle}?${parametres}`, undefined, annulation.signal);
   } catch (e) {
     if (numero === calque.sequence) noteCalques(`${nom} : ${e.message}`);
     return;
   }
   if (numero !== calque.sequence || !carte.hasLayer(calque.groupe)) return;
+  calque.annulation = null;
+  if (donnees.code === "vue_remplacee") return;
   if (donnees.erreur) {
     noteCalques(`${nom} : ${ts(donnees.erreur)}`);
     return;
   }
   calque.groupe.clearLayers();
   DESSINS[cle](calque.groupe, donnees);
-  calque.charge = zone;
+  // Les tuiles lues débordent la vue : tant qu'elle y reste, rien à redemander.
+  const [s, w, n, e] = donnees.bornes || [zone.s, zone.w, zone.n, zone.e];
+  calque.charge = { s, w, n, e };
   noteCalques("");
 }
 
@@ -455,17 +481,18 @@ async function rafraichirCalques() {
   if (carte.getZoom() < ZOOM_CALQUES) {
     // Vider plutôt que garder un morceau de réseau : de loin, il ferait
     // croire que le reste de la carte n'a pas de chemins.
+    const interrompus = actifs.filter((cle) => abandonner(CALQUES[cle]));
     for (const cle of actifs) {
       CALQUES[cle].groupe.clearLayers();
       CALQUES[cle].charge = null;
-      CALQUES[cle].sequence += 1;
     }
+    arreterAuServeur(interrompus);
     noteCalques(t("calque.zoom", { niveau: ZOOM_CALQUES }));
     return;
   }
-  const vue = zoneVue(0);
+  const vue = zoneVue();
   await Promise.all(actifs.filter((cle) => !couvre(CALQUES[cle].charge, vue))
-    .map((cle) => chargerCalque(cle, zoneVue(0.15))));
+    .map((cle) => chargerCalque(cle, vue)));
 }
 
 let minuterieCalques = null;
@@ -474,12 +501,13 @@ carte.on("moveend", () => {
   minuterieCalques = setTimeout(rafraichirCalques, 400);
 });
 carte.on("overlayadd overlayremove", (e) => {
-  const calque = Object.values(CALQUES).find((c) => c.groupe === e.layer);
-  if (!calque) return;
+  const cle = Object.keys(CALQUES).find((c) => CALQUES[c].groupe === e.layer);
+  if (!cle) return;
+  const calque = CALQUES[cle];
   if (e.type === "overlayremove") {
+    if (abandonner(calque)) arreterAuServeur([cle]);
     calque.groupe.clearLayers();
     calque.charge = null;
-    calque.sequence += 1;    // une réponse encore en route ne redessine rien
   }
   try {
     localStorage.setItem(CLE_CALQUES, JSON.stringify(Object.keys(CALQUES).filter((cle) => carte.hasLayer(CALQUES[cle].groupe))));
