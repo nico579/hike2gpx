@@ -23,6 +23,10 @@ MARGE_DEG = 0.01            # environ 1 km autour des points
 MARGE_RELATIVE = 0.25
 POINTS_MAX = 50
 ELARGISSEMENTS = 3
+# Tuiles de 0,05° lues (Overpass, BD TOPO) et fusionnées pour un calcul :
+# environ 55 × 40 km. Au-delà, la première lecture prendrait des dizaines de
+# minutes ; mieux vaut découper le parcours en étapes.
+TUILES_MAX = 100
 _CLE_IGN = re.compile(r"^[A-Za-z0-9_\-]{0,100}$")
 
 
@@ -151,6 +155,11 @@ def _nombre(proprietes, cle):
         return None
 
 
+def km_texte(metres) -> str:
+    """Distance comme l'écrit la page : « 1,25 km »."""
+    return f"{metres / 1000:.2f}".replace(".", ",") + " km"
+
+
 class Application:
     def __init__(self, dossier: Path):
         self.dossier = Path(dossier)
@@ -252,6 +261,10 @@ class Application:
             avertissement = None
             try:
                 for essai in range(ELARGISSEMENTS):
+                    nombre = len(franchissements.tuiles_zone(*zone))
+                    if nombre > TUILES_MAX:
+                        return {"erreur": f"Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus "
+                                          f"{TUILES_MAX}. Découpez le parcours en étapes plus courtes."}
                     manquants = [n for n in brouter.segments_zone(*zone)
                                  if not self.installation.segment_present(n)]
                     if manquants:
@@ -286,12 +299,21 @@ class Application:
                     return {"erreur": "Le tracé sort sans cesse de la zone examinée : rapprochez les points."}
             except (franchissements.ErreurDonnees, brouter.ErreurBRouter) as exc:
                 return {"erreur": str(exc)}
+            # Dernier contrôle, indépendant de BRouter : un tracé qui passe encore
+            # une coupe interdite n'est jamais rendu (audit B10, amélioration 2).
+            passages = sur_le_trace(coords, liste)
+            traverses = [f for f in passages if f["statut"] == "blocked" or strict]
+            if traverses:
+                f = traverses[0]
+                mot = "bloquant" if f["statut"] == "blocked" else "à vérifier, en mode strict"
+                return {"erreur": f"Itinéraire refusé : le tracé passe un franchissement {mot} "
+                                  f"({f['nature']}, à {km_texte(f['distance_m'])} du départ).",
+                        "traverses": traverses}
             portions = portions_ign(trace) if moteur_utilise == "maison" else []
             reponse = {"itineraire": trace, "zone": zone, "franchissements": liste,
                        "longueur_m": _nombre(trace["properties"], "track-length"),
                        "denivele_m": _nombre(trace["properties"], "filtered ascend"),
-                       "sur_le_trace": sorted(sur_le_trace(coords, liste) + entrees_ign(portions),
-                                              key=lambda f: f["distance_m"]),
+                       "sur_le_trace": sorted(passages + entrees_ign(portions), key=lambda f: f["distance_m"]),
                        "portions_ign": portions, "moteur": moteur_utilise, "avertissement": avertissement,
                        "strict": strict}
             if comparer:

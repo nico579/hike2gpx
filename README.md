@@ -34,8 +34,12 @@ Le calcul passe par cinq pièces.
    arrive comme une petite ligne d'un mètre posée en travers du chemin : sans
    poids, elle retire le tronçon du calcul ; avec un poids, elle le rend
    coûteux, de sorte qu'un détour de moins de 300 m environ l'évite. Le profil
-   est celui de la randonnée de BRouter, corrigé pour que `foot=no` soit
-   respecté même là où un vélo passerait.
+   est celui de la randonnée de BRouter, corrigé pour qu'une interdiction
+   piétonne (`foot=no` ou `foot=private`) soit respectée même là où un vélo
+   passerait ou qu'un trottoir est indiqué. Quand deux coupes tombent sur le
+   même tronçon, l'interdite l'emporte toujours sur la pondérée ; et si le
+   tracé rendu par BRouter passait malgré tout une coupe interdite, hike2gpx le
+   refuserait au lieu de l'afficher.
 3. **La page.** Une page locale, servie par la bibliothèque commune
    [nico579-commons](https://pypi.org/project/nico579-commons/) : on clique
    pour poser le départ, les étapes et l'arrivée, on déplace les points, et
@@ -72,6 +76,9 @@ entier et non une seule trace :
 - une barrière qui s'arrête sur un chemin, ou qui le touche et repart du même
   côté, ne le traverse pas ; un chemin sur un pont ou dans un tunnel non plus ;
 - une barrière qui se termine à moins de 2 m du chemin se contourne ;
+- un portail posé sur la clôture tout près du chemin, sans être porté par lui,
+  est jugé comme s'il l'était : verrouillé ou privé, il ne rend pas la clôture
+  franchissable ;
 - deux niveaux différents (`layer`) rendent le franchissement « à vérifier » ;
 - un sentier balisé passe forcément quelque part : une barrière qui le
   bloquerait y devient « à vérifier ».
@@ -88,6 +95,10 @@ aucune (voir [ESSAI.md](ESSAI.md)). Une clôture rencontrée sur le terrain et
 ajoutée à OpenStreetMap est respectée par hike2gpx dès que son cache de la
 zone se renouvelle ; les moteurs des autres planificateurs, eux, continuent de
 l'ignorer.
+
+Un calcul examine au plus 100 tuiles de 0,05°, soit environ 55 × 40 km : la
+première lecture d'une zone plus grande prendrait des dizaines de minutes. Un
+long parcours se découpe en étapes.
 
 ## Installation
 
@@ -127,8 +138,11 @@ dossier de données, et tourne en quelques secondes avec
 une tuile maison avec le vrai créateur de tuiles, sur un petit réseau inventé
 où deux sentiers OSM ne se rejoignent que par des chemins IGN ; il demande en
 plus les profils de création de BRouter, que la première fabrication depuis
-la page télécharge dans le dossier de données. Les outils de `tools/`
-rejouent l'essai décrit dans [ESSAI.md](ESSAI.md).
+la page télécharge dans le dossier de données. `test_integration_securite.py`
+vérifie de la même façon, sur six cas inventés, que le profil et l'ordre des
+coupes respectent les interdictions. `test_page.py` fait tourner la page sous
+Node, quand Node est installé. Les outils de `tools/` rejouent l'essai décrit
+dans [ESSAI.md](ESSAI.md).
 
 ## Licence
 

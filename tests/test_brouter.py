@@ -9,15 +9,22 @@ from hike2gpx import brouter
 REFERENCE = Path(__file__).with_name("donnees") / "hiking-mountain-1.7.10.brf"
 
 
-def test_profil_derive_de_hiking_mountain_par_deux_remplacements():
+def test_profil_derive_de_hiking_mountain_par_ses_seuls_remplacements():
     source = REFERENCE.read_text(encoding="utf-8")
     profil = brouter.profil_hike2gpx(source)
     for avant, apres in brouter.REMPLACEMENTS:
         assert avant not in profil and profil.count(apres) == 1
-    # Rien d'autre ne change : seules les deux lignes et l'en-tête diffèrent.
+    # Rien d'autre ne change : seules les lignes remplacées et l'en-tête diffèrent.
     differences = set(profil.splitlines()) ^ set(source.splitlines())
     assert {l for l in differences if not l.startswith("#")} == \
-        {l for paire in brouter.REMPLACEMENTS for l in paire}
+        {l for paire in brouter.REMPLACEMENTS for texte in paire for l in texte.splitlines()}
+
+
+def test_profil_interdiction_pietonne_explicite_avant_les_permissions_deduites():
+    # Audit B09 : trottoir, vélo poussé ou vélo admis ne lèvent plus foot=no|private.
+    profil = brouter.profil_hike2gpx(REFERENCE.read_text(encoding="utf-8"))
+    bloc = profil[profil.index("assign footaccess"):profil.index("assign accesspenalty")].split()
+    assert bloc[:5] == ["assign", "footaccess", "and", "not", "foot=private|no"]
 
 
 def test_profil_inattendu_refuse():
@@ -45,8 +52,10 @@ def test_requete_coupes_interdites_et_ponderees():
     assert q["lonlats"] == ["6.000000,43.000000|6.500000,43.500000"]
     assert q["profile"] == ["hike2gpx"] and q["format"] == ["geojson"]
     coupes = q["polylines"][0].split("|")
-    assert coupes[0] == "6.1000000,43.1000000,6.2000000,43.2000000"
-    assert coupes[1].endswith(f",{brouter.POIDS_A_VERIFIER}") and len(coupes) == 3
+    # Audit B10 : BRouter garde le coût de la dernière coupe qu'un segment
+    # croise ; les coupes interdites passent donc après les pondérées.
+    assert coupes[-1] == "6.1000000,43.1000000,6.2000000,43.2000000"
+    assert all(c.endswith(f",{brouter.POIDS_A_VERIFIER}") for c in coupes[:2]) and len(coupes) == 3
     strict = parse_qs(urlparse(brouter.requete([(43.0, 6.0), (43.5, 6.5)], franchissements, strict=True)).query)
     assert all(c.count(",") == 3 for c in strict["polylines"][0].split("|"))
 

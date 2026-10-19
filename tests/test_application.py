@@ -161,9 +161,37 @@ def test_itineraire_introuvable_sur_les_tuiles_maison_reste_une_erreur(simulee, 
 def test_itineraire_sans_les_chemins_ign(simulee, monkeypatch):
     a, zones, _, _ = simulee
     monkeypatch.setattr(a.maison, "preparer", lambda tuiles: pytest.fail("tuiles maison demandées"))
-    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace((43.3, 6.0), (43.3, 6.01)))
+    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace(*DETOUR))
     r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]], "ign": False, "comparer": False})
     assert r["moteur"] == "standard" and r["avertissement"] is None and len(zones) == 1
+
+
+def test_itineraire_refuse_s_il_traverse_encore_un_blocage(simulee, monkeypatch):
+    # Audit B10 et amélioration 2 : quelle qu'en soit la cause, un tracé qui
+    # passe une coupe bloquante n'est jamais rendu comme un itinéraire.
+    a, _, _, _ = simulee
+    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace((43.3, 6.0), (43.3, 6.01)))
+    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]], "comparer": False})
+    assert r["erreur"].startswith("Itinéraire refusé") and [f["cle"] for f in r["traverses"]] == ["x"]
+
+
+def test_mode_strict_refuse_un_passage_a_verifier_sur_le_trace(simulee, monkeypatch):
+    a, _, _, bloquant = simulee
+    incertain = {**bloquant, "cle": "y", "statut": "uncertain"}
+    monkeypatch.setattr(franchissements, "franchissements_zone", lambda *args: [incertain])
+    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace((43.3, 6.0), (43.3, 6.01)))
+    points = [[43.3, 6.0], [43.3, 6.01]]
+    assert "erreur" not in a.itineraire({"points": points, "comparer": False})
+    assert a.itineraire({"points": points, "comparer": False, "strict": True})["erreur"].startswith("Itinéraire refusé")
+
+
+def test_zone_trop_etendue_refusee_avant_tout_chargement(simulee, monkeypatch):
+    # Amélioration 3 : sans borne, des points éloignés lançaient la lecture
+    # et la fusion de centaines de tuiles.
+    a, zones, _, _ = simulee
+    monkeypatch.setattr(brouter, "calculer", lambda *args, **o: pytest.fail("calcul lancé"))
+    r = a.itineraire({"points": [[43.0, 5.5], [43.9, 6.4]]})
+    assert "trop étendue" in r["erreur"] and zones == []
 
 
 def test_itineraire_et_comparaison(simulee, monkeypatch):
