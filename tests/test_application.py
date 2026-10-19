@@ -1,3 +1,6 @@
+import logging
+from pathlib import Path
+
 import pytest
 
 from hike2gpx import application as appli, brouter, franchissements
@@ -62,13 +65,13 @@ def simulee(tmp_path, monkeypatch):
     bloquant = {"cle": "x", "statut": "blocked", "raison": "r", "nature": "Clôture",
                 "lat": 43.3, "lon": 6.005, "osm": "way/9", "voies": [1], "coupes": [coupe_nord_sud(43.3, 6.005)]}
 
-    def zone(*args):
+    def zone(*args, **options):
         zones.append(args[:4])
         return [bloquant]
 
     monkeypatch.setattr(franchissements, "franchissements_zone", zone)
 
-    def sans_tuiles_maison(tuiles):
+    def sans_tuiles_maison(tuiles, **options):
         raise brouter.ErreurBRouter("tuiles maison hors de cet essai")
 
     # Les essais du moteur standard passent par le repli : jamais de réseau ici.
@@ -106,7 +109,7 @@ def test_portions_ign_lues_dans_les_messages():
 
 def test_itineraire_sur_les_tuiles_maison(simulee, monkeypatch):
     a, zones, appels, bloquant = simulee
-    monkeypatch.setattr(a.maison, "preparer", lambda tuiles: ("segments-maison", [bloquant]))
+    monkeypatch.setattr(a.maison, "preparer", lambda tuiles, **o: ("segments-maison", [bloquant]))
     monkeypatch.setattr(a, "moteur_maison", lambda segments: 2 if segments == "segments-maison" else 0)
 
     def calculer(port, points, liste=(), **options):
@@ -131,7 +134,7 @@ def test_itineraire_repli_sur_osm_quand_les_tuiles_maison_echouent(simulee, monk
     a, zones, _, _ = simulee
     essais = []
 
-    def panne(tuiles):
+    def panne(tuiles, **options):
         essais.append(tuiles)
         raise brouter.ErreurBRouter("Fabrication des tuiles impossible (WayLinker)")
 
@@ -146,7 +149,7 @@ def test_itineraire_repli_sur_osm_quand_les_tuiles_maison_echouent(simulee, monk
 
 def test_itineraire_introuvable_sur_les_tuiles_maison_reste_une_erreur(simulee, monkeypatch):
     a, zones, _, bloquant = simulee
-    monkeypatch.setattr(a.maison, "preparer", lambda tuiles: ("segments-maison", [bloquant]))
+    monkeypatch.setattr(a.maison, "preparer", lambda tuiles, **o: ("segments-maison", [bloquant]))
     monkeypatch.setattr(a, "moteur_maison", lambda segments: 2)
 
     def calculer(port, points, liste=(), **options):
@@ -160,7 +163,7 @@ def test_itineraire_introuvable_sur_les_tuiles_maison_reste_une_erreur(simulee, 
 
 def test_itineraire_sans_les_chemins_ign(simulee, monkeypatch):
     a, zones, _, _ = simulee
-    monkeypatch.setattr(a.maison, "preparer", lambda tuiles: pytest.fail("tuiles maison demandées"))
+    monkeypatch.setattr(a.maison, "preparer", lambda tuiles, **o: pytest.fail("tuiles maison demandées"))
     monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace(*DETOUR))
     r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]], "ign": False, "comparer": False})
     assert r["moteur"] == "standard" and r["avertissement"] is None and len(zones) == 1
@@ -178,7 +181,7 @@ def test_itineraire_refuse_s_il_traverse_encore_un_blocage(simulee, monkeypatch)
 def test_mode_strict_refuse_un_passage_a_verifier_sur_le_trace(simulee, monkeypatch):
     a, _, _, bloquant = simulee
     incertain = {**bloquant, "cle": "y", "statut": "uncertain"}
-    monkeypatch.setattr(franchissements, "franchissements_zone", lambda *args: [incertain])
+    monkeypatch.setattr(franchissements, "franchissements_zone", lambda *args, **o: [incertain])
     monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace((43.3, 6.0), (43.3, 6.01)))
     points = [[43.3, 6.0], [43.3, 6.01]]
     assert "erreur" not in a.itineraire({"points": points, "comparer": False})
@@ -222,7 +225,7 @@ def test_itineraire_elargit_la_zone_quand_le_trace_en_sort(simulee, monkeypatch)
 def test_itineraire_s_arrete_si_les_barrieres_sont_inconnues(simulee, monkeypatch):
     a, _, _, _ = simulee
 
-    def panne(*args):
+    def panne(*args, **options):
         raise franchissements.ErreurDonnees("Overpass ne répond pas : barrières non vérifiées.")
 
     monkeypatch.setattr(franchissements, "franchissements_zone", panne)
@@ -287,3 +290,38 @@ def test_routes_init_annonce_l_application(tmp_path):
     assert {"osm", "bdtopo"} <= set(get)
     assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele"}
     assert "erreur" in post["segment"]({"nom": "../x"})
+
+
+def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch):
+    # La barre de progression de la page lit /api/progression pendant le calcul.
+    a, _, _, _ = simulee
+    vues = []
+
+    def calculer(port, points, liste=(), **options):
+        vues.append(a.progression())
+        return trace(*DETOUR)
+
+    monkeypatch.setattr(brouter, "calculer", calculer)
+    assert "erreur" not in a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
+    assert [v["etape"] for v in vues] == ["itineraire", "comparaison"]
+    assert all(v["actif"] and 0 < v["fraction"] < 1 for v in vues)
+    assert a.progression() == {"actif": False}
+
+
+def test_journal_garde_la_trace_des_calculs(simulee, monkeypatch):
+    a, _, _, _ = simulee
+    chemin = appli.configurer_journal(a.dossier)
+    try:
+        monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace((43.3, 6.0), (43.3, 6.01)))
+        a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]], "comparer": False})    # passe la clôture : refusé
+    finally:
+        racine = logging.getLogger("hike2gpx")
+        for h in [h for h in racine.handlers if Path(getattr(h, "baseFilename", "")) == chemin]:
+            racine.removeHandler(h)
+            h.close()
+    journal = a.lire_journal()
+    assert journal["chemin"] == str(chemin)
+    assert any("Itinéraire : 2 points" in ligne for ligne in journal["lignes"])
+    [erreur] = [ligne for ligne in journal["lignes"] if "WARNING Itinéraire en erreur" in ligne]
+    # Le temps de chaque étape accompagne l'issue du calcul.
+    assert "refusé" in erreur and "préparation" in erreur and "calcul BRouter" in erreur

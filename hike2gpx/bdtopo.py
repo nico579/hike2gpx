@@ -11,6 +11,7 @@ franchissements.py, en tuiles de 0,05° ; cache de 30 jours, la BD TOPO
 from __future__ import annotations
 
 import json
+import logging
 import math
 import threading
 import time
@@ -23,6 +24,8 @@ from nico579_commons import atomique
 
 from . import __version__
 from .franchissements import ErreurDonnees, bornes_tuile, tuiles_zone
+
+journal = logging.getLogger(__name__)
 
 WFS = "https://data.geopf.fr/wfs/ows"
 COUCHE = "BDTOPO_V3:troncon_de_route"
@@ -113,7 +116,10 @@ def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=
             return cache["troncons"]
         if not en_ligne:
             raise ErreurDonnees("Hors connexion : chemins BD TOPO de cette zone jamais chargés.")
+        debut = time.monotonic()
         troncons = lire_tuile(i, j, interroger)
+        journal.info("BD TOPO : tuile %d_%d lue en %.1f s (%d tronçons)", i, j, time.monotonic() - debut,
+                     len(troncons))
         atomique.ecrire_json(chemin, {"version": VERSION_CACHE, "fetched_at": maintenant(),
                                       "troncons": troncons}, indent=None)
         return troncons

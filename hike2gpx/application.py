@@ -8,16 +8,28 @@ pour qu'aucun détour ne passe par une barrière jamais vérifiée.
 """
 from __future__ import annotations
 
+import logging
 import math
 import re
 import threading
 import time
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from nico579_commons import atomique
 
 from . import __version__, bdtopo, brouter, franchissements, maison
 
+journal = logging.getLogger(__name__)
+
+# Journal des calculs dans le dossier de données : 1 Mo, gardé trois fois.
+FICHIER_JOURNAL = "hike2gpx.log"
+LIGNES_JOURNAL = 300        # montrées par la page
+LENT_S = 60.0               # au-delà, l'itinéraire est signalé lent dans le journal
+# Étapes d'un calcul, telles que le journal en détaille les temps.
+NOMS_ETAPES = {"debut": "préparation", "donnees": "lecture des données", "fusion": "fusion IGN",
+               "tuiles": "tuile BRouter", "analyse": "franchissements", "itineraire": "calcul BRouter",
+               "comparaison": "tracé standard"}
 ZONE_CALQUE_MAX_DEG2 = 0.03  # une vue au zoom 14, avec sa marge ; au-delà, trop de tuiles à lire
 MARGE_DEG = 0.01            # environ 1 km autour des points
 MARGE_RELATIVE = 0.25
@@ -28,6 +40,21 @@ ELARGISSEMENTS = 3
 # minutes ; mieux vaut découper le parcours en étapes.
 TUILES_MAX = 100
 _CLE_IGN = re.compile(r"^[A-Za-z0-9_\-]{0,100}$")
+
+
+def configurer_journal(dossier) -> Path:
+    """Branche le journal de tous les modules de hike2gpx sur hike2gpx.log,
+    pour retrouver une erreur, un blocage ou une lenteur. Appelé par le
+    serveur seulement : les tests n'écrivent pas de journal."""
+    chemin = Path(dossier) / FICHIER_JOURNAL
+    racine = logging.getLogger("hike2gpx")
+    if not any(isinstance(h, RotatingFileHandler) and Path(h.baseFilename) == chemin for h in racine.handlers):
+        chemin.parent.mkdir(parents=True, exist_ok=True)
+        fichier = RotatingFileHandler(chemin, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+        fichier.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        racine.addHandler(fichier)
+        racine.setLevel(logging.INFO)
+    return chemin
 
 
 def zone_autour(points, marge_relative=MARGE_RELATIVE):
@@ -171,6 +198,9 @@ class Application:
         self._verrou_moteur = threading.Lock()
         self._verrou_calcul = threading.Lock()
         self._verrou_denivele = threading.Lock()
+        self._progression = {"actif": False}
+        self._debut_calcul = time.monotonic()
+        self._temps_etapes, self._etape_courante = {}, None
 
     # ---------------------------------------------------------- réglages
 
@@ -243,10 +273,76 @@ class Application:
             return {"erreur": str(exc)}
         return self.etat()
 
+    # ---------------------------------------------------------- avancement
+
+    def _avancer(self, etape: str, fraction: float, faites: int = 0, total: int = 0, passe: int = 1) -> None:
+        """Étape du calcul en cours, lue par la page pour sa barre de
+        progression. Le temps écoulé depuis l'annonce précédente revient à
+        l'étape qu'elle annonçait : le journal en fait le détail en fin de
+        calcul."""
+        maintenant = time.monotonic()
+        if self._etape_courante is not None:
+            nom, depuis = self._etape_courante
+            self._temps_etapes[nom] = self._temps_etapes.get(nom, 0.0) + maintenant - depuis
+        self._etape_courante = (etape, maintenant)
+        self._progression = {"actif": True, "etape": etape, "fraction": round(fraction, 3), "faites": faites,
+                             "total": total, "passe": passe, "duree_s": round(maintenant - self._debut_calcul, 1)}
+
+    def _detail_des_etapes(self) -> str:
+        """« données 1,2 s ; calcul BRouter 0,9 s… » pour le journal, en
+        fermant l'étape en cours."""
+        if self._etape_courante is not None:
+            nom, depuis = self._etape_courante
+            self._temps_etapes[nom] = self._temps_etapes.get(nom, 0.0) + time.monotonic() - depuis
+            self._etape_courante = None
+        return " ; ".join(f"{NOMS_ETAPES.get(nom, nom)} {duree:.1f} s" for nom, duree in self._temps_etapes.items())
+
+    def progression(self) -> dict:
+        return dict(self._progression)
+
+    def lire_journal(self) -> dict:
+        """Les dernières lignes du journal des calculs, pour la page."""
+        chemin = self.dossier / FICHIER_JOURNAL
+        try:
+            lignes = chemin.read_text(encoding="utf-8", errors="replace").splitlines()[-LIGNES_JOURNAL:]
+        except OSError:
+            lignes = []
+        return {"chemin": str(chemin), "lignes": lignes}
+
     # ---------------------------------------------------------- itinéraire
 
     def itineraire(self, payload) -> dict:
+        """Le calcul, avec son avancement pour la page et sa trace dans le
+        journal : début, fin, erreurs, lenteurs."""
         payload = payload or {}
+        with self._verrou_calcul:
+            self._debut_calcul = time.monotonic()
+            self._temps_etapes, self._etape_courante = {}, None
+            self._avancer("debut", 0.02)
+            try:
+                reponse = self._itineraire(payload)
+            except Exception:
+                journal.exception("Itinéraire : erreur inattendue après %.1f s (%s)",
+                                  time.monotonic() - self._debut_calcul, self._detail_des_etapes())
+                raise
+            finally:
+                self._progression = {"actif": False}
+            duree = time.monotonic() - self._debut_calcul
+            etapes = self._detail_des_etapes()
+            if "erreur" in reponse:
+                journal.warning("Itinéraire en erreur après %.1f s : %s (étapes : %s)", duree, reponse["erreur"],
+                                etapes)
+            else:
+                journal.info("Itinéraire calculé en %.1f s : %.0f m, moteur %s, %d point(s) à vérifier, "
+                             "%d portion(s) IGN%s", duree, reponse["longueur_m"] or 0, reponse["moteur"],
+                             len(reponse["sur_le_trace"]), len(reponse["portions_ign"]),
+                             f" ; {reponse['avertissement']}" if reponse["avertissement"] else "")
+                journal.info("Étapes : %s", etapes)
+                if duree > LENT_S:
+                    journal.warning("Itinéraire lent : %.1f s, voir les étapes ci-dessus", duree)
+            return reponse
+
+    def _itineraire(self, payload) -> dict:
         try:
             points = valider_points(payload.get("points"))
         except ValueError as exc:
@@ -255,78 +351,92 @@ class Application:
         ign = bool(payload.get("ign", True))
         if not self.installation.installee():
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True}
-        with self._verrou_calcul:
-            debut = time.monotonic()
-            zone = zone_autour(points)
-            avertissement = None
+        debut = time.monotonic()
+        zone = zone_autour(points)
+        avertissement = None
+        journal.info("Itinéraire : %d points, %d tuiles, chemins IGN %s, mode strict %s", len(points),
+                     len(franchissements.tuiles_zone(*zone)), "oui" if ign else "non", "oui" if strict else "non")
+        try:
+            for essai in range(ELARGISSEMENTS):
+                passe = essai + 1
+                nombre = len(franchissements.tuiles_zone(*zone))
+                if nombre > TUILES_MAX:
+                    return {"erreur": f"Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus "
+                                      f"{TUILES_MAX}. Découpez le parcours en étapes plus courtes."}
+                manquants = [n for n in brouter.segments_zone(*zone)
+                             if not self.installation.segment_present(n)]
+                if manquants:
+                    return {"erreur": "Données BRouter absentes pour cette zone.",
+                            "segments_manquants": manquants}
+                trace, moteur_utilise = None, "standard"
+                if ign:
+                    # Tuiles maison : OSM plus les chemins IGN qui y manquent, avec
+                    # les franchissements du réseau fusionné. Si elles ne peuvent se
+                    # faire, le moteur standard calcule sur OSM seul ; un itinéraire
+                    # introuvable sur elles reste une erreur.
+                    def suivi_maison(etape, faites, total, passe=passe):
+                        fraction = {"donnees": 0.05 + 0.45 * faites / max(total, 1), "fusion": 0.5,
+                                    "tuiles": 0.6, "analyse": 0.78}[etape]
+                        self._avancer(etape, fraction, faites, total, passe)
+                    try:
+                        segments, liste = self.maison.preparer(franchissements.tuiles_zone(*zone),
+                                                               suivi=suivi_maison)
+                        port = self.moteur_maison(segments)
+                    except (franchissements.ErreurDonnees, brouter.ErreurBRouter, OSError, ImportError,
+                            ValueError) as exc:
+                        avertissement = f"Chemins IGN indisponibles, calcul sur OSM seul : {exc}"
+                        journal.warning("Chemins IGN indisponibles : %s", exc)
+                        ign = False     # pas de nouvel essai si la zone s'élargit
+                    else:
+                        self._avancer("itineraire", 0.82, passe=passe)
+                        trace = brouter.calculer(port, points, liste, strict=strict)
+                        moteur_utilise = "maison"
+                if trace is None:
+                    liste = franchissements.franchissements_zone(
+                        *zone, self.dossier, suivi=lambda faites, total, passe=passe: self._avancer(
+                            "donnees", 0.05 + 0.6 * faites / max(total, 1), faites, total, passe))
+                    self._avancer("itineraire", 0.7, passe=passe)
+                    trace = brouter.calculer(self.moteur(), points, liste, strict=strict)
+                coords = trace["geometry"]["coordinates"]
+                etendue = (min(c[1] for c in coords), min(c[0] for c in coords),
+                           max(c[1] for c in coords), max(c[0] for c in coords))
+                if contient(zone, etendue):
+                    break
+                journal.info("Le tracé sort de la zone examinée : zone élargie (passe %d)", passe + 1)
+                zone = union(zone, zone_autour([etendue[:2], etendue[2:]], 0.1))
+            else:
+                return {"erreur": "Le tracé sort sans cesse de la zone examinée : rapprochez les points."}
+        except (franchissements.ErreurDonnees, brouter.ErreurBRouter) as exc:
+            return {"erreur": str(exc)}
+        # Dernier contrôle, indépendant de BRouter : un tracé qui passe encore
+        # une coupe interdite n'est jamais rendu (audit B10, amélioration 2).
+        passages = sur_le_trace(coords, liste)
+        traverses = [f for f in passages if f["statut"] == "blocked" or strict]
+        if traverses:
+            f = traverses[0]
+            mot = "bloquant" if f["statut"] == "blocked" else "à vérifier, en mode strict"
+            return {"erreur": f"Itinéraire refusé : le tracé passe un franchissement {mot} "
+                              f"({f['nature']}, à {km_texte(f['distance_m'])} du départ).",
+                    "traverses": traverses}
+        portions = portions_ign(trace) if moteur_utilise == "maison" else []
+        reponse = {"itineraire": trace, "zone": zone, "franchissements": liste,
+                   "longueur_m": _nombre(trace["properties"], "track-length"),
+                   "denivele_m": _nombre(trace["properties"], "filtered ascend"),
+                   "sur_le_trace": sorted(passages + entrees_ign(portions), key=lambda f: f["distance_m"]),
+                   "portions_ign": portions, "moteur": moteur_utilise, "avertissement": avertissement,
+                   "strict": strict}
+        if comparer:
+            self._avancer("comparaison", 0.92)
             try:
-                for essai in range(ELARGISSEMENTS):
-                    nombre = len(franchissements.tuiles_zone(*zone))
-                    if nombre > TUILES_MAX:
-                        return {"erreur": f"Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus "
-                                          f"{TUILES_MAX}. Découpez le parcours en étapes plus courtes."}
-                    manquants = [n for n in brouter.segments_zone(*zone)
-                                 if not self.installation.segment_present(n)]
-                    if manquants:
-                        return {"erreur": "Données BRouter absentes pour cette zone.",
-                                "segments_manquants": manquants}
-                    trace, moteur_utilise = None, "standard"
-                    if ign:
-                        # Tuiles maison : OSM plus les chemins IGN qui y manquent, avec
-                        # les franchissements du réseau fusionné. Si elles ne peuvent se
-                        # faire, le moteur standard calcule sur OSM seul ; un itinéraire
-                        # introuvable sur elles reste une erreur.
-                        try:
-                            segments, liste = self.maison.preparer(franchissements.tuiles_zone(*zone))
-                            port = self.moteur_maison(segments)
-                        except (franchissements.ErreurDonnees, brouter.ErreurBRouter, OSError, ImportError,
-                                ValueError) as exc:
-                            avertissement = f"Chemins IGN indisponibles, calcul sur OSM seul : {exc}"
-                            ign = False     # pas de nouvel essai si la zone s'élargit
-                        else:
-                            trace = brouter.calculer(port, points, liste, strict=strict)
-                            moteur_utilise = "maison"
-                    if trace is None:
-                        liste = franchissements.franchissements_zone(*zone, self.dossier)
-                        trace = brouter.calculer(self.moteur(), points, liste, strict=strict)
-                    coords = trace["geometry"]["coordinates"]
-                    etendue = (min(c[1] for c in coords), min(c[0] for c in coords),
-                               max(c[1] for c in coords), max(c[0] for c in coords))
-                    if contient(zone, etendue):
-                        break
-                    zone = union(zone, zone_autour([etendue[:2], etendue[2:]], 0.1))
-                else:
-                    return {"erreur": "Le tracé sort sans cesse de la zone examinée : rapprochez les points."}
-            except (franchissements.ErreurDonnees, brouter.ErreurBRouter) as exc:
-                return {"erreur": str(exc)}
-            # Dernier contrôle, indépendant de BRouter : un tracé qui passe encore
-            # une coupe interdite n'est jamais rendu (audit B10, amélioration 2).
-            passages = sur_le_trace(coords, liste)
-            traverses = [f for f in passages if f["statut"] == "blocked" or strict]
-            if traverses:
-                f = traverses[0]
-                mot = "bloquant" if f["statut"] == "blocked" else "à vérifier, en mode strict"
-                return {"erreur": f"Itinéraire refusé : le tracé passe un franchissement {mot} "
-                                  f"({f['nature']}, à {km_texte(f['distance_m'])} du départ).",
-                        "traverses": traverses}
-            portions = portions_ign(trace) if moteur_utilise == "maison" else []
-            reponse = {"itineraire": trace, "zone": zone, "franchissements": liste,
-                       "longueur_m": _nombre(trace["properties"], "track-length"),
-                       "denivele_m": _nombre(trace["properties"], "filtered ascend"),
-                       "sur_le_trace": sorted(passages + entrees_ign(portions), key=lambda f: f["distance_m"]),
-                       "portions_ign": portions, "moteur": moteur_utilise, "avertissement": avertissement,
-                       "strict": strict}
-            if comparer:
-                try:
-                    naif = brouter.calculer(self.moteur(), points, profil="hiking-mountain")
-                    traverses = [f for f in sur_le_trace(naif["geometry"]["coordinates"], liste)
-                                 if f["statut"] == "blocked"]
-                    reponse.update(naif=naif, naif_longueur_m=_nombre(naif["properties"], "track-length"),
-                                   naif_traverse=traverses)
-                except brouter.ErreurBRouter:
-                    reponse["naif"] = None
-            reponse["duree_s"] = round(time.monotonic() - debut, 2)
-            return reponse
+                naif = brouter.calculer(self.moteur(), points, profil="hiking-mountain")
+                traverses = [f for f in sur_le_trace(naif["geometry"]["coordinates"], liste)
+                             if f["statut"] == "blocked"]
+                reponse.update(naif=naif, naif_longueur_m=_nombre(naif["properties"], "track-length"),
+                               naif_traverse=traverses)
+            except brouter.ErreurBRouter:
+                reponse["naif"] = None
+        reponse["duree_s"] = round(time.monotonic() - debut, 2)
+        return reponse
 
     # ---------------------------------------------------------- dénivelé
 
@@ -336,10 +446,15 @@ class Application:
         modèle de terrain."""
         from . import denivele      # numpy et rasterio ne se chargent qu'au premier calcul
         with self._verrou_denivele:
+            debut = time.monotonic()
             try:
-                return denivele.calculer((payload or {}).get("coordonnees"), self.dossier)
+                resultat = denivele.calculer((payload or {}).get("coordonnees"), self.dossier)
             except (ValueError, denivele.ErreurDenivele) as exc:
+                journal.warning("Dénivelé en erreur après %.1f s : %s", time.monotonic() - debut, exc)
                 return {"erreur": str(exc)}
+            journal.info("Dénivelé calculé en %.1f s : +%s m, %s", time.monotonic() - debut,
+                         resultat.get("montee_m"), resultat.get("modele"))
+            return resultat
 
     # ---------------------------------------------------------- calques
 
@@ -362,7 +477,8 @@ class Application:
 
     def routes(self):
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
-               "osm": self.calque_osm, "bdtopo": self.calque_bdtopo}
+               "osm": self.calque_osm, "bdtopo": self.calque_bdtopo,
+               "progression": self.progression, "journal": self.lire_journal}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
                 "segment": self.telecharger_segment, "moteur": self.installer_moteur,
                 "denivele": self.denivele}

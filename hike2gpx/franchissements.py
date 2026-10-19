@@ -25,6 +25,7 @@ continuer sans les barrières.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 import threading
@@ -38,6 +39,8 @@ from pathlib import Path
 from nico579_commons import atomique
 
 from . import __version__, regles
+
+journal = logging.getLogger(__name__)
 
 ENDPOINT = "https://overpass-api.de/api/interpreter"
 MODE = "foot"
@@ -525,9 +528,11 @@ def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep) -> list:
         except urllib.error.HTTPError as exc:
             if exc.code not in (429, 502, 503, 504):
                 raise ErreurDonnees(f"Overpass refuse la requête (HTTP {exc.code}).") from exc
+            journal.warning("Overpass, essai %d sur %d : HTTP %s", essai + 1, TENTATIVES, exc.code)
             derniere = exc
             continue
         except OSError as exc:      # URLError, délai, connexion coupée
+            journal.warning("Overpass, essai %d sur %d : %s", essai + 1, TENTATIVES, exc)
             derniere = exc
             continue
         if len(brut) > MAX_OCTETS:
@@ -555,8 +560,11 @@ def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=
             return cache
         if not en_ligne:
             raise ErreurDonnees("Hors connexion : les barrières de cette zone n'ont jamais été chargées.")
+        debut = time.monotonic()
         donnees = {"version": VERSION_DONNEES, "fetched_at": maintenant(), "bornes": bornes_tuile(i, j),
                    "elements": interroger(requete(*bornes_tuile(i, j)))}
+        journal.info("Overpass : tuile %d_%d lue en %.1f s (%d éléments)", i, j, time.monotonic() - debut,
+                     len(donnees["elements"]))
         atomique.ecrire_json(chemin, donnees, indent=None)
         return donnees
 
@@ -579,10 +587,17 @@ def franchissements_tuile(i: int, j: int, dossier, **options) -> list:
     return liste
 
 
-def franchissements_zone(sud: float, ouest: float, nord: float, est: float, dossier, **options) -> list:
-    resultat = []
-    for i, j in tuiles_zone(sud, ouest, nord, est):
+def franchissements_zone(sud: float, ouest: float, nord: float, est: float, dossier, *, suivi=None,
+                         **options) -> list:
+    """Franchissements des tuiles de la zone ; suivi(faites, total) après
+    chaque tuile, pour la barre de progression de la page."""
+    resultat, tuiles = [], tuiles_zone(sud, ouest, nord, est)
+    if suivi:
+        suivi(0, len(tuiles))
+    for k, (i, j) in enumerate(tuiles):
         resultat.extend(franchissements_tuile(i, j, dossier, **options))
+        if suivi:
+            suivi(k + 1, len(tuiles))
     return resultat
 
 

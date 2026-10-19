@@ -15,13 +15,17 @@ pouvant traverser une clôture. Ils remplacent alors ceux d'OSM seul.
 """
 from __future__ import annotations
 
+import logging
 import shutil
 import threading
+import time
 from pathlib import Path
 
 from nico579_commons import atomique
 
 from . import bdtopo, brouter, franchissements as fr, fusion
+
+journal = logging.getLogger(__name__)
 
 VERSION = 4     # format de l'état, règles de fusion ou d'analyse : l'augmenter refait la tuile
 
@@ -55,17 +59,22 @@ class TuilesMaison:
         ign = bdtopo.lire_cache(i, j, self.dossier)
         return [osm, ign["fetched_at"]] if ign else None
 
-    def preparer(self, tuiles, *, en_ligne: bool = True):
+    def preparer(self, tuiles, *, en_ligne: bool = True, suivi=None):
         """(dossier des tuiles .rd5, franchissements du réseau fusionné) pour
         ces tuiles de 0,05°, en refaisant la fabrication si besoin. Les
-        franchissements rendus sont ceux de ces tuiles seulement."""
+        franchissements rendus sont ceux de ces tuiles seulement. suivi(étape,
+        faites, total) annonce la lecture des tuiles puis chaque étape de la
+        fabrication, pour la barre de progression de la page."""
+        suivi = suivi or (lambda *_: None)
         with self._verrou:
             demandees = {}
-            for i, j in tuiles:
+            suivi("donnees", 0, len(tuiles))
+            for k, (i, j) in enumerate(tuiles):
                 dates = self._dates(i, j, en_ligne=en_ligne)
                 if dates is None:
                     raise fr.ErreurDonnees("Données OSM ou BD TOPO de la zone indisponibles.")
                 demandees[f"{i}_{j}"] = dates
+                suivi("donnees", k + 1, len(tuiles))
             etat = self.etat()
             dossier = self.racine / etat["fabrication"] if etat["fabrication"] else None
             if dossier is not None and (dossier / "segments").is_dir() \
@@ -73,11 +82,13 @@ class TuilesMaison:
                 segments, liste = dossier / "segments", self._franchissements(dossier)
             else:
                 union = {**etat["tuiles"], **demandees}
-                segments, liste = self._fabriquer(union if len(union) <= self.UNION_MAX else demandees)
+                segments, liste = self._fabriquer(union if len(union) <= self.UNION_MAX else demandees, suivi)
             voulues = set(tuiles)
             return segments, [f for f in liste if fr.tuile_du_point(f["lat"], f["lon"]) in voulues]
 
-    def _fabriquer(self, tuiles: dict):
+    def _fabriquer(self, tuiles: dict, suivi=lambda *_: None):
+        temps, debut = {}, time.monotonic()
+        suivi("fusion", 0, 0)
         reseau, troncons, vus = fusion.Reseau(), [], set()
         retenues = {}
         for cle in sorted(tuiles):
@@ -92,6 +103,8 @@ class TuilesMaison:
                     vus.add(t["id"])
                     troncons.append(t)
         reseau.ajouter_ign(troncons)
+        temps["fusion"] = time.monotonic() - debut
+        suivi("tuiles", 0, 0)
         self.installation.preparer_maison()
         numero = 1 + max((int(d.name.split("-")[1]) for d in self.racine.glob("fabrication-*")
                           if d.name.split("-")[1].isdigit()), default=0)
@@ -100,6 +113,8 @@ class TuilesMaison:
         self.racine.mkdir(parents=True, exist_ok=True)
         reseau.ecrire_pbf(pbf)
         segments = brouter.fabriquer_tuiles(self.installation, pbf, dossier)
+        temps["tuiles"] = time.monotonic() - debut - temps["fusion"]
+        suivi("analyse", 0, 0)
         # Comme pour une tuile Overpass, seuls les franchissements situés dans
         # les tuiles lues sont complets : au-delà, des barrières manquent.
         liste = [f for f in fr.analyser(reseau.elements())
@@ -108,6 +123,10 @@ class TuilesMaison:
         atomique.ecrire_json(self.chemin_etat, {"version": VERSION, "fabrication": dossier.name, "tuiles": retenues,
                                                 "chemins_ign": len(reseau.ign)})
         self._nettoyer(dossier.name)
+        journal.info("Tuile maison %s : %d tuiles, %d chemins IGN, %d franchissements ; fusion %.1f s, "
+                     "PBF et BRouter %.1f s, analyse %.1f s", dossier.name, len(retenues), len(reseau.ign),
+                     len(liste), temps["fusion"], temps["tuiles"],
+                     time.monotonic() - debut - temps["fusion"] - temps["tuiles"])
         return segments, liste
 
     def _franchissements(self, dossier: Path) -> list:

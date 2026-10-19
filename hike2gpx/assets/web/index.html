@@ -9,6 +9,10 @@
 </head>
 <body>
 <div id="carte" aria-label="Carte"></div>
+<div id="progression" role="progressbar" aria-live="polite" hidden>
+  <div class="piste"><div id="progressionBarre"></div></div>
+  <span id="progressionTexte"></span>
+</div>
 <aside id="panneau">
   <header>
     <h1>hike2gpx</h1>
@@ -63,6 +67,11 @@
     </div>
     <p class="note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN,
       sous Licence Ouverte.</p>
+  </details>
+  <details id="journal">
+    <summary>Journal des calculs</summary>
+    <p class="note">Erreurs, blocages et lenteurs, du plus ancien au plus récent : <span id="cheminJournal"></span></p>
+    <pre id="lignesJournal"></pre>
   </details>
   <footer class="note">Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins BD TOPO
     et cartes © IGN, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain

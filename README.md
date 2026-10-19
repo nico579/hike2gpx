@@ -48,7 +48,11 @@ Le calcul passe par cinq pièces.
    s'afficher en pointillé pour comparaison. Deux calques à cocher, à partir
    du zoom 14, montrent les chemins que connaît OpenStreetMap (avec ses
    clôtures et murs) et ceux de la BD TOPO de l'IGN : de quoi comparer les
-   deux sources.
+   deux sources. Pendant un calcul, une barre en bas de la carte suit ses
+   étapes ; un bouton sous le zoom passe la carte en plein écran. Chaque
+   calcul laisse sa trace dans `hike2gpx.log`, au dossier de données, avec le
+   temps de chaque étape, ses erreurs et ses lenteurs ; la page en montre la
+   fin dans « Journal des calculs ».
 4. **Le dénivelé.** Une fois l'itinéraire affiché, le moteur de
    [gpx2elev](https://pypi.org/project/gpx2elev/) recalcule son dénivelé :
    tracé échantillonné tous les 5 m, meilleur modèle de terrain disponible

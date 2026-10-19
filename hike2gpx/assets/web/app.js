@@ -8,7 +8,8 @@ const DELAI_CALCUL_MS = 250;
 const CLE_VUE = "hike2gpx.vue";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
 
-const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0 };
+const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0,
+  suivi: null };
 const $ = (id) => document.getElementById(id);
 
 async function api(route, corps) {
@@ -300,10 +301,44 @@ function effacerResultat() {
   $("exporter").disabled = true;
 }
 
-// Pointeur d'attente pendant un calcul (cursor: progress) : la carte reste
-// utilisable, un point posé entre-temps relance le calcul.
+// Pendant un calcul : pointeur d'attente (cursor: progress, la carte reste
+// utilisable) et barre de progression en bas de la carte, nourrie par l'étape
+// que le serveur publie (/api/progression), lue toutes les demi-secondes.
+const ETAPES = {
+  debut: "Préparation du calcul",
+  donnees: "Lecture des données de la zone : {faites} / {total} tuiles",
+  fusion: "Fusion avec les chemins IGN",
+  tuiles: "Fabrication de la tuile BRouter",
+  analyse: "Analyse des franchissements",
+  itineraire: "Calcul de l'itinéraire",
+  comparaison: "Tracé standard, pour comparaison",
+};
+
 function occupe(oui) {
   document.body.classList.toggle("calcul", oui);
+  clearInterval(etat.suivi);
+  etat.suivi = null;
+  $("progression").hidden = !oui;
+  if (oui) {
+    afficherProgression({ etape: "debut", fraction: 0.02, duree_s: 0, passe: 1 });
+    etat.suivi = setInterval(lireProgression, 500);
+  }
+}
+
+async function lireProgression() {
+  try {
+    const p = await api("progression");
+    if (p.actif && etat.suivi) afficherProgression(p);
+  } catch (e) {
+    // Le tour suivant réessaie : la barre n'est qu'une indication.
+  }
+}
+
+function afficherProgression(p) {
+  let texte = (ETAPES[p.etape] || ETAPES.debut).replace("{faites}", p.faites).replace("{total}", p.total);
+  if (p.passe > 1) texte += " (zone élargie)";
+  $("progressionTexte").textContent = `${texte} · ${Math.round(p.duree_s)} s`;
+  $("progressionBarre").style.width = `${Math.round(100 * p.fraction)}%`;
 }
 
 async function calculer() {
@@ -338,6 +373,55 @@ async function calculer() {
   occupe(false);
   if (reponse.erreur) afficherErreur(reponse);
   else afficher(reponse);
+  chargerJournal();
+}
+
+// ------------------------------------------------------------ journal
+
+// Les dernières lignes du journal des calculs (erreurs, blocages, lenteurs),
+// relues à l'ouverture de la section et après chaque calcul.
+async function chargerJournal() {
+  if (!$("journal").open) return;
+  try {
+    const j = await api("journal");
+    $("cheminJournal").textContent = j.chemin;
+    $("lignesJournal").textContent = j.lignes.length ? j.lignes.join("\n") : "Journal vide pour l'instant.";
+    $("lignesJournal").scrollTop = $("lignesJournal").scrollHeight;
+  } catch (e) {
+    $("lignesJournal").textContent = `Journal illisible : ${e.message}`;
+  }
+}
+
+// ------------------------------------------------------------ plein écran
+
+// La carte seule, sans le panneau ni le choix des fonds et calques : un bouton
+// sous le zoom bascule, Échap ou le même bouton ramènent la page normale.
+const PleinEcran = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    const bouton = L.DomUtil.create("button", "bouton-plein-ecran");
+    bouton.type = "button";
+    bouton.id = "pleinEcran";
+    bouton.title = "Plein écran";
+    bouton.textContent = "⛶";
+    L.DomEvent.disableClickPropagation(bouton);
+    L.DomEvent.on(bouton, "click", basculerPleinEcran);
+    return bouton;
+  },
+});
+
+function appliquerPleinEcran(actif) {
+  document.body.classList.toggle("plein-ecran", actif);
+  $("pleinEcran").title = actif ? "Quitter le plein écran" : "Plein écran";
+  carte.invalidateSize();
+}
+
+function basculerPleinEcran() {
+  const actif = !document.body.classList.contains("plein-ecran");
+  appliquerPleinEcran(actif);
+  // Le navigateur peut refuser son plein écran : la carte seule reste acquise.
+  if (actif && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+  if (!actif && document.fullscreenElement) document.exitFullscreen().catch(() => {});
 }
 
 function boutonAction(texte, action) {
@@ -476,6 +560,7 @@ async function calculerDenivele(r) {
   $("denivele").textContent = `+${d.montee_m} m, −${d.descente_m} m`;
   $("sourceDenivele").textContent = `gpx2elev, ${d.modele} : échantillonnage 5 m, lissage 20 m, `
     + `hystérésis 2 m ; altitude de ${d.altitude_min_m} à ${d.altitude_max_m} m.`;
+  chargerJournal();
 }
 
 // ------------------------------------------------------------ GPX
@@ -532,6 +617,12 @@ $("toutEffacer").addEventListener("click", () => {
   planifierCalcul();
 });
 $("exporter").addEventListener("click", exporter);
+$("journal").addEventListener("toggle", chargerJournal);
+new PleinEcran().addTo(carte);
+// Échap quitte le plein écran du navigateur : la page revient avec lui.
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && document.body.classList.contains("plein-ecran")) appliquerPleinEcran(false);
+});
 $("strict").addEventListener("change", planifierCalcul);
 $("ign").addEventListener("change", planifierCalcul);
 $("comparer").addEventListener("change", planifierCalcul);
