@@ -92,6 +92,28 @@ Si OpenStreetMap ne répond pas, le calcul s'arrête : une barrière inconnue ne
 prouve jamais qu'un passage est libre. Et s'il n'existe aucun itinéraire, la
 page le dit, sans relier les points en ligne droite.
 
+### Données OSM hors ligne
+
+Overpass, le service qui répond aux questions sur OpenStreetMap, sature par
+moments et tombe parfois. Pour ne plus en dépendre, la page propose l'extrait
+[Geofabrik](https://download.geofabrik.de/) de la région affichée, partout
+sur la planète : Provence-Alpes-Côte d'Azur à Garéoult (373 Mo), la Bavière à
+Munich. Parmi quelque 550 régions, hike2gpx retient la plus petite qui
+contient entièrement chaque tuile. Un clic sur « Télécharger » le récupère en
+tâche de fond, vérifié par son MD5, pendant qu'Overpass continue de servir ;
+le calcul qui attendait reprend de lui-même à la fin. L'extrait est lu une
+fois et rangé dans une base SQLite par tuile, au dossier de données
+(`geofabrik/`), puis le fichier téléchargé est effacé.
+
+Une fois installé, l'extrait est la source des tuiles qu'il contient :
+lecture instantanée, sans quota ni panne, hors connexion comprise. Une tuile en
+sort sous la forme exacte d'une réponse d'Overpass, si bien que les
+franchissements se jugent de la même façon. Overpass ne sert plus qu'ailleurs :
+autre région, ou tuile à cheval sur une frontière. Geofabrik refait ses
+extraits chaque jour ; plus vieux qu'une semaine, l'âge maximal du cache
+Overpass, l'extrait se renouvelle de lui-même en tâche de fond, l'ancien
+servant jusqu'à la bascule.
+
 ## Limites
 
 hike2gpx ne peut éviter que ce qui est cartographié. Autour de Garéoult, sur

@@ -28,6 +28,7 @@ import json
 import logging
 import math
 import re
+import sqlite3
 import threading
 import time
 import urllib.error
@@ -587,8 +588,31 @@ def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep, continue
     raise ErreurDonnees(f"Overpass ne répond pas : barrières non vérifiées ({derniere}).") from derniere
 
 
+def tuile_de_l_extrait(i: int, j: int, dossier) -> dict | None:
+    """La tuile lue dans l'extrait Geofabrik installé qui la contient tout
+    entière (geofabrik.py), au format du cache Overpass, ou None. Un extrait
+    trop vieux lance son renouvellement en tâche de fond et sert en attendant."""
+    from . import geofabrik     # pas de cycle : geofabrik importe ce module
+    try:
+        extrait = geofabrik.extrait_de_tuile(dossier, i, j)
+        if extrait is None:
+            return None
+        geofabrik.telechargements(dossier).renouveler_si_perime(extrait)
+        return {"version": VERSION_DONNEES, "fetched_at": geofabrik.horodatage(extrait),
+                "bornes": bornes_tuile(i, j), "elements": geofabrik.elements_tuile(extrait, i, j),
+                "source": f"geofabrik:{extrait['id']}:{extrait['date']}"}
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        journal.warning("Extrait Geofabrik illisible pour la tuile %d_%d, Overpass à la place : %s", i, j, exc)
+        return None
+
+
 def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=interroger,
                   maintenant=time.time, continuer=_toujours) -> dict:
+    """Les données OSM d'une tuile : celles de l'extrait Geofabrik installé qui
+    la contient, sinon celles d'Overpass (cache de sept jours)."""
+    extrait = tuile_de_l_extrait(i, j, dossier)
+    if extrait is not None:
+        return extrait
     chemin = Path(dossier) / "overpass" / f"v{VERSION_DONNEES}_{i}_{j}.json"
     with _verrou(("overpass", i, j)):
         cache = atomique.lire_json(chemin, None)

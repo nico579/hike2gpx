@@ -9,7 +9,7 @@ const CLE_VUE = "hike2gpx.vue";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
 
 const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0,
-  suivi: null, statut: ["", false] };
+  suivi: null, statut: ["", false], extrait: null, extraitAttendu: false };
 const $ = (id) => document.getElementById(id);
 
 // ------------------------------------------------------------ langue
@@ -78,6 +78,15 @@ const TEXTES = {
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
     "calque.chargement": "Chargement des {nom}… (la première fois, jusqu'à une minute)",
     "calque.zoom": "Zoomez davantage (niveau {niveau}) pour voir les chemins.",
+    "extrait.propose": "Données OSM hors ligne : l'extrait {nom} ({taille} Mo) remplacerait Overpass dans cette région.",
+    "extrait.bouton": "Télécharger",
+    "extrait.telechargement": "Téléchargement de l'extrait {nom} : {pourcent} %",
+    "extrait.import": "Import de l'extrait {nom} : {voies} voies lues…",
+    "extrait.installe": "Données OSM hors ligne : extrait {nom} du {date}, renouvelé chaque semaine.",
+    "extrait.erreur": "Extrait {nom} non installé : {message}",
+    "extrait.tropGros": "L'extrait {nom} ({taille} Mo) est trop gros : Overpass reste la source ici.",
+    "extrait.action": "Télécharger l'extrait OSM {nom} ({taille} Mo)",
+    "extrait.lance": "Extrait en cours de téléchargement : le calcul reprendra de lui-même une fois l'extrait installé.",
     "bdtopo.troncon": "Tronçon",
     "bdtopo.acces": "accès piéton : {valeur}",
     "bdtopo.prive": "privé",
@@ -172,6 +181,15 @@ const TEXTES = {
     "calque.bdtopo": "BD TOPO paths (IGN)",
     "calque.chargement": "Loading the {nom}… (the first time, up to a minute)",
     "calque.zoom": "Zoom in further (level {niveau}) to see the paths.",
+    "extrait.propose": "Offline OSM data: the {nom} extract ({taille} MB) would replace Overpass in this region.",
+    "extrait.bouton": "Download",
+    "extrait.telechargement": "Downloading the {nom} extract: {pourcent} %",
+    "extrait.import": "Importing the {nom} extract: {voies} ways read…",
+    "extrait.installe": "Offline OSM data: {nom} extract of {date}, renewed every week.",
+    "extrait.erreur": "{nom} extract not installed: {message}",
+    "extrait.tropGros": "The {nom} extract ({taille} MB) is too large: Overpass remains the source here.",
+    "extrait.action": "Download the OSM extract {nom} ({taille} MB)",
+    "extrait.lance": "Extract downloading: the calculation will resume by itself once it is installed.",
     "bdtopo.troncon": "Section",
     "bdtopo.acces": "pedestrian access: {valeur}",
     "bdtopo.prive": "private",
@@ -305,6 +323,7 @@ function appliquerLangue(code) {
   rafraichirPoints();
   construireFonds();
   rafraichirCalques();
+  afficherExtrait(etat.extrait);
   afficherStatut(...etat.statut);
   if (etat.dernier) ecrireResultat(etat.dernier);
 }
@@ -522,6 +541,74 @@ function restaurerCalques() {
     }
   } catch (e) { /* stockage indisponible : calques éteints */ }
 }
+
+// ------------------------------------------------------------ données OSM hors ligne
+
+// L'extrait Geofabrik de la région au centre de la carte (geofabrik.py) :
+// proposé, en cours de téléchargement ou installé. Une fois installé, il
+// remplace Overpass dans sa région.
+const ZOOM_EXTRAIT = 10;
+let minuterieExtrait = null;
+
+function dateCourte(iso) {
+  return new Date(iso).toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR");
+}
+
+async function majExtrait() {
+  clearTimeout(minuterieExtrait);
+  const enCours = etat.extrait?.en_cours && ["telechargement", "import"].includes(etat.extrait.en_cours.etape);
+  if (carte.getZoom() < ZOOM_EXTRAIT && !enCours) { afficherExtrait(null); return; }
+  const parametres = new URLSearchParams(Object.entries(zoneVue()).map(([k, v]) => [k, v.toFixed(5)]));
+  try {
+    afficherExtrait(await api(`extrait?${parametres}`));
+  } catch (e) { /* serveur momentanément injoignable : la ligne reste telle quelle */ }
+}
+
+function afficherExtrait(r) {
+  etat.extrait = r;
+  const ligne = $("extraitOsm"), bouton = $("extraitBouton");
+  bouton.hidden = true;
+  const e = r?.en_cours;
+  const actif = e && ["telechargement", "import"].includes(e.etape);
+  if (actif) {
+    $("extraitTexte").textContent = e.etape === "telechargement"
+      ? t("extrait.telechargement", { nom: e.nom, pourcent: Math.round(100 * e.fraction) })
+      : t("extrait.import", { nom: e.nom, voies: Number(e.voies).toLocaleString(langue === "en" ? "en-GB" : "fr-FR") });
+    minuterieExtrait = setTimeout(majExtrait, 1500);
+  } else if (r?.installe) {
+    $("extraitTexte").textContent = t("extrait.installe", { nom: r.installe.nom, date: dateCourte(r.installe.date) });
+  } else if (e?.etape === "erreur") {
+    $("extraitTexte").textContent = t("extrait.erreur", { nom: e.nom, message: e.erreur });
+    bouton.hidden = !r.propose;
+  } else if (r?.propose) {
+    const p = r.propose;
+    $("extraitTexte").textContent = t(p.trop_gros ? "extrait.tropGros" : "extrait.propose",
+      { nom: p.nom, taille: p.taille_mo ?? "?" });
+    bouton.hidden = p.trop_gros;
+  }
+  ligne.hidden = !(actif || r?.installe || r?.propose || e?.etape === "erreur");
+  // L'extrait attendu par un calcul vient d'être installé : le calcul reprend.
+  if (etat.extraitAttendu && e?.etape === "fini") {
+    etat.extraitAttendu = false;
+    if (etat.points.length >= 2) planifierCalcul();
+  }
+}
+
+async function installerExtrait(id) {
+  const r = await api("extrait", { id });
+  if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
+  etat.extraitAttendu = true;
+  afficherStatut(() => t("extrait.lance"));
+  majExtrait();
+}
+
+$("extraitBouton").addEventListener("click", () => {
+  if (etat.extrait?.propose) installerExtrait(etat.extrait.propose.id);
+});
+carte.on("moveend", () => {
+  clearTimeout(minuterieExtrait);
+  minuterieExtrait = setTimeout(majExtrait, 600);
+});
 
 // Fonds de carte et contrôle des calques, refaits quand la clé IGN ou la
 // langue change ; le fond affiché reste le même.
@@ -784,6 +871,12 @@ function afficherErreur(reponse) {
     }));
   }
   if (reponse.moteur_absent) proposerInstallation();
+  // Overpass en panne, et un extrait de la région existe : le proposer.
+  const extrait = reponse.extrait;
+  if (extrait) {
+    $("actions").append(boutonAction(t("extrait.action", { nom: extrait.nom, taille: extrait.taille_mo ?? "?" }),
+      () => installerExtrait(extrait.id)));
+  }
 }
 
 function lignes(feature) {

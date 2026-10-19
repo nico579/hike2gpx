@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from hike2gpx import application as appli, brouter, franchissements
+from hike2gpx import application as appli, brouter, franchissements, geofabrik
 
 
 def trace(*points_lat_lon, longueur="1234", montee="56"):
@@ -230,7 +230,36 @@ def test_itineraire_s_arrete_si_les_barrieres_sont_inconnues(simulee, monkeypatc
 
     monkeypatch.setattr(franchissements, "franchissements_zone", panne)
     monkeypatch.setattr(brouter, "calculer", lambda *a, **o: pytest.fail("calcul sans barrières"))
-    assert "barrières non vérifiées" in a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})["erreur"]
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [])
+    reponse = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
+    assert "barrières non vérifiées" in reponse["erreur"] and "extrait" not in reponse
+    # Un extrait Geofabrik couvre la zone : la page le proposera.
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [REGION_PACA])
+    monkeypatch.setattr(geofabrik, "taille", lambda url: 372 * 1024 ** 2)
+    assert a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})["extrait"] == {
+        "id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d'Azur", "taille_mo": 372, "trop_gros": False}
+
+
+REGION_PACA = {"id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d'Azur",
+               "pbf": "https://download.geofabrik.de/europe/france/provence-alpes-cote-d-azur-latest.osm.pbf",
+               "bornes": (42.9, 4.2, 45.2, 7.8),
+               "polygones": [[[(4.2, 42.9), (7.8, 42.9), (7.8, 45.2), (4.2, 45.2), (4.2, 42.9)]]]}
+
+
+def test_extrait_propose_lance_et_refuse(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [REGION_PACA])
+    monkeypatch.setattr(geofabrik, "taille", lambda url: 372 * 1024 ** 2)
+    vue = (43.30, 6.00, 43.34, 6.08)
+    assert a.extrait(vue) == {"en_cours": None, "propose": {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"],
+                                                            "taille_mo": 372, "trop_gros": False}}
+    assert a.extrait((60.0, 6.0, 60.1, 6.1)) == {"en_cours": None}
+    lancees = []
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
+    assert a.installer_extrait({"id": REGION_PACA["id"]}) == {"lance": True} and lancees == [REGION_PACA["id"]]
+    assert a.installer_extrait({"id": "inconnu"}) == {"erreur": "Extrait inconnu."}
+    a._tailles_extraits[REGION_PACA["id"]] = 3 * 1024 ** 3
+    assert "trop gros" in a.installer_extrait({"id": REGION_PACA["id"]})["erreur"] and len(lancees) == 1
 
 
 def test_itineraire_signale_les_donnees_manquantes(simulee, monkeypatch):
@@ -319,8 +348,9 @@ def test_route_denivele(tmp_path, monkeypatch):
 def test_routes_init_annonce_l_application(tmp_path):
     get, post = appli.Application(tmp_path).routes()
     assert get["init"]()["app"] == "hike2gpx"
-    assert {"osm", "bdtopo"} <= set(get)
-    assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele", "langue", "arreter_calques"}
+    assert {"osm", "bdtopo", "extrait"} <= set(get)
+    assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele", "langue", "arreter_calques",
+                         "extrait"}
     assert "erreur" in post["segment"]({"nom": "../x"})
 
 

@@ -50,7 +50,7 @@ function charger() {
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
-    + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES };", contexte);
+    + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps, requetes, carte };
 }
@@ -182,4 +182,32 @@ test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tu
   await troisieme;
   const arret = requetes.find((r) => r.url === "/api/arreter_calques");
   assert.deepEqual(JSON.parse(arret.options.body), { calques: ["osm", "bdtopo"] });
+});
+
+test("données OSM hors ligne : proposées, téléchargées, installées, et le calcul reprend", async () => {
+  const { page, elements, requetes } = charger();
+  const texte = () => elements.get("extraitTexte").textContent;
+  const nom = "Provence Alpes-Cote-d'Azur";
+  page.afficherExtrait({ en_cours: null, propose: { id: "paca", nom, taille_mo: 373, trop_gros: false } });
+  assert.equal(elements.get("extraitOsm").hidden, false);
+  assert.equal(elements.get("extraitBouton").hidden, false);
+  assert.equal(texte(), `Données OSM hors ligne : l'extrait ${nom} (373 Mo) remplacerait Overpass dans cette région.`);
+  // Overpass en panne pendant un calcul : la page propose l'extrait, le clic le lance.
+  page.afficherErreur({ erreur: "Overpass ne répond pas : barrières non vérifiées (HTTP 502).",
+    extrait: { id: "paca", nom, taille_mo: 373, trop_gros: false } });
+  assert.equal(page.etat.extraitAttendu, false);
+  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "telechargement", fraction: 0.42, voies: 0 } });
+  assert.equal(texte(), `Téléchargement de l'extrait ${nom} : 42 %`);
+  assert.equal(elements.get("extraitBouton").hidden, true);
+  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "import", fraction: 1, voies: 210710 } });
+  assert.match(texte(), /^Import de l'extrait .* : 210.710 voies lues…$/);
+  // Fin : l'extrait sert, et un calcul qui l'attendait repart.
+  page.etat.extraitAttendu = true;
+  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "fini", date: "2026-10-18T20:25:06Z" },
+    installe: { id: "paca", nom, date: "2026-10-18T20:25:06Z" } });
+  assert.equal(texte(), `Données OSM hors ligne : extrait ${nom} du 18/10/2026, renouvelé chaque semaine.`);
+  assert.equal(page.etat.extraitAttendu, false);
+  page.appliquerLangue("en");
+  assert.equal(texte(), `Offline OSM data: ${nom} extract of 18/10/2026, renewed every week.`);
+  assert.equal(requetes.filter((r) => r.url === "/api/extrait").length, 0);
 });
