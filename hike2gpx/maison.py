@@ -21,7 +21,7 @@ from nico579_commons import atomique
 
 from . import bdtopo, brouter, franchissements as fr, fusion
 
-VERSION = 2     # format de l'état et règles de fusion : l'augmenter refait la tuile
+VERSION = 3     # format de l'état, règles de fusion ou d'analyse : l'augmenter refait la tuile
 
 
 class TuilesMaison:

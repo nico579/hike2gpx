@@ -46,7 +46,7 @@ TTL_S = 7 * 86400
 # Format du cache Overpass, et version des règles : augmenter la seconde dès
 # qu'un jugement change, l'analyse en cache est alors refaite.
 VERSION_DONNEES = 1
-VERSION_ANALYSE = 1
+VERSION_ANALYSE = 2         # 2 : ouvertures voisines jugées (B01), liens nuls ignorés (B08)
 MAX_OCTETS = 256 * 1024 * 1024
 TENTATIVES = 3
 
@@ -285,12 +285,28 @@ def analyser(elements, mode: str = MODE) -> list:
             elif _ferme(nds):
                 yield pts[0]
 
-    def ouverture_proche(p, c, d, nds_barriere) -> bool:
-        for nid in ouvertures.candidats(p, p, OUVERTURE_M):
-            q = position_ouverture[nid]
-            if _dist(q, p) <= OUVERTURE_M and (nid in nds_barriere or _distance_segment(q, c, d) <= OUVERTURE_LIGNE_M):
-                return True
-        return False
+    def ouvertures_proches(p, c, d, nds_barriere) -> list:
+        """Ouvertures cartographiées sur la barrière, assez près du croisement
+        (règle de gpx2elev)."""
+        return [nid for nid in ouvertures.candidats(p, p, OUVERTURE_M)
+                if _dist(position_ouverture[nid], p) <= OUVERTURE_M
+                and (nid in nds_barriere or _distance_segment(position_ouverture[nid], c, d) <= OUVERTURE_LIGNE_M)]
+
+    def par_les_ouvertures(proches, voies_vues):
+        """Jugement d'un croisement par ses ouvertures voisines : None si l'une
+        laisse passer, ou si l'une est portée par la voie (l'étape 3 la juge) ;
+        sinon (statut, raison, nœud) de la plus favorable. Une ouverture
+        privée ou verrouillée n'efface plus la clôture (audit B01)."""
+        meilleur = None
+        for nid in proches:
+            if any(nid in v["nodes"] for v in voies_vues):
+                return None
+            statut, raison = regles.status(noeuds[nid].get("tags", {}), mode, None, voies_vues[0].get("tags", {}))
+            if statut == "passable":
+                return None
+            if meilleur is None or (statut == "uncertain" and meilleur[0] == "blocked"):
+                meilleur = (statut, raison, nid)
+        return meilleur
 
     def ajuster(jugement, voies_vues, tags_barriere):
         statut, raison = jugement
@@ -306,6 +322,17 @@ def analyser(elements, mode: str = MODE) -> list:
         extremites = ((centre[0] + nx * DEMI_COUPE_M, centre[1] + ny * DEMI_COUPE_M),
                       (centre[0] - nx * DEMI_COUPE_M, centre[1] - ny * DEMI_COUPE_M))
         return [[round(lon, 7), round(lat, 7)] for lat, lon in (proj.geo(*q) for q in extremites)]
+
+    def voisin(vi, k, pas):
+        """Rang du premier sommet de la voie vi distinct du sommet k, vers
+        l'avant (pas = 1) ou l'arrière (-1), ou None : un nœud répété, ou deux
+        nœuds au même endroit, ne font pas un lien (audit B08)."""
+        pts, kk = vxy[vi], k + pas
+        while 0 <= kk < len(pts):
+            if _dist(pts[kk], pts[k]) > EPS_M:
+                return kk
+            kk += pas
+        return None
 
     def coupe_lien(p, q):
         """Coupe d'un lien de voie qui part du nœud p vers q."""
@@ -371,7 +398,16 @@ def analyser(elements, mode: str = MODE) -> list:
                         continue
                     cle_sommet = nb
                 p = (a[0] + t * (e[0] - a[0]), a[1] + t * (e[1] - a[1]))
-                if ouverture_proche(p, c, d, nds_set):
+                proches = ouvertures_proches(p, c, d, nds_set)
+                if proches:
+                    # L'ouverture voisine décide à la place de la barrière.
+                    ouverture = par_les_ouvertures(proches, [v])
+                    if ouverture is not None:
+                        statut_o, raison_o, no = ouverture
+                        tags_o = noeuds[no].get("tags", {})
+                        statut, raison = ajuster((statut_o, raison_o), [v], tags_o)
+                        enregistrer(("ouverture", no, v["id"]), statut, raison, tags_o, f"node/{no}", p, [v],
+                                    [coupe(p, _sous(e, a))])
                     continue
                 statut, raison = ajuster(jugement, [v], tags_b)
                 # Un sommet de barrière partagé par deux morceaux de la même
@@ -388,7 +424,7 @@ def analyser(elements, mode: str = MODE) -> list:
             continue    # nœud étiqueté : jugé à l'étape 3, comme dans gpx2elev
         liens = [(vi, k, kk) for vi, k in incidences.get(nid, ())
                  if not _hors_sol(voies[vi][0].get("tags", {}))
-                 for kk in (k - 1, k + 1) if 0 <= kk < len(vxy[vi])]
+                 for kk in (voisin(vi, k, -1), voisin(vi, k, 1)) if kk is not None]
         if not liens:
             continue
         p = vxy[liens[0][0]][liens[0][1]]
@@ -398,12 +434,22 @@ def analyser(elements, mode: str = MODE) -> list:
             c, d = bxy[bi][bj], bxy[bi][bj + 1]
             gauche = [l for l in liens if _cote(vxy[l[0]][l[2]], c, d) > 0]
             droite = [l for l in liens if _cote(vxy[l[0]][l[2]], c, d) < 0]
-            if not gauche or not droite or ouverture_proche(p, c, d, set(b["nodes"])):
+            if not gauche or not droite:
                 continue
             voies_vues = [voies[vi][0] for vi, _, _ in liens]
-            statut, raison = ajuster(regles.status(tags_b, mode), voies_vues, tags_b)
+            proches = ouvertures_proches(p, c, d, set(b["nodes"]))
+            if proches:
+                ouverture = par_les_ouvertures(proches, voies_vues)
+                if ouverture is None:
+                    continue
+                statut_o, raison_o, no = ouverture
+                tags_j, osm = noeuds[no].get("tags", {}), f"node/{no}"
+                statut, raison = ajuster((statut_o, raison_o), voies_vues, tags_j)
+            else:
+                tags_j, osm = tags_b, f"way/{b['id']}"
+                statut, raison = ajuster(regles.status(tags_b, mode), voies_vues, tags_b)
             coupees = gauche if len(gauche) <= len(droite) else droite
-            enregistrer(("sommet", nid), statut, raison, tags_b, f"way/{b['id']}", p, voies_vues,
+            enregistrer(("sommet", nid), statut, raison, tags_j, osm, p, voies_vues,
                         [coupe_lien(vxy[vi][k], vxy[vi][kk]) for vi, k, kk in coupees])
 
     # 3. Nœuds étiquetés (portail, borne, clôture notée sur le nœud...) posés
@@ -422,7 +468,8 @@ def analyser(elements, mode: str = MODE) -> list:
                 continue
             jugements.append((statut, raison))
             voies_vues.append(v)
-            coupes.extend(coupe_lien(vxy[vi][k], vxy[vi][kk]) for kk in (k - 1, k + 1) if 0 <= kk < len(vxy[vi]))
+            coupes.extend(coupe_lien(vxy[vi][k], vxy[vi][kk]) for kk in (voisin(vi, k, -1), voisin(vi, k, 1))
+                          if kk is not None)
         if jugements:
             statut, raison = next((j for j in jugements if j[0] == "blocked"), jugements[0])
             enregistrer(("noeud", nid), statut, raison, tags_n, f"node/{nid}",

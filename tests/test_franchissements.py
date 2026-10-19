@@ -73,12 +73,53 @@ def test_cloture_parallele_ne_bloque_pas():
     assert fr.analyser(carte.elements) == []
 
 
-def test_ouverture_cartographiee_sur_la_cloture_laisse_passer():
+@pytest.mark.parametrize("tags", [{"barrier": "gap"}, {"barrier": "gate", "access": "yes"},
+                                  {"barrier": "gate", "foot": "permissive"}])
+def test_ouverture_libre_sur_la_cloture_laisse_passer(tags):
     carte = Carte()
     carte.chemin((-50, 0), (50, 0))
-    portail = carte.noeud(0, 1.5, barrier="gate")
-    carte.voie([carte.noeud(0, -30), portail, carte.noeud(0, 30)], barrier="fence")
+    ouverture = carte.noeud(0, 1.5, **tags)
+    carte.voie([carte.noeud(0, -30), ouverture, carte.noeud(0, 30)], barrier="fence")
     assert fr.analyser(carte.elements) == []
+
+
+@pytest.mark.parametrize("tags, statut", [({"barrier": "gate"}, "uncertain"),
+                                          ({"barrier": "gate", "access": "private"}, "blocked"),
+                                          ({"barrier": "gate", "foot": "no"}, "blocked"),
+                                          ({"barrier": "gate", "locked": "yes"}, "blocked")])
+def test_portail_voisin_juge_comme_s_il_etait_sur_le_chemin(tags, statut):
+    # Audit B01 : le portail est sur la clôture, à 1,5 m du chemin qu'il ne
+    # porte pas. Il ne doit pas effacer la clôture sans être jugé lui-même.
+    carte = Carte()
+    carte.chemin((-50, 0), (50, 0))
+    portail = carte.noeud(0, 1.5, **tags)
+    carte.voie([carte.noeud(0, -30), portail, carte.noeud(0, 30)], barrier="fence")
+    [f] = fr.analyser(carte.elements)
+    assert (f["statut"], f["nature"], f["osm"]) == (statut, "Portail", f"node/{portail}")
+    [coupe] = f["coupes"]
+    assert coupe_traverse(coupe, (-50, 0), (50, 0))
+
+
+def test_portail_voisin_porte_par_le_chemin_n_est_juge_qu_une_fois():
+    carte = Carte()
+    portail = carte.noeud(0, 0, barrier="gate", access="private")
+    carte.voie([carte.noeud(-50, 0), portail, carte.noeud(50, 0)], highway="path")
+    carte.voie([carte.noeud(0, -30), portail, carte.noeud(0, 30)], barrier="fence")
+    [f] = fr.analyser(carte.elements)
+    assert (f["statut"], f["cle"]) == ("blocked", f"noeud-{portail}")
+
+
+@pytest.mark.parametrize("meme_noeud", [True, False])
+def test_noeud_repete_ou_superpose_ne_casse_pas_l_analyse(meme_noeud):
+    # Audit B08 : un lien de longueur nulle divisait par zéro.
+    carte = Carte()
+    portail = carte.noeud(0, 0, barrier="gate", access="private")
+    double = portail if meme_noeud else carte.noeud(0, 0)
+    carte.voie([carte.noeud(-50, 0), portail, double, carte.noeud(50, 0)], highway="path")
+    [f] = fr.analyser(carte.elements)
+    assert f["statut"] == "blocked"
+    # Les deux côtés du portail restent coupés, sur les vrais liens.
+    assert {round(xy(*c[0])[0]) for c in f["coupes"]} == {-2, 2}
 
 
 def test_portail_sur_le_chemin_sans_acces_est_a_verifier_et_coupe_les_deux_cotes():

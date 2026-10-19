@@ -269,8 +269,14 @@ function retirerPoint(point) {
 
 // ------------------------------------------------------------ calcul
 
+// Toute modification rend aussitôt le résultat affiché périmé : il ne peut
+// plus s'exporter, et une réponse déjà en route sera ignorée (audit B06). Le
+// tracé reste visible jusqu'au suivant, pour ne pas faire clignoter la carte.
 function planifierCalcul() {
   clearTimeout(etat.minuterie);
+  etat.sequence++;
+  etat.dernier = null;
+  $("exporter").disabled = true;
   etat.minuterie = setTimeout(calculer, DELAI_CALCUL_MS);
 }
 
@@ -300,7 +306,10 @@ async function calculer() {
       comparer: $("comparer").checked,
     });
   } catch (e) {
-    if (numero === etat.sequence) afficherStatut(`Erreur : ${e.message}`, true);
+    if (numero === etat.sequence) {
+      effacerResultat();      // l'ancien tracé ne correspond plus aux points ni aux options
+      afficherStatut(`Erreur : ${e.message}`, true);
+    }
     return;
   }
   if (numero !== etat.sequence) return;   // un calcul plus récent est en route

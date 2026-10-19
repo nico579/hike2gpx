@@ -56,6 +56,11 @@ REMPLACEMENTS = (
     # tolérance de hiking-mountain sur les itinéraires de randonnée balisés.
     ("assign initialcost switch or bikeaccess footaccess 0 1000000",
      "assign initialcost switch or nodeaccessgranted=yes footaccess 0 1000000"),
+    # Voie foot=no ou foot=private : un trottoir, un vélo poussé ou un vélo
+    # admis la rendaient piétonne (audit B09, vérifié par le vrai BRouter).
+    # L'interdiction explicite passe avant ces permissions déduites.
+    ("assign footaccess     or issidewalk",
+     "assign footaccess     and not foot=private|no\n                      or issidewalk"),
 )
 
 # Tuiles maison (OSM + BD TOPO, voir fusion.py et maison.py) : une clé de plus
@@ -211,8 +216,16 @@ class Installation:
                 _telecharger(PROFILS_CREATION_URL + nom, self.creation / nom, empreinte)
         shutil.copy2(self.profils / "trekking.brf", self.creation / "trekking.brf")
         lookups = lookups_ign((self.profils / "lookups.dat").read_text(encoding="utf-8"))
-        for dossier in (self.creation, self.profils_maison):
-            (dossier / "lookups.dat").write_text(lookups, encoding="utf-8")
+        (self.creation / "lookups.dat").write_text(lookups, encoding="utf-8")
+        self.ecrire_profil_maison()
+
+    def ecrire_profil_maison(self) -> None:
+        """Table de tags étendue et profil hike2gpx du serveur maison, réécrits
+        à chaque démarrage comme ecrire_profil : une correction du profil
+        s'applique sans attendre une nouvelle fabrication."""
+        self.profils_maison.mkdir(parents=True, exist_ok=True)
+        lookups = lookups_ign((self.profils / "lookups.dat").read_text(encoding="utf-8"))
+        (self.profils_maison / "lookups.dat").write_text(lookups, encoding="utf-8")
         source = (self.profils / "hiking-mountain.brf").read_text(encoding="utf-8")
         (self.profils_maison / f"{PROFIL}.brf").write_text(profil_maison(profil_hike2gpx(source)), encoding="utf-8")
 
@@ -287,6 +300,8 @@ class Serveur:
         inst = self.installation
         if self.profils is None:
             inst.ecrire_profil()
+        elif self.profils == inst.profils_maison:
+            inst.ecrire_profil_maison()
         journal = open(inst.racine / "brouter.log", "ab")
         commande = [java(), MEMOIRE, f"-DmaxRunningTime={DELAI_CALCUL_S}", "-cp", str(inst.jar),
                     "btools.server.RouteServer", str(self.segments or inst.segments), str(self.profils or inst.profils),
@@ -331,9 +346,17 @@ def requete(points, franchissements=(), *, strict: bool = False, profil: str = P
     """Chemin et paramètres d'une requête BRouter. points : [(lat, lon)].
     Un franchissement bloquant devient une coupe sans poids ; un
     franchissement à vérifier, une coupe pondérée, ou interdite en mode
-    strict."""
-    lignes = [_coupe(c, None if f["statut"] == "blocked" or strict else poids)
-              for f in franchissements for c in f["coupes"]]
+    strict.
+
+    Pour un segment qui croise plusieurs coupes, BRouter garde le coût de la
+    dernière de la liste (RoutingContext.calcDistance) : une coupe pondérée
+    placée après une coupe interdite rendait le segment franchissable (audit
+    B10, vérifié par le vrai BRouter). Les coupes interdites passent donc en
+    dernier."""
+    interdites = [f["statut"] == "blocked" or strict for f in franchissements]
+    lignes = [_coupe(c, None if interdite else poids)
+              for interdite in (False, True)
+              for f, i in zip(franchissements, interdites) if i == interdite for c in f["coupes"]]
     parametres = {"lonlats": "|".join(f"{lon:.6f},{lat:.6f}" for lat, lon in points),
                   "profile": profil, "alternativeidx": "0", "format": "geojson"}
     if lignes:
