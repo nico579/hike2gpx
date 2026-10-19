@@ -93,6 +93,15 @@ def lire_tuile(i: int, j: int, interroger=interroger) -> list:
     raise ErreurDonnees("BD TOPO : trop de tronçons dans cette zone.")
 
 
+def lire_cache(i: int, j: int, dossier):
+    """Contenu du cache d'une tuile ({"fetched_at", "troncons"}), sans réseau, ou None."""
+    cache = atomique.lire_json(Path(dossier) / "bdtopo" / f"v{VERSION_CACHE}_{i}_{j}.json", None)
+    if isinstance(cache, dict) and isinstance(cache.get("troncons"), list) \
+            and isinstance(cache.get("fetched_at"), (int, float)):
+        return cache
+    return None
+
+
 def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=interroger,
                   maintenant=time.time) -> list:
     chemin = Path(dossier) / "bdtopo" / f"v{VERSION_CACHE}_{i}_{j}.json"

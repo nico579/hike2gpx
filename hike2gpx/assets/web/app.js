@@ -289,12 +289,14 @@ async function calculer() {
     afficherStatut(etat.points.length ? "Posez un deuxième point." : "");
     return;
   }
-  afficherStatut("Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute.");
+  afficherStatut("Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute"
+    + ($("ign").checked ? ", puis la fusion avec les chemins IGN une vingtaine de secondes." : "."));
   let reponse;
   try {
     reponse = await api("itineraire", {
       points: etat.points.map((p) => [p.lat, p.lon]),
       strict: $("strict").checked,
+      ign: $("ign").checked,
       comparer: $("comparer").checked,
     });
   } catch (e) {
@@ -371,7 +373,8 @@ function bulleFranchissement(f) {
   lien.rel = "noopener";
   lien.textContent = "Voir dans OpenStreetMap";
   div.append(paragraphe(`${f.nature} : ${f.statut === "blocked" ? "bloquant" : "à vérifier"}`, true),
-             paragraphe(f.raison), lien);
+             paragraphe(f.raison));
+  if (f.osm) div.append(lien);
   return div;
 }
 
@@ -384,6 +387,10 @@ function afficher(r) {
   }
   L.polyline(lignes(r.itineraire), { color: "#1565c0", weight: 5, opacity: 0.85, interactive: false, pane: "trace" })
     .addTo(couches);
+  for (const p of r.portions_ign || []) {
+    L.polyline(p.coords, { color: COULEURS.uncertain, weight: 5, opacity: 0.95, dashArray: "8 6", interactive: false, pane: "trace" })
+      .addTo(couches);
+  }
   for (const f of r.franchissements) {
     L.circleMarker([f.lat, f.lon], { radius: 6, weight: 2, color: "#fff", fillOpacity: 1, fillColor: COULEURS[f.statut], pane: "trace" })
       .bindPopup(() => bulleFranchissement(f))
@@ -411,7 +418,9 @@ function afficher(r) {
   $("resultat").hidden = false;
   $("exporter").disabled = false;
   const total = r.franchissements.length;
-  afficherStatut(`Calculé en ${String(r.duree_s).replace(".", ",")} s ; ${total} franchissement${total > 1 ? "s" : ""} connu${total > 1 ? "s" : ""} dans la zone examinée.`);
+  const bilan = `Calculé en ${String(r.duree_s).replace(".", ",")} s ; ${total} franchissement${total > 1 ? "s" : ""} connu${total > 1 ? "s" : ""} dans la zone examinée.`;
+  // Repli sur OSM seul : les chemins IGN demandés n'ont pas pu servir, il faut le voir.
+  afficherStatut(r.avertissement ? `${r.avertissement} ${bilan}` : bilan, Boolean(r.avertissement));
 }
 
 // ------------------------------------------------------------ dénivelé
@@ -449,7 +458,8 @@ function descriptionGpx(r) {
     : `D+ ${Math.round(r.denivele_m ?? 0)} m (estimation BRouter)`;
   const aVerifier = r.sur_le_trace.length;
   return `Distance ${km(r.longueur_m)}, ${denivele}, ${aVerifier} passage${aVerifier > 1 ? "s" : ""} à vérifier. `
-    + "Barrières © contributeurs OpenStreetMap ; tracé hike2gpx.";
+    + "Barrières © contributeurs OpenStreetMap"
+    + ((r.portions_ign || []).length ? ", chemins BD TOPO © IGN" : "") + " ; tracé hike2gpx.";
 }
 
 function gpx(r) {
@@ -490,6 +500,7 @@ $("toutEffacer").addEventListener("click", () => {
 });
 $("exporter").addEventListener("click", exporter);
 $("strict").addEventListener("change", planifierCalcul);
+$("ign").addEventListener("change", planifierCalcul);
 $("comparer").addEventListener("change", planifierCalcul);
 $("enregistrerCle").addEventListener("click", async () => {
   try {

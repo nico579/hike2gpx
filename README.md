@@ -18,7 +18,7 @@ tard, par l'application BRouter pour Android.
 
 ## Comment ça marche
 
-Le calcul passe par quatre pièces.
+Le calcul passe par cinq pièces.
 
 1. **Les franchissements.** Pour la zone du tracé, hike2gpx lit dans
    OpenStreetMap (par Overpass, en tuiles de 0,05° gardées sept jours) les
@@ -43,14 +43,28 @@ Le calcul passe par quatre pièces.
    vérifier sur le tracé. Le tracé standard, qui ignore les barrières, peut
    s'afficher en pointillé pour comparaison. Deux calques à cocher, à partir
    du zoom 14, montrent les chemins que connaît OpenStreetMap (avec ses
-   clôtures et murs) et ceux de la BD TOPO de l'IGN : de quoi repérer un
-   sentier que le moteur ignore.
+   clôtures et murs) et ceux de la BD TOPO de l'IGN : de quoi comparer les
+   deux sources.
 4. **Le dénivelé.** Une fois l'itinéraire affiché, le moteur de
    [gpx2elev](https://pypi.org/project/gpx2elev/) recalcule son dénivelé :
    tracé échantillonné tous les 5 m, meilleur modèle de terrain disponible
    (IGN LiDAR HD d'abord), lissage gaussien de 20 m, hystérésis de 2 m. Le
    chiffre de BRouter, tiré d'un modèle mondial plus grossier, ne sert que
    d'estimation en attendant.
+5. **Les chemins IGN.** Un sentier que la BD TOPO connaît et qu'OpenStreetMap
+   ignore n'existe pas pour BRouter, qui ne voit que ses tuiles. hike2gpx
+   fabrique donc sa propre tuile BRouter à partir des données déjà lues : les
+   voies d'OpenStreetMap, plus les tronçons de la BD TOPO qui n'en doublent
+   aucune, raccordés au réseau. La tuile grossit au fil des zones consultées
+   et ne se refait que pour une zone nouvelle ou des données relues, en une
+   vingtaine de secondes pour neuf tuiles. Les franchissements se cherchent
+   alors sur le réseau fusionné : un sentier OSM et un chemin IGN arrêtés de
+   part et d'autre d'une clôture, une fois raccordés, la traversent. Ces
+   chemins coûtent un peu plus que les autres, s'affichent en tirets orange
+   sur l'itinéraire et rejoignent les points à vérifier, car rien ne dit
+   qu'ils existent encore ni qu'on y passe ; un accès piéton restreint dans la
+   BD TOPO les ferme. Une case permet de s'en passer, et si la fabrication
+   échoue, le calcul se fait sur OpenStreetMap seul, avec un avertissement.
 
 Ce que hike2gpx ajoute aux règles de gpx2elev, parce qu'il examine un réseau
 entier et non une seule trace :
@@ -109,12 +123,17 @@ Les tests unitaires tournent sans réseau ni BRouter. `test_regles.py` compare
 machine. `test_integration.py` rejoue un cas réel de Garéoult avec le vrai
 BRouter : il est sauté tant que BRouter et sa tuile E5_N40 manquent dans le
 dossier de données, et tourne en quelques secondes avec
-`$env:HIKE2GPX_HOME = 'D:\hike2gpx'`. Les outils de `tools/` rejouent l'essai
-décrit dans [ESSAI.md](ESSAI.md).
+`$env:HIKE2GPX_HOME = 'D:\hike2gpx'`. `test_integration_maison.py` fabrique
+une tuile maison avec le vrai créateur de tuiles, sur un petit réseau inventé
+où deux sentiers OSM ne se rejoignent que par des chemins IGN ; il demande en
+plus les profils de création de BRouter, que la première fabrication depuis
+la page télécharge dans le dossier de données. Les outils de `tools/`
+rejouent l'essai décrit dans [ESSAI.md](ESSAI.md).
 
 ## Licence
 
 GPL-3.0-or-later. BRouter (MIT) est téléchargé à l'installation ; Leaflet 1.9.4
 (BSD-2-Clause) est fourni dans `hike2gpx/assets/web/leaflet`. Données ©
 contributeurs OpenStreetMap (ODbL), y compris l'extrait de test
-`tests/donnees/gareoult_cloture.json` ; cartes © IGN.
+`tests/donnees/gareoult_cloture.json` ; BD TOPO © IGN (Licence Ouverte) ;
+cartes © IGN.

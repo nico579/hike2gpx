@@ -116,12 +116,42 @@ de Garéoult (250 km², 58 359 nœuds, 4 739 voies) : PBF écrit en 0,6 s,
 tuile fabriquée en 2,4 s (166 Ko). Mêmes itinéraires que brouter.de sur
 2,5 km (4 223 m) et 5 km (5 932 m) : l'écart du premier essai venait des
 itinéraires balisés, absents de l'export XML, pas des pseudo-tags. Une
-traversée de 12 km diffère encore (23 216 m contre 24 343 m), sans doute
-faute de relief.
+traversée de 12 km diffère encore (23 216 m contre 24 343 m). Ce n'est pas le
+relief, que le profil ignore (`consider_elevation=false`) : les deux tracés
+ont un coût presque égal (35 320 contre 35 071), et le moindre détail de
+données fait basculer le choix. Le relief n'a d'ailleurs pas sa place dans
+nos tuiles : c'est gpx2elev qui donne le dénivelé.
 
-Reste à faire pour la phase complète : la fabrication au fil des zones, le
-rapprochement à grande échelle (doublons,
-raccordements, ponts), une étiquette qui rende les chemins IGN plus coûteux
-et visibles comme « non vérifiés », les franchissements appliqués aussi à
-ces chemins, le relief (Copernicus converti en fichiers d'altitude BRouter),
-et la fabrication depuis hike2gpx.
+# Phase 2 complète : la tuile maison dans hike2gpx (19 octobre)
+
+Les tuiles maison sont désormais le calcul par défaut. Pour la zone d'un
+itinéraire, hike2gpx reprend les tuiles Overpass et BD TOPO déjà en cache,
+ajoute les tronçons IGN qu'aucune voie OSM ne double (moins de la moitié de
+leur longueur à moins de 12 m d'OSM, mesurée tous les 10 m le long de la
+ligne), les raccorde, et fait fabriquer la tuile par le créateur de tuiles
+de BRouter. Un second serveur BRouter la sert, avec un profil où
+`hike2gpx=ign` coûte un peu plus. Mesures sur le PC de Nico, données en
+cache :
+
+- le chemin IGN de l'essai (deux tuiles) : préparation en 8,4 s la première
+  fois, 0,1 s ensuite ; 255 m dont 254 m sur le chemin IGN, qui ressort à
+  vérifier, contre 1 028 m pour le tracé standard sur OSM seul ;
+- une traversée de 12 km sur neuf tuiles, fabrication comprise : réponse en
+  20,6 s, 16,4 km dont 163 m sur un chemin IGN ;
+- sur ces neuf tuiles, 1 908 chemins IGN ajoutés. La fusion prend 14 s,
+  l'essentiel du temps ; l'analyse des franchissements du réseau entier,
+  0,7 s, et 5 franchissements bloquants y touchent un chemin IGN.
+
+Trois règles de la fusion méritent d'être dites. Les franchissements se
+calculent sur le réseau fusionné, pas sur OSM et les chemins IGN pris à
+part : un sentier OSM et un chemin IGN arrêtés de part et d'autre d'une
+clôture ne la traversent ni l'un ni l'autre, mais leur raccord la traverse
+(test `test_integration_maison.py`). Un accès piéton de la BD TOPO autre que
+« Libre », « A péage » ou vide ferme le chemin (`foot=private`) ; autour de
+Garéoult, sur 10 226 tronçons, on ne trouve que « Libre » (435) et des
+valeurs vides. Enfin la part couverte par OSM ne dépend plus du découpage du
+tronçon en sommets.
+
+Reste à voir : la fusion est le poste à accélérer si l'on consulte beaucoup
+de zones, puisque la tuile les contient toutes et se refait entière à chaque
+zone nouvelle.
