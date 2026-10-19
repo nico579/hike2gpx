@@ -99,7 +99,10 @@ footer { margin-top: 16px; }
 .point.depart { background: #2e7d32; }
 .point.arrivee { background: #6a1b9a; }
 .bulle p { margin: 2px 0; }
-.bulle button { margin-top: 6px; }
+.bulle button { margin-top: 6px; display: block; }
+/* Calcul en cours : pointeur d'attente sur la page et la carte, qui reste utilisable. */
+body.calcul, body.calcul .leaflet-container, body.calcul .leaflet-grab,
+body.calcul .leaflet-interactive { cursor: progress; }
 
 @media (max-width: 700px) {
   #carte { left: 0; bottom: 45vh; }
