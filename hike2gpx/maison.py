@@ -24,10 +24,11 @@ from nico579_commons import atomique
 from . import bdtopo, brouter, franchissements as fr, fusion
 
 VERSION = 2     # format de l'état et règles de fusion : l'augmenter refait la tuile
-UNION_MAX = 25  # tuiles de 0,05° gardées dans la tuile maison : environ 15 s de fabrication
 
 
 class TuilesMaison:
+    UNION_MAX = 25      # tuiles de 0,05° gardées ensemble : environ 15 s de fabrication
+
     def __init__(self, installation: brouter.Installation, dossier):
         self.installation = installation
         self.dossier = Path(dossier)
@@ -72,7 +73,7 @@ class TuilesMaison:
                 segments, liste = dossier / "segments", self._franchissements(dossier)
             else:
                 union = {**etat["tuiles"], **demandees}
-                segments, liste = self._fabriquer(union if len(union) <= UNION_MAX else demandees)
+                segments, liste = self._fabriquer(union if len(union) <= self.UNION_MAX else demandees)
             voulues = set(tuiles)
             return segments, [f for f in liste if fr.tuile_du_point(f["lat"], f["lon"]) in voulues]
 

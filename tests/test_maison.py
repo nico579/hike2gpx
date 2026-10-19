@@ -94,7 +94,7 @@ def test_zone_nouvelle_ajoutee_aux_anciennes(tuiles, tmp_path):
 def test_union_bornee_repart_de_la_zone_demandee(tuiles, tmp_path, monkeypatch):
     # Sans borne, chaque zone nouvelle refaisait tout l'historique des zones vues.
     tm, fabriquees = tuiles
-    monkeypatch.setattr(maison, "UNION_MAX", 1)
+    monkeypatch.setattr(tm, "UNION_MAX", 1)
     ecrire_tuile(tmp_path, I, J, cloture_et_sentier(), sentier_ign_sud())
     ecrire_tuile(tmp_path, I, J + 1, [], [])
     tm.preparer([(I, J)])
