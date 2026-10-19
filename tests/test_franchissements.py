@@ -140,6 +140,10 @@ def test_portail_sur_le_chemin_sans_acces_est_a_verifier_et_coupe_les_deux_cotes
     ({"barrier": "stile"}, None),
     ({"barrier": "fence"}, "blocked"),
     ({"barrier": "gate", "opening_hours": "Mo-Fr 08:00-18:00"}, "uncertain"),
+    # Audit B07 : les horaires ne lèvent pas une interdiction piétonne explicite.
+    ({"barrier": "gate", "foot": "no", "opening_hours": "24/7"}, "blocked"),
+    ({"barrier": "gate", "foot": "no", "access:conditional": "yes @ (Mo-Fr)"}, "blocked"),
+    ({"barrier": "gate", "foot": "no", "foot:conditional": "yes @ (Sa-Su)"}, "uncertain"),
 ])
 def test_noeud_barriere_jugé_par_les_regles_de_gpx2elev(tags, attendu):
     carte = Carte()

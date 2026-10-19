@@ -46,7 +46,7 @@ TTL_S = 7 * 86400
 # Format du cache Overpass, et version des règles : augmenter la seconde dès
 # qu'un jugement change, l'analyse en cache est alors refaite.
 VERSION_DONNEES = 1
-VERSION_ANALYSE = 2         # 2 : ouvertures voisines jugées (B01), liens nuls ignorés (B08)
+VERSION_ANALYSE = 3         # 2 : ouvertures voisines (B01), liens nuls (B08) ; 3 : horaires et conditions (B07)
 MAX_OCTETS = 256 * 1024 * 1024
 TENTATIVES = 3
 
