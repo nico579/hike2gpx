@@ -119,12 +119,34 @@ def test_part_couverte_ne_depend_pas_du_decoupage():
     # deux sommets, ou un sommet tous les 50 cm sur ces 20 m, même géométrie.
     osm = Osm()
     osm.voie((0, 0), (20, 0))
-    index = reseau(osm).index()
+    segments = reseau(osm).segments_osm()
     simple = [list(geo(0, 0)), list(geo(100, 0))]
     dense = [list(geo(k / 2, 0)) for k in range(41)] + [list(geo(100, 0))]
-    part = fusion._part_couverte(simple, index)
-    assert part == pytest.approx(fusion._part_couverte(dense, index))
-    assert part < fusion.PART_COUVERTE_MAX
+    part, part_dense = fusion.parts_couvertes([simple, dense], segments)
+    assert part == pytest.approx(part_dense) and part < fusion.PART_COUVERTE_MAX
+
+
+def test_parts_couvertes_comme_la_mesure_point_par_point():
+    # Le calcul groupé doit rendre exactement la mesure brute, échantillon par
+    # échantillon et segment par segment : près du seuil de 12 m, sur un long
+    # segment découpé en morceaux, et sur un segment de longueur nulle.
+    osm = Osm()
+    osm.voie((0, 0), (300, 0))
+    osm.voie((0, 50), (5, 50), (5, 50), (400, 60))
+    osm.voie((150, -200), (150, 200))
+    segments = reseau(osm).segments_osm()
+    lignes = [[list(geo(0, d)), list(geo(300, d))] for d in (11.9, 12.1, -11.95, 30, 38)] \
+        + [[list(geo(140, -100)), list(geo(160, 100))], [list(geo(-50, 0)), list(geo(-10, 0))]]
+    attendu = []
+    for pts in lignes:
+        lat, lon = fusion._echantillons(pts)
+        couverts = sum(min(fr._distance_segment((0.0, 0.0), fusion._xy(s[0], s[1], la, lo), fusion._xy(s[2], s[3], la, lo))
+                           for s in segments) <= fusion.COUVERT_M for la, lo in zip(lat, lon))
+        attendu.append(couverts / len(lat))
+    assert list(fusion.parts_couvertes(lignes, segments)) == attendu
+    # Le jeu d'essai passe bien des deux côtés du seuil : à 11,9 m tout est
+    # couvert, à 12,1 m seulement l'abord du sentier qui croise.
+    assert attendu[0] == 1.0 and 0 < attendu[1] < 0.2
 
 
 def test_raccord_osm_ign_sur_une_cloture_est_coupe():

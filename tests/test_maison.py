@@ -91,6 +91,17 @@ def test_zone_nouvelle_ajoutee_aux_anciennes(tuiles, tmp_path):
     assert len(tm.preparer([(I, J), (I, J + 1)])[1]) == 1 and len(fabriquees) == 2
 
 
+def test_union_bornee_repart_de_la_zone_demandee(tuiles, tmp_path, monkeypatch):
+    # Sans borne, chaque zone nouvelle refaisait tout l'historique des zones vues.
+    tm, fabriquees = tuiles
+    monkeypatch.setattr(tm, "UNION_MAX", 1)
+    ecrire_tuile(tmp_path, I, J, cloture_et_sentier(), sentier_ign_sud())
+    ecrire_tuile(tmp_path, I, J + 1, [], [])
+    tm.preparer([(I, J)])
+    tm.preparer([(I, J + 1)])
+    assert len(fabriquees) == 2 and set(tm.etat()["tuiles"]) == {f"{I}_{J + 1}"}
+
+
 def test_bdtopo_absente_hors_ligne(tuiles, tmp_path):
     tm, fabriquees = tuiles
     ecrire_tuile(tmp_path, I, J, cloture_et_sentier(), sentier_ign_sud())

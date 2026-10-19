@@ -23,6 +23,8 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 
+import numpy as np
+
 from . import franchissements as fr
 
 NATURES_EXCLUES = {"Type autoroutier", "Quasi-autoroute", "Bretelle", "Route à 2 chaussées",
@@ -36,6 +38,13 @@ ETIQUETTE = {"highway": "path", "hike2gpx": "ign"}
 # connue ou non (« Restreint aux ayants droit »…), vaut interdiction.
 ACCES_OUVERTS = {None, "", "Libre", "A péage"}
 _CASE_DEG = 0.002
+# Calcul groupé de la part couverte : segments OSM découpés en morceaux d'au
+# plus 20 m, rangés dans une grille de 30 m ; un échantillon n'est comparé
+# qu'aux morceaux des neuf cases qui l'entourent, qui contiennent forcément
+# tous ceux à moins de 12 m (12 + 10 m de demi-morceau < 30 m).
+_MORCEAU_M = 20.0
+_GRILLE_M = 30.0
+_LOT = 50_000           # échantillons traités ensemble, pour borner la mémoire
 
 
 def _xy(lat, lon, lat0, lon0):
@@ -148,16 +157,22 @@ class Reseau:
         self._liens.append((nid, cible))
         return True
 
+    def segments_osm(self) -> list:
+        """Segments des voies OSM praticables : (lat_a, lon_a, lat_b, lon_b)."""
+        return [(*self.noeuds[ids[k]][:2], *self.noeuds[ids[k + 1]][:2])
+                for ids, tags in self.voies.values() if fr._praticable(tags) and not fr._hors_sol(tags)
+                for k in range(len(ids) - 1)]
+
     def ajouter_ign(self, troncons) -> int:
         """Ajoute les tronçons IGN absents d'OSM ; rend leur nombre."""
         index = self.index()
         self._liens = []
         bouts = {}                  # point (arrondi au 1e-7) -> nœud commun des tronçons IGN
         ajoutes = 0
-        for t in troncons:
-            if t.get("nature") in NATURES_EXCLUES or len(t.get("pts") or []) < 2:
-                continue
-            if _part_couverte(t["pts"], index) >= PART_COUVERTE_MAX:
+        candidats = [t for t in troncons if t.get("nature") not in NATURES_EXCLUES and len(t.get("pts") or []) >= 2]
+        parts = parts_couvertes([t["pts"] for t in candidats], self.segments_osm())
+        for t, part in zip(candidats, parts):
+            if part >= PART_COUVERTE_MAX:
                 continue
             ids = []
             for k, (lat, lon) in enumerate(t["pts"]):
@@ -223,29 +238,83 @@ def _sous(a, b):
     return a[0] - b[0], a[1] - b[1]
 
 
-def _echantillons(points, pas_m=PAS_M) -> list:
-    """Points régulièrement espacés d'environ pas_m le long du tracé, bouts
-    compris. Placés selon la distance parcourue et non aux sommets, ils ne
-    dépendent pas de la façon dont la ligne est découpée."""
-    xy = [_xy(lat, lon, *points[0]) for lat, lon in points]
-    cumul = [0.0]
-    for a, b in zip(xy, xy[1:]):
-        cumul.append(cumul[-1] + math.dist(a, b))
-    n = max(1, round(cumul[-1] / pas_m))
-    resultat, k = [], 0
-    for m in range(n + 1):
-        s = cumul[-1] * m / n
-        while k < len(cumul) - 2 and cumul[k + 1] < s:
-            k += 1
-        longueur = cumul[k + 1] - cumul[k]
-        t = (s - cumul[k]) / longueur if longueur else 0.0
-        (la, lo), (lb, lob) = points[k], points[k + 1]
-        resultat.append((la + (lb - la) * t, lo + (lob - lo) * t))
-    return resultat
+def _echantillons(points, pas_m=PAS_M):
+    """(latitudes, longitudes) de points régulièrement espacés d'environ pas_m
+    le long du tracé, bouts compris. Placés selon la distance parcourue et non
+    aux sommets, ils ne dépendent pas de la façon dont la ligne est découpée."""
+    p = np.asarray(points, dtype=float)
+    kx = fr.M_PAR_DEGRE * math.cos(math.radians(p[0, 0]))
+    cumul = np.concatenate(([0.0], np.cumsum(np.hypot(np.diff(p[:, 1]) * kx, np.diff(p[:, 0]) * fr.M_PAR_DEGRE))))
+    n = max(1, round(float(cumul[-1]) / pas_m))
+    s = cumul[-1] * np.arange(n + 1) / n
+    return np.interp(s, cumul, p[:, 0]), np.interp(s, cumul, p[:, 1])
 
 
-def _part_couverte(points, index) -> float:
-    """Part de la longueur du tracé qui passe à moins de COUVERT_M d'une voie OSM."""
-    echantillons = _echantillons(points)
-    couverts = sum(index.plus_proche(lat, lon, COUVERT_M) is not None for lat, lon in echantillons)
-    return couverts / len(echantillons)
+def parts_couvertes(lignes, segments) -> np.ndarray:
+    """Pour chaque ligne [[lat, lon], …], la part de ses échantillons à moins
+    de COUVERT_M d'un segment OSM (lat_a, lon_a, lat_b, lon_b). La distance se
+    mesure, comme autrefois point par point, dans le plan local de chaque
+    échantillon ; seul le calcul est groupé (audit A01 : 14 s ramenées à une
+    fraction de seconde sur neuf tuiles)."""
+    if not lignes:
+        return np.zeros(0)
+    tirages = [_echantillons(pts) for pts in lignes]
+    lat = np.concatenate([la for la, _ in tirages])
+    lon = np.concatenate([lo for _, lo in tirages])
+    ligne = np.repeat(np.arange(len(lignes)), [len(la) for la, _ in tirages])
+    couvert = _couverts(lat, lon, np.asarray(segments, dtype=float).reshape(-1, 4))
+    return np.bincount(ligne, weights=couvert, minlength=len(lignes)) / np.bincount(ligne, minlength=len(lignes))
+
+
+def _couverts(lat, lon, segments) -> np.ndarray:
+    """Échantillons à moins de COUVERT_M d'un des segments."""
+    couvert = np.zeros(len(lat), dtype=bool)
+    if not len(segments) or not len(lat):
+        return couvert
+    m = fr.M_PAR_DEGRE
+    lat0 = float(np.mean(lat))
+    lon0, kx0 = float(np.mean(lon)), m * math.cos(math.radians(lat0))
+    # Morceaux de segments, et la case de la grille où tombe leur milieu.
+    la_a, lo_a, la_b, lo_b = segments.T
+    nb = np.maximum(1, np.ceil(np.hypot((lo_b - lo_a) * kx0, (la_b - la_a) * m) / _MORCEAU_M)).astype(np.int64)
+    seg = np.repeat(np.arange(len(segments)), nb)
+    k = np.arange(nb.sum()) - np.repeat(np.cumsum(nb) - nb, nb)
+    t0, t1 = k / nb[seg], (k + 1) / nb[seg]
+    p_la, p_lo = la_a[seg] + (la_b - la_a)[seg] * t0, lo_a[seg] + (lo_b - lo_a)[seg] * t0
+    q_la, q_lo = la_a[seg] + (la_b - la_a)[seg] * t1, lo_a[seg] + (lo_b - lo_a)[seg] * t1
+
+    def case(la, lo):
+        cx = np.floor((lo - lon0) * kx0 / _GRILLE_M).astype(np.int64)
+        cy = np.floor((la - lat0) * m / _GRILLE_M).astype(np.int64)
+        return cx, cy
+
+    def cle(cx, cy):
+        return cx * (1 << 32) + cy
+
+    cles = cle(*case((p_la + q_la) / 2, (p_lo + q_lo) / 2))
+    ordre = np.argsort(cles, kind="stable")
+    uniques, debuts, comptes = np.unique(cles[ordre], return_index=True, return_counts=True)
+
+    for debut_lot in range(0, len(lat), _LOT):
+        e = np.arange(debut_lot, min(debut_lot + _LOT, len(lat)))
+        ecx, ecy = case(lat[e], lon[e])
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                cherche = cle(ecx + dx, ecy + dy)
+                pos = np.minimum(np.searchsorted(uniques, cherche), len(uniques) - 1)
+                garde = (uniques[pos] == cherche) & ~couvert[e]
+                if not garde.any():
+                    continue
+                ech, pos = e[garde], pos[garde]
+                n = comptes[pos]
+                paire_e = np.repeat(ech, n)
+                paire_m = ordre[np.repeat(debuts[pos], n) + np.arange(n.sum()) - np.repeat(np.cumsum(n) - n, n)]
+                # Plan local de l'échantillon, comme IndexVoies.plus_proche.
+                kx = m * np.cos(np.radians(lat[paire_e]))
+                ax, ay = (p_lo[paire_m] - lon[paire_e]) * kx, (p_la[paire_m] - lat[paire_e]) * m
+                vx, vy = (q_lo[paire_m] - lon[paire_e]) * kx - ax, (q_la[paire_m] - lat[paire_e]) * m - ay
+                l2 = vx * vx + vy * vy
+                t = np.clip(-(ax * vx + ay * vy) / np.where(l2 > 0, l2, 1.0), 0.0, 1.0)
+                proches = np.hypot(ax + t * vx, ay + t * vy) <= COUVERT_M
+                couvert[paire_e[proches]] = True
+    return couvert
