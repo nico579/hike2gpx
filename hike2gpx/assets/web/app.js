@@ -232,16 +232,28 @@ function rafraichirPoints() {
   etat.points.forEach((p, rang) => p.marqueur.setIcon(icone(rang, etat.points.length)));
   $("retirerDernier").disabled = etat.points.length === 0;
   $("toutEffacer").disabled = etat.points.length === 0;
+  $("boucler").disabled = !bouclable();
+}
+
+// Une boucle se ferme par un bouton : un clic sur le marqueur du départ ouvre
+// sa bulle, il ne peut pas aussi poser un point.
+function bouclable() {
+  const depart = etat.points[0];
+  const dernier = etat.points.at(-1);
+  return etat.points.length >= 2 && (dernier.lat !== depart.lat || dernier.lon !== depart.lon);
+}
+
+function boucler() {
+  if (bouclable()) ajouterPoint(L.latLng(etat.points[0].lat, etat.points[0].lon));
 }
 
 function bullePoint(point) {
   const div = document.createElement("div");
   div.className = "bulle";
-  const bouton = document.createElement("button");
-  bouton.type = "button";
-  bouton.textContent = "Retirer ce point";
-  bouton.addEventListener("click", () => retirerPoint(point));
-  div.append(bouton);
+  div.append(boutonAction("Retirer ce point", () => retirerPoint(point)));
+  if (point === etat.points[0] && bouclable()) {
+    div.append(boutonAction("Revenir ici en fin de parcours", () => { point.marqueur.closePopup(); boucler(); }));
+  }
   return div;
 }
 
@@ -252,6 +264,7 @@ function ajouterPoint(latlng) {
     const position = point.marqueur.getLatLng();
     point.lat = position.lat;
     point.lon = position.lng;
+    rafraichirPoints();
     planifierCalcul();
   });
   point.marqueur.bindPopup(() => bullePoint(point));
@@ -287,16 +300,24 @@ function effacerResultat() {
   $("exporter").disabled = true;
 }
 
+// Pointeur d'attente pendant un calcul (cursor: progress) : la carte reste
+// utilisable, un point posé entre-temps relance le calcul.
+function occupe(oui) {
+  document.body.classList.toggle("calcul", oui);
+}
+
 async function calculer() {
   const numero = ++etat.sequence;
   $("actions").replaceChildren();
   if (etat.points.length < 2) {
+    occupe(false);
     effacerResultat();
     afficherStatut(etat.points.length ? "Posez un deuxième point." : "");
     return;
   }
   afficherStatut("Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute"
     + ($("ign").checked ? ", puis la fusion avec les chemins IGN quelques secondes." : "."));
+  occupe(true);
   let reponse;
   try {
     reponse = await api("itineraire", {
@@ -307,12 +328,14 @@ async function calculer() {
     });
   } catch (e) {
     if (numero === etat.sequence) {
+      occupe(false);
       effacerResultat();      // l'ancien tracé ne correspond plus aux points ni aux options
       afficherStatut(`Erreur : ${e.message}`, true);
     }
     return;
   }
   if (numero !== etat.sequence) return;   // un calcul plus récent est en route
+  occupe(false);
   if (reponse.erreur) afficherErreur(reponse);
   else afficher(reponse);
 }
@@ -501,6 +524,7 @@ function exporter() {
 
 carte.on("click", (e) => ajouterPoint(e.latlng));
 $("retirerDernier").addEventListener("click", () => { const p = etat.points.at(-1); if (p) retirerPoint(p); });
+$("boucler").addEventListener("click", boucler);
 $("toutEffacer").addEventListener("click", () => {
   etat.points.forEach((p) => p.marqueur.remove());
   etat.points = [];
