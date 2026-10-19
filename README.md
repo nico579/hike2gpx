@@ -55,9 +55,10 @@ Le calcul passe par cinq pièces.
    ignore n'existe pas pour BRouter, qui ne voit que ses tuiles. hike2gpx
    fabrique donc sa propre tuile BRouter à partir des données déjà lues : les
    voies d'OpenStreetMap, plus les tronçons de la BD TOPO qui n'en doublent
-   aucune, raccordés au réseau. La tuile grossit au fil des zones consultées
-   et ne se refait que pour une zone nouvelle ou des données relues, en une
-   vingtaine de secondes pour neuf tuiles. Les franchissements se cherchent
+   aucune, raccordés au réseau. La tuile grossit au fil des zones consultées,
+   jusqu'à 25 tuiles de 0,05° avant de repartir de la zone demandée, et ne se
+   refait que pour une zone nouvelle ou des données relues, en six secondes
+   environ pour neuf tuiles. Les franchissements se cherchent
    alors sur le réseau fusionné : un sentier OSM et un chemin IGN arrêtés de
    part et d'autre d'une clôture, une fois raccordés, la traversent. Ces
    chemins coûtent un peu plus que les autres, s'affichent en tirets orange

@@ -4,10 +4,12 @@ chemins IGN qui manquent à OSM (fusion.py).
 
 Elle n'est refaite que si une zone nouvelle s'ajoute, ou si l'une des
 tuiles Overpass ou BD TOPO qui la composent a été relue depuis ; elle
-contient alors toutes les zones déjà vues (250 km² : une vingtaine de
-secondes, fusion comprise). Chaque fabrication va dans un dossier neuf, que
-le serveur maison reprend ; les anciens sont effacés quand plus rien ne les
-tient ouverts. Le même passage calcule les franchissements du réseau fusionné
+contient alors les zones déjà vues (neuf tuiles, 250 km² : six secondes,
+fusion comprise), tant qu'elles ne dépassent pas UNION_MAX tuiles : au-delà,
+elle repart de la seule zone demandée, pour que le temps d'une zone nouvelle
+reste celui de la zone et non de tout l'historique. Chaque fabrication va
+dans un dossier neuf, que le serveur maison reprend ; les anciens sont
+effacés quand plus rien ne les tient ouverts. Le même passage calcule les franchissements du réseau fusionné
 entier : ceux d'OSM seul n'y suffisent plus, un raccord vers un chemin IGN
 pouvant traverser une clôture. Ils remplacent alors ceux d'OSM seul.
 """
@@ -22,6 +24,7 @@ from nico579_commons import atomique
 from . import bdtopo, brouter, franchissements as fr, fusion
 
 VERSION = 2     # format de l'état et règles de fusion : l'augmenter refait la tuile
+UNION_MAX = 25  # tuiles de 0,05° gardées dans la tuile maison : environ 15 s de fabrication
 
 
 class TuilesMaison:
@@ -68,7 +71,8 @@ class TuilesMaison:
                     and all(etat["tuiles"].get(cle) == dates for cle, dates in demandees.items()):
                 segments, liste = dossier / "segments", self._franchissements(dossier)
             else:
-                segments, liste = self._fabriquer({**etat["tuiles"], **demandees})
+                union = {**etat["tuiles"], **demandees}
+                segments, liste = self._fabriquer(union if len(union) <= UNION_MAX else demandees)
             voulues = set(tuiles)
             return segments, [f for f in liste if fr.tuile_du_point(f["lat"], f["lon"]) in voulues]
 

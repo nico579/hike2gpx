@@ -16,6 +16,9 @@ dependencies = [
     # Écriture du réseau fusionné OSM + BD TOPO en PBF, le seul format que lit
     # le créateur de tuiles de BRouter (maison.py).
     "osmium>=4.3,<5",
+    # Part des chemins IGN déjà couverte par OSM, calculée en bloc (fusion.py) ;
+    # même borne basse que gpx2elev, qui l'installe déjà.
+    "numpy>=1.26,<3",
 ]
 
 [project.optional-dependencies]

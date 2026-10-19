@@ -290,7 +290,7 @@ async function calculer() {
     return;
   }
   afficherStatut("Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute"
-    + ($("ign").checked ? ", puis la fusion avec les chemins IGN une vingtaine de secondes." : "."));
+    + ($("ign").checked ? ", puis la fusion avec les chemins IGN quelques secondes." : "."));
   let reponse;
   try {
     reponse = await api("itineraire", {

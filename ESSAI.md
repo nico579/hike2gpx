@@ -155,3 +155,20 @@ tronçon en sommets.
 Reste à voir : la fusion est le poste à accélérer si l'on consulte beaucoup
 de zones, puisque la tuile les contient toutes et se refait entière à chaque
 zone nouvelle.
+
+# Accélération de la fusion (19 octobre)
+
+L'audit du 18 octobre a montré que la recherche des doublons IGN/OSM faisait
+les trois quarts du temps : chaque échantillon d'un tronçon IGN interrogeait
+l'index en Python. Elle se calcule maintenant en bloc avec NumPy, selon la
+même règle (échantillons tous les 10 m, distance mesurée dans le plan local
+de chaque échantillon). Sur les neuf tuiles de Garéoult, la fusion passe de
+13,4 s à 1,4 s et la fabrication complète de 18 s à 6 s, avec exactement les
+mêmes 1 908 chemins IGN retenus et les mêmes 86 franchissements.
+
+Mettre en cache la fusion tuile par tuile, comme l'audit le proposait ensuite,
+n'économiserait plus que ces 1,4 s, sur 6 : Java, le PBF et l'analyse restent
+proportionnels à toute la tuile maison. Le remède retenu est plus simple :
+la tuile maison garde au plus 25 tuiles de 0,05°, et repart de la zone
+demandée au-delà, si bien que le temps d'une zone nouvelle reste celui de la
+zone.
