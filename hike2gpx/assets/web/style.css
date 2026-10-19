@@ -34,13 +34,12 @@ html, body {
   padding: 14px 16px;
   border-right: 1px solid var(--bordure);
   background: var(--fond);
-  /* Ascenseur fin, invisible au repos, visible au survol et pendant le
-     défilement (classe defile, posée par app.js) : sa place ne change
-     jamais, rien ne bouge quand il apparaît. */
+  /* Ascenseur fin, invisible au repos et visible au survol : sa place ne
+     change jamais, rien ne bouge quand il apparaît. */
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-#panneau:hover, #panneau:focus-within, #panneau.defile { scrollbar-color: rgba(0, 0, 0, .5) transparent; }
+#panneau:hover, #panneau:focus-within { scrollbar-color: rgba(0, 0, 0, .35) transparent; }
 
 header { display: flex; align-items: baseline; gap: 8px; }
 /* Choix FR / EN du commun (nico579-langue.js), à droite de l'en-tête. */

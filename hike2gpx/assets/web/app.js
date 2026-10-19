@@ -714,17 +714,6 @@ async function chargerJournal() {
   }
 }
 
-// ------------------------------------------------------------ ascenseur
-
-// L'ascenseur du panneau, invisible au repos, se montre aussi pendant qu'on le
-// fait défiler (molette, clavier), puis se masque une seconde après.
-let minuterieDefilement = null;
-$("panneau").addEventListener("scroll", () => {
-  $("panneau").classList.add("defile");
-  clearTimeout(minuterieDefilement);
-  minuterieDefilement = setTimeout(() => $("panneau").classList.remove("defile"), 1000);
-});
-
 // ------------------------------------------------------------ plein écran
 
 // La carte seule, sans le panneau ni le choix des fonds et calques : un bouton
