@@ -44,8 +44,32 @@ def verifier(version_attendue: str) -> int:
         bibliotheques()
     except Exception as exc:        # toute panne d'une bibliothèque compilée compte
         return _echec(6, f"bibliothèque inutilisable : {type(exc).__name__}: {exc}")
+    try:
+        import_d_extrait()
+    except Exception as exc:        # SQLite, pyosmium ou le programme relancé en mode import
+        return _echec(7, f"import d'extrait Geofabrik impossible : {type(exc).__name__}: {exc}")
     print(f"auto-test : hike2gpx {__version__}, {java.stderr.strip().splitlines()[0]}", flush=True)
     return 0
+
+
+def import_d_extrait() -> None:
+    """Un petit extrait importé par le même chemin qu'un vrai (geofabrik.py) :
+    le programme relancé en mode --importer-extrait, pyosmium et son index de
+    positions sur disque, la base SQLite, puis une tuile relue."""
+    from . import fusion, geofabrik
+
+    reseau = fusion.Reseau()
+    reseau.ajouter_osm([{"type": "way", "id": 1, "nodes": [1, 2], "tags": {"highway": "path"},
+                         "geometry": [{"lat": 43.33, "lon": 6.05}, {"lat": 43.331, "lon": 6.051}]}])
+    region = {"id": "essai", "nom": "Essai", "pbf": "", "bornes": (43.3, 6.0, 43.4, 6.1),
+              "polygones": [[[(6.0, 43.3), (6.1, 43.3), (6.1, 43.4), (6.0, 43.4), (6.0, 43.3)]]]}
+    with tempfile.TemporaryDirectory() as dossier:
+        pbf, base = Path(dossier) / "essai.osm.pbf", Path(dossier) / "essai.sqlite"
+        reseau.ecrire_pbf(pbf)
+        compte = geofabrik._importer_a_part(pbf, base, region, "2026-10-18T20:25:06Z")
+        voies = [e for e in geofabrik.elements_tuile({"base": base}, 866, 121) if e["type"] == "way"]
+        if compte["voies"] != 1 or [v["id"] for v in voies] != [1]:
+            raise ValueError(f"extrait d'essai mal relu : {compte}, {voies}")
 
 
 def bibliotheques() -> None:

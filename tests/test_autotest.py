@@ -41,3 +41,10 @@ def test_auto_test_signale_java_ou_une_bibliotheque_inutilisables(monkeypatch):
         raise ImportError("DLL load failed while importing _osmium")
     monkeypatch.setattr(autotest, "bibliotheques", panne)
     assert autotest.verifier(__version__) == 6
+    # L'import d'extrait Geofabrik, par le programme relancé en mode import.
+    monkeypatch.setattr(autotest, "bibliotheques", lambda: None)
+
+    def import_en_panne():
+        raise OSError("Import de l'extrait impossible : No module named 'sqlite3'")
+    monkeypatch.setattr(autotest, "import_d_extrait", import_en_panne)
+    assert autotest.verifier(__version__) == 7
