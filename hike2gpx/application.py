@@ -19,7 +19,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, bdtopo, brouter, franchissements, maison
+from . import __version__, bdtopo, brouter, franchissements, geofabrik, maison
 
 journal = logging.getLogger(__name__)
 
@@ -204,6 +204,7 @@ class Application:
         # arrête la lecture des tuiles de la précédente.
         self._vues = {"osm": 0, "bdtopo": 0}
         self._verrou_vues = threading.Lock()
+        self._tailles_extraits = {}     # id -> octets, demandés une fois à Geofabrik
         self._progression = {"actif": False}
         self._debut_calcul = time.monotonic()
         self._temps_etapes, self._etape_courante = {}, None
@@ -427,7 +428,14 @@ class Application:
             else:
                 return {"erreur": "Le tracé sort sans cesse de la zone examinée : rapprochez les points."}
         except (franchissements.ErreurDonnees, brouter.ErreurBRouter) as exc:
-            return {"erreur": str(exc)}
+            reponse = {"erreur": str(exc)}
+            if isinstance(exc, franchissements.ErreurDonnees):
+                # Overpass en panne : l'extrait de la région, s'il en existe un,
+                # rendrait le calcul possible sans lui.
+                proposition = self._proposition_extrait(zone)
+                if proposition and not proposition["trop_gros"]:
+                    reponse["extrait"] = proposition
+            return reponse
         # Dernier contrôle, indépendant de BRouter : un tracé qui passe encore
         # une coupe interdite n'est jamais rendu (audit B10, amélioration 2).
         passages = sur_le_trace(coords, liste)
@@ -518,13 +526,66 @@ class Application:
                 self._vues[cle] += 1
         return {"arretes": cles}
 
+    # ---------------------------------------------------------- données OSM hors ligne
+
+    def _proposition_extrait(self, zone) -> dict | None:
+        """L'extrait Geofabrik qui contient le centre de la zone, s'il n'est pas
+        déjà installé : nom, taille (demandée une fois à Geofabrik)."""
+        i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
+        if geofabrik.extrait_de_tuile(self.dossier, i, j):
+            return None
+        try:
+            region = geofabrik.region_de_tuile(geofabrik.regions(self.dossier), i, j)
+        except geofabrik.ErreurExtrait as exc:
+            journal.warning("Extraits Geofabrik indisponibles : %s", exc)
+            return None
+        if region is None:
+            return None
+        if region["id"] not in self._tailles_extraits:
+            self._tailles_extraits[region["id"]] = geofabrik.taille(region["pbf"])
+        octets = self._tailles_extraits[region["id"]]
+        return {"id": region["id"], "nom": region["nom"], "taille_mo": round(octets / 1024 ** 2) if octets else None,
+                "trop_gros": bool(octets and octets > geofabrik.TAILLE_MAX)}
+
+    def extrait(self, zone) -> dict:
+        """Les données OSM hors ligne de la vue de la page : l'extrait installé
+        qui contient son centre, sinon celui qu'on peut télécharger, et le
+        téléchargement en cours."""
+        reponse = {"en_cours": geofabrik.telechargements(self.dossier).etat()}
+        if zone is None:
+            return reponse
+        installe = geofabrik.extrait_de_tuile(
+            self.dossier, *franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2))
+        if installe:
+            return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
+        proposition = self._proposition_extrait(zone)
+        return {**reponse, "propose": proposition} if proposition else reponse
+
+    def installer_extrait(self, corps) -> dict:
+        """Lance le téléchargement d'un extrait en tâche de fond, à la demande
+        de la page (un clic : plusieurs centaines de Mo sur le disque)."""
+        identifiant = str((corps or {}).get("id") or "")
+        try:
+            region = next((r for r in geofabrik.regions(self.dossier) if r["id"] == identifiant), None)
+        except geofabrik.ErreurExtrait as exc:
+            return {"erreur": str(exc)}
+        if region is None:
+            return {"erreur": "Extrait inconnu."}
+        octets = self._tailles_extraits.get(identifiant) or geofabrik.taille(region["pbf"])
+        if octets and octets > geofabrik.TAILLE_MAX:
+            return {"erreur": f"Extrait trop gros ({octets / 1024 ** 2:.0f} Mo) : Overpass reste la source."}
+        journal.info("Extrait Geofabrik %s demandé (%s Mo)", identifiant,
+                     f"{octets / 1024 ** 2:.0f}" if octets else "taille inconnue")
+        return {"lance": geofabrik.telechargements(self.dossier).lancer(region)}
+
     def routes(self):
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
         get_langue, post_langue = langue_commune.routes(self.lire_langue, self.ecrire_langue)
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
-               "osm": self.calque_osm, "bdtopo": self.calque_bdtopo,
+               "osm": self.calque_osm, "bdtopo": self.calque_bdtopo, "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, **get_langue}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
                 "segment": self.telecharger_segment, "moteur": self.installer_moteur,
-                "denivele": self.denivele, "arreter_calques": self.arreter_calques, **post_langue}
+                "denivele": self.denivele, "arreter_calques": self.arreter_calques,
+                "extrait": self.installer_extrait, **post_langue}
         return get, post
