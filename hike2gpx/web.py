@@ -25,8 +25,10 @@ class Handler(serveweb.Handler):
     fichiers_statiques = {**serveweb.FICHIERS_STATIQUES,
                           "/leaflet/leaflet.js": ("leaflet/leaflet.js", "text/javascript; charset=utf-8"),
                           "/leaflet/leaflet.css": ("leaflet/leaflet.css", "text/css; charset=utf-8")}
-    # Les calques lisent la zone de la vue : ?s=&w=&n=&e= (None si invalide).
-    arguments_get = {"osm": lambda q: (lire_zone(q),), "bdtopo": lambda q: (lire_zone(q),)}
+    # Les calques et l'extrait hors ligne lisent la zone de la vue :
+    # ?s=&w=&n=&e= (None si invalide).
+    arguments_get = {"osm": lambda q: (lire_zone(q),), "bdtopo": lambda q: (lire_zone(q),),
+                     "extrait": lambda q: (lire_zone(q),)}
 
 
 def demarrer(application: Application, port: int = PORT, plage: int = PLAGE):

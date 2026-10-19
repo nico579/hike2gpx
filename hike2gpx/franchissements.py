@@ -28,6 +28,7 @@ import json
 import logging
 import math
 import re
+import sqlite3
 import threading
 import time
 import urllib.error
@@ -85,8 +86,25 @@ def _verrou(cle) -> threading.Lock:
         return _verrous.setdefault(cle, threading.Lock())
 
 
+# overpass-api.de accorde deux requêtes simultanées par adresse et répond 429
+# au-delà : calques et calcul d'itinéraire se partagent ces deux créneaux.
+# Sans eux, chaque déplacement de la carte ajoutait ses requêtes à celles des
+# vues précédentes (journal du 2026-10-19 : 429 en rafale, tuiles en 5 min).
+CRENEAUX = 2
+_creneaux = threading.BoundedSemaphore(CRENEAUX)
+
+
 class ErreurDonnees(RuntimeError):
     """Les barrières d'une zone n'ont pas pu être vérifiées."""
+
+
+class VueRemplacee(Exception):
+    """La vue qui demandait ces données a laissé place à une autre : inutile
+    de continuer à les lire."""
+
+
+def _toujours() -> bool:
+    return True
 
 
 # ------------------------------------------------------------- géométrie
@@ -502,6 +520,12 @@ def bornes_tuile(i: int, j: int) -> tuple:
             round((i + 1) * TUILE_DEG, 6), round((j + 1) * TUILE_DEG, 6))
 
 
+def bornes_zone(sud: float, ouest: float, nord: float, est: float) -> tuple:
+    """(sud, ouest, nord, est) des tuiles qui couvrent la zone : ce qu'un
+    calque lit vraiment, et que la page n'a pas à redemander."""
+    return bornes_tuile(_rang(sud), _rang(ouest))[:2] + bornes_tuile(_rang(nord), _rang(est))[2:]
+
+
 def requete(sud: float, ouest: float, nord: float, est: float) -> str:
     bbox = f"{sud:.6f},{ouest:.6f},{nord:.6f},{est:.6f}"
     return ('[out:json][timeout:180];'
@@ -512,9 +536,21 @@ def requete(sud: float, ouest: float, nord: float, est: float) -> str:
             'rel(bw.voies)["route"~"^(hiking|foot)$"];out body;')
 
 
-def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep) -> list:
-    """Éléments d'une requête Overpass. Les refus passagers (file d'attente
-    pleine, délai dépassé) sont retentés, puis l'échec remonte."""
+def _prendre_creneau(continuer) -> None:
+    """Attend l'un des CRENEAUX Overpass ; une vue quittée renonce à attendre."""
+    while not _creneaux.acquire(timeout=1.0):
+        if not continuer():
+            raise VueRemplacee()
+    if not continuer():
+        _creneaux.release()
+        raise VueRemplacee()
+
+
+def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep, continuer=_toujours) -> list:
+    """Éléments d'une requête Overpass, posée dans l'un des CRENEAUX. Les refus
+    passagers (file d'attente pleine, délai dépassé) sont retentés, puis
+    l'échec remonte. Quand continuer() devient faux (la vue a changé), ni
+    l'attente d'un créneau ni un nouvel essai n'ont lieu."""
     corps = urllib.parse.urlencode({"data": texte}).encode("utf-8")
     derniere = None
     for essai in range(TENTATIVES):
@@ -522,6 +558,7 @@ def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep) -> list:
             attendre(15 * essai)
         demande = urllib.request.Request(ENDPOINT, data=corps,
                                          headers={"User-Agent": f"hike2gpx/{__version__}"})
+        _prendre_creneau(continuer)
         try:
             with urllib.request.urlopen(demande, timeout=delai_s) as reponse:
                 brut = reponse.read(MAX_OCTETS + 1)
@@ -535,6 +572,8 @@ def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep) -> list:
             journal.warning("Overpass, essai %d sur %d : %s", essai + 1, TENTATIVES, exc)
             derniere = exc
             continue
+        finally:
+            _creneaux.release()
         if len(brut) > MAX_OCTETS:
             raise ErreurDonnees("Réponse Overpass trop volumineuse : barrières non vérifiées.")
         try:
@@ -549,8 +588,31 @@ def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep) -> list:
     raise ErreurDonnees(f"Overpass ne répond pas : barrières non vérifiées ({derniere}).") from derniere
 
 
+def tuile_de_l_extrait(i: int, j: int, dossier) -> dict | None:
+    """La tuile lue dans l'extrait Geofabrik installé qui la contient tout
+    entière (geofabrik.py), au format du cache Overpass, ou None. Un extrait
+    trop vieux lance son renouvellement en tâche de fond et sert en attendant."""
+    from . import geofabrik     # pas de cycle : geofabrik importe ce module
+    try:
+        extrait = geofabrik.extrait_de_tuile(dossier, i, j)
+        if extrait is None:
+            return None
+        geofabrik.telechargements(dossier).renouveler_si_perime(extrait)
+        return {"version": VERSION_DONNEES, "fetched_at": geofabrik.horodatage(extrait),
+                "bornes": bornes_tuile(i, j), "elements": geofabrik.elements_tuile(extrait, i, j),
+                "source": f"geofabrik:{extrait['id']}:{extrait['date']}"}
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        journal.warning("Extrait Geofabrik illisible pour la tuile %d_%d, Overpass à la place : %s", i, j, exc)
+        return None
+
+
 def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=interroger,
-                  maintenant=time.time) -> dict:
+                  maintenant=time.time, continuer=_toujours) -> dict:
+    """Les données OSM d'une tuile : celles de l'extrait Geofabrik installé qui
+    la contient, sinon celles d'Overpass (cache de sept jours)."""
+    extrait = tuile_de_l_extrait(i, j, dossier)
+    if extrait is not None:
+        return extrait
     chemin = Path(dossier) / "overpass" / f"v{VERSION_DONNEES}_{i}_{j}.json"
     with _verrou(("overpass", i, j)):
         cache = atomique.lire_json(chemin, None)
@@ -562,7 +624,7 @@ def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=
             raise ErreurDonnees("Hors connexion : les barrières de cette zone n'ont jamais été chargées.")
         debut = time.monotonic()
         donnees = {"version": VERSION_DONNEES, "fetched_at": maintenant(), "bornes": bornes_tuile(i, j),
-                   "elements": interroger(requete(*bornes_tuile(i, j)))}
+                   "elements": interroger(requete(*bornes_tuile(i, j)), continuer=continuer)}
         journal.info("Overpass : tuile %d_%d lue en %.1f s (%d éléments)", i, j, time.monotonic() - debut,
                      len(donnees["elements"]))
         atomique.ecrire_json(chemin, donnees, indent=None)
@@ -606,7 +668,10 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
     piéton, telles que les tuiles Overpass les connaissent, pour le calque des
     chemins OSM. Une bordure de trottoir n'y figure pas : elle se franchit."""
     voies, barrieres = {}, {}
+    continuer = options.get("continuer", _toujours)
     for i, j in tuiles_zone(sud, ouest, nord, est):
+        if not continuer():
+            raise VueRemplacee()
         for e in charger_tuile(i, j, dossier, **options)["elements"]:
             points = _geometrie(e) if e.get("type") == "way" else []
             if not points:

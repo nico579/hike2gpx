@@ -9,7 +9,7 @@ const CLE_VUE = "hike2gpx.vue";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
 
 const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0,
-  suivi: null, statut: ["", false] };
+  suivi: null, statut: ["", false], extrait: null, extraitAttendu: false };
 const $ = (id) => document.getElementById(id);
 
 // ------------------------------------------------------------ langue
@@ -78,6 +78,15 @@ const TEXTES = {
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
     "calque.chargement": "Chargement des {nom}… (la première fois, jusqu'à une minute)",
     "calque.zoom": "Zoomez davantage (niveau {niveau}) pour voir les chemins.",
+    "extrait.propose": "Données OSM hors ligne : l'extrait {nom} ({taille} Mo) remplacerait Overpass dans cette région.",
+    "extrait.bouton": "Télécharger",
+    "extrait.telechargement": "Téléchargement de l'extrait {nom} : {pourcent} %",
+    "extrait.import": "Import de l'extrait {nom} : {voies} voies lues…",
+    "extrait.installe": "Données OSM hors ligne : extrait {nom} du {date}, renouvelé chaque semaine.",
+    "extrait.erreur": "Extrait {nom} non installé : {message}",
+    "extrait.tropGros": "L'extrait {nom} ({taille} Mo) est trop gros : Overpass reste la source ici.",
+    "extrait.action": "Télécharger l'extrait OSM {nom} ({taille} Mo)",
+    "extrait.lance": "Extrait en cours de téléchargement : le calcul reprendra de lui-même une fois l'extrait installé.",
     "bdtopo.troncon": "Tronçon",
     "bdtopo.acces": "accès piéton : {valeur}",
     "bdtopo.prive": "privé",
@@ -172,6 +181,15 @@ const TEXTES = {
     "calque.bdtopo": "BD TOPO paths (IGN)",
     "calque.chargement": "Loading the {nom}… (the first time, up to a minute)",
     "calque.zoom": "Zoom in further (level {niveau}) to see the paths.",
+    "extrait.propose": "Offline OSM data: the {nom} extract ({taille} MB) would replace Overpass in this region.",
+    "extrait.bouton": "Download",
+    "extrait.telechargement": "Downloading the {nom} extract: {pourcent} %",
+    "extrait.import": "Importing the {nom} extract: {voies} ways read…",
+    "extrait.installe": "Offline OSM data: {nom} extract of {date}, renewed every week.",
+    "extrait.erreur": "{nom} extract not installed: {message}",
+    "extrait.tropGros": "The {nom} extract ({taille} MB) is too large: Overpass remains the source here.",
+    "extrait.action": "Download the OSM extract {nom} ({taille} MB)",
+    "extrait.lance": "Extract downloading: the calculation will resume by itself once it is installed.",
     "bdtopo.troncon": "Section",
     "bdtopo.acces": "pedestrian access: {valeur}",
     "bdtopo.prive": "private",
@@ -305,17 +323,19 @@ function appliquerLangue(code) {
   rafraichirPoints();
   construireFonds();
   rafraichirCalques();
+  afficherExtrait(etat.extrait);
   afficherStatut(...etat.statut);
   if (etat.dernier) ecrireResultat(etat.dernier);
 }
 
 document.addEventListener("nico579-langue", (e) => appliquerLangue(e.detail.code));
 
-async function api(route, corps) {
-  const options = corps === undefined ? {} : {
+async function api(route, corps, signal) {
+  const options = corps === undefined ? { signal } : {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(corps),
+    signal,
   };
   const reponse = await fetch(`/api/${route}`, options);
   const donnees = await reponse.json().catch(() => ({}));
@@ -370,9 +390,10 @@ carte.createPane("trace").style.zIndex = 450;
 const rendu = L.canvas({ padding: 0.2 });
 const ZOOM_CALQUES = 14;
 const CLE_CALQUES = "hike2gpx.calques";
+// charge : bornes des tuiles déjà dessinées ; annulation : la requête en cours.
 const CALQUES = {
-  osm: { groupe: L.layerGroup(), charge: null, sequence: 0 },
-  bdtopo: { groupe: L.layerGroup(), charge: null, sequence: 0 },
+  osm: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
+  bdtopo: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
 };
 const STYLES_OSM = {
   sentier: { color: "#7b1fa2", weight: 3, dashArray: "6 4" },
@@ -416,8 +437,10 @@ function noteCalques(message) {
   $("noteCalques").hidden = !message;
 }
 
-function zoneVue(marge) {
-  const b = carte.getBounds().pad(marge);
+// La vue telle qu'affichée, sans marge : le serveur la complète déjà aux
+// tuiles de 0,05° qui la couvrent, et renvoie leurs bornes.
+function zoneVue() {
+  const b = carte.getBounds();
   return { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() };
 }
 
@@ -425,27 +448,49 @@ function couvre(zone, vue) {
   return Boolean(zone) && zone.s <= vue.s && zone.w <= vue.w && zone.n >= vue.n && zone.e >= vue.e;
 }
 
+// Abandonne la vue en cours d'un calque : sa requête est coupée et une réponse
+// encore en route ne redessine rien. Rend vrai si une lecture était en cours.
+function abandonner(calque) {
+  const enCours = Boolean(calque.annulation);
+  calque.sequence += 1;
+  if (calque.annulation) calque.annulation.abort();
+  calque.annulation = null;
+  return enCours;
+}
+
+// Le serveur arrête de lui-même la vue précédente quand une nouvelle arrive ;
+// sans nouvelle vue (zoom trop faible, calque masqué), il faut le lui dire.
+function arreterAuServeur(cles) {
+  if (cles.length) api("arreter_calques", { calques: cles }).catch(() => {});
+}
+
 async function chargerCalque(cle, zone) {
   const calque = CALQUES[cle];
-  const numero = ++calque.sequence;
+  abandonner(calque);
+  const numero = calque.sequence;
+  const annulation = calque.annulation = new AbortController();
   const nom = t(`calque.${cle}`);
   const parametres = new URLSearchParams(Object.entries(zone).map(([k, v]) => [k, v.toFixed(5)]));
   noteCalques(t("calque.chargement", { nom: `${nom.charAt(0).toLowerCase()}${nom.slice(1)}` }));
   let donnees;
   try {
-    donnees = await api(`${cle}?${parametres}`);
+    donnees = await api(`${cle}?${parametres}`, undefined, annulation.signal);
   } catch (e) {
     if (numero === calque.sequence) noteCalques(`${nom} : ${e.message}`);
     return;
   }
   if (numero !== calque.sequence || !carte.hasLayer(calque.groupe)) return;
+  calque.annulation = null;
+  if (donnees.code === "vue_remplacee") return;
   if (donnees.erreur) {
     noteCalques(`${nom} : ${ts(donnees.erreur)}`);
     return;
   }
   calque.groupe.clearLayers();
   DESSINS[cle](calque.groupe, donnees);
-  calque.charge = zone;
+  // Les tuiles lues débordent la vue : tant qu'elle y reste, rien à redemander.
+  const [s, w, n, e] = donnees.bornes || [zone.s, zone.w, zone.n, zone.e];
+  calque.charge = { s, w, n, e };
   noteCalques("");
 }
 
@@ -455,17 +500,18 @@ async function rafraichirCalques() {
   if (carte.getZoom() < ZOOM_CALQUES) {
     // Vider plutôt que garder un morceau de réseau : de loin, il ferait
     // croire que le reste de la carte n'a pas de chemins.
+    const interrompus = actifs.filter((cle) => abandonner(CALQUES[cle]));
     for (const cle of actifs) {
       CALQUES[cle].groupe.clearLayers();
       CALQUES[cle].charge = null;
-      CALQUES[cle].sequence += 1;
     }
+    arreterAuServeur(interrompus);
     noteCalques(t("calque.zoom", { niveau: ZOOM_CALQUES }));
     return;
   }
-  const vue = zoneVue(0);
+  const vue = zoneVue();
   await Promise.all(actifs.filter((cle) => !couvre(CALQUES[cle].charge, vue))
-    .map((cle) => chargerCalque(cle, zoneVue(0.15))));
+    .map((cle) => chargerCalque(cle, vue)));
 }
 
 let minuterieCalques = null;
@@ -474,12 +520,13 @@ carte.on("moveend", () => {
   minuterieCalques = setTimeout(rafraichirCalques, 400);
 });
 carte.on("overlayadd overlayremove", (e) => {
-  const calque = Object.values(CALQUES).find((c) => c.groupe === e.layer);
-  if (!calque) return;
+  const cle = Object.keys(CALQUES).find((c) => CALQUES[c].groupe === e.layer);
+  if (!cle) return;
+  const calque = CALQUES[cle];
   if (e.type === "overlayremove") {
+    if (abandonner(calque)) arreterAuServeur([cle]);
     calque.groupe.clearLayers();
     calque.charge = null;
-    calque.sequence += 1;    // une réponse encore en route ne redessine rien
   }
   try {
     localStorage.setItem(CLE_CALQUES, JSON.stringify(Object.keys(CALQUES).filter((cle) => carte.hasLayer(CALQUES[cle].groupe))));
@@ -494,6 +541,74 @@ function restaurerCalques() {
     }
   } catch (e) { /* stockage indisponible : calques éteints */ }
 }
+
+// ------------------------------------------------------------ données OSM hors ligne
+
+// L'extrait Geofabrik de la région au centre de la carte (geofabrik.py) :
+// proposé, en cours de téléchargement ou installé. Une fois installé, il
+// remplace Overpass dans sa région.
+const ZOOM_EXTRAIT = 10;
+let minuterieExtrait = null;
+
+function dateCourte(iso) {
+  return new Date(iso).toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR");
+}
+
+async function majExtrait() {
+  clearTimeout(minuterieExtrait);
+  const enCours = etat.extrait?.en_cours && ["telechargement", "import"].includes(etat.extrait.en_cours.etape);
+  if (carte.getZoom() < ZOOM_EXTRAIT && !enCours) { afficherExtrait(null); return; }
+  const parametres = new URLSearchParams(Object.entries(zoneVue()).map(([k, v]) => [k, v.toFixed(5)]));
+  try {
+    afficherExtrait(await api(`extrait?${parametres}`));
+  } catch (e) { /* serveur momentanément injoignable : la ligne reste telle quelle */ }
+}
+
+function afficherExtrait(r) {
+  etat.extrait = r;
+  const ligne = $("extraitOsm"), bouton = $("extraitBouton");
+  bouton.hidden = true;
+  const e = r?.en_cours;
+  const actif = e && ["telechargement", "import"].includes(e.etape);
+  if (actif) {
+    $("extraitTexte").textContent = e.etape === "telechargement"
+      ? t("extrait.telechargement", { nom: e.nom, pourcent: Math.round(100 * e.fraction) })
+      : t("extrait.import", { nom: e.nom, voies: Number(e.voies).toLocaleString(langue === "en" ? "en-GB" : "fr-FR") });
+    minuterieExtrait = setTimeout(majExtrait, 1500);
+  } else if (r?.installe) {
+    $("extraitTexte").textContent = t("extrait.installe", { nom: r.installe.nom, date: dateCourte(r.installe.date) });
+  } else if (e?.etape === "erreur") {
+    $("extraitTexte").textContent = t("extrait.erreur", { nom: e.nom, message: e.erreur });
+    bouton.hidden = !r.propose;
+  } else if (r?.propose) {
+    const p = r.propose;
+    $("extraitTexte").textContent = t(p.trop_gros ? "extrait.tropGros" : "extrait.propose",
+      { nom: p.nom, taille: p.taille_mo ?? "?" });
+    bouton.hidden = p.trop_gros;
+  }
+  ligne.hidden = !(actif || r?.installe || r?.propose || e?.etape === "erreur");
+  // L'extrait attendu par un calcul vient d'être installé : le calcul reprend.
+  if (etat.extraitAttendu && e?.etape === "fini") {
+    etat.extraitAttendu = false;
+    if (etat.points.length >= 2) planifierCalcul();
+  }
+}
+
+async function installerExtrait(id) {
+  const r = await api("extrait", { id });
+  if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
+  etat.extraitAttendu = true;
+  afficherStatut(() => t("extrait.lance"));
+  majExtrait();
+}
+
+$("extraitBouton").addEventListener("click", () => {
+  if (etat.extrait?.propose) installerExtrait(etat.extrait.propose.id);
+});
+carte.on("moveend", () => {
+  clearTimeout(minuterieExtrait);
+  minuterieExtrait = setTimeout(majExtrait, 600);
+});
 
 // Fonds de carte et contrôle des calques, refaits quand la clé IGN ou la
 // langue change ; le fond affiché reste le même.
@@ -756,6 +871,12 @@ function afficherErreur(reponse) {
     }));
   }
   if (reponse.moteur_absent) proposerInstallation();
+  // Overpass en panne, et un extrait de la région existe : le proposer.
+  const extrait = reponse.extrait;
+  if (extrait) {
+    $("actions").append(boutonAction(t("extrait.action", { nom: extrait.nom, taille: extrait.taille_mo ?? "?" }),
+      () => installerExtrait(extrait.id)));
+  }
 }
 
 function lignes(feature) {

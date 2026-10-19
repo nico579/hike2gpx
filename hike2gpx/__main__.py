@@ -31,10 +31,23 @@ def main(argv=None) -> int:
     analyser = sous.add_parser("analyser", help="compte les franchissements d'une zone")
     for nom in ("sud", "ouest", "nord", "est"):
         analyser.add_argument(nom, type=float)
+    # Import d'un extrait Geofabrik, lancé par geofabrik.installer() dans un
+    # processus à part (PBF, base, région en JSON, date des données).
+    parser.add_argument("--importer-extrait", nargs=4, metavar="X", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.self_test_version:      # avant tout dossier : ne touche pas aux données
         from . import autotest
         return autotest.verifier(args.self_test_version)
+    if args.importer_extrait:
+        import json
+        from pathlib import Path
+
+        from . import geofabrik
+        pbf, base, region, date = args.importer_extrait
+        compte = geofabrik.importer(Path(pbf), Path(base), json.loads(Path(region).read_text(encoding="utf-8")),
+                                    date, suivi=lambda c: print("voies", c["voies"], flush=True))
+        print("fini", json.dumps(compte), flush=True)
+        return 0
     dossier = DOSSIERS.dossier_etat()
 
     if args.commande == "installer":

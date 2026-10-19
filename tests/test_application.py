@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from hike2gpx import application as appli, brouter, franchissements
+from hike2gpx import application as appli, brouter, franchissements, geofabrik
 
 
 def trace(*points_lat_lon, longueur="1234", montee="56"):
@@ -230,7 +230,36 @@ def test_itineraire_s_arrete_si_les_barrieres_sont_inconnues(simulee, monkeypatc
 
     monkeypatch.setattr(franchissements, "franchissements_zone", panne)
     monkeypatch.setattr(brouter, "calculer", lambda *a, **o: pytest.fail("calcul sans barrières"))
-    assert "barrières non vérifiées" in a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})["erreur"]
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [])
+    reponse = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
+    assert "barrières non vérifiées" in reponse["erreur"] and "extrait" not in reponse
+    # Un extrait Geofabrik couvre la zone : la page le proposera.
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [REGION_PACA])
+    monkeypatch.setattr(geofabrik, "taille", lambda url: 372 * 1024 ** 2)
+    assert a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})["extrait"] == {
+        "id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d'Azur", "taille_mo": 372, "trop_gros": False}
+
+
+REGION_PACA = {"id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d'Azur",
+               "pbf": "https://download.geofabrik.de/europe/france/provence-alpes-cote-d-azur-latest.osm.pbf",
+               "bornes": (42.9, 4.2, 45.2, 7.8),
+               "polygones": [[[(4.2, 42.9), (7.8, 42.9), (7.8, 45.2), (4.2, 45.2), (4.2, 42.9)]]]}
+
+
+def test_extrait_propose_lance_et_refuse(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [REGION_PACA])
+    monkeypatch.setattr(geofabrik, "taille", lambda url: 372 * 1024 ** 2)
+    vue = (43.30, 6.00, 43.34, 6.08)
+    assert a.extrait(vue) == {"en_cours": None, "propose": {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"],
+                                                            "taille_mo": 372, "trop_gros": False}}
+    assert a.extrait((60.0, 6.0, 60.1, 6.1)) == {"en_cours": None}
+    lancees = []
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
+    assert a.installer_extrait({"id": REGION_PACA["id"]}) == {"lance": True} and lancees == [REGION_PACA["id"]]
+    assert a.installer_extrait({"id": "inconnu"}) == {"erreur": "Extrait inconnu."}
+    a._tailles_extraits[REGION_PACA["id"]] = 3 * 1024 ** 3
+    assert "trop gros" in a.installer_extrait({"id": REGION_PACA["id"]})["erreur"] and len(lancees) == 1
 
 
 def test_itineraire_signale_les_donnees_manquantes(simulee, monkeypatch):
@@ -261,14 +290,46 @@ def test_calques_refusent_une_zone_trop_grande_ou_invalide(tmp_path, monkeypatch
 def test_calque_bdtopo_et_panne(tmp_path, monkeypatch):
     from hike2gpx import bdtopo
     a = appli.Application(tmp_path)
-    monkeypatch.setattr(bdtopo, "troncons_zone", lambda *z: [{"id": "A-0"}])
-    assert a.calque_bdtopo((43.3, 6.0, 43.35, 6.05)) == {"troncons": [{"id": "A-0"}]}
+    monkeypatch.setattr(bdtopo, "troncons_zone", lambda *z, **o: [{"id": "A-0"}])
+    # Les bornes des tuiles lues, que la page n'a pas à redemander.
+    assert a.calque_bdtopo((43.31, 6.01, 43.34, 6.04)) == {"troncons": [{"id": "A-0"}],
+                                                          "bornes": (43.3, 6.0, 43.35, 6.05)}
 
-    def panne(*z):
+    def panne(*z, **o):
         raise franchissements.ErreurDonnees("BD TOPO indisponible (hors ligne).")
 
     monkeypatch.setattr(bdtopo, "troncons_zone", panne)
     assert a.calque_bdtopo((43.3, 6.0, 43.35, 6.05)) == {"erreur": "BD TOPO indisponible (hors ligne)."}
+
+
+def test_une_nouvelle_vue_arrete_la_lecture_de_la_precedente(tmp_path, monkeypatch):
+    # Journal du 2026-10-19 : chaque déplacement de la carte ajoutait sa lecture
+    # Overpass à celles des vues quittées. Ici, la vue B arrive pendant que la
+    # vue A lit sa première tuile : A s'arrête là.
+    a = appli.Application(tmp_path)
+    vue_a, vue_b = (43.31, 6.01, 43.34, 6.06), (43.41, 6.21, 43.44, 6.26)
+    lues = []
+
+    def lire(sud, ouest, nord, est, dossier, continuer):
+        for tuile in franchissements.tuiles_zone(sud, ouest, nord, est):
+            if not continuer():
+                raise franchissements.VueRemplacee()
+            lues.append(tuile)
+            if (sud, ouest, nord, est) == vue_a:
+                assert a.calque_osm(vue_b)["voies"] == []
+        return {"voies": [], "barrieres": []}
+
+    monkeypatch.setattr(franchissements, "voies_affichables", lire)
+    assert a.calque_osm(vue_a)["code"] == "vue_remplacee"
+    assert lues == [(866, 120), (868, 124), (868, 125)]
+    assert a.calque_osm(vue_b)["bornes"] == (43.4, 6.2, 43.45, 6.3)
+
+
+def test_arreter_calques_ne_touche_que_ceux_que_la_page_masque(tmp_path):
+    a = appli.Application(tmp_path)
+    assert a.arreter_calques({"calques": ["bdtopo"]}) == {"arretes": ["bdtopo"]}
+    assert a._vues == {"osm": 0, "bdtopo": 1}
+    assert a.arreter_calques({}) == {"arretes": ["osm", "bdtopo"]}
 
 
 def test_route_denivele(tmp_path, monkeypatch):
@@ -287,8 +348,9 @@ def test_route_denivele(tmp_path, monkeypatch):
 def test_routes_init_annonce_l_application(tmp_path):
     get, post = appli.Application(tmp_path).routes()
     assert get["init"]()["app"] == "hike2gpx"
-    assert {"osm", "bdtopo"} <= set(get)
-    assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele", "langue"}
+    assert {"osm", "bdtopo", "extrait"} <= set(get)
+    assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele", "langue", "arreter_calques",
+                         "extrait"}
     assert "erreur" in post["segment"]({"nom": "../x"})
 
 
