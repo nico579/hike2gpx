@@ -19,7 +19,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, bdtopo, brouter, franchissements, geofabrik, maison
+from . import __version__, bdtopo, brouter, franchissements, geofabrik, maison, osmfr
 
 journal = logging.getLogger(__name__)
 
@@ -635,34 +635,58 @@ class Application:
     # ---------------------------------------------------------- données OSM hors ligne
 
     def _extrait_automatique(self, zone, raison: str) -> dict | None:
-        """L'extrait Geofabrik de la région au centre de la zone se télécharge
-        de lui-même, en tâche de fond, dès que la région sert vraiment (un
-        calcul, le calque des chemins OSM) : pas de bouton, décision de Nico du
-        2026-10-19. Survoler la carte ne suffit pas, sans quoi chaque région
-        traversée partirait. Rien si un extrait installé couvre déjà ce centre,
-        ou après un échec récent. Taille et place disque se vérifient en tâche
-        de fond (geofabrik._telecharger) : interroger Geofabrik ici ferait
-        attendre le calque ou le calcul jusqu'à sa réponse, qui tarde parfois
-        une minute. Rend {"id", "nom"} de l'extrait en cours, ou None."""
+        """L'extrait OSM du centre de la zone se télécharge de lui-même, en
+        tâche de fond, dès que la région sert vraiment (un calcul, le calque
+        des chemins OSM) : pas de bouton, décision de Nico du 2026-10-19.
+        Survoler la carte ne suffit pas, sans quoi chaque région traversée
+        partirait. Rien après un échec récent. Taille et place disque se
+        vérifient en tâche de fond (geofabrik._telecharger), et les index ne
+        se téléchargent jamais ici (geofabrik.Index) : le calque ou le calcul
+        n'attendent aucun serveur, Geofabrik tardant parfois une minute.
+
+        En France, une cascade (Nico, 2026-10-20) : le département d'OSM
+        France d'abord, prêt en une quarantaine de secondes, puis sa région de
+        Geofabrik, qui prend le relais dès qu'elle est là, ses voies entières
+        à la frontière. Rend {"id", "nom"} de l'extrait que la zone attend, ou
+        None quand un extrait installé la couvre déjà, relais en préparation
+        compris."""
         i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
-        if geofabrik.extrait_de_tuile(self.dossier, i, j):
+        installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
+        if installe is not None and not installe.get("voies_coupees"):
             return None
         taches = geofabrik.telechargements(self.dossier)
-        try:
-            region = geofabrik.region_de_tuile(geofabrik.regions(self.dossier), i, j)
-        except geofabrik.ErreurExtrait as exc:
-            journal.warning("Extraits Geofabrik indisponibles : %s", exc)
+
+        def plus_petit(regions):
+            # Le plus petit extrait qui contient toute la tuile : une région
+            # écartée ou en échec récent cède à celle qui la contient.
+            return geofabrik.region_de_tuile([r for r in regions if taches.disponible(r["id"])], i, j)
+
+        en_cours = taches.etat()
+        occupee = bool(en_cours) and en_cours["etape"] in ("telechargement", "import")
+        complete = plus_petit(geofabrik.regions(self.dossier))
+        if installe is not None:
+            # Un département d'OSM France sert déjà : sa région de Geofabrik se
+            # prépare pour prendre le relais, sans faire attendre la page ni
+            # prendre la place d'un téléchargement en cours.
+            if complete is not None and not occupee and taches.lancer(complete, relais=True):
+                journal.info("Extrait OSM %s : téléchargement lancé pour prendre le relais de %s (%s)",
+                             complete["id"], installe["id"], raison)
             return None
+        # Rien sur le disque : le plus rapide d'abord, le département d'OSM
+        # France (sa région en repli, Nico, 2026-10-20 : « départements en
+        # priorité, et région en fall back »), puis Geofabrik hors de France
+        # ou quand OSM France échoue.
+        region = plus_petit(osmfr.regions(self.dossier)) or complete
         if region is None:
             return None
         # La même région déjà en cours : rien à relancer. Une autre : elle cède
         # la place à celle-ci (Telechargements.lancer, le dernier usage l'emporte).
-        en_cours = taches.etat()
-        if en_cours and en_cours["etape"] in ("telechargement", "import") and en_cours["id"] == region["id"]:
+        if occupee and en_cours["id"] == region["id"]:
             return {"id": en_cours["id"], "nom": en_cours["nom"]}
-        if not taches.lancer(region):
+        ensuite = complete if region.get("voies_coupees") else None
+        if not taches.lancer(region, ensuite=ensuite):
             return None         # région écartée, ou échec de moins d'une heure
-        journal.info("Extrait Geofabrik %s : téléchargement lancé (%s)", region["id"], raison)
+        journal.info("Extrait OSM %s : téléchargement lancé (%s)", region["id"], raison)
         return {"id": region["id"], "nom": region["nom"]}
 
     def extrait(self, zone) -> dict:

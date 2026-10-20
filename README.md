@@ -96,15 +96,22 @@ page le dit, sans relier les points en ligne droite.
 
 Overpass, le service qui répond aux questions sur OpenStreetMap, sature par
 moments et tombe parfois. Pour ne plus en dépendre, hike2gpx télécharge de
-lui-même l'extrait [Geofabrik](https://download.geofabrik.de/) de la région où
-l'on travaille, partout sur la planète : Provence-Alpes-Côte d'Azur à
-Garéoult (373 Mo), le Liechtenstein à Vaduz (3 Mo). Parmi quelque 550
-régions, il retient la plus petite qui contient entièrement chaque tuile. Le
+lui-même un extrait d'OpenStreetMap autour de l'endroit où l'on travaille, et
+en France il procède en deux temps. D'abord le département, tiré des [extraits
+d'OSM France](https://download.openstreetmap.fr/extracts/europe/france/) : à
+Garéoult, le Var pèse 83 Mo et se trouve prêt en une quarantaine de secondes,
+import compris ; on travaille aussitôt. Pendant ce temps, la région de
+[Geofabrik](https://download.geofabrik.de/) se prépare : la PACA pèse 391 Mo
+et demande plus de trois minutes. Dès qu'elle est là, c'est elle qui sert, car
+OSM France coupe net les chemins à la limite du département, là où Geofabrik
+les garde entiers. Ailleurs sur la planète, c'est directement la région de
+Geofabrik, parmi quelque 550 : le Liechtenstein à Vaduz (3 Mo). Le
 téléchargement part dès que la région sert vraiment, par un calcul ou le
 calque des chemins OSM, mais pas quand la carte ne fait que la survoler. Il
 se fait en tâche de fond, vérifié par son MD5, pendant qu'Overpass continue
 de servir ; le panneau en suit l'avancement, et un calcul qui l'attendait
-reprend de lui-même à la fin. Un extrait de plus de 2 Go, ou que le disque ne
+reprend de lui-même dès que le département est là, sans attendre la région.
+Un extrait de plus de 2 Go, ou que le disque ne
 pourrait pas loger, n'est pas téléchargé : Overpass reste alors la source.
 L'extrait est lu une fois et rangé dans une base SQLite par tuile, au dossier
 de données (`geofabrik/`), puis le fichier téléchargé est effacé.
@@ -113,8 +120,11 @@ Une fois installé, l'extrait est la source des tuiles qu'il contient :
 lecture instantanée, sans quota ni panne, hors connexion comprise. Une tuile en
 sort sous la forme exacte d'une réponse d'Overpass, si bien que les
 franchissements se jugent de la même façon. Overpass ne sert plus qu'ailleurs :
-autre région, ou tuile à cheval sur une frontière. Geofabrik refait ses
-extraits chaque jour ; plus vieux qu'une semaine, l'âge maximal du cache
+hors des extraits installés, ou sur une tuile à cheval sur leur limite ; et
+une tuile qui attendait Overpass au moment où un extrait s'installe bascule
+aussitôt sur lui. OSM
+France et Geofabrik refont leurs extraits chaque jour ; plus vieux qu'une
+semaine, l'âge maximal du cache
 Overpass, l'extrait se renouvelle de lui-même en tâche de fond, l'ancien
 servant jusqu'à la bascule.
 

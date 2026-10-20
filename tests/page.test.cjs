@@ -202,7 +202,7 @@ test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcu
   page.afficherErreur({ erreur: "Overpass ne répond pas : barrières non vérifiées (HTTP 502).",
     extrait_en_cours: { id: "paca", nom } });
   assert.equal(statut(), `Overpass ne répond pas ; l'extrait OSM ${nom} se télécharge, le calcul reprendra de lui-même.`);
-  assert.equal(page.etat.donneesAttendues, true);
+  assert.equal(page.etat.donneesAttendues.extrait, "paca");
   assert.ok(requetes.some((r) => r.url.startsWith("/api/extrait?")));
   page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "telechargement", fraction: 0.42, voies: 0 }, brouter: null });
   assert.equal(texte(), `Données OSM hors ligne : téléchargement de l'extrait ${nom}, 42 %`);
@@ -220,7 +220,7 @@ test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcu
   assert.equal(elements.get("brouterTexte").textContent, "Données BRouter : téléchargement en cours (E0_N45)…");
   assert.equal(elements.get("brouterEnCours").hidden, false);
   assert.equal(piste.hidden, true);
-  assert.equal(page.etat.donneesAttendues, true);
+  assert.equal(page.etat.donneesAttendues.extrait, "paca");
   // Tout est arrivé : l'extrait sert, et le calcul qui attendait repart.
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
   assert.equal(texte(), `Données OSM hors ligne : extrait ${nom} du 18/10/2026, renouvelé chaque semaine.`);
@@ -233,7 +233,40 @@ test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcu
   page.afficherErreur({ erreur: "Données BRouter absentes pour cette zone.", segments_manquants: ["E0_N45"],
     brouter_en_cours: { moteur: true, segments: ["E0_N45"] } });
   assert.equal(statut(), "Téléchargement des données BRouter (moteur BRouter, E0_N45) : le calcul reprendra de lui-même.");
-  assert.equal(page.etat.donneesAttendues, true);
+  assert.equal(page.etat.donneesAttendues.extrait, null);
+});
+
+test("cascade : le Var sert aussitôt, la PACA se prépare sans faire attendre", () => {
+  // Nico, 2026-10-20 : « on a la main rapidement sur le var (garéoult), on
+  // peut travailler, pendant ce temps paca se prépare ».
+  const { page, elements, requetes } = charger();
+  const texte = () => elements.get("extraitTexte").textContent;
+  const paca = "Provence Alpes-Cote-d'Azur";
+  const var_ = { id: "fr-var", nom: "Var", date: "2026-10-19T01:38:06Z" };
+  page.afficherErreur({ erreur: "Overpass ne répond pas : barrières non vérifiées (HTTP 502).",
+    extrait_en_cours: { id: "fr-var", nom: "Var" } });
+  page.debutLecture("osm", 1, "chemins OSM");
+  page.afficherExtrait({ en_cours: { id: "fr-var", nom: "Var", etape: "import", fraction: 1, voies: 184075 }, brouter: null });
+  assert.equal(page.etat.donneesAttendues.extrait, "fr-var");
+  const lectures = () => requetes.filter((r) => r.url.startsWith("/api/osm?")).length;
+  const avant = lectures();
+  // Le Var installé, la PACA part dans la seconde : le calcul reprend et le
+  // calque se relit dans le Var, sans attendre la PACA.
+  page.afficherExtrait({ en_cours: { id: "provence-alpes-cote-d-azur", nom: paca, etape: "telechargement",
+    fraction: 0.12, voies: 0, relais: true }, installe: var_, brouter: null });
+  assert.equal(page.etat.donneesAttendues, false);
+  assert.equal(lectures(), avant + 1);
+  assert.equal(texte(), `Données OSM hors ligne : extrait Var du 19/10/2026 ; la région ${paca} se télécharge pour prendre le relais, 12 %`);
+  page.afficherExtrait({ en_cours: { id: "provence-alpes-cote-d-azur", nom: paca, etape: "import",
+    fraction: 1, voies: 210710, relais: true }, installe: var_, brouter: null });
+  assert.match(texte(), /^Données OSM hors ligne : extrait Var du 19\/10\/2026 ; la région .* s'importe pour prendre le relais, 210.710 voies lues…$/);
+  page.appliquerLangue("en");
+  assert.match(texte(), /^Offline OSM data: Var extract of 19\/10\/2026; the .* region is importing to take over, 210.710 ways read…$/);
+  page.appliquerLangue("fr");
+  // La PACA installée : c'est elle qui sert.
+  const installe = { id: "provence-alpes-cote-d-azur", nom: paca, date: "2026-10-18T20:25:06Z" };
+  page.afficherExtrait({ en_cours: { ...installe, etape: "fini", relais: true }, installe, brouter: null });
+  assert.equal(texte(), `Données OSM hors ligne : extrait ${paca} du 18/10/2026, renouvelé chaque semaine.`);
 });
 
 test("chargement des calques : la note suit les tuiles lues, barre comprise", () => {
