@@ -10,7 +10,7 @@ from pathlib import Path
 
 from nico579_commons import maj, serveweb
 
-from . import __version__, bureau
+from . import __version__, bureau, geofabrik, osmfr
 from .application import Application, configurer_journal, lire_vue, lire_zone
 
 journal = logging.getLogger(__name__)
@@ -64,6 +64,11 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
     url = f"http://{HOST}:{port}/"
     print(f"hike2gpx {__version__} : {url} (données : {dossier}, journal : {chemin_journal})", flush=True)
     journal.info("hike2gpx %s démarré : %s, données %s", __version__, url, dossier)
+    # Les index des extraits, prêts avant le premier usage : les départements
+    # d'OSM France, les régions de Geofabrik. Chacun ne se refait, en tâche de
+    # fond, que s'il manque ou a plus d'un mois.
+    osmfr.regions(dossier)
+    geofabrik.regions(dossier)
 
     arret, verrou, fini = threading.Event(), threading.Lock(), []
 

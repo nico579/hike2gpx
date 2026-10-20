@@ -549,13 +549,17 @@ def _prendre_creneau(continuer) -> None:
 def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep, continuer=_toujours) -> list:
     """Éléments d'une requête Overpass, posée dans l'un des CRENEAUX. Les refus
     passagers (file d'attente pleine, délai dépassé) sont retentés, puis
-    l'échec remonte. Quand continuer() devient faux (la vue a changé), ni
-    l'attente d'un créneau ni un nouvel essai n'ont lieu."""
+    l'échec remonte. Quand continuer() devient faux (la vue a changé, un
+    extrait couvre la tuile), ni l'attente d'un créneau, ni la fin d'une
+    pause, ni un nouvel essai n'ont lieu."""
     corps = urllib.parse.urlencode({"data": texte}).encode("utf-8")
     derniere = None
     for essai in range(TENTATIVES):
         if essai:
-            attendre(15 * essai)
+            for _ in range(15 * essai):         # une seconde à la fois
+                if not continuer():
+                    break
+                attendre(1)
         demande = urllib.request.Request(ENDPOINT, data=corps,
                                          headers={"User-Agent": f"hike2gpx/{__version__}"})
         _prendre_creneau(continuer)
@@ -602,8 +606,18 @@ def tuile_de_l_extrait(i: int, j: int, dossier) -> dict | None:
                 "bornes": bornes_tuile(i, j), "elements": geofabrik.elements_tuile(extrait, i, j),
                 "source": f"geofabrik:{extrait['id']}:{extrait['date']}"}
     except (OSError, ValueError, sqlite3.Error) as exc:
-        journal.warning("Extrait Geofabrik illisible pour la tuile %d_%d, Overpass à la place : %s", i, j, exc)
+        journal.warning("Extrait OSM illisible pour la tuile %d_%d, Overpass à la place : %s", i, j, exc)
         return None
+
+
+def _couverte(i: int, j: int, dossier) -> bool:
+    """Un extrait installé contient-il toute la tuile ? Assez léger pour être
+    redemandé à chaque seconde d'attente d'Overpass."""
+    from . import geofabrik     # pas de cycle : geofabrik importe ce module
+    try:
+        return geofabrik.extrait_de_tuile(dossier, i, j) is not None
+    except (OSError, ValueError):
+        return False
 
 
 def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=interroger,
@@ -622,9 +636,22 @@ def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=
             return cache
         if not en_ligne:
             raise ErreurDonnees("Hors connexion : les barrières de cette zone n'ont jamais été chargées.")
-        debut = time.monotonic()
-        donnees = {"version": VERSION_DONNEES, "fetched_at": maintenant(), "bornes": bornes_tuile(i, j),
-                   "elements": interroger(requete(*bornes_tuile(i, j)), continuer=continuer)}
+        debut, instant, texte = time.monotonic(), maintenant(), requete(*bornes_tuile(i, j))
+        # Un extrait installé pendant l'attente d'Overpass prend aussitôt le
+        # relais (essai réel du 2026-10-20 : le Var installé au bout de 39 s,
+        # la tuile suivante attendait encore Overpass, en HTTP 502, jusqu'à 80 s).
+        try:
+            elements = interroger(texte, continuer=lambda: continuer() and not _couverte(i, j, dossier))
+        except VueRemplacee:
+            if not continuer():
+                raise
+            extrait = tuile_de_l_extrait(i, j, dossier)
+            if extrait is not None:
+                journal.info("Tuile %d_%d : l'extrait arrivé pendant l'attente d'Overpass prend le relais", i, j)
+                return extrait
+            elements = interroger(texte, continuer=continuer)      # extrait illisible : Overpass, comme avant
+        donnees = {"version": VERSION_DONNEES, "fetched_at": instant, "bornes": bornes_tuile(i, j),
+                   "elements": elements}
         journal.info("Overpass : tuile %d_%d lue en %.1f s (%d éléments)", i, j, time.monotonic() - debut,
                      len(donnees["elements"]))
         atomique.ecrire_json(chemin, donnees, indent=None)

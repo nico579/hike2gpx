@@ -337,7 +337,7 @@ def test_le_dernier_usage_l_emporte(tmp_path, monkeypatch):
     taches._fil.join(5)
     assert not premier.is_alive() and abandonnes == ["centre"]
     assert taches.etat() == {"id": "bretagne", "nom": "Bretagne", "etape": "fini", "fraction": 0.0, "voies": 0,
-                             "date": DATE}
+                             "relais": False, "date": DATE}
     # Un abandon n'est pas un échec : le Centre repart aussitôt s'il resert.
     assert taches.lancer(centre)
     second = taches._fil
@@ -447,21 +447,69 @@ def test_installation_en_tache_de_fond_puis_renouvellement(tmp_path, monkeypatch
     assert lances == [vieux]
 
 
-def test_index_des_regions_garde_un_mois(tmp_path):
+def test_l_index_de_geofabrik_ne_fait_jamais_attendre(tmp_path, monkeypatch):
+    # Rapport du 2026-10-20 : l'index se téléchargeait pendant la requête de
+    # la page, sous verrou, une minute parfois. Il se prépare désormais en
+    # tâche de fond, et sert tel quel, même vieux d'un mois.
     index = {"type": "FeatureCollection", "features": [
         {"type": "Feature", "properties": {"id": "essai", "name": "Essai", "urls": {"pbf": REGION["pbf"]}},
          "geometry": {"type": "Polygon", "coordinates": [[[5.5, 43.0], [6.5, 43.0], [6.5, 43.6], [5.5, 43.6],
                                                           [5.5, 43.0]]]}},
         {"type": "Feature", "properties": {"id": "sans-pbf", "urls": {}}, "geometry": None}]}
-    appels = []
-
-    def ouvrir(demande, timeout):
-        appels.append(demande.full_url)
-        return Reponse(json.dumps(index).encode())
-
-    regions = geofabrik.regions(tmp_path, ouvrir=ouvrir)
+    preparations = []
+    monkeypatch.setattr(geofabrik.INDEX, "preparer", lambda dossier, **options: preparations.append(dossier))
+    monkeypatch.setattr(geofabrik.urllib.request, "urlopen",
+                        lambda *a, **o: pytest.fail("Geofabrik interrogé pendant la requête"))
+    assert geofabrik.regions(tmp_path) == [] and len(preparations) == 1      # absent : il se prépare
+    geofabrik.INDEX._refaire(tmp_path, lambda demande, timeout: Reponse(json.dumps(index).encode()))
+    regions = geofabrik.regions(tmp_path)
     assert [r["id"] for r in regions] == ["essai"] and regions[0]["bornes"] == (43.0, 5.5, 43.6, 6.5)
-    assert geofabrik.regions(tmp_path, ouvrir=ouvrir) == regions and len(appels) == 1
+    assert len(preparations) == 1
     plus_tard = time.time() + geofabrik.INDEX_TTL_S + 1
-    geofabrik.regions(tmp_path, ouvrir=ouvrir, maintenant=lambda: plus_tard)
-    assert len(appels) == 2
+    assert geofabrik.regions(tmp_path, maintenant=lambda: plus_tard) == regions and len(preparations) == 2
+
+
+def test_la_region_de_geofabrik_prend_le_relais_du_departement(tmp_path, monkeypatch):
+    # Nico, 2026-10-20 : « dès que paca est dispo, on l'utilise pour ne pas
+    # avoir de pb aux frontières ». Le Var d'OSM France, plus petit, ne sert
+    # qu'en attendant : ses voies s'arrêtent net à sa frontière.
+    carte, _, _ = carte_d_essai()
+    pbf = tmp_path / "essai.osm.pbf"
+    ecrire_pbf(pbf, carte)
+    base = geofabrik.dossier_extraits(tmp_path) / "fr-essai.sqlite"
+    base.parent.mkdir(parents=True, exist_ok=True)
+    geofabrik.importer(pbf, base, {**REGION, "id": "fr-essai", "voies_coupees": True}, DATE)
+    assert geofabrik.installes(tmp_path)[0]["voies_coupees"] is True        # gardé dans la base
+    var = {**region("fr-var", 43.0, 5.6, 43.8, 6.95), "voies_coupees": True}
+    paca = region("paca", 43.2, 4.2, 45.2, 7.8)
+    monkeypatch.setattr(geofabrik, "installes", lambda dossier: [var])
+    assert geofabrik.extrait_de_tuile(tmp_path, 866, 120)["id"] == "fr-var"
+    monkeypatch.setattr(geofabrik, "installes", lambda dossier: [var, paca])
+    assert geofabrik.extrait_de_tuile(tmp_path, 866, 120)["id"] == "paca"
+    assert geofabrik.extrait_de_tuile(tmp_path, 860, 115)["id"] == "fr-var"    # au sud de cette PACA d'essai
+
+
+def test_le_departement_installe_sa_region_part_aussitot(tmp_path, monkeypatch):
+    # Nico, 2026-10-20 : « dès que le fichier var est disponible, on attaque
+    # paca ». La région part dans la foulée, marquée relais pour la page.
+    installees = []
+
+    def installer(dossier, region, continuer=None, **options):
+        installees.append(region["id"])
+        return {"date": DATE}
+
+    monkeypatch.setattr(geofabrik, "installer", installer)
+    taches = geofabrik.Telechargements(tmp_path)
+    var = {**REGION, "id": "fr-var", "nom": "Var", "voies_coupees": True}
+    paca = {**REGION, "id": "paca", "nom": "PACA"}
+    assert taches.lancer(var, ensuite=paca)
+    for _ in range(5):              # le fil du Var lance celui de la PACA
+        fil = taches._fil
+        fil.join(5)
+        if fil is taches._fil:
+            break
+    assert installees == ["fr-var", "paca"]
+    assert taches.etat() == {"id": "paca", "nom": "PACA", "etape": "fini", "fraction": 0.0, "voies": 0,
+                             "relais": True, "date": DATE}
+    # Un autre usage a pris la place entre-temps : la suite ne part pas.
+    assert not taches.lancer(paca, apres=taches._numero - 1)

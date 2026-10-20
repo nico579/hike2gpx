@@ -1,9 +1,10 @@
 import logging
+import time
 from pathlib import Path
 
 import pytest
 
-from hike2gpx import application as appli, brouter, franchissements, geofabrik
+from hike2gpx import application as appli, brouter, franchissements, geofabrik, osmfr
 
 
 def trace(*points_lat_lon, longueur="1234", montee="56"):
@@ -57,10 +58,11 @@ def test_reglages_cle_ign(tmp_path):
 
 @pytest.fixture(autouse=True)
 def sans_index_geofabrik(monkeypatch):
-    """Calculs et calques consultent l'index de Geofabrik pour télécharger
-    d'eux-mêmes l'extrait de la région : ici, aucune région, donc aucun
-    réseau. Les essais de l'extrait fournissent la leur."""
+    """Calculs et calques consultent les index de Geofabrik et d'OSM France
+    pour télécharger d'eux-mêmes l'extrait de la région : ici, aucune région,
+    donc aucun réseau. Les essais de l'extrait fournissent la leur."""
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [])
+    monkeypatch.setattr(osmfr, "regions", lambda dossier, **options: [])
 
 
 @pytest.fixture
@@ -243,7 +245,7 @@ def test_itineraire_s_arrete_si_les_barrieres_sont_inconnues(simulee, monkeypatc
     # La région a un extrait : le calcul l'a lancé de lui-même, la page attendra.
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
     lancees = []
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: lancees.append(region["id"]) or True)
     reponse = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
     assert reponse["extrait_en_cours"] == {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"]}
     assert lancees == [REGION_PACA["id"]]
@@ -261,7 +263,7 @@ def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypat
     a = appli.Application(tmp_path)
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
     lancees = []
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: lancees.append(region["id"]) or True)
     monkeypatch.setattr(franchissements, "voies_affichables", lambda *z, **o: {"voies": [], "barrieres": []})
     # La requête du calque ne parle jamais à Geofabrik : sa réponse tarde
     # parfois une minute (2026-10-20), la taille se vérifie en tâche de fond.
@@ -273,7 +275,7 @@ def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypat
     assert lancees == [REGION_PACA["id"]]
     # Hors de toute région, ou région écartée (trop grosse, disque plein) : rien ne part.
     assert "extrait_en_cours" not in a.calque_osm((60.0, 6.0, 60.01, 6.01))
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: False)
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: False)
     assert "extrait_en_cours" not in appli.Application(tmp_path / "autre").calque_osm(vue)
 
 
@@ -284,7 +286,7 @@ def test_une_autre_region_prend_la_place_de_l_extrait_en_cours(tmp_path, monkeyp
     a = appli.Application(tmp_path)
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
     lancees = []
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: lancees.append(region["id"]) or True)
     monkeypatch.setattr(franchissements, "voies_affichables", lambda *z, **o: {"voies": [], "barrieres": []})
     monkeypatch.setattr(geofabrik.Telechargements, "etat",
                         lambda self: {"id": "centre", "nom": "Centre", "etape": "import"})
@@ -295,6 +297,47 @@ def test_une_autre_region_prend_la_place_de_l_extrait_en_cours(tmp_path, monkeyp
     monkeypatch.setattr(geofabrik.Telechargements, "etat",
                         lambda self: {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"], "etape": "import"})
     assert a.calque_osm(vue)["extrait_en_cours"]["id"] == REGION_PACA["id"] and lancees == [REGION_PACA["id"]]
+
+
+def test_la_cascade_le_departement_puis_sa_region_de_geofabrik(tmp_path, monkeypatch):
+    # Nico, 2026-10-20 : « comme ça, on a la main rapidement sur le var
+    # (garéoult), on peut travailler, pendant ce temps paca se prépare » ;
+    # « dès que paca est dispo, on l'utilise pour ne pas avoir de pb aux
+    # frontières ». Le Var d'OSM France : 83 Mo ; la PACA de Geofabrik : 391 Mo.
+    a = appli.Application(tmp_path)
+    var = {"id": "fr-var", "nom": "Var", "pbf": osmfr.EXTRAITS + "provence_alpes_cote_d_azur/var.osm.pbf",
+           "bornes": (43.0, 5.6, 43.8, 6.95), "voies_coupees": True,
+           "polygones": [[[(5.6, 43.0), (6.95, 43.0), (6.95, 43.8), (5.6, 43.8), (5.6, 43.0)]]]}
+    paca = {**REGION_PACA, "id": "fr-provence-alpes-cote-d-azur", "voies_coupees": True,
+            "pbf": osmfr.EXTRAITS + "provence_alpes_cote_d_azur.osm.pbf"}
+    monkeypatch.setattr(osmfr, "regions", lambda dossier, **options: [paca, var])
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
+    lancees = []
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer",
+                        lambda self, region, **options: lancees.append((region["id"], options)) or True)
+    monkeypatch.setattr(franchissements, "voies_affichables", lambda *z, **o: {"voies": [], "barrieres": []})
+    vue = (43.30, 6.00, 43.34, 6.08)
+    # Rien sur le disque : le Var d'abord, la PACA de Geofabrik à sa suite.
+    assert a.calque_osm(vue)["extrait_en_cours"] == {"id": "fr-var", "nom": "Var"}
+    assert lancees == [("fr-var", {"ensuite": REGION_PACA})]
+    # Le Var installé : la page a ses données, la PACA se prépare pour le relayer.
+    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda dossier, i, j: {**var, "date": "2026-10-19T01:38:06Z"})
+    assert "extrait_en_cours" not in a.calque_osm(vue)
+    assert lancees[-1] == (REGION_PACA["id"], {"relais": True})
+    # Un téléchargement en cours ailleurs : la PACA ne lui prend pas sa place.
+    del lancees[:]
+    monkeypatch.setattr(geofabrik.Telechargements, "etat",
+                        lambda self: {"id": "fr-bouches-du-rhone", "nom": "Bouches-du-Rhone", "etape": "import"})
+    assert "extrait_en_cours" not in a.calque_osm(vue) and lancees == []
+    # La PACA installée : c'est elle qui sert, plus rien ne part.
+    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda dossier, i, j: REGION_PACA)
+    monkeypatch.setattr(geofabrik.Telechargements, "etat", lambda self: None)
+    assert "extrait_en_cours" not in a.calque_osm(vue) and lancees == []
+    # Le Var en échec, une heure : la région d'OSM France, toujours suivie de la PACA.
+    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda dossier, i, j: None)
+    geofabrik.telechargements(tmp_path)._echecs["fr-var"] = time.monotonic()
+    assert a.calque_osm(vue)["extrait_en_cours"]["id"] == "fr-provence-alpes-cote-d-azur"
+    assert lancees == [("fr-provence-alpes-cote-d-azur", {"ensuite": REGION_PACA})]
 
 
 def test_un_calque_publie_son_avancement_tuile_apres_tuile(tmp_path, monkeypatch):

@@ -4,11 +4,13 @@ planète.
 Geofabrik découpe la planète en quelque 550 régions, refaites chaque jour, et
 les décrit dans un index qui donne le contour de chacune. Pour une tuile de
 0,05°, hike2gpx retient le plus petit extrait qui la contient entièrement :
-Provence-Alpes-Côte d'Azur à Garéoult, la Bavière à Munich. La page le
-propose ; un clic le télécharge en tâche de fond (plusieurs centaines de Mo,
-vérifiés par leur MD5), pendant qu'Overpass continue de servir. pyosmium le
-lit une fois et range voies, barrières, portails et itinéraires balisés dans
-une base SQLite indexée par tuile ; le fichier téléchargé est alors effacé.
+Provence-Alpes-Côte d'Azur à Garéoult, la Bavière à Munich. En France, les
+départements d'OSM France passent avant (osmfr.py), sur le même modèle. Il se
+télécharge de lui-même dès que la région sert, en tâche de fond (jusqu'à
+plusieurs centaines de Mo, vérifiés par leur MD5), pendant qu'Overpass
+continue de servir. pyosmium le lit une fois et range voies, barrières,
+portails et itinéraires balisés dans une base SQLite indexée par tuile ; le
+fichier téléchargé est alors effacé.
 
 Une fois installé, l'extrait devient la source des tuiles qu'il contient :
 lecture instantanée, sans quota ni panne, même hors connexion. Une tuile en
@@ -133,37 +135,102 @@ def _region(feature: dict) -> dict | None:
             "bornes": (min(lats), min(lons), max(lats), max(lons)), "polygones": polygones}
 
 
-_index_charge = {"cle": None, "regions": []}
-_verrou_index = threading.Lock()
+def _a_garder(region: dict) -> dict:
+    """Ce que la base d'un extrait garde de sa région : de quoi le renouveler
+    sans index (voies_coupees : un extrait d'OSM France, osmfr.py)."""
+    return {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones", "voies_coupees") if k in region}
 
 
-def regions(dossier, *, ouvrir=None, maintenant=time.time) -> list:
-    """Les régions de l'index de Geofabrik, gardé un mois au dossier de données."""
-    ouvrir = ouvrir or urllib.request.urlopen
-    chemin = dossier_extraits(dossier) / "index-v1.json"
-    with _verrou_index:
+class Index:
+    """Un index de régions gardé un mois au dossier de données. Il sert tel
+    quel, même vieux, et se refait en tâche de fond : un seul à la fois, pas
+    plus d'un essai par heure après un échec. Aucune requête de la page
+    n'attend donc son téléchargement, qui prend parfois une minute chez
+    Geofabrik (rapport du 2026-10-20). Absent, il rend une liste vide le
+    temps de se préparer. Sert à Geofabrik comme à OSM France (osmfr.py)."""
+
+    REESSAI_S = 3600.0
+
+    def __init__(self, nom: str, fichier: str, batir):
+        self.nom = nom              # pour le journal : « de Geofabrik », « d'OSM France »
+        self.fichier = fichier      # au dossier des extraits
+        self.batir = batir          # batir(ouvrir) -> [régions], sur le réseau
+        self._verrou = threading.Lock()
+        self._charge = {"cle": None, "regions": []}
+        self._fil = None
+        self._echec = None          # instant (monotonic) du dernier échec
+
+    def chemin(self, dossier) -> Path:
+        return dossier_extraits(dossier) / self.fichier
+
+    def regions(self, dossier, *, maintenant=time.time) -> list:
+        chemin = self.chemin(dossier)
         try:
             age = maintenant() - chemin.stat().st_mtime
         except OSError:
             age = None
         if age is None or age > INDEX_TTL_S:
+            self.preparer(dossier)
+        if age is None:
+            return []
+        with self._verrou:
             try:
-                with ouvrir(urllib.request.Request(INDEX_URL, headers=AGENT), timeout=60) as reponse:
-                    brut = reponse.read()
-                json.loads(brut)
-                chemin.parent.mkdir(parents=True, exist_ok=True)
-                partiel = atomique.chemin_part(chemin)
-                partiel.write_bytes(brut)
-                atomique.remplacer(partiel, chemin)
-            except (OSError, ValueError) as exc:
-                if age is None:
-                    raise ErreurExtrait(f"Index de Geofabrik indisponible : {exc}") from exc
-                journal.warning("Index de Geofabrik non renouvelé : %s", exc)
-        cle = (str(chemin), chemin.stat().st_mtime)
-        if _index_charge["cle"] != cle:
-            features = json.loads(chemin.read_text(encoding="utf-8")).get("features", [])
-            _index_charge.update(cle=cle, regions=[r for r in map(_region, features) if r])
-        return _index_charge["regions"]
+                cle = (str(chemin), chemin.stat().st_mtime)
+                if self._charge["cle"] != cle:
+                    liste = json.loads(chemin.read_text(encoding="utf-8"))["regions"]
+                    self._charge.update(cle=cle, regions=[{**r, "bornes": tuple(r["bornes"])} for r in liste])
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                journal.warning("Index %s illisible : %s", self.nom, exc)
+                return []
+            return self._charge["regions"]
+
+    def preparer(self, dossier, *, ouvrir=None) -> None:
+        with self._verrou:
+            if self._fil is not None and self._fil.is_alive():
+                return
+            if self._echec is not None and time.monotonic() - self._echec < self.REESSAI_S:
+                return
+            self._fil = threading.Thread(target=self._refaire, args=(Path(dossier), ouvrir), daemon=True,
+                                         name=f"index-{self.fichier}")
+            self._fil.start()
+
+    def _refaire(self, dossier: Path, ouvrir) -> None:
+        debut = time.monotonic()
+        try:
+            liste = self.batir(ouvrir)
+            if not liste:
+                raise ValueError("aucune région")
+            chemin = self.chemin(dossier)
+            chemin.parent.mkdir(parents=True, exist_ok=True)
+            atomique.ecrire_json(chemin, {"version": 1, "regions": liste}, indent=None)
+        except Exception as exc:        # réseau, réponse inattendue : l'ancien index sert encore
+            self._echec = time.monotonic()
+            journal.warning("Index %s non bâti : %s", self.nom, exc)
+        else:
+            self._echec = None
+            journal.info("Index %s bâti en %.0f s : %d régions", self.nom, time.monotonic() - debut, len(liste))
+
+
+def _batir(ouvrir=None) -> list:
+    """Les régions de l'index de Geofabrik, contours compris."""
+    ouvrir = ouvrir or urllib.request.urlopen
+
+    def lire():
+        with ouvrir(urllib.request.Request(INDEX_URL, headers=AGENT), timeout=60) as reponse:
+            return reponse.read()
+
+    features = json.loads(_avec_essais(lire, time.sleep)).get("features", [])
+    return [r for r in map(_region, features) if r]
+
+
+# Les régions déjà lues, comme celles d'OSM France : un autre nom que
+# l'ancien index-v1.json, qui gardait le GeoJSON brut de Geofabrik.
+INDEX = Index("de Geofabrik", "geofabrik-v1.json", _batir)
+
+
+def regions(dossier, **options) -> list:
+    """Les régions de Geofabrik, sans jamais attendre son serveur (Index)."""
+    return INDEX.regions(dossier, **options)
 
 
 # ------------------------------------------------------------------ extraits installés
@@ -210,8 +277,14 @@ def installes(dossier) -> list:
 
 
 def extrait_de_tuile(dossier, i: int, j: int) -> dict | None:
-    """Le plus petit extrait installé qui contient toute la tuile."""
-    return region_de_tuile(installes(dossier), i, j)
+    """Le plus petit extrait installé qui contient toute la tuile, aux voies
+    entières d'abord. Celles d'un extrait d'OSM France s'arrêtent net à sa
+    frontière (197 chemins et clôtures coupés dans le Var, aucun dans la PACA
+    de Geofabrik) : un département ne sert qu'en attendant sa région de
+    Geofabrik (Nico, 2026-10-20 : « dès que paca est dispo, on l'utilise pour
+    ne pas avoir de pb aux frontières »)."""
+    liste = installes(dossier)
+    return region_de_tuile([r for r in liste if not r.get("voies_coupees")], i, j) or region_de_tuile(liste, i, j)
 
 
 def _morceaux(valeurs: list, taille: int = 900):
@@ -412,10 +485,10 @@ def importer(pbf: Path, base: Path, region: dict, date: str, *, suivi=None) -> d
         parcourir()
         vider()
         con.executescript(INDEX_SQL)
-        region = {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones")}
         con.executemany("INSERT INTO info VALUES (?, ?)",
                         [(cle, json.dumps(valeur)) for cle, valeur in
-                         {"version": VERSION_BASE, "region": region, "date": date, "compte": compte}.items()])
+                         {"version": VERSION_BASE, "region": _a_garder(region), "date": date,
+                          "compte": compte}.items()])
         con.commit()
     finally:
         con.close()
@@ -572,8 +645,8 @@ def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=tim
             if not flux["total"]:
                 flux["total"] = recu + int(reponse.headers.get("Content-Length") or 0)
                 _verifier_place(flux["total"], cible.parent)
-                journal.info("Geofabrik : %s, %d Mo", flux["adresse"].rsplit("/", 1)[-1],
-                             flux["total"] // 1024 ** 2)
+                hote, _, fichier = flux["adresse"].split("//", 1)[-1].partition("/")
+                journal.info("%s : %s, %d Mo", hote, fichier.rsplit("/", 1)[-1], flux["total"] // 1024 ** 2)
             while bloc := reponse.read(1 << 20):
                 if not continuer():
                     raise Abandon()
@@ -617,13 +690,13 @@ def installer(dossier, region: dict, *, suivi=None, ouvrir=None, continuer=None)
         _telecharger(region["pbf"], pbf, ouvrir=ouvrir, continuer=continuer,
                      suivi=(lambda f: suivi("telechargement", f)) if suivi else None)
         date = date_des_donnees(pbf) or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        compte = _importer_a_part(pbf, partielle, {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones")},
+        compte = _importer_a_part(pbf, partielle, _a_garder(region),
                                   date, suivi=(lambda n: suivi("import", n)) if suivi else None, continuer=continuer)
         atomique.remplacer(partielle, base)
     finally:
         _effacer(pbf)
         _effacer(partielle)
-    journal.info("Extrait Geofabrik %s installé en %.0f s : données du %s, %d voies, %d nœuds, %d itinéraires",
+    journal.info("Extrait OSM %s installé en %.0f s : données du %s, %d voies, %d nœuds, %d itinéraires",
                  region["id"], time.monotonic() - debut, date, compte["voies"], compte["noeuds"],
                  compte["relations"])
     return {"id": region["id"], "nom": region["nom"], "date": date, **compte}
@@ -659,16 +732,37 @@ class Telechargements:
     def etat(self) -> dict | None:
         return dict(self._etat) if self._etat else None
 
-    def lancer(self, region: dict) -> bool:
+    def disponible(self, region_id: str) -> bool:
+        """Faux pour une région écartée (trop grosse, disque trop plein) ou dont
+        le téléchargement a échoué il y a moins de REESSAI_S : la région qui la
+        contient prend alors sa place (le département qui échoue cède à sa
+        région, Nico, 2026-10-20)."""
+        return region_id not in self._ecartes and \
+            time.monotonic() - self._echecs.get(region_id, -self.REESSAI_S) >= self.REESSAI_S
+
+    def occupee(self) -> bool:
+        """Vrai pendant un téléchargement ou un import ; une tâche finie, dont
+        le fil s'achève encore, ne compte plus."""
+        return bool(self._fil is not None and self._fil.is_alive() and self._etat
+                    and self._etat["etape"] in ("telechargement", "import"))
+
+    def lancer(self, region: dict, *, ensuite: dict | None = None, relais: bool = False,
+               apres: int | None = None) -> bool:
         """Faux si cette région se télécharge déjà, si elle est écartée (trop
         grosse, disque trop plein) ou si son téléchargement a échoué il y a
         moins de REESSAI_S : le téléchargement étant automatique, une panne ne
         doit pas le relancer à chaque demande de la page. Une autre région en
         cours est abandonnée, téléchargement ou import : le dernier usage
         l'emporte (Nico, 2026-10-20 : passé du Centre à la Bretagne, il
-        attendait la fin du Centre, devenu inutile)."""
+        attendait la fin du Centre, devenu inutile).
+        ensuite : la région qui part dès celle-ci installée, pour prendre son
+        relais (celle de Geofabrik après un département d'OSM France) ; relais :
+        celle-ci est un tel relais, la page le dit ; apres : ne partir que si
+        la tâche numéro apres est toujours la dernière."""
         with self._verrou:
-            en_cours = self._fil is not None and self._fil.is_alive()
+            if apres is not None and apres != self._numero:
+                return False        # un autre usage a pris la place entre-temps
+            en_cours = self.occupee()
             if en_cours and self._etat["id"] == region["id"]:
                 return False
             if region["id"] in self._ecartes:
@@ -676,12 +770,12 @@ class Telechargements:
             if time.monotonic() - self._echecs.get(region["id"], -self.REESSAI_S) < self.REESSAI_S:
                 return False
             if en_cours:
-                journal.info("Extrait Geofabrik %s abandonné : la région %s sert désormais", self._etat["id"],
+                journal.info("Extrait OSM %s abandonné : la région %s sert désormais", self._etat["id"],
                              region["id"])
             self._numero += 1
             self._etat = {"id": region["id"], "nom": region["nom"], "etape": "telechargement", "fraction": 0.0,
-                          "voies": 0}
-            self._fil = threading.Thread(target=self._executer, args=(region, self._numero), daemon=True,
+                          "voies": 0, "relais": relais}
+            self._fil = threading.Thread(target=self._executer, args=(region, self._numero, ensuite), daemon=True,
                                          name=f"geofabrik-{region['id']}")
             self._fil.start()
             return True
@@ -696,7 +790,7 @@ class Telechargements:
         if numero == self._numero:
             self._etat = {**self._etat, **etat}
 
-    def _executer(self, region: dict, numero: int) -> None:
+    def _executer(self, region: dict, numero: int, ensuite: dict | None = None) -> None:
         try:
             resultat = installer(self.dossier, region, suivi=lambda etape, valeur: self._suivre(numero, etape, valeur),
                                  continuer=lambda: numero == self._numero)
@@ -706,22 +800,28 @@ class Telechargements:
             if numero != self._numero:
                 # Une erreur survenue en s'arrêtant n'est pas un échec : la région
                 # repartira sans attendre une heure si elle resert.
-                journal.info("Extrait Geofabrik %s abandonné (%s)", region["id"], exc)
+                journal.info("Extrait OSM %s abandonné (%s)", region["id"], exc)
                 return
             self._echouer(region, numero, exc)
         else:
             self._finir(numero, etape="fini", date=resultat["date"])
+            # Le département d'OSM France est là, la page en dispose : sa région
+            # de Geofabrik part aussitôt pour prendre le relais, à moins qu'un
+            # autre usage n'ait pris la place entre-temps.
+            if ensuite is not None and self.lancer(ensuite, relais=True, apres=numero):
+                journal.info("Extrait OSM %s : téléchargement lancé pour prendre le relais de %s", ensuite["id"],
+                             region["id"])
 
     def _echouer(self, region: dict, numero: int, exc: Exception) -> None:
         """Une panne de la tâche en cours, dite dans la page et le journal. Une
         région écartée (trop grosse, disque trop plein) ne repart plus ; après
         toute autre panne, pas de nouvel essai avant REESSAI_S."""
         if isinstance(exc, ExtraitEcarte):
-            journal.warning("Extrait Geofabrik %s non téléchargé : %s", region["id"], exc)
+            journal.warning("Extrait OSM %s non téléchargé : %s", region["id"], exc)
             self._ecartes.add(region["id"])
             self._finir(numero, etape="erreur", erreur=str(exc))
             return
-        journal.warning("Extrait Geofabrik %s non installé : %s", region["id"], exc)
+        journal.warning("Extrait OSM %s non installé : %s", region["id"], exc)
         self._echecs[region["id"]] = time.monotonic()
         reprise = time.strftime("%H:%M", time.localtime(time.time() + self.REESSAI_S))
         self._finir(numero, etape="erreur", erreur=f"{message(exc)} ; nouvel essai après {reprise}")
@@ -730,7 +830,7 @@ class Telechargements:
         """Lancé à chaque lecture d'un extrait trop vieux : l'ancien sert jusqu'à
         la bascule."""
         if age_s(extrait) > RENOUVELLEMENT_S and not (self._fil and self._fil.is_alive()):
-            journal.info("Extrait Geofabrik %s du %s : renouvellement en tâche de fond", extrait["id"],
+            journal.info("Extrait OSM %s du %s : renouvellement en tâche de fond", extrait["id"],
                          extrait["date"])
             self.lancer(extrait)
 

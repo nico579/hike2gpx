@@ -79,6 +79,8 @@ const TEXTES = {
     "calque.zoom": "Zoomez davantage (niveau {niveau}) pour voir les chemins.",
     "extrait.telechargement": "Données OSM hors ligne : téléchargement de l'extrait {nom}, {pourcent} %",
     "extrait.import": "Données OSM hors ligne : import de l'extrait {nom}, {voies} voies lues…",
+    "extrait.relais.telechargement": "Données OSM hors ligne : extrait {nom} du {date} ; la région {region} se télécharge pour prendre le relais, {pourcent} %",
+    "extrait.relais.import": "Données OSM hors ligne : extrait {nom} du {date} ; la région {region} s'importe pour prendre le relais, {voies} voies lues…",
     "extrait.installe": "Données OSM hors ligne : extrait {nom} du {date}, renouvelé chaque semaine.",
     "extrait.erreur": "Extrait {nom} non installé : {message}",
     "extrait.attente": "Overpass ne répond pas ; l'extrait OSM {nom} se télécharge, le calcul reprendra de lui-même.",
@@ -177,6 +179,8 @@ const TEXTES = {
     "calque.zoom": "Zoom in further (level {niveau}) to see the paths.",
     "extrait.telechargement": "Offline OSM data: downloading the {nom} extract, {pourcent} %",
     "extrait.import": "Offline OSM data: importing the {nom} extract, {voies} ways read…",
+    "extrait.relais.telechargement": "Offline OSM data: {nom} extract of {date}; the {region} region is downloading to take over, {pourcent} %",
+    "extrait.relais.import": "Offline OSM data: {nom} extract of {date}; the {region} region is importing to take over, {voies} ways read…",
     "extrait.installe": "Offline OSM data: {nom} extract of {date}, renewed every week.",
     "extrait.erreur": "{nom} extract not installed: {message}",
     "extrait.attente": "Overpass is not responding; the {nom} OSM extract is downloading, the calculation will resume by itself.",
@@ -610,8 +614,9 @@ function restaurerCalques() {
 
 // ------------------------------------------------------------ données OSM hors ligne
 
-// L'extrait Geofabrik de la région au centre de la carte (geofabrik.py), en
-// cours de téléchargement ou installé. Le serveur le télécharge de lui-même
+// L'extrait OSM du centre de la carte (le département d'OSM France, osmfr.py,
+// sinon une région de Geofabrik, geofabrik.py), en cours de téléchargement ou
+// installé. Le serveur le télécharge de lui-même
 // dès qu'un calcul ou le calque des chemins OSM sert dans la région ; une fois
 // installé, il y remplace Overpass.
 const ZOOM_EXTRAIT = 10;
@@ -647,18 +652,28 @@ async function majExtrait(forcer = false) {
 }
 
 function afficherExtrait(r) {
-  const etaitActif = extraitActif(etat.extrait);
+  const avant = extraitActif(etat.extrait) ? etat.extrait.en_cours.id : null;
   etat.extrait = r;
   const e = r?.en_cours;
   const actif = extraitActif(r);
+  // L'extrait suivi jusqu'ici a fini, même si la région de Geofabrik part
+  // aussitôt prendre le relais du département (cascade du 2026-10-20).
+  const fini = avant !== null && !(actif && e.id === avant);
   // L'extrait vient de s'installer pendant que les chemins OSM se lisaient
   // encore : leur lecture, partie avant lui, attendait Overpass (deux minutes
   // le 2026-10-20) ; relancée, elle lit l'extrait.
-  if (etaitActif && !actif && r?.installe && lectures.has("osm")) chargerCalque("osm", zoneVue());
-  if (actif) {
+  if (fini && r?.installe && lectures.has("osm")) chargerCalque("osm", zoneVue());
+  const nombre = (n) => Number(n).toLocaleString(langue === "en" ? "en-GB" : "fr-FR");
+  if (actif && e.relais && r?.installe) {
+    // Le département sert déjà ; sa région se prépare pour prendre le relais.
+    const sert = { nom: r.installe.nom, date: dateCourte(r.installe.date), region: e.nom };
+    $("extraitTexte").textContent = e.etape === "telechargement"
+      ? t("extrait.relais.telechargement", { ...sert, pourcent: Math.round(100 * e.fraction) })
+      : t("extrait.relais.import", { ...sert, voies: nombre(e.voies) });
+  } else if (actif) {
     $("extraitTexte").textContent = e.etape === "telechargement"
       ? t("extrait.telechargement", { nom: e.nom, pourcent: Math.round(100 * e.fraction) })
-      : t("extrait.import", { nom: e.nom, voies: Number(e.voies).toLocaleString(langue === "en" ? "en-GB" : "fr-FR") });
+      : t("extrait.import", { nom: e.nom, voies: nombre(e.voies) });
   } else if (r?.installe) {
     $("extraitTexte").textContent = t("extrait.installe", { nom: r.installe.nom, date: dateCourte(r.installe.date) });
   } else if (e?.etape === "erreur") {
@@ -672,8 +687,9 @@ function afficherExtrait(r) {
   if (moteur) $("brouterTexte").textContent = t("brouter.enCours", { quoi: quoiBrouter(r.brouter) });
   $("brouterEnCours").hidden = !moteur;
   if (actif || moteur) minuterieExtrait = setTimeout(majExtrait, 1500);
-  // Les données qu'attendait un calcul sont arrivées : le calcul reprend.
-  if (etat.donneesAttendues && !actif && !moteur) {
+  // Les données qu'attendait un calcul sont arrivées : le calcul reprend,
+  // sans attendre la région qui se prépare ensuite pour prendre le relais.
+  if (etat.donneesAttendues && !moteur && !(actif && e.id === etat.donneesAttendues.extrait)) {
     etat.donneesAttendues = false;
     if (etat.points.length >= 2) planifierCalcul();
   }
@@ -936,10 +952,12 @@ function afficherErreur(reponse) {
   const b = reponse.brouter_en_cours;
   if (b && (b.moteur || b.segments?.length)) {
     afficherStatut(() => t("brouter.attente", { quoi: quoiBrouter(b) }));
-    etat.donneesAttendues = true;
+    etat.donneesAttendues = { extrait: null };
   } else if (reponse.extrait_en_cours) {
     afficherStatut(() => t("extrait.attente", { nom: reponse.extrait_en_cours.nom }));
-    etat.donneesAttendues = true;
+    // L'extrait attendu, nommé : la région qui part ensuite prendre son relais
+    // ne fait pas attendre le calcul.
+    etat.donneesAttendues = { extrait: reponse.extrait_en_cours.id };
   }
   majExtrait(true);
 }

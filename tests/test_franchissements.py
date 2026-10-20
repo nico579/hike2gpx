@@ -352,6 +352,52 @@ def test_vue_quittee_renonce_a_overpass(monkeypatch):
             fr._creneaux.release()
 
 
+def test_une_pause_d_overpass_s_arrete_des_que_la_tuile_n_attend_plus(monkeypatch):
+    # Les pauses entre deux essais (15 puis 30 s) s'écoulent seconde par
+    # seconde : une vue quittée, ou un extrait installé entre-temps, les arrête.
+    import urllib.error
+
+    def refuser(demande, timeout):
+        raise urllib.error.HTTPError(fr.ENDPOINT, 502, "Bad Gateway", {}, None)
+
+    monkeypatch.setattr(fr.urllib.request, "urlopen", refuser)
+    pauses = []
+    with pytest.raises(fr.VueRemplacee):
+        fr.interroger("x", attendre=pauses.append, continuer=lambda: len(pauses) < 3)
+    assert pauses == [1, 1, 1]
+
+
+def test_l_extrait_installe_pendant_l_attente_d_overpass_prend_le_relais(tmp_path, monkeypatch):
+    # Essai réel du 2026-10-20 : le Var installé au bout de 39 s, la tuile
+    # suivante attendait encore Overpass, en HTTP 502, jusqu'à 80 s.
+    installe = []
+    tuile = {"version": fr.VERSION_DONNEES, "fetched_at": 0.0, "bornes": fr.bornes_tuile(866, 120),
+             "elements": [], "source": "geofabrik:fr-var:2026-10-19T01:38:06Z"}
+    monkeypatch.setattr(fr, "_couverte", lambda i, j, dossier: bool(installe))
+    monkeypatch.setattr(fr, "tuile_de_l_extrait", lambda i, j, dossier: tuile if installe else None)
+
+    def interroger(texte, continuer, **_):
+        installe.append(True)                   # l'extrait s'installe pendant l'attente
+        if not continuer():
+            raise fr.VueRemplacee()
+        pytest.fail("la tuile attend encore Overpass, l'extrait installé")
+
+    assert fr.charger_tuile(866, 120, tmp_path, interroger=interroger) is tuile
+    # Un extrait présent mais illisible : Overpass, comme avant, sans passer
+    # pour une vue quittée.
+    monkeypatch.setattr(fr, "tuile_de_l_extrait", lambda i, j, dossier: None)
+    vus = []
+
+    def interroger_ensuite(texte, continuer, **_):
+        vus.append(continuer())
+        if not vus[-1]:
+            raise fr.VueRemplacee()
+        return []
+
+    assert fr.charger_tuile(866, 121, tmp_path, interroger=interroger_ensuite)["elements"] == []
+    assert vus == [False, True]
+
+
 def test_calque_osm_s_arrete_avant_la_tuile_suivante(tmp_path):
     lues = []
 
