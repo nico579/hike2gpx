@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import math
 import re
+import shutil
 import threading
 import time
 from logging.handlers import RotatingFileHandler
@@ -705,13 +706,134 @@ class Application:
             return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
         return reponse
 
+    # ---------------------------------------------------------- données téléchargées
+
+    def _caches(self) -> dict:
+        """Les dossiers des caches de tuiles : ce que Vider efface, et qui se
+        relit de lui-même au besoin."""
+        return {"osm": [self.dossier / "overpass", self.dossier / "franchissements"],
+                "bdtopo": [self.dossier / "bdtopo"]}
+
+    def _restes(self) -> list:
+        """Ce qui traîne au dossier des extraits : l'ancien index de Geofabrik
+        (index-v1.json, avant geofabrik-v1.json) et les fichiers de travail
+        d'un téléchargement interrompu, quand aucun n'est en cours."""
+        racine = geofabrik.dossier_extraits(self.dossier)
+        if not racine.is_dir():
+            return []
+        occupee = geofabrik.telechargements(self.dossier).occupee()
+        return [p for p in racine.iterdir() if p.is_file()
+                and (p.name == "index-v1.json" or (not occupee and (".part" in p.name or p.suffix == ".pbf")))]
+
+    def donnees(self) -> dict:
+        """Ce que hike2gpx a téléchargé, pour la section des réglages (Nico,
+        2026-10-20 : « il faudrait une fonction pour vider le cache, dans les
+        réglages », « utile aussi pour actualiser les données rapidement »)."""
+        def mesure(fichiers) -> dict:
+            fichiers = [p for p in fichiers if p.is_file()]
+            return {"fichiers": len(fichiers), "octets": sum(p.stat().st_size for p in fichiers)}
+
+        def date(chemin) -> str:
+            return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(chemin.stat().st_mtime))
+
+        caches = {nom: mesure([p for d in dossiers if d.is_dir() for p in d.glob("*.json")])
+                  for nom, dossiers in self._caches().items()}
+        extraits = [{"id": e["id"], "nom": e["nom"], "date": e["date"], "octets": Path(e["base"]).stat().st_size,
+                     "provisoire": bool(e.get("voies_coupees"))} for e in geofabrik.installes(self.dossier)]
+        segments = sorted(self.installation.segments.glob("*.rd5")) if self.installation.segments.is_dir() else []
+        en_cours = geofabrik.telechargements(self.dossier)
+        return {**caches, "extraits": extraits,
+                "brouter": [{"nom": p.stem, "octets": p.stat().st_size, "date": date(p)} for p in segments],
+                "restes": mesure(self._restes()),
+                "occupe": {"extrait": en_cours.etat()["id"] if en_cours.occupee() else None,
+                           "brouter": bool(self._fil_brouter and self._fil_brouter.is_alive())}}
+
+    def agir_donnees(self, corps) -> dict:
+        """Une action de la section : vider un cache, actualiser ou supprimer
+        un extrait, actualiser les tuiles BRouter, nettoyer les restes. Rend
+        le nouvel état de la section, ou {"erreur"}."""
+        corps = corps if isinstance(corps, dict) else {}
+        action, cible = corps.get("action"), corps.get("cible")
+        taches = geofabrik.telechargements(self.dossier)
+        if action in ("vider_osm", "vider_bdtopo"):
+            for dossier in self._caches()[action[6:]]:
+                for p in dossier.glob("*.json") if dossier.is_dir() else []:
+                    p.unlink(missing_ok=True)
+            journal.info("Cache %s vidé depuis les réglages", action[6:])
+        elif action in ("actualiser_extrait", "supprimer_extrait"):
+            extrait = next((e for e in geofabrik.installes(self.dossier) if e["id"] == cible), None)
+            if extrait is None:
+                return {"erreur": "Extrait inconnu."}
+            if taches.occupee() and taches.etat()["id"] == cible:
+                return {"erreur": "Cet extrait se télécharge déjà."}
+            if action == "supprimer_extrait":
+                geofabrik._effacer(Path(extrait["base"]))
+                journal.info("Extrait OSM %s supprimé depuis les réglages", cible)
+            elif taches.lancer(extrait):
+                journal.info("Extrait OSM %s : actualisation demandée depuis les réglages", cible)
+            else:
+                return {"erreur": "Échec récent : nouvel essai possible dans moins d'une heure."}
+        elif action == "actualiser_brouter":
+            erreur = self._actualiser_brouter()
+            if erreur:
+                return {"erreur": erreur}
+        elif action == "nettoyer":
+            for p in self._restes():
+                geofabrik._effacer(p)
+            journal.info("Restes du dossier des extraits nettoyés depuis les réglages")
+        else:
+            return {"erreur": "Action inconnue."}
+        return self.donnees()
+
+    def _actualiser_brouter(self) -> str | None:
+        noms = [p.stem for p in sorted(self.installation.segments.glob("*.rd5"))] \
+            if self.installation.segments.is_dir() else []
+        with self._verrou_brouter:
+            if self._fil_brouter and self._fil_brouter.is_alive():
+                return "Un téléchargement BRouter est déjà en cours."
+            if not noms:
+                return "Aucune tuile BRouter à actualiser."
+            self._brouter_en_cours = {"moteur": False, "segments": list(noms)}
+            self._fil_brouter = threading.Thread(target=self._renouveler_segments, args=(noms,), daemon=True,
+                                                 name="brouter-actualiser")
+            self._fil_brouter.start()
+        return None
+
+    def _renouveler_segments(self, noms: list) -> None:
+        """Les tuiles se téléchargent à côté des anciennes, qui servent pendant
+        ce temps ; la bascule se fait d'un coup, moteurs arrêtés (sous Windows,
+        un RD5 ouvert ne se remplace pas). Ils repartent au calcul suivant."""
+        attente = self.installation.segments / "nouvelles"
+        try:
+            pretes = []
+            for nom in noms:
+                try:
+                    self.installation.telecharger_segment(nom, vers=attente)
+                    pretes.append(nom)
+                except (brouter.ErreurBRouter, ValueError) as exc:
+                    journal.warning("Tuile BRouter %s non actualisée : %s", nom, exc)
+                finally:
+                    self._brouter_en_cours["segments"].remove(nom)
+            if pretes:
+                with self._verrou_calcul:
+                    self.arreter()
+                    for nom in pretes:
+                        atomique.remplacer(attente / f"{nom}.rd5", self.installation.segments / f"{nom}.rd5")
+                journal.info("Tuiles BRouter actualisées depuis les réglages : %s", ", ".join(pretes))
+        except OSError as exc:
+            journal.warning("Tuiles BRouter non actualisées : %s", exc)
+        finally:
+            shutil.rmtree(attente, ignore_errors=True)
+            self._brouter_en_cours = {}
+
     def routes(self):
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
         get_langue, post_langue = langue_commune.routes(self.lire_langue, self.ecrire_langue)
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
                "osm": self.calque_osm, "bdtopo": self.calque_bdtopo, "extrait": self.extrait,
-               "progression": self.progression, "journal": self.lire_journal, **get_langue}
+               "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
+               **get_langue}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
-                "arreter_calques": self.arreter_calques, **post_langue}
+                "arreter_calques": self.arreter_calques, "donnees": self.agir_donnees, **post_langue}
         return get, post
