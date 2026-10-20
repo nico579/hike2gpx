@@ -1,4 +1,7 @@
 import hashlib
+import io
+import struct
+import zlib
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -107,3 +110,72 @@ def test_programme_fige_n_emploie_que_son_java(monkeypatch, tmp_path):
     java.parent.mkdir(parents=True)
     java.write_bytes(b"")
     assert brouter.java() == str(java)
+
+
+def rd5(fin: int = 400, pied: bool = True) -> bytes:
+    """Un RD5 d'essai au format de BRouter : l'index des 25 sous-tuiles (la
+    dernière finit à fin), les données, puis le pied et son CRC (nouveau
+    format : le CRC32 de BRouter, non inversé, « ^ 2 »)."""
+    entete = struct.pack(">25q", *[200 + k * (fin - 200) // 24 for k in range(25)])
+    crc = (zlib.crc32(entete) ^ 0xFFFFFFFF) ^ 2
+    corps = entete + bytes(fin - 200)
+    return corps + struct.pack(">qI", 1_760_000_000_000, crc) + bytes(4 * 25 + 1) if pied else corps
+
+
+def test_un_rd5_entier_selon_la_regle_de_brouter(tmp_path):
+    # La règle de PhysicalFile (BRouter 1.7.10), vérifiée le 2026-10-20 sur
+    # les vrais RD5 de Nico (pied de 113 octets, CRC du nouveau format).
+    def ecrit(contenu):
+        chemin = tmp_path / "E5_N40.rd5"
+        chemin.write_bytes(contenu)
+        return chemin
+
+    assert brouter.rd5_entier(ecrit(rd5()))
+    assert brouter.rd5_entier(ecrit(rd5(pied=False)))              # ancien format, sans pied
+    assert not brouter.rd5_entier(ecrit(rd5()[:300]))               # coupé dans les données
+    assert not brouter.rd5_entier(ecrit(rd5()[:450]))               # coupé dans le pied
+    assert not brouter.rd5_entier(ecrit(b"abc"))                    # le cas du rapport du 2026-10-20
+    faux = bytearray(rd5())
+    faux[10] ^= 0xFF                                                # en-tête abîmé : son CRC ne suit plus
+    assert not brouter.rd5_entier(ecrit(bytes(faux)))
+    assert not brouter.rd5_entier(tmp_path / "absent.rd5")
+
+
+class Reponse:
+    """Une réponse HTTP qui annonce une longueur, puis livre ce qu'elle a."""
+
+    def __init__(self, contenu: bytes, annonce: int):
+        self.flux = io.BytesIO(contenu)
+        self.headers = {"Content-Length": str(annonce)}
+
+    def read(self, n=-1):
+        return self.flux.read(n)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_un_transfert_coupe_n_est_jamais_publie(tmp_path, monkeypatch):
+    # Rapport du 2026-10-20 : une réponse qui annonçait 10 octets et n'en
+    # livrait que 3 était publiée comme installée, et segment_present la
+    # tenait pour présente : la tuile ne se retéléchargeait jamais.
+    installation = brouter.Installation(tmp_path)
+    monkeypatch.setattr(brouter.urllib.request, "urlopen", lambda demande, timeout: Reponse(b"abc", 10))
+    with pytest.raises(brouter.ErreurBRouter, match="3 octets sur 10"):
+        installation.telecharger_segment("E5_N40")
+    assert not list(installation.segments.iterdir())                # ni la tuile, ni son partiel
+    # Longueur juste, mais contenu qui n'est pas un RD5 entier : refusé aussi.
+    monkeypatch.setattr(brouter.urllib.request, "urlopen", lambda demande, timeout: Reponse(b"abc", 3))
+    with pytest.raises(brouter.ErreurBRouter, match="incomplet ou illisible"):
+        installation.telecharger_segment("E5_N40")
+    assert not installation.segment_present("E5_N40")
+    contenu = rd5()
+    monkeypatch.setattr(brouter.urllib.request, "urlopen", lambda demande, timeout: Reponse(contenu, len(contenu)))
+    installation.telecharger_segment("E5_N40")
+    assert installation.segment_present("E5_N40")
+    # Un RD5 tronqué d'avant ce contrôle ne passe plus pour présent : il se retélécharge.
+    (installation.segments / "E5_N40.rd5").write_bytes(contenu[:300])
+    assert not installation.segment_present("E5_N40")
