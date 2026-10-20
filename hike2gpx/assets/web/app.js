@@ -9,7 +9,7 @@ const CLE_VUE = "hike2gpx.vue";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
 
 const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0,
-  suivi: null, statut: ["", false], extrait: null, extraitAttendu: false };
+  suivi: null, statut: ["", false], extrait: null, donneesAttendues: false };
 const $ = (id) => document.getElementById(id);
 
 // ------------------------------------------------------------ langue
@@ -64,12 +64,9 @@ const TEXTES = {
     "bulle.osm": "Voir dans OpenStreetMap",
     "bulle.retirer": "Retirer ce point",
     "bulle.revenir": "Revenir ici en fin de parcours",
-    "moteur.installer": "Installer le moteur BRouter (7 Mo)",
-    "moteur.installation": "Installation de BRouter…",
-    "moteur.installe": "BRouter installé.",
-    "moteur.absent": "Le moteur BRouter n'est pas encore installé.",
-    "segment.telecharger": "Télécharger les données BRouter {nom} (70 à 250 Mo)",
-    "segment.telechargement": "Téléchargement de {nom}…",
+    "brouter.moteur": "moteur BRouter",
+    "brouter.enCours": "Données BRouter : téléchargement en cours ({quoi})…",
+    "brouter.attente": "Téléchargement des données BRouter ({quoi}) : le calcul reprendra de lui-même.",
     "serveur.injoignable": "Serveur injoignable : {message}",
     "denivele.estimation": "Estimation de BRouter ; calcul de gpx2elev en cours…",
     "denivele.indisponible": "Estimation de BRouter ; gpx2elev indisponible : {erreur}",
@@ -78,15 +75,11 @@ const TEXTES = {
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
     "calque.chargement": "Chargement des {nom}… (la première fois, jusqu'à une minute)",
     "calque.zoom": "Zoomez davantage (niveau {niveau}) pour voir les chemins.",
-    "extrait.propose": "Données OSM hors ligne : l'extrait {nom} ({taille} Mo) remplacerait Overpass dans cette région.",
-    "extrait.bouton": "Télécharger",
-    "extrait.telechargement": "Téléchargement de l'extrait {nom} : {pourcent} %",
-    "extrait.import": "Import de l'extrait {nom} : {voies} voies lues…",
+    "extrait.telechargement": "Données OSM hors ligne : téléchargement de l'extrait {nom}, {pourcent} %",
+    "extrait.import": "Données OSM hors ligne : import de l'extrait {nom}, {voies} voies lues…",
     "extrait.installe": "Données OSM hors ligne : extrait {nom} du {date}, renouvelé chaque semaine.",
     "extrait.erreur": "Extrait {nom} non installé : {message}",
-    "extrait.tropGros": "L'extrait {nom} ({taille} Mo) est trop gros : Overpass reste la source ici.",
-    "extrait.action": "Télécharger l'extrait OSM {nom} ({taille} Mo)",
-    "extrait.lance": "Extrait en cours de téléchargement : le calcul reprendra de lui-même une fois l'extrait installé.",
+    "extrait.attente": "Overpass ne répond pas ; l'extrait OSM {nom} se télécharge, le calcul reprendra de lui-même.",
     "bdtopo.troncon": "Tronçon",
     "bdtopo.acces": "accès piéton : {valeur}",
     "bdtopo.prive": "privé",
@@ -167,12 +160,9 @@ const TEXTES = {
     "bulle.osm": "View on OpenStreetMap",
     "bulle.retirer": "Remove this point",
     "bulle.revenir": "Come back here at the end",
-    "moteur.installer": "Install the BRouter engine (7 MB)",
-    "moteur.installation": "Installing BRouter…",
-    "moteur.installe": "BRouter installed.",
-    "moteur.absent": "The BRouter engine is not installed yet.",
-    "segment.telecharger": "Download BRouter data {nom} (70 to 250 MB)",
-    "segment.telechargement": "Downloading {nom}…",
+    "brouter.moteur": "BRouter engine",
+    "brouter.enCours": "BRouter data: downloading ({quoi})…",
+    "brouter.attente": "Downloading BRouter data ({quoi}): the calculation will resume by itself.",
     "serveur.injoignable": "Server unreachable: {message}",
     "denivele.estimation": "BRouter estimate; gpx2elev calculation in progress…",
     "denivele.indisponible": "BRouter estimate; gpx2elev unavailable: {erreur}",
@@ -181,15 +171,11 @@ const TEXTES = {
     "calque.bdtopo": "BD TOPO paths (IGN)",
     "calque.chargement": "Loading the {nom}… (the first time, up to a minute)",
     "calque.zoom": "Zoom in further (level {niveau}) to see the paths.",
-    "extrait.propose": "Offline OSM data: the {nom} extract ({taille} MB) would replace Overpass in this region.",
-    "extrait.bouton": "Download",
-    "extrait.telechargement": "Downloading the {nom} extract: {pourcent} %",
-    "extrait.import": "Importing the {nom} extract: {voies} ways read…",
+    "extrait.telechargement": "Offline OSM data: downloading the {nom} extract, {pourcent} %",
+    "extrait.import": "Offline OSM data: importing the {nom} extract, {voies} ways read…",
     "extrait.installe": "Offline OSM data: {nom} extract of {date}, renewed every week.",
     "extrait.erreur": "{nom} extract not installed: {message}",
-    "extrait.tropGros": "The {nom} extract ({taille} MB) is too large: Overpass remains the source here.",
-    "extrait.action": "Download the OSM extract {nom} ({taille} MB)",
-    "extrait.lance": "Extract downloading: the calculation will resume by itself once it is installed.",
+    "extrait.attente": "Overpass is not responding; the {nom} OSM extract is downloading, the calculation will resume by itself.",
     "bdtopo.troncon": "Section",
     "bdtopo.acces": "pedestrian access: {valeur}",
     "bdtopo.prive": "private",
@@ -481,6 +467,7 @@ async function chargerCalque(cle, zone) {
   }
   if (numero !== calque.sequence || !carte.hasLayer(calque.groupe)) return;
   calque.annulation = null;
+  if (donnees.extrait_en_cours) majExtrait();   // le serveur vient de lancer l'extrait de la région
   if (donnees.code === "vue_remplacee") return;
   if (donnees.erreur) {
     noteCalques(`${nom} : ${ts(donnees.erreur)}`);
@@ -544,9 +531,10 @@ function restaurerCalques() {
 
 // ------------------------------------------------------------ données OSM hors ligne
 
-// L'extrait Geofabrik de la région au centre de la carte (geofabrik.py) :
-// proposé, en cours de téléchargement ou installé. Une fois installé, il
-// remplace Overpass dans sa région.
+// L'extrait Geofabrik de la région au centre de la carte (geofabrik.py), en
+// cours de téléchargement ou installé. Le serveur le télécharge de lui-même
+// dès qu'un calcul ou le calque des chemins OSM sert dans la région ; une fois
+// installé, il y remplace Overpass.
 const ZOOM_EXTRAIT = 10;
 let minuterieExtrait = null;
 
@@ -554,10 +542,25 @@ function dateCourte(iso) {
   return new Date(iso).toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR");
 }
 
-async function majExtrait() {
+// Ce que le serveur télécharge en ce moment : l'extrait OSM, le moteur ou des
+// tuiles BRouter.
+function extraitActif(r) {
+  return Boolean(r?.en_cours && ["telechargement", "import"].includes(r.en_cours.etape));
+}
+
+function brouterActif(r) {
+  return Boolean(r?.brouter && (r.brouter.moteur || r.brouter.segments?.length));
+}
+
+function quoiBrouter(b) {
+  return [...(b.moteur ? [t("brouter.moteur")] : []), ...(b.segments || [])].join(", ");
+}
+
+// forcer : lire l'état même au zoom faible (lancement de la page, calcul en attente).
+async function majExtrait(forcer = false) {
   clearTimeout(minuterieExtrait);
-  const enCours = etat.extrait?.en_cours && ["telechargement", "import"].includes(etat.extrait.en_cours.etape);
-  if (carte.getZoom() < ZOOM_EXTRAIT && !enCours) { afficherExtrait(null); return; }
+  const enCours = extraitActif(etat.extrait) || brouterActif(etat.extrait) || etat.donneesAttendues;
+  if (carte.getZoom() < ZOOM_EXTRAIT && !enCours && !forcer) { afficherExtrait(null); return; }
   const parametres = new URLSearchParams(Object.entries(zoneVue()).map(([k, v]) => [k, v.toFixed(5)]));
   try {
     afficherExtrait(await api(`extrait?${parametres}`));
@@ -566,45 +569,29 @@ async function majExtrait() {
 
 function afficherExtrait(r) {
   etat.extrait = r;
-  const ligne = $("extraitOsm"), bouton = $("extraitBouton");
-  bouton.hidden = true;
   const e = r?.en_cours;
-  const actif = e && ["telechargement", "import"].includes(e.etape);
+  const actif = extraitActif(r);
   if (actif) {
     $("extraitTexte").textContent = e.etape === "telechargement"
       ? t("extrait.telechargement", { nom: e.nom, pourcent: Math.round(100 * e.fraction) })
       : t("extrait.import", { nom: e.nom, voies: Number(e.voies).toLocaleString(langue === "en" ? "en-GB" : "fr-FR") });
-    minuterieExtrait = setTimeout(majExtrait, 1500);
   } else if (r?.installe) {
     $("extraitTexte").textContent = t("extrait.installe", { nom: r.installe.nom, date: dateCourte(r.installe.date) });
   } else if (e?.etape === "erreur") {
     $("extraitTexte").textContent = t("extrait.erreur", { nom: e.nom, message: e.erreur });
-    bouton.hidden = !r.propose;
-  } else if (r?.propose) {
-    const p = r.propose;
-    $("extraitTexte").textContent = t(p.trop_gros ? "extrait.tropGros" : "extrait.propose",
-      { nom: p.nom, taille: p.taille_mo ?? "?" });
-    bouton.hidden = p.trop_gros;
   }
-  ligne.hidden = !(actif || r?.installe || r?.propose || e?.etape === "erreur");
-  // L'extrait attendu par un calcul vient d'être installé : le calcul reprend.
-  if (etat.extraitAttendu && e?.etape === "fini") {
-    etat.extraitAttendu = false;
+  $("extraitOsm").hidden = !(actif || r?.installe || e?.etape === "erreur");
+  const moteur = brouterActif(r);
+  if (moteur) $("brouterEnCours").textContent = t("brouter.enCours", { quoi: quoiBrouter(r.brouter) });
+  $("brouterEnCours").hidden = !moteur;
+  if (actif || moteur) minuterieExtrait = setTimeout(majExtrait, 1500);
+  // Les données qu'attendait un calcul sont arrivées : le calcul reprend.
+  if (etat.donneesAttendues && !actif && !moteur) {
+    etat.donneesAttendues = false;
     if (etat.points.length >= 2) planifierCalcul();
   }
 }
 
-async function installerExtrait(id) {
-  const r = await api("extrait", { id });
-  if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
-  etat.extraitAttendu = true;
-  afficherStatut(() => t("extrait.lance"));
-  majExtrait();
-}
-
-$("extraitBouton").addEventListener("click", () => {
-  if (etat.extrait?.propose) installerExtrait(etat.extrait.propose.id);
-});
 carte.on("moveend", () => {
   clearTimeout(minuterieExtrait);
   minuterieExtrait = setTimeout(majExtrait, 600);
@@ -781,7 +768,10 @@ async function calculer() {
   if (numero !== etat.sequence) return;   // un calcul plus récent est en route
   occupe(false);
   if (reponse.erreur) afficherErreur(reponse);
-  else afficher(reponse);
+  else {
+    afficher(reponse);
+    majExtrait(true);       // le calcul a pu lancer l'extrait OSM de la région
+  }
   chargerJournal();
 }
 
@@ -850,33 +840,21 @@ function boutonAction(libelle, action) {
   return bouton;
 }
 
-function proposerInstallation() {
-  $("actions").append(boutonAction(t("moteur.installer"), async () => {
-    afficherStatut(() => t("moteur.installation"));
-    const r = await api("moteur", {});
-    if (r.erreur) afficherStatut(() => ts(r.erreur), true);
-    else { $("actions").replaceChildren(); afficherStatut(() => t("moteur.installe")); planifierCalcul(); }
-  }));
-}
-
 function afficherErreur(reponse) {
   effacerResultat();
   afficherStatut(() => texteErreur(reponse), true);
-  for (const nom of reponse.segments_manquants || []) {
-    $("actions").append(boutonAction(t("segment.telecharger", { nom }), async () => {
-      afficherStatut(() => t("segment.telechargement", { nom }));
-      const r = await api("segment", { nom });
-      if (r.erreur) afficherStatut(() => ts(r.erreur), true);
-      else planifierCalcul();
-    }));
+  // Il manquait des données : le serveur les télécharge de lui-même (moteur et
+  // tuiles BRouter, ou l'extrait OSM quand Overpass est en panne), et le
+  // calcul reprendra une fois qu'elles seront là. Aucun bouton à cliquer.
+  const b = reponse.brouter_en_cours;
+  if (b && (b.moteur || b.segments?.length)) {
+    afficherStatut(() => t("brouter.attente", { quoi: quoiBrouter(b) }));
+    etat.donneesAttendues = true;
+  } else if (reponse.extrait_en_cours) {
+    afficherStatut(() => t("extrait.attente", { nom: reponse.extrait_en_cours.nom }));
+    etat.donneesAttendues = true;
   }
-  if (reponse.moteur_absent) proposerInstallation();
-  // Overpass en panne, et un extrait de la région existe : le proposer.
-  const extrait = reponse.extrait;
-  if (extrait) {
-    $("actions").append(boutonAction(t("extrait.action", { nom: extrait.nom, taille: extrait.taille_mo ?? "?" }),
-      () => installerExtrait(extrait.id)));
-  }
+  majExtrait(true);
 }
 
 function lignes(feature) {
@@ -1075,9 +1053,11 @@ async function demarrer() {
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
     etat.cleIgn = reglages.cle_ign || "";
     $("cleIgn").value = etat.cleIgn;
+    // Premier lancement : le moteur BRouter s'installe de lui-même, en tâche
+    // de fond ; le panneau suit son téléchargement.
     if (!infos.moteur_installe) {
-      afficherStatut(() => t("moteur.absent"), true);
-      proposerInstallation();
+      await api("moteur", {});
+      majExtrait(true);
     }
   } catch (e) {
     afficherStatut(() => t("serveur.injoignable", { message: e.message }), true);

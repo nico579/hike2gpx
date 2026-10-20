@@ -524,19 +524,26 @@ class Telechargements:
     """Un téléchargement d'extrait à la fois, en tâche de fond, et son état
     pour la page."""
 
+    REESSAI_S = 3600.0      # après un échec, pas de nouvel essai pour la même région avant une heure
+
     def __init__(self, dossier):
         self.dossier = Path(dossier)
         self._verrou = threading.Lock()
         self._etat = None
         self._fil = None
+        self._echecs = {}       # id de région -> instant (monotonic) du dernier échec
 
     def etat(self) -> dict | None:
         return dict(self._etat) if self._etat else None
 
     def lancer(self, region: dict) -> bool:
-        """Faux si un téléchargement tourne déjà."""
+        """Faux si un téléchargement tourne déjà, ou si celui de cette région a
+        échoué il y a moins de REESSAI_S : le téléchargement étant automatique,
+        une panne ne doit pas le relancer à chaque demande de la page."""
         with self._verrou:
             if self._fil and self._fil.is_alive():
+                return False
+            if time.monotonic() - self._echecs.get(region["id"], -self.REESSAI_S) < self.REESSAI_S:
                 return False
             self._etat = {"id": region["id"], "nom": region["nom"], "etape": "telechargement", "fraction": 0.0,
                           "voies": 0}
@@ -554,6 +561,7 @@ class Telechargements:
             resultat = installer(self.dossier, region, suivi=self._suivre)
         except Exception as exc:        # toute panne s'affiche dans la page et le journal
             journal.warning("Extrait Geofabrik %s non installé : %s", region["id"], exc)
+            self._echecs[region["id"]] = time.monotonic()
             self._etat = {**self._etat, "etape": "erreur", "erreur": str(exc)}
         else:
             self._etat = {**self._etat, "etape": "fini", "date": resultat["date"]}
