@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import math
 import re
+import shutil
 import threading
 import time
 from logging.handlers import RotatingFileHandler
@@ -205,6 +206,12 @@ class Application:
         self._vues = {"osm": 0, "bdtopo": 0}
         self._verrou_vues = threading.Lock()
         self._tailles_extraits = {}     # id -> octets, demandés une fois à Geofabrik
+        self._extraits_ecartes = set()  # trop gros, ou place disque insuffisante : Overpass seul
+        # Moteur et tuiles BRouter téléchargés en tâche de fond (_brouter_automatique).
+        self._verrou_brouter = threading.Lock()
+        self._fil_brouter = None
+        self._brouter_en_cours = {}
+        self._echecs_brouter = {}       # "moteur" ou nom de tuile -> instant (monotonic) du dernier échec
         self._progression = {"actif": False}
         self._debut_calcul = time.monotonic()
         self._temps_etapes, self._etape_courante = {}, None
@@ -276,21 +283,63 @@ class Application:
             self.serveur = self.serveur_maison = None
 
     def installer_moteur(self, _payload=None) -> dict:
-        try:
-            self.installation.installer()
-        except (brouter.ErreurBRouter, OSError, ValueError) as exc:
-            return {"erreur": str(exc)}
-        return self.etat()
+        """Au lancement de la page, le moteur absent s'installe de lui-même, en
+        tâche de fond."""
+        return {"brouter_en_cours": self._brouter_automatique([])}
 
-    def telecharger_segment(self, payload) -> dict:
-        nom = (payload or {}).get("nom")
-        if not isinstance(nom, str) or not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", nom):
-            return {"erreur": "Nom de tuile invalide."}
+    # Après un échec, pas de nouvel essai pour le même élément avant une heure.
+    REESSAI_BROUTER_S = 3600.0
+
+    def _brouter_automatique(self, segments: list) -> dict | None:
+        """Le moteur BRouter et les tuiles de routage qui manquent se
+        téléchargent d'eux-mêmes en tâche de fond, sans bouton (décision de
+        Nico du 2026-10-19, comme les extraits OSM). Rend ce qui se télécharge,
+        {"moteur": bool, "segments": [...]}, ou None."""
+        with self._verrou_brouter:
+            if self._fil_brouter and self._fil_brouter.is_alive():
+                return {**self._brouter_en_cours, "segments": list(self._brouter_en_cours["segments"])}
+            maintenant = time.monotonic()
+            recent = lambda cle: maintenant - self._echecs_brouter.get(cle, -self.REESSAI_BROUTER_S) \
+                < self.REESSAI_BROUTER_S
+            moteur = not self.installation.installee() and not recent("moteur")
+            a_faire = [n for n in segments if not self.installation.segment_present(n) and not recent(n)]
+            if not moteur and not a_faire:
+                return None
+            # La réponse est copiée avant le départ du fil, qui retire chaque
+            # tuile de la liste en cours dès qu'il en a fini.
+            reponse = {"moteur": moteur, "segments": list(a_faire)}
+            self._brouter_en_cours = {"moteur": moteur, "segments": a_faire}
+            self._fil_brouter = threading.Thread(target=self._telecharger_brouter, args=(moteur, list(a_faire)),
+                                                 daemon=True, name="brouter-donnees")
+            self._fil_brouter.start()
+            return reponse
+
+    def _telecharger_brouter(self, moteur: bool, segments: list) -> None:
         try:
-            self.installation.telecharger_segment(nom)
-        except brouter.ErreurBRouter as exc:
-            return {"erreur": str(exc)}
-        return self.etat()
+            if moteur:
+                debut = time.monotonic()
+                try:
+                    self.installation.installer()
+                except (brouter.ErreurBRouter, OSError, ValueError) as exc:
+                    self._echecs_brouter["moteur"] = time.monotonic()
+                    journal.warning("Moteur BRouter non installé : %s", exc)
+                    return
+                journal.info("Moteur BRouter installé automatiquement en %.0f s", time.monotonic() - debut)
+                self._brouter_en_cours["moteur"] = False
+            for nom in segments:
+                debut = time.monotonic()
+                try:
+                    self.installation.telecharger_segment(nom)
+                except (brouter.ErreurBRouter, ValueError) as exc:
+                    self._echecs_brouter[nom] = time.monotonic()
+                    journal.warning("Tuile BRouter %s non téléchargée : %s", nom, exc)
+                else:
+                    journal.info("Tuile BRouter %s téléchargée automatiquement en %.0f s", nom,
+                                 time.monotonic() - debut)
+                finally:
+                    self._brouter_en_cours["segments"].remove(nom)
+        finally:
+            self._brouter_en_cours = {}
 
     # ---------------------------------------------------------- avancement
 
@@ -368,10 +417,15 @@ class Application:
             return {"erreur": str(exc)}
         strict, comparer = bool(payload.get("strict")), bool(payload.get("comparer", True))
         ign = bool(payload.get("ign", True))
-        if not self.installation.installee():
-            return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True}
         debut = time.monotonic()
         zone = zone_autour(points)
+        # Un calcul est un usage réel de la région : son extrait OSM part en
+        # tâche de fond s'il manque, Overpass servant en attendant ; de même le
+        # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
+        extrait = self._extrait_automatique(zone, "calcul d'itinéraire")
+        if not self.installation.installee():
+            return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True,
+                    "brouter_en_cours": self._brouter_automatique(brouter.segments_zone(*zone))}
         avertissement = detail_avertissement = None
         journal.info("Itinéraire : %d points, %d tuiles, chemins IGN %s, mode strict %s", len(points),
                      len(franchissements.tuiles_zone(*zone)), "oui" if ign else "non", "oui" if strict else "non")
@@ -387,7 +441,7 @@ class Application:
                              if not self.installation.segment_present(n)]
                 if manquants:
                     return {"erreur": "Données BRouter absentes pour cette zone.",
-                            "segments_manquants": manquants}
+                            "segments_manquants": manquants, "brouter_en_cours": self._brouter_automatique(manquants)}
                 trace, moteur_utilise = None, "standard"
                 if ign:
                     # Tuiles maison : OSM plus les chemins IGN qui y manquent, avec
@@ -429,12 +483,10 @@ class Application:
                 return {"erreur": "Le tracé sort sans cesse de la zone examinée : rapprochez les points."}
         except (franchissements.ErreurDonnees, brouter.ErreurBRouter) as exc:
             reponse = {"erreur": str(exc)}
-            if isinstance(exc, franchissements.ErreurDonnees):
-                # Overpass en panne : l'extrait de la région, s'il en existe un,
-                # rendrait le calcul possible sans lui.
-                proposition = self._proposition_extrait(zone)
-                if proposition and not proposition["trop_gros"]:
-                    reponse["extrait"] = proposition
+            if isinstance(exc, franchissements.ErreurDonnees) and extrait:
+                # Overpass en panne, mais l'extrait de la région se télécharge :
+                # la page relancera le calcul une fois l'extrait installé.
+                reponse["extrait_en_cours"] = extrait
             return reponse
         # Dernier contrôle, indépendant de BRouter : un tracé qui passe encore
         # une coupe interdite n'est jamais rendu (audit B10, amélioration 2).
@@ -509,7 +561,11 @@ class Application:
         return {**resultat, "bornes": franchissements.bornes_zone(*zone)}
 
     def calque_osm(self, zone) -> dict:
-        return self._calque("osm", zone, franchissements.voies_affichables)
+        # Le calque des chemins OSM (zoom 14 au moins) est un usage réel de la
+        # région : son extrait se télécharge s'il manque.
+        extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone else None
+        resultat = self._calque("osm", zone, franchissements.voies_affichables)
+        return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
 
     def calque_bdtopo(self, zone) -> dict:
         def lire(*bornes, **options):
@@ -528,55 +584,59 @@ class Application:
 
     # ---------------------------------------------------------- données OSM hors ligne
 
-    def _proposition_extrait(self, zone) -> dict | None:
-        """L'extrait Geofabrik qui contient le centre de la zone, s'il n'est pas
-        déjà installé : nom, taille (demandée une fois à Geofabrik)."""
+    def _extrait_automatique(self, zone, raison: str) -> dict | None:
+        """L'extrait Geofabrik de la région au centre de la zone se télécharge
+        de lui-même, en tâche de fond, dès que la région sert vraiment (un
+        calcul, le calque des chemins OSM) : pas de bouton, décision de Nico du
+        2026-10-19. Survoler la carte ne suffit pas, sans quoi chaque région
+        traversée partirait. Rien si un extrait installé couvre déjà ce centre,
+        si l'extrait dépasse TAILLE_MAX, si le disque manque de place (trois
+        fois sa taille : fichier, base, index) ou après un échec récent.
+        Rend {"id", "nom"} de l'extrait en cours de téléchargement, ou None."""
         i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
         if geofabrik.extrait_de_tuile(self.dossier, i, j):
             return None
+        taches = geofabrik.telechargements(self.dossier)
+        en_cours = taches.etat()
+        if en_cours and en_cours["etape"] in ("telechargement", "import"):
+            return {"id": en_cours["id"], "nom": en_cours["nom"]}
         try:
             region = geofabrik.region_de_tuile(geofabrik.regions(self.dossier), i, j)
         except geofabrik.ErreurExtrait as exc:
             journal.warning("Extraits Geofabrik indisponibles : %s", exc)
             return None
-        if region is None:
+        if region is None or region["id"] in self._extraits_ecartes:
             return None
-        if region["id"] not in self._tailles_extraits:
-            self._tailles_extraits[region["id"]] = geofabrik.taille(region["pbf"])
-        octets = self._tailles_extraits[region["id"]]
-        return {"id": region["id"], "nom": region["nom"], "taille_mo": round(octets / 1024 ** 2) if octets else None,
-                "trop_gros": bool(octets and octets > geofabrik.TAILLE_MAX)}
+        octets = self._tailles_extraits.get(region["id"]) or geofabrik.taille(region["pbf"])
+        if not octets:
+            return None         # Geofabrik injoignable : nouvel essai à la prochaine demande
+        self._tailles_extraits[region["id"]] = octets
+        if octets > geofabrik.TAILLE_MAX or shutil.disk_usage(self.dossier).free < 3 * octets:
+            self._extraits_ecartes.add(region["id"])
+            journal.warning("Extrait Geofabrik %s (%d Mo) non téléchargé : trop gros ou place insuffisante ; "
+                            "Overpass reste la source", region["id"], octets // 1024 ** 2)
+            return None
+        if not taches.lancer(region):
+            return None         # autre téléchargement en cours, ou échec de moins d'une heure
+        journal.info("Extrait Geofabrik %s (%d Mo) téléchargé automatiquement : %s", region["id"],
+                     octets // 1024 ** 2, raison)
+        return {"id": region["id"], "nom": region["nom"]}
 
     def extrait(self, zone) -> dict:
         """Les données OSM hors ligne de la vue de la page : l'extrait installé
-        qui contient son centre, sinon celui qu'on peut télécharger, et le
-        téléchargement en cours."""
-        reponse = {"en_cours": geofabrik.telechargements(self.dossier).etat()}
+        qui contient son centre, et le téléchargement en cours. Simple lecture :
+        rien ne se télécharge parce que la carte passe au-dessus d'une région."""
+        en_cours_brouter = self._brouter_en_cours
+        reponse = {"en_cours": geofabrik.telechargements(self.dossier).etat(),
+                   "brouter": {**en_cours_brouter, "segments": list(en_cours_brouter["segments"])}
+                   if en_cours_brouter else None}
         if zone is None:
             return reponse
         installe = geofabrik.extrait_de_tuile(
             self.dossier, *franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2))
         if installe:
             return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
-        proposition = self._proposition_extrait(zone)
-        return {**reponse, "propose": proposition} if proposition else reponse
-
-    def installer_extrait(self, corps) -> dict:
-        """Lance le téléchargement d'un extrait en tâche de fond, à la demande
-        de la page (un clic : plusieurs centaines de Mo sur le disque)."""
-        identifiant = str((corps or {}).get("id") or "")
-        try:
-            region = next((r for r in geofabrik.regions(self.dossier) if r["id"] == identifiant), None)
-        except geofabrik.ErreurExtrait as exc:
-            return {"erreur": str(exc)}
-        if region is None:
-            return {"erreur": "Extrait inconnu."}
-        octets = self._tailles_extraits.get(identifiant) or geofabrik.taille(region["pbf"])
-        if octets and octets > geofabrik.TAILLE_MAX:
-            return {"erreur": f"Extrait trop gros ({octets / 1024 ** 2:.0f} Mo) : Overpass reste la source."}
-        journal.info("Extrait Geofabrik %s demandé (%s Mo)", identifiant,
-                     f"{octets / 1024 ** 2:.0f}" if octets else "taille inconnue")
-        return {"lance": geofabrik.telechargements(self.dossier).lancer(region)}
+        return reponse
 
     def routes(self):
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
@@ -585,7 +645,6 @@ class Application:
                "osm": self.calque_osm, "bdtopo": self.calque_bdtopo, "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, **get_langue}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
-                "segment": self.telecharger_segment, "moteur": self.installer_moteur,
-                "denivele": self.denivele, "arreter_calques": self.arreter_calques,
-                "extrait": self.installer_extrait, **post_langue}
+                "moteur": self.installer_moteur, "denivele": self.denivele,
+                "arreter_calques": self.arreter_calques, **post_langue}
         return get, post

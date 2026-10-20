@@ -55,6 +55,14 @@ def test_reglages_cle_ign(tmp_path):
     assert "erreur" in a.enregistrer_reglages({"cle_ign": "<script>"})
 
 
+@pytest.fixture(autouse=True)
+def sans_index_geofabrik(monkeypatch):
+    """Calculs et calques consultent l'index de Geofabrik pour télécharger
+    d'eux-mêmes l'extrait de la région : ici, aucune région, donc aucun
+    réseau. Les essais de l'extrait fournissent la leur."""
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [])
+
+
 @pytest.fixture
 def simulee(tmp_path, monkeypatch):
     a = appli.Application(tmp_path)
@@ -230,14 +238,16 @@ def test_itineraire_s_arrete_si_les_barrieres_sont_inconnues(simulee, monkeypatc
 
     monkeypatch.setattr(franchissements, "franchissements_zone", panne)
     monkeypatch.setattr(brouter, "calculer", lambda *a, **o: pytest.fail("calcul sans barrières"))
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [])
     reponse = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
-    assert "barrières non vérifiées" in reponse["erreur"] and "extrait" not in reponse
-    # Un extrait Geofabrik couvre la zone : la page le proposera.
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [REGION_PACA])
+    assert "barrières non vérifiées" in reponse["erreur"] and "extrait_en_cours" not in reponse
+    # La région a un extrait : le calcul l'a lancé de lui-même, la page attendra.
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
     monkeypatch.setattr(geofabrik, "taille", lambda url: 372 * 1024 ** 2)
-    assert a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})["extrait"] == {
-        "id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d'Azur", "taille_mo": 372, "trop_gros": False}
+    lancees = []
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
+    reponse = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
+    assert reponse["extrait_en_cours"] == {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"]}
+    assert lancees == [REGION_PACA["id"]]
 
 
 REGION_PACA = {"id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d'Azur",
@@ -246,27 +256,54 @@ REGION_PACA = {"id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d
                "polygones": [[[(4.2, 42.9), (7.8, 42.9), (7.8, 45.2), (4.2, 45.2), (4.2, 42.9)]]]}
 
 
-def test_extrait_propose_lance_et_refuse(tmp_path, monkeypatch):
+def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypatch):
+    # Décision de Nico du 2026-10-19 : pas de bouton. Le calque des chemins OSM
+    # (ou un calcul) lance l'extrait ; survoler la carte (/api/extrait) non.
     a = appli.Application(tmp_path)
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [REGION_PACA])
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
     monkeypatch.setattr(geofabrik, "taille", lambda url: 372 * 1024 ** 2)
-    vue = (43.30, 6.00, 43.34, 6.08)
-    assert a.extrait(vue) == {"en_cours": None, "propose": {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"],
-                                                            "taille_mo": 372, "trop_gros": False}}
-    assert a.extrait((60.0, 6.0, 60.1, 6.1)) == {"en_cours": None}
     lancees = []
     monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
-    assert a.installer_extrait({"id": REGION_PACA["id"]}) == {"lance": True} and lancees == [REGION_PACA["id"]]
-    assert a.installer_extrait({"id": "inconnu"}) == {"erreur": "Extrait inconnu."}
-    a._tailles_extraits[REGION_PACA["id"]] = 3 * 1024 ** 3
-    assert "trop gros" in a.installer_extrait({"id": REGION_PACA["id"]})["erreur"] and len(lancees) == 1
+    monkeypatch.setattr(franchissements, "voies_affichables", lambda *z, **o: {"voies": [], "barrieres": []})
+    vue = (43.30, 6.00, 43.34, 6.08)
+    assert a.extrait(vue) == {"en_cours": None, "brouter": None} and lancees == []
+    assert a.calque_osm(vue)["extrait_en_cours"] == {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"]}
+    assert lancees == [REGION_PACA["id"]]
+    # Hors de toute région, ou extrait trop gros : rien ne part.
+    assert "extrait_en_cours" not in a.calque_osm((60.0, 6.0, 60.01, 6.01))
+    a2 = appli.Application(tmp_path / "autre")
+    monkeypatch.setattr(geofabrik, "taille", lambda url: 3 * 1024 ** 3)
+    assert "extrait_en_cours" not in a2.calque_osm(vue) and lancees == [REGION_PACA["id"]]
+    assert REGION_PACA["id"] in a2._extraits_ecartes
 
 
-def test_itineraire_signale_les_donnees_manquantes(simulee, monkeypatch):
+def test_moteur_et_tuiles_brouter_telecharges_d_eux_memes(simulee, monkeypatch):
+    # Même règle pour BRouter : la tuile manquante part en tâche de fond, le
+    # calcul le dit, et une tuile en échec attend une heure avant un nouvel essai.
     a, _, _, _ = simulee
-    monkeypatch.setattr(a.installation, "segment_present", lambda nom: False)
+    present, telechargees = set(), []
+
+    def telecharger(nom):
+        telechargees.append(nom)
+        if nom == "E5_N40":
+            raise brouter.ErreurBRouter("Téléchargement impossible : brouter.de injoignable.")
+        present.add(nom)
+
+    monkeypatch.setattr(a.installation, "segment_present", lambda nom: nom in present)
+    monkeypatch.setattr(a.installation, "telecharger_segment", telecharger)
     r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
-    assert r["segments_manquants"] == ["E5_N40"]
+    assert r["segments_manquants"] == ["E5_N40"] and r["brouter_en_cours"] == {"moteur": False, "segments": ["E5_N40"]}
+    a._fil_brouter.join(5)
+    assert telechargees == ["E5_N40"] and a.extrait(None)["brouter"] is None
+    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
+    assert r["brouter_en_cours"] is None and telechargees == ["E5_N40"]      # échec récent : pas d'essai
+    # Moteur absent au lancement de la page : il s'installe de lui-même.
+    installe = []
+    monkeypatch.setattr(a.installation, "installee", lambda: bool(installe))
+    monkeypatch.setattr(a.installation, "installer", lambda: installe.append(True))
+    assert a.installer_moteur() == {"brouter_en_cours": {"moteur": True, "segments": []}}
+    a._fil_brouter.join(5)
+    assert installe == [True]
 
 
 @pytest.mark.parametrize("requete, attendu", [
@@ -349,9 +386,8 @@ def test_routes_init_annonce_l_application(tmp_path):
     get, post = appli.Application(tmp_path).routes()
     assert get["init"]()["app"] == "hike2gpx"
     assert {"osm", "bdtopo", "extrait"} <= set(get)
-    assert set(post) == {"itineraire", "reglages", "segment", "moteur", "denivele", "langue", "arreter_calques",
-                         "extrait"}
-    assert "erreur" in post["segment"]({"nom": "../x"})
+    # Plus de téléchargement à la demande (tuile, extrait) : tout part de lui-même.
+    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "langue", "arreter_calques"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):

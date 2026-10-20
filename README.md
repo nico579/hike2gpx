@@ -95,15 +95,19 @@ page le dit, sans relier les points en ligne droite.
 ### Données OSM hors ligne
 
 Overpass, le service qui répond aux questions sur OpenStreetMap, sature par
-moments et tombe parfois. Pour ne plus en dépendre, la page propose l'extrait
-[Geofabrik](https://download.geofabrik.de/) de la région affichée, partout
-sur la planète : Provence-Alpes-Côte d'Azur à Garéoult (373 Mo), la Bavière à
-Munich. Parmi quelque 550 régions, hike2gpx retient la plus petite qui
-contient entièrement chaque tuile. Un clic sur « Télécharger » le récupère en
-tâche de fond, vérifié par son MD5, pendant qu'Overpass continue de servir ;
-le calcul qui attendait reprend de lui-même à la fin. L'extrait est lu une
-fois et rangé dans une base SQLite par tuile, au dossier de données
-(`geofabrik/`), puis le fichier téléchargé est effacé.
+moments et tombe parfois. Pour ne plus en dépendre, hike2gpx télécharge de
+lui-même l'extrait [Geofabrik](https://download.geofabrik.de/) de la région où
+l'on travaille, partout sur la planète : Provence-Alpes-Côte d'Azur à
+Garéoult (373 Mo), le Liechtenstein à Vaduz (3 Mo). Parmi quelque 550
+régions, il retient la plus petite qui contient entièrement chaque tuile. Le
+téléchargement part dès que la région sert vraiment, par un calcul ou le
+calque des chemins OSM, mais pas quand la carte ne fait que la survoler. Il
+se fait en tâche de fond, vérifié par son MD5, pendant qu'Overpass continue
+de servir ; le panneau en suit l'avancement, et un calcul qui l'attendait
+reprend de lui-même à la fin. Un extrait de plus de 2 Go, ou que le disque ne
+pourrait pas loger, n'est pas téléchargé : Overpass reste alors la source.
+L'extrait est lu une fois et rangé dans une base SQLite par tuile, au dossier
+de données (`geofabrik/`), puis le fichier téléchargé est effacé.
 
 Une fois installé, l'extrait est la source des tuiles qu'il contient :
 lecture instantanée, sans quota ni panne, hors connexion comprise. Une tuile en
@@ -141,8 +145,10 @@ uv pip install --python .venv\Scripts\python.exe -e ".[test]"
 
 `installer` télécharge BRouter 1.7.10 (archive vérifiée par son empreinte
 SHA256) et la tuile de données qui couvre la zone : E5_N40 pour la Provence,
-de 5° à 10° E et de 40° à 45° N. La page propose aussi ces téléchargements par
-un bouton. Les données vont dans le dossier d'état standard
+de 5° à 10° E et de 40° à 45° N. Depuis la page, rien à faire : le moteur
+s'installe de lui-même au premier lancement, et chaque tuile de données se
+télécharge en tâche de fond dès qu'un calcul en a besoin, le calcul reprenant
+à son arrivée. Les données vont dans le dossier d'état standard
 (`%LOCALAPPDATA%\hike2gpx-data` sous Windows), ou dans celui que désigne la
 variable `HIKE2GPX_HOME`.
 

@@ -184,30 +184,42 @@ test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tu
   assert.deepEqual(JSON.parse(arret.options.body), { calques: ["osm", "bdtopo"] });
 });
 
-test("données OSM hors ligne : proposées, téléchargées, installées, et le calcul reprend", async () => {
+test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcul reprend", async () => {
+  // Décision de Nico du 2026-10-19 : aucun bouton. Le serveur télécharge ce
+  // qui manque, la page le montre et relance le calcul qui attendait.
   const { page, elements, requetes } = charger();
   const texte = () => elements.get("extraitTexte").textContent;
+  const statut = () => elements.get("statut").textContent;
   const nom = "Provence Alpes-Cote-d'Azur";
-  page.afficherExtrait({ en_cours: null, propose: { id: "paca", nom, taille_mo: 373, trop_gros: false } });
-  assert.equal(elements.get("extraitOsm").hidden, false);
-  assert.equal(elements.get("extraitBouton").hidden, false);
-  assert.equal(texte(), `Données OSM hors ligne : l'extrait ${nom} (373 Mo) remplacerait Overpass dans cette région.`);
-  // Overpass en panne pendant un calcul : la page propose l'extrait, le clic le lance.
+  const installe = { id: "paca", nom, date: "2026-10-18T20:25:06Z" };
+  page.afficherExtrait({ en_cours: null, brouter: null });
+  assert.equal(elements.get("extraitOsm").hidden, true);
+  assert.equal(elements.get("brouterEnCours").hidden, true);
+  // Overpass en panne pendant un calcul : le serveur a lancé l'extrait.
   page.afficherErreur({ erreur: "Overpass ne répond pas : barrières non vérifiées (HTTP 502).",
-    extrait: { id: "paca", nom, taille_mo: 373, trop_gros: false } });
-  assert.equal(page.etat.extraitAttendu, false);
-  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "telechargement", fraction: 0.42, voies: 0 } });
-  assert.equal(texte(), `Téléchargement de l'extrait ${nom} : 42 %`);
-  assert.equal(elements.get("extraitBouton").hidden, true);
-  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "import", fraction: 1, voies: 210710 } });
-  assert.match(texte(), /^Import de l'extrait .* : 210.710 voies lues…$/);
-  // Fin : l'extrait sert, et un calcul qui l'attendait repart.
-  page.etat.extraitAttendu = true;
-  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "fini", date: "2026-10-18T20:25:06Z" },
-    installe: { id: "paca", nom, date: "2026-10-18T20:25:06Z" } });
+    extrait_en_cours: { id: "paca", nom } });
+  assert.equal(statut(), `Overpass ne répond pas ; l'extrait OSM ${nom} se télécharge, le calcul reprendra de lui-même.`);
+  assert.equal(page.etat.donneesAttendues, true);
+  assert.ok(requetes.some((r) => r.url.startsWith("/api/extrait?")));
+  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "telechargement", fraction: 0.42, voies: 0 }, brouter: null });
+  assert.equal(texte(), `Données OSM hors ligne : téléchargement de l'extrait ${nom}, 42 %`);
+  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "import", fraction: 1, voies: 210710 }, brouter: null });
+  assert.match(texte(), /^Données OSM hors ligne : import de l'extrait .*, 210.710 voies lues…$/);
+  // L'extrait est là, mais une tuile BRouter arrive encore : on attend toujours.
+  page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: { moteur: false, segments: ["E0_N45"] } });
+  assert.equal(elements.get("brouterEnCours").textContent, "Données BRouter : téléchargement en cours (E0_N45)…");
+  assert.equal(page.etat.donneesAttendues, true);
+  // Tout est arrivé : l'extrait sert, et le calcul qui attendait repart.
+  page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
   assert.equal(texte(), `Données OSM hors ligne : extrait ${nom} du 18/10/2026, renouvelé chaque semaine.`);
-  assert.equal(page.etat.extraitAttendu, false);
+  assert.equal(elements.get("brouterEnCours").hidden, true);
+  assert.equal(page.etat.donneesAttendues, false);
   page.appliquerLangue("en");
   assert.equal(texte(), `Offline OSM data: ${nom} extract of 18/10/2026, renewed every week.`);
-  assert.equal(requetes.filter((r) => r.url === "/api/extrait").length, 0);
+  // Moteur et tuile BRouter manquants : même attente, sans bouton.
+  page.appliquerLangue("fr");
+  page.afficherErreur({ erreur: "Données BRouter absentes pour cette zone.", segments_manquants: ["E0_N45"],
+    brouter_en_cours: { moteur: true, segments: ["E0_N45"] } });
+  assert.equal(statut(), "Téléchargement des données BRouter (moteur BRouter, E0_N45) : le calcul reprendra de lui-même.");
+  assert.equal(page.etat.donneesAttendues, true);
 });
