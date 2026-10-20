@@ -28,7 +28,7 @@ function charger() {
   const requetes = [];
   const corps = element();
   const contexte = vm.createContext({
-    console, URL, URLSearchParams, Blob, Date, Number, String, AbortController,
+    console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance,
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
       addEventListener() {}, querySelectorAll() { return []; } },
@@ -50,7 +50,8 @@ function charger() {
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
-    + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur };", contexte);
+    + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
+    + " debutLecture, finLecture, afficherLectures };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps, requetes, carte };
 }
@@ -160,7 +161,7 @@ test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tu
   const calques = () => requetes.filter((r) => /^\/api\/(osm|bdtopo)\?/.test(r.url));
   const premiere = page.rafraichirCalques();
   const [osmA, bdtopoA] = calques();
-  assert.equal(osmA.url, "/api/osm?s=43.31000&w=6.01000&n=43.33000&e=6.04000");
+  assert.match(osmA.url, /^\/api\/osm\?s=43\.31000&w=6\.01000&n=43\.33000&e=6\.04000&vue=\d+\.\d{3}$/);
   carte.vue = { s: 43.41, w: 6.21, n: 43.43, e: 6.24 };
   const seconde = page.rafraichirCalques();
   await premiere;
@@ -181,7 +182,9 @@ test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tu
   await page.rafraichirCalques();
   await troisieme;
   const arret = requetes.find((r) => r.url === "/api/arreter_calques");
-  assert.deepEqual(JSON.parse(arret.options.body), { calques: ["osm", "bdtopo"] });
+  const { calques: arretes, vue } = JSON.parse(arret.options.body);
+  assert.deepEqual(arretes, ["osm", "bdtopo"]);
+  assert.equal(typeof vue, "number");
 });
 
 test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcul reprend", async () => {
@@ -203,11 +206,20 @@ test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcu
   assert.ok(requetes.some((r) => r.url.startsWith("/api/extrait?")));
   page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "telechargement", fraction: 0.42, voies: 0 }, brouter: null });
   assert.equal(texte(), `Données OSM hors ligne : téléchargement de l'extrait ${nom}, 42 %`);
+  // Sa barre suit le téléchargement, puis va et vient pendant l'import.
+  const piste = elements.get("extraitPiste");
+  assert.equal(piste.hidden, false);
+  assert.equal(piste.classList.contains("indeterminee"), false);
+  assert.equal(elements.get("extraitBarre").style.width, "42%");
   page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "import", fraction: 1, voies: 210710 }, brouter: null });
   assert.match(texte(), /^Données OSM hors ligne : import de l'extrait .*, 210.710 voies lues…$/);
+  assert.equal(piste.classList.contains("indeterminee"), true);
+  assert.equal(elements.get("extraitBarre").style.width, "");
   // L'extrait est là, mais une tuile BRouter arrive encore : on attend toujours.
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: { moteur: false, segments: ["E0_N45"] } });
-  assert.equal(elements.get("brouterEnCours").textContent, "Données BRouter : téléchargement en cours (E0_N45)…");
+  assert.equal(elements.get("brouterTexte").textContent, "Données BRouter : téléchargement en cours (E0_N45)…");
+  assert.equal(elements.get("brouterEnCours").hidden, false);
+  assert.equal(piste.hidden, true);
   assert.equal(page.etat.donneesAttendues, true);
   // Tout est arrivé : l'extrait sert, et le calcul qui attendait repart.
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
@@ -222,4 +234,74 @@ test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcu
     brouter_en_cours: { moteur: true, segments: ["E0_N45"] } });
   assert.equal(statut(), "Téléchargement des données BRouter (moteur BRouter, E0_N45) : le calcul reprendra de lui-même.");
   assert.equal(page.etat.donneesAttendues, true);
+});
+
+test("chargement des calques : la note suit les tuiles lues, barre comprise", () => {
+  // Nico, 2026-10-20 : « Chargement des chemins OSM… » sans barre de progression.
+  const { page, elements } = charger();
+  const note = () => elements.get("noteCalquesTexte").textContent;
+  page.debutLecture("osm", 1, "chemins OSM");
+  const piste = elements.get("noteCalquesPiste");
+  assert.equal(note(), "Chargement des chemins OSM… (la première fois, jusqu'à une minute)");
+  assert.equal(piste.hidden, false);
+  assert.equal(piste.classList.contains("indeterminee"), true);
+  page.afficherLectures({ osm: { faites: 2, total: 6, duree_s: 12.4 } });
+  assert.equal(note(), "Chargement des chemins OSM… 2 sur 6 tuiles · 12 s");
+  assert.equal(piste.classList.contains("indeterminee"), false);
+  assert.equal(elements.get("noteCalquesBarre").style.width, "33%");
+  // Deux calques à la fois : une note, leurs tuiles additionnées.
+  page.debutLecture("bdtopo", 1, "chemins BD TOPO (IGN)");
+  page.afficherLectures({ osm: { faites: 3, total: 6, duree_s: 20 }, bdtopo: { faites: 6, total: 6, duree_s: 3 } });
+  assert.equal(note(), "Chargement des chemins OSM et chemins BD TOPO (IGN)… 9 sur 12 tuiles · 20 s");
+  // La fin d'une vue périmée ne retire pas la lecture de la vue suivante.
+  assert.equal(page.finLecture("osm", 0), true);
+  assert.equal(page.finLecture("osm", 1), true);
+  assert.equal(page.finLecture("bdtopo", 1), false);
+});
+
+test("extrait installé pendant la lecture des chemins OSM : elle repart sur lui", () => {
+  // Essai du 2026-10-20 : l'extrait Corse installé en 16 s, la lecture partie
+  // avant lui attendait encore Overpass (HTTP 504, 502) deux minutes après.
+  const { page, requetes, carte } = charger();
+  carte.hasLayer = () => true;
+  const lues = (cle) => requetes.filter((r) => r.url.startsWith(`/api/${cle}?`)).length;
+  page.afficherExtrait({ en_cours: { id: "corse", nom: "Corse", etape: "import", fraction: 1, voies: 35811 }, brouter: null });
+  page.rafraichirCalques();
+  assert.equal(lues("osm"), 1);
+  const installe = { id: "corse", nom: "Corse", date: "2026-10-18T20:25:06Z" };
+  page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
+  assert.equal(lues("osm"), 2);
+  assert.equal(lues("bdtopo"), 1);          // la BD TOPO ne dépend pas de l'extrait
+  // Déjà installé : un nouvel état « fini » ne relance rien.
+  page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
+  assert.equal(lues("osm"), 2);
+});
+
+test("vues datées : le serveur ne lit que la plus récente, et la note ne reste pas figée", async () => {
+  // Calque figé du 2026-10-20 : une requête plus ancienne, arrivée après la
+  // plus récente, passait au serveur pour la vue en cours. Les vues portent
+  // désormais leur date, strictement croissante.
+  const { page, elements, requetes, carte } = charger();
+  carte.hasLayer = (groupe) => groupe === page.CALQUES.osm.groupe;
+  const premiere = page.rafraichirCalques();
+  carte.vue = { s: 43.41, w: 6.21, n: 43.44, e: 6.26 };
+  const seconde = page.rafraichirCalques();
+  await premiere;
+  const osm = requetes.filter((r) => r.url.startsWith("/api/osm?"));
+  const dates = osm.map((r) => Number(new URL(r.url, "http://h").searchParams.get("vue")));
+  assert.equal(dates.length, 2);
+  assert.ok(dates[0] > 0 && dates[1] > dates[0]);
+  // Remplacée malgré tout (une autre page ouverte) : pas de chargement sans fin.
+  repondre(osm[1], { erreur: "Vue remplacée par une autre.", code: "vue_remplacee" });
+  await seconde;
+  assert.equal(elements.get("noteCalques").hidden, true);
+  // L'arrêt envoyé au serveur porte aussi sa date.
+  carte.vue = { s: 43.51, w: 6.31, n: 43.54, e: 6.36 };
+  page.rafraichirCalques();
+  carte.getZoom = () => 10;
+  await page.rafraichirCalques();
+  const arret = requetes.find((r) => r.url === "/api/arreter_calques");
+  const corps = JSON.parse(arret.options.body);
+  assert.deepEqual(corps.calques, ["osm"]);
+  assert.ok(corps.vue > dates[1]);
 });

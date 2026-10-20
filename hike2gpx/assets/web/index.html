@@ -31,9 +31,9 @@
   <label class="option"><input type="checkbox" id="ign" checked> <span data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
   <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
   <p id="statut" role="status"></p>
-  <p id="noteCalques" class="note" hidden></p>
-  <p id="extraitOsm" class="note" hidden><span id="extraitTexte"></span></p>
-  <p id="brouterEnCours" class="note" hidden></p>
+  <p id="noteCalques" class="note" hidden><span id="noteCalquesTexte"></span><span id="noteCalquesPiste" class="piste" role="progressbar" hidden><span id="noteCalquesBarre" class="barre"></span></span></p>
+  <p id="extraitOsm" class="note" hidden><span id="extraitTexte"></span><span id="extraitPiste" class="piste" role="progressbar" hidden><span id="extraitBarre" class="barre"></span></span></p>
+  <p id="brouterEnCours" class="note" hidden><span id="brouterTexte"></span><span id="brouterPiste" class="piste indeterminee" role="progressbar"><span id="brouterBarre" class="barre"></span></span></p>
   <div id="actions"></div>
   <section id="resultat" hidden>
     <dl>

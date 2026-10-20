@@ -21,16 +21,19 @@ bascule.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import logging
 import math
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from contextlib import closing
 from datetime import datetime, timezone
@@ -48,6 +51,12 @@ INDEX_URL = "https://download.geofabrik.de/index-v1.json"
 INDEX_TTL_S = 30 * 86400
 RENOUVELLEMENT_S = 7 * 86400        # le même âge maximal que le cache Overpass (TTL_S)
 TAILLE_MAX = 2 * 1024 ** 3          # au-delà (grands pays d'un seul tenant), Overpass seul
+# Geofabrik met parfois une minute à répondre, puis répond en 0,2 s (mesuré le
+# 2026-10-20, après l'échec de l'extrait Centre sur un délai de 30 s) : délai
+# large, et quelques essais avant de renoncer.
+DELAI_S = 120
+ESSAIS = 3
+PAUSES_S = (10, 30)                 # entre deux essais
 # 2 : identifiants des nœuds (int64) et points (lat, lon en int32 au 1e-7 degré,
 # la précision d'OSM) en binaire petit-boutiste, au lieu de JSON.
 VERSION_BASE = 2
@@ -451,36 +460,99 @@ def _importer_a_part(pbf: Path, base: Path, region: dict, date: str, suivi=None)
     return compte
 
 
-def taille(url: str, *, ouvrir=None) -> int | None:
-    ouvrir = ouvrir or urllib.request.urlopen
-    try:
-        with ouvrir(urllib.request.Request(url, method="HEAD", headers=AGENT), timeout=30) as reponse:
-            return int(reponse.headers.get("Content-Length") or 0) or None
-    except (OSError, ValueError):
-        return None
+class ExtraitEcarte(ErreurExtrait):
+    """Extrait trop gros, ou place disque insuffisante : la région reste à
+    Overpass, sans nouvel essai jusqu'à la fin du programme."""
 
 
-def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None) -> None:
-    """Le PBF et son MD5 publié à côté ; un fichier qui ne lui correspond pas
-    n'est jamais importé."""
+def _passagere(exc: BaseException) -> bool:
+    """Une panne qui mérite un nouvel essai : délai dépassé, connexion refusée
+    ou coupée, réponse tronquée, serveur surchargé (5xx, 429)."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code >= 500 or exc.code == 429
+    return isinstance(exc, (TimeoutError, ConnectionError, urllib.error.URLError, http.client.HTTPException))
+
+
+def _avec_essais(lire, attendre):
+    """lire() jusqu'à ESSAIS fois, tant que la panne est passagère."""
+    for essai in range(1, ESSAIS + 1):
+        try:
+            return lire()
+        except Exception as exc:
+            if essai == ESSAIS or not _passagere(exc):
+                raise
+            journal.warning("Geofabrik, essai %d sur %d : %s", essai, ESSAIS, exc)
+            attendre(PAUSES_S[min(essai, len(PAUSES_S)) - 1])
+
+
+def message(exc: BaseException) -> str:
+    """Une panne de téléchargement dite en clair, pour la page."""
+    if isinstance(exc, ErreurExtrait):
+        return str(exc)
+    if isinstance(exc, urllib.error.HTTPError):
+        return f"Geofabrik répond HTTP {exc.code}"
+    if isinstance(getattr(exc, "reason", exc), TimeoutError):
+        return "Geofabrik ne répond pas (délai dépassé)"
+    if isinstance(exc, (urllib.error.URLError, ConnectionError, http.client.HTTPException)):
+        return f"connexion à Geofabrik impossible ou coupée ({getattr(exc, 'reason', exc)})"
+    return str(exc)
+
+
+def _verifier_place(octets: int, dossier: Path) -> None:
+    """Trois fois la taille de l'extrait : le fichier, la base et l'index des
+    nœuds le temps de l'import."""
+    if octets > TAILLE_MAX:
+        raise ExtraitEcarte(f"extrait trop gros ({octets / 1024 ** 3:.1f} Go), Overpass reste la source")
+    if shutil.disk_usage(dossier).free < 3 * octets:
+        raise ExtraitEcarte(f"place disque insuffisante pour {octets / 1024 ** 2:.0f} Mo, "
+                            "Overpass reste la source")
+
+
+def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=time.sleep) -> None:
+    """Le PBF, vérifié par le MD5 publié à côté du fichier daté vers lequel
+    renvoie l'adresse « -latest » : une version parue entre-temps ne fait pas
+    refuser le bon fichier, et un fichier qui ne correspond pas n'est jamais
+    importé. Chaque requête a ESSAIS essais, et le PBF reprend là où le flux
+    s'est coupé (en-tête Range). Taille et place disque se vérifient dès les
+    en-têtes, ici, en tâche de fond, et non dans une requête de la page."""
     ouvrir = ouvrir or urllib.request.urlopen
-    with ouvrir(urllib.request.Request(url + ".md5", headers=AGENT), timeout=30) as reponse:
-        attendu = reponse.read(4096).decode("ascii", "replace").split()[0].lower()
-    somme, recu = hashlib.md5(usedforsecurity=False), 0
     partiel = atomique.chemin_part(cible)
-    try:
-        with ouvrir(urllib.request.Request(url, headers=AGENT), timeout=120) as reponse, open(partiel, "wb") as sortie:
-            total = int(reponse.headers.get("Content-Length") or 0)
-            if total > TAILLE_MAX:
-                raise ErreurExtrait(f"Extrait trop gros ({total / 1024 ** 2:.0f} Mo).")
+    flux = {"adresse": url, "recu": 0, "total": 0, "somme": hashlib.md5(usedforsecurity=False)}
+
+    def lire_pbf():
+        recu = flux["recu"]
+        entetes = {**AGENT, **({"Range": f"bytes={recu}-"} if recu else {})}
+        with ouvrir(urllib.request.Request(flux["adresse"], headers=entetes), timeout=DELAI_S) as reponse, \
+                open(partiel, "r+b" if recu else "wb") as sortie:
+            flux["adresse"] = reponse.geturl() or flux["adresse"]
+            if recu and reponse.status != 206:      # reprise refusée : tout recommencer
+                recu, flux["somme"] = 0, hashlib.md5(usedforsecurity=False)
+                sortie.truncate(0)
+            sortie.seek(recu)
+            if not flux["total"]:
+                flux["total"] = recu + int(reponse.headers.get("Content-Length") or 0)
+                _verifier_place(flux["total"], cible.parent)
+                journal.info("Geofabrik : %s, %d Mo", flux["adresse"].rsplit("/", 1)[-1],
+                             flux["total"] // 1024 ** 2)
             while bloc := reponse.read(1 << 20):
-                somme.update(bloc)
+                flux["somme"].update(bloc)
                 sortie.write(bloc)
                 recu += len(bloc)
-                if suivi and total:
-                    suivi(recu / total)
-        if somme.hexdigest() != attendu:
-            raise ErreurExtrait(f"Empreinte MD5 inattendue pour {url} : extrait refusé.")
+                flux["recu"] = recu
+                if suivi and flux["total"]:
+                    suivi(min(recu / flux["total"], 1.0))
+        if recu < flux["total"]:
+            raise http.client.IncompleteRead(b"", flux["total"] - recu)
+
+    def lire_md5():
+        demande = urllib.request.Request(flux["adresse"] + ".md5", headers=AGENT)
+        with ouvrir(demande, timeout=DELAI_S) as reponse:
+            return reponse.read(4096).decode("ascii", "replace").split()[0].lower()
+
+    try:
+        _avec_essais(lire_pbf, attendre)
+        if flux["somme"].hexdigest() != _avec_essais(lire_md5, attendre):
+            raise ErreurExtrait(f"Empreinte MD5 inattendue pour {flux['adresse']} : extrait refusé.")
         atomique.remplacer(partiel, cible)
     finally:
         partiel.unlink(missing_ok=True)
@@ -534,16 +606,20 @@ class Telechargements:
         self._etat = None
         self._fil = None
         self._echecs = {}       # id de région -> instant (monotonic) du dernier échec
+        self._ecartes = set()   # trop gros, ou place disque insuffisante : Overpass seul
 
     def etat(self) -> dict | None:
         return dict(self._etat) if self._etat else None
 
     def lancer(self, region: dict) -> bool:
-        """Faux si un téléchargement tourne déjà, ou si celui de cette région a
-        échoué il y a moins de REESSAI_S : le téléchargement étant automatique,
-        une panne ne doit pas le relancer à chaque demande de la page."""
+        """Faux si un téléchargement tourne déjà, si cette région est écartée
+        (trop grosse, disque trop plein) ou si son téléchargement a échoué il y
+        a moins de REESSAI_S : le téléchargement étant automatique, une panne
+        ne doit pas le relancer à chaque demande de la page."""
         with self._verrou:
             if self._fil and self._fil.is_alive():
+                return False
+            if region["id"] in self._ecartes:
                 return False
             if time.monotonic() - self._echecs.get(region["id"], -self.REESSAI_S) < self.REESSAI_S:
                 return False
@@ -561,10 +637,16 @@ class Telechargements:
     def _executer(self, region: dict) -> None:
         try:
             resultat = installer(self.dossier, region, suivi=self._suivre)
+        except ExtraitEcarte as exc:
+            journal.warning("Extrait Geofabrik %s non téléchargé : %s", region["id"], exc)
+            self._ecartes.add(region["id"])
+            self._etat = {**self._etat, "etape": "erreur", "erreur": str(exc)}
         except Exception as exc:        # toute panne s'affiche dans la page et le journal
             journal.warning("Extrait Geofabrik %s non installé : %s", region["id"], exc)
             self._echecs[region["id"]] = time.monotonic()
-            self._etat = {**self._etat, "etape": "erreur", "erreur": str(exc)}
+            reprise = time.strftime("%H:%M", time.localtime(time.time() + self.REESSAI_S))
+            self._etat = {**self._etat, "etape": "erreur",
+                          "erreur": f"{message(exc)} ; nouvel essai après {reprise}"}
         else:
             self._etat = {**self._etat, "etape": "fini", "date": resultat["date"]}
 

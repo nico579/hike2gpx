@@ -3,7 +3,9 @@ format d'Overpass, téléchargement vérifié, tâche de fond."""
 import hashlib
 import io
 import json
+import re
 import time
+import urllib.error
 
 import numpy as np
 import pytest
@@ -108,6 +110,16 @@ def test_charger_tuile_prend_l_extrait_sans_overpass(tmp_path):
     assert fr.charger_tuile(900, 120, tmp_path, interroger=lambda texte, **_: [])["elements"] == []
 
 
+def test_le_calque_lit_d_abord_les_tuiles_de_l_extrait(tmp_path):
+    # La barre de la page file avec elles, puis attend Overpass pour les tuiles
+    # qu'aucun extrait ne contient tout entières (au bord d'une région).
+    carte, _, _ = carte_d_essai()
+    installer_carte(tmp_path, carte)
+    tuiles = [(900, 120), (866, 120), (901, 120), (866, 121)]
+    assert fr._couvertes_d_abord(tuiles, tmp_path) == [(866, 120), (866, 121), (900, 120), (901, 120)]
+    assert fr._couvertes_d_abord(tuiles, tmp_path / "vide") == tuiles
+
+
 def test_la_plus_petite_region_qui_contient_toute_la_tuile():
     europe = region("europe", 35.0, -10.0, 60.0, 30.0)
     france = region("france", 42.0, -5.0, 51.0, 8.0)
@@ -146,16 +158,39 @@ def test_une_ligne_compte_dans_chaque_tuile_qu_elle_traverse():
 
 
 class Reponse(io.BytesIO):
-    def __init__(self, donnees, entetes=None):
+    def __init__(self, donnees, entetes=None, url="", status=200):
         super().__init__(donnees)
         self.headers = entetes or {}
+        self.url, self.status = url, status
+
+    def geturl(self):
+        return self.url
 
 
-def faux_geofabrik(fichiers):
+def faux_geofabrik(fichiers, renvois=None):
+    """fichiers : adresse -> contenu ; renvois : adresse « -latest » -> adresse
+    datée, comme la redirection de Geofabrik. Un en-tête Range rend la suite
+    du fichier, en 206."""
+    renvois = renvois or {}
+
     def ouvrir(demande, timeout):
-        contenu = fichiers[demande.full_url]
-        return Reponse(contenu, {"Content-Length": str(len(contenu))})
+        adresse = renvois.get(demande.full_url, demande.full_url)
+        contenu = fichiers[adresse]
+        plage = demande.get_header("Range")
+        if plage:
+            reste = contenu[int(plage.split("=")[1].rstrip("-")):]
+            return Reponse(reste, {"Content-Length": str(len(reste))}, adresse, 206)
+        return Reponse(contenu, {"Content-Length": str(len(contenu))}, adresse)
     return ouvrir
+
+
+class Coupee(Reponse):
+    """Un flux qui se coupe après un mégaoctet, comme une connexion perdue."""
+
+    def read(self, n=-1):
+        if self.tell() >= 1 << 20:
+            raise ConnectionResetError("connexion coupée")
+        return super().read(n)
 
 
 def test_telechargement_verifie_par_le_md5(tmp_path):
@@ -170,6 +205,111 @@ def test_telechargement_verifie_par_le_md5(tmp_path):
     geofabrik._telecharger(url, cible, suivi=vu.append,
                            ouvrir=faux_geofabrik({url: contenu, url + ".md5": f"{md5}  essai".encode()}))
     assert cible.read_bytes() == contenu and vu == [1.0]
+
+
+def test_telechargement_resiste_aux_pannes_passageres(tmp_path):
+    # Le 2026-10-20, l'extrait Centre a échoué sur un délai de 30 s : Geofabrik
+    # met parfois une minute à répondre. Un délai dépassé ne suffit plus.
+    contenu = b"PBF" * 1000
+    url = "https://exemple/essai-latest.osm.pbf"
+    vrai = faux_geofabrik({url: contenu, url + ".md5": hashlib.md5(contenu).hexdigest().encode()})
+    pannes = [TimeoutError("The read operation timed out")]
+
+    def ouvrir(demande, timeout):
+        assert timeout == geofabrik.DELAI_S
+        if pannes:
+            raise pannes.pop()
+        return vrai(demande, timeout)
+
+    pauses = []
+    geofabrik._telecharger(url, tmp_path / "essai.osm.pbf", ouvrir=ouvrir, attendre=pauses.append)
+    assert (tmp_path / "essai.osm.pbf").read_bytes() == contenu and pauses == [geofabrik.PAUSES_S[0]]
+    # Une panne qui dure : ESSAIS essais, puis l'échec dit en clair.
+
+    def toujours(demande, timeout):
+        raise urllib.error.URLError(TimeoutError("timed out"))
+
+    pauses.clear()
+    with pytest.raises(urllib.error.URLError) as panne:
+        geofabrik._telecharger(url, tmp_path / "autre.osm.pbf", ouvrir=toujours, attendre=pauses.append)
+    assert pauses == list(geofabrik.PAUSES_S) and len(pauses) == geofabrik.ESSAIS - 1
+    assert geofabrik.message(panne.value) == "Geofabrik ne répond pas (délai dépassé)"
+    assert geofabrik.message(urllib.error.HTTPError(url, 503, "", {}, None)) == "Geofabrik répond HTTP 503"
+    assert not list(tmp_path.glob("autre*"))
+
+
+def test_telechargement_reprend_le_fichier_date_ou_le_flux_s_est_coupe(tmp_path):
+    # « -latest » renvoie au fichier du jour : la reprise et le MD5 le visent,
+    # pour qu'une version parue entre-temps ne mélange pas deux fichiers.
+    contenu = bytes(range(256)) * 8192          # deux mégaoctets, deux lectures
+    url = "https://exemple/essai-latest.osm.pbf"
+    date = "https://exemple/essai-261018.osm.pbf"
+    vrai = faux_geofabrik({date: contenu, date + ".md5": hashlib.md5(contenu).hexdigest().encode()},
+                          renvois={url: date})
+    demandes = []
+
+    def ouvrir(demande, timeout):
+        demandes.append((demande.full_url, demande.get_header("Range")))
+        reponse = vrai(demande, timeout)
+        if len(demandes) == 1:
+            return Coupee(reponse.getvalue(), reponse.headers, reponse.url, reponse.status)
+        return reponse
+
+    vu = []
+    geofabrik._telecharger(url, tmp_path / "essai.osm.pbf", suivi=vu.append, ouvrir=ouvrir, attendre=lambda s: None)
+    assert (tmp_path / "essai.osm.pbf").read_bytes() == contenu
+    assert demandes == [(url, None), (date, "bytes=1048576-"), (date + ".md5", None)]
+    assert vu == [0.5, 1.0]
+
+
+def test_reprise_refusee_le_fichier_recommence(tmp_path):
+    contenu = bytes(range(256)) * 8192
+    url = "https://exemple/essai-latest.osm.pbf"
+    plages = []
+
+    def ouvrir(demande, timeout):
+        if demande.full_url.endswith(".md5"):
+            return Reponse(hashlib.md5(contenu).hexdigest().encode(), {}, demande.full_url)
+        plages.append(demande.get_header("Range"))
+        # Le serveur ignore Range : 200 et tout le fichier.
+        classe = Coupee if len(plages) == 1 else Reponse
+        return classe(contenu, {"Content-Length": str(len(contenu))}, url)
+
+    geofabrik._telecharger(url, tmp_path / "essai.osm.pbf", ouvrir=ouvrir, attendre=lambda s: None)
+    assert (tmp_path / "essai.osm.pbf").read_bytes() == contenu and plages == [None, "bytes=1048576-"]
+
+
+def test_extrait_trop_gros_ecarte_sans_nouvel_essai(tmp_path, monkeypatch):
+    url = "https://exemple/essai-latest.osm.pbf"
+
+    def ouvrir(demande, timeout):
+        return Reponse(b"", {"Content-Length": str(geofabrik.TAILLE_MAX + 1)}, url)
+
+    with pytest.raises(geofabrik.ExtraitEcarte, match="trop gros"):
+        geofabrik._telecharger(url, tmp_path / "essai.osm.pbf", ouvrir=ouvrir, attendre=pytest.fail)
+
+    def trop_gros(dossier, region, suivi=None):
+        raise geofabrik.ExtraitEcarte("extrait trop gros (2.1 Go), Overpass reste la source")
+
+    monkeypatch.setattr(geofabrik, "installer", trop_gros)
+    taches = geofabrik.Telechargements(tmp_path)
+    assert taches.lancer(REGION)
+    taches._fil.join(10)
+    assert taches.etat()["etape"] == "erreur" and "trop gros" in taches.etat()["erreur"]
+    assert not taches.lancer(REGION)
+
+
+def test_panne_dite_en_clair_avec_l_heure_du_nouvel_essai(tmp_path, monkeypatch):
+    def panne(dossier, region, suivi=None):
+        raise TimeoutError("The read operation timed out")
+
+    monkeypatch.setattr(geofabrik, "installer", panne)
+    taches = geofabrik.Telechargements(tmp_path)
+    assert taches.lancer(REGION)
+    taches._fil.join(10)
+    assert re.fullmatch(r"Geofabrik ne répond pas \(délai dépassé\) ; nouvel essai après \d\d:\d\d",
+                        taches.etat()["erreur"])
+    assert not taches.lancer(REGION)       # pas avant une heure
 
 
 def test_installation_en_tache_de_fond_puis_renouvellement(tmp_path, monkeypatch):

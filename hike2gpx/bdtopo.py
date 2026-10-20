@@ -126,15 +126,21 @@ def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=
 
 
 def troncons_zone(sud: float, ouest: float, nord: float, est: float, dossier, *, continuer=None,
-                  **options) -> list:
+                  suivi=None, **options) -> list:
     """Tronçons des tuiles de la zone ; un tronçon à cheval sur deux tuiles
-    n'est rendu qu'une fois. continuer() faux (vue quittée) arrête la lecture."""
+    n'est rendu qu'une fois. continuer() faux (vue quittée) arrête la lecture ;
+    suivi(faites, total), tuile après tuile, pour la barre de la page."""
     vus, resultat = set(), []
-    for i, j in tuiles_zone(sud, ouest, nord, est):
+    tuiles = tuiles_zone(sud, ouest, nord, est)
+    if suivi:
+        suivi(0, len(tuiles))
+    for k, (i, j) in enumerate(tuiles):
         if continuer and not continuer():
             raise VueRemplacee()
         for t in charger_tuile(i, j, dossier, **options):
             if t["id"] not in vus:
                 vus.add(t["id"])
                 resultat.append(t)
+        if suivi:
+            suivi(k + 1, len(tuiles))
     return resultat
