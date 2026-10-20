@@ -23,12 +23,14 @@ import os
 import shutil
 import socket
 import subprocess
+import struct
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+import zlib
 from pathlib import Path
 
 from nico579_commons import atomique, enfants
@@ -129,18 +131,56 @@ def segments_zone(sud: float, ouest: float, nord: float, est: float) -> list:
             for lon in range(math.floor(ouest / 5) * 5, math.floor(est / 5) * 5 + 1, 5)]
 
 
-def _telecharger(url: str, cible: Path, sha256: str | None = None) -> Path:
+def rd5_entier(chemin: Path) -> bool:
+    """Un RD5 complet, selon la règle de BRouter lui-même (PhysicalFile,
+    1.7.10) : ses 200 premiers octets indexent ses 25 sous-tuiles, et la
+    dernière entrée marque la fin des données. Le fichier s'arrête là
+    (ancien format), ou porte ensuite un pied d'au moins 112 octets où
+    figure le CRC de cet en-tête. Un téléchargement coupé net y échoue."""
+    try:
+        with open(chemin, "rb") as f:
+            entete = f.read(200)
+            taille = os.fstat(f.fileno()).st_size
+            if len(entete) < 200:
+                return False
+            fin = struct.unpack(">25q", entete)[24] & 0xFFFFFFFFFFFF
+            if taille == fin:
+                return True
+            if taille - fin < 112:
+                return False
+            f.seek(fin + 8)
+            crc = int.from_bytes(f.read(4), "big")
+    except OSError:
+        return False
+    # Le CRC32 de BRouter (btools.util.Crc32) ne s'inverse pas à la fin comme
+    # celui de zlib ; « ^ 2 » marque le nouveau format.
+    attendu = zlib.crc32(entete) ^ 0xFFFFFFFF
+    return crc in (attendu, attendu ^ 2)
+
+
+def _telecharger(url: str, cible: Path, sha256: str | None = None, valider=None) -> Path:
+    """Publie cible une fois le fichier reçu en entier. Un transfert plus
+    court que la longueur annoncée est refusé : lu par blocs, urllib ne le
+    signale pas de lui-même (rapport du 2026-10-20 : un RD5 de 3 octets sur
+    10 publié comme installé). valider(fichier) : contrôle de son contenu."""
     cible.parent.mkdir(parents=True, exist_ok=True)
     partiel = atomique.chemin_part(cible)
     empreinte = hashlib.sha256()
     demande = urllib.request.Request(url, headers={"User-Agent": f"hike2gpx/{__version__}"})
     try:
+        recu = 0
         with urllib.request.urlopen(demande, timeout=60) as reponse, open(partiel, "wb") as sortie:
+            annonce = (getattr(reponse, "headers", None) or {}).get("Content-Length")
             while bloc := reponse.read(1 << 20):
                 empreinte.update(bloc)
                 sortie.write(bloc)
+                recu += len(bloc)
+        if annonce is not None and str(annonce).isdigit() and recu != int(annonce):
+            raise ErreurBRouter(f"Téléchargement interrompu : {url} ({recu} octets sur {annonce}).")
         if sha256 and empreinte.hexdigest() != sha256:
             raise ErreurBRouter(f"Empreinte inattendue pour {url} : téléchargement refusé.")
+        if valider is not None and not valider(partiel):
+            raise ErreurBRouter(f"Fichier reçu incomplet ou illisible : {url}.")
         atomique.remplacer(partiel, cible)
     except OSError as exc:
         raise ErreurBRouter(f"Téléchargement impossible : {url} ({exc}).") from exc
@@ -233,12 +273,21 @@ class Installation:
         (self.profils_maison / f"{PROFIL}.brf").write_text(profil_maison(profil_hike2gpx(source)), encoding="utf-8")
 
     def segment_present(self, nom: str) -> bool:
-        return (self.segments / f"{nom}.rd5").is_file()
+        """La tuile est là, et entière : un RD5 tronqué, d'avant le contrôle
+        de longueur, se retélécharge au lieu de passer pour installé."""
+        chemin = self.segments / f"{nom}.rd5"
+        if not chemin.is_file():
+            return False
+        if rd5_entier(chemin):
+            return True
+        journal.warning("Tuile BRouter %s incomplète (%d octets) : elle se télécharge à nouveau", nom,
+                        chemin.stat().st_size)
+        return False
 
     def telecharger_segment(self, nom: str) -> Path:
         if not (len(nom) <= 8 and nom[0] in "EW" and "_" in nom):
             raise ValueError(f"Nom de tuile BRouter invalide : {nom}")
-        return _telecharger(SEGMENTS_URL + f"{nom}.rd5", self.segments / f"{nom}.rd5")
+        return _telecharger(SEGMENTS_URL + f"{nom}.rd5", self.segments / f"{nom}.rd5", valider=rd5_entier)
 
 
 def java() -> str:
