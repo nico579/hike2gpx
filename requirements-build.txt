@@ -214,9 +214,9 @@ defusedxml==0.7.1 \
     # via
     #   -r requirements.txt
     #   gpx2elev
-gpx2elev==0.6.3 \
-    --hash=sha256:8ba51830def311e22ee6e86984e5fdbcdf02c22bf7fe95525370bb52d19f0c8a \
-    --hash=sha256:a905aeeb33895462eb504b08e4fd3bdf757ce5c76880a11847cecef4640ca23e
+gpx2elev==0.6.4 \
+    --hash=sha256:167e4e0a93192d4760142036bf79ac5992eaee563ca1685ab6d1275005039cc1 \
+    --hash=sha256:6f112754ed49cec5b5e2c56bc7b8f8b77950ad6ed8a750b0e8759e8444a7a331
     # via -r requirements.txt
 idna==3.20 \
     --hash=sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44 \
@@ -232,9 +232,9 @@ macholib==1.16.4 ; sys_platform == 'darwin' \
     --hash=sha256:da1a3fa8266e30f0ce7e97c6a54eefaae8edd1e5f86f3eb8b95457cae90265ea \
     --hash=sha256:f408c93ab2e995cd2c46e34fe328b130404be143469e41bc366c807448979362
     # via pyinstaller
-nico579-commons==0.5.2 \
-    --hash=sha256:1f1996ea35f2e866ed539574ccd10176bdef39b4bd4f9d239dcbf25b20d85c5f \
-    --hash=sha256:560bb938155be98ae3069523ad54d6ffa13866bc503ec68bdd7a24688b41c23d
+nico579-commons==0.6.0 \
+    --hash=sha256:9553c19fc415be1a4388b2ef024e2fda072b4abf9f58cdfb65a78f5415ea4ecb \
+    --hash=sha256:b5bf96416928c953b03de4ef2476fbc1513d34b7547c29f2a498f6279ede8951
     # via
     #   -r requirements.txt
     #   gpx2elev

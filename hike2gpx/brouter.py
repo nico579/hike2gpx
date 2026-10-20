@@ -31,7 +31,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from nico579_commons import atomique
+from nico579_commons import atomique, enfants
 
 from . import __version__
 
@@ -290,7 +290,7 @@ def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path) -> Path:
     ]
     options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     for etape in etapes:
-        r = subprocess.run(commande + etape, cwd=dossier, capture_output=True, text=True, encoding="utf-8",
+        r = enfants.lancer(commande + etape, cwd=dossier, capture_output=True, text=True, encoding="utf-8",
                            errors="replace", stdin=subprocess.DEVNULL, **options)
         if r.returncode:
             classe = next(e for e in etape if e.startswith("btools")).rsplit(".", 1)[-1]
@@ -299,9 +299,10 @@ def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path) -> Path:
 
 
 class Serveur:
-    """Un serveur BRouter de cette instance, arrêté par son propre PID. Par
-    défaut sur les tuiles et profils de BRouter ; les tuiles maison passent
-    leurs propres dossiers."""
+    """Un serveur BRouter de cette instance, arrêté par son propre PID, et qui
+    meurt avec hike2gpx si celui-ci meurt sans l'arrêter (console fermée,
+    processus tué) : nico579_commons.enfants. Par défaut sur les tuiles et
+    profils de BRouter ; les tuiles maison passent leurs propres dossiers."""
 
     def __init__(self, installation: Installation, port: int | None = None, *,
                  segments: Path | None = None, profils: Path | None = None):
@@ -322,10 +323,13 @@ class Serveur:
         options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
         debut = time.monotonic()
         try:
-            self.processus = subprocess.Popen(commande, cwd=inst.racine, stdout=sortie,
+            self.processus = enfants.demarrer(commande, cwd=inst.racine, stdout=sortie,
                                               stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **options)
         finally:
             sortie.close()
+        if not self.processus.rattache:
+            journal.warning("BRouter (PID %d) n'est pas lié à hike2gpx : il lui survivrait "
+                            "si hike2gpx mourait sans l'arrêter", self.processus.pid)
         fin = debut + attente_s
         while time.monotonic() < fin:
             if self.processus.poll() is not None:
@@ -349,6 +353,13 @@ class Serveur:
                 self.processus.wait(5)
             except subprocess.TimeoutExpired:
                 self.processus.kill()
+                # Attendu aussi : un processus jamais ramassé garderait son
+                # lien (le guetteur de nico579_commons.enfants) jusqu'à la fin
+                # de hike2gpx.
+                try:
+                    self.processus.wait(5)
+                except subprocess.TimeoutExpired:
+                    pass
             journal.info("BRouter arrêté : port %d, PID %d", self.port, self.processus.pid)
         self.processus = None
 
