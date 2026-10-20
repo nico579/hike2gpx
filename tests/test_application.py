@@ -277,6 +277,26 @@ def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypat
     assert "extrait_en_cours" not in appli.Application(tmp_path / "autre").calque_osm(vue)
 
 
+def test_une_autre_region_prend_la_place_de_l_extrait_en_cours(tmp_path, monkeypatch):
+    # Nico, 2026-10-20 : passé du Centre à la Bretagne, il attendait la fin du
+    # Centre. La page demandait bien la Bretagne, mais l'extrait en cours,
+    # d'où qu'il soit, était rendu tel quel, sans rien lancer.
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
+    lancees = []
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
+    monkeypatch.setattr(franchissements, "voies_affichables", lambda *z, **o: {"voies": [], "barrieres": []})
+    monkeypatch.setattr(geofabrik.Telechargements, "etat",
+                        lambda self: {"id": "centre", "nom": "Centre", "etape": "import"})
+    vue = (43.30, 6.00, 43.34, 6.08)
+    assert a.calque_osm(vue)["extrait_en_cours"]["id"] == REGION_PACA["id"]
+    assert lancees == [REGION_PACA["id"]]
+    # La même région déjà en cours : rien ne repart.
+    monkeypatch.setattr(geofabrik.Telechargements, "etat",
+                        lambda self: {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"], "etape": "import"})
+    assert a.calque_osm(vue)["extrait_en_cours"]["id"] == REGION_PACA["id"] and lancees == [REGION_PACA["id"]]
+
+
 def test_un_calque_publie_son_avancement_tuile_apres_tuile(tmp_path, monkeypatch):
     # La page en tire la barre de sa note (« 2 sur 6 tuiles · 12 s »).
     a = appli.Application(tmp_path)
