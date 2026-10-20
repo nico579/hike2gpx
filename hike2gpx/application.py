@@ -648,9 +648,6 @@ class Application:
         if geofabrik.extrait_de_tuile(self.dossier, i, j):
             return None
         taches = geofabrik.telechargements(self.dossier)
-        en_cours = taches.etat()
-        if en_cours and en_cours["etape"] in ("telechargement", "import"):
-            return {"id": en_cours["id"], "nom": en_cours["nom"]}
         try:
             region = geofabrik.region_de_tuile(geofabrik.regions(self.dossier), i, j)
         except geofabrik.ErreurExtrait as exc:
@@ -658,8 +655,13 @@ class Application:
             return None
         if region is None:
             return None
+        # La même région déjà en cours : rien à relancer. Une autre : elle cède
+        # la place à celle-ci (Telechargements.lancer, le dernier usage l'emporte).
+        en_cours = taches.etat()
+        if en_cours and en_cours["etape"] in ("telechargement", "import") and en_cours["id"] == region["id"]:
+            return {"id": en_cours["id"], "nom": en_cours["nom"]}
         if not taches.lancer(region):
-            return None         # autre téléchargement en cours, région écartée, ou échec de moins d'une heure
+            return None         # région écartée, ou échec de moins d'une heure
         journal.info("Extrait Geofabrik %s : téléchargement lancé (%s)", region["id"], raison)
         return {"id": region["id"], "nom": region["nom"]}
 

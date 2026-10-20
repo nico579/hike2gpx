@@ -429,11 +429,42 @@ def _commande_import(pbf: Path, base: Path, region_json: Path, date: str) -> lis
     return [*prefixe, "--importer-extrait", str(pbf), str(base), str(region_json), date]
 
 
-def _importer_a_part(pbf: Path, base: Path, region: dict, date: str, suivi=None) -> dict:
+class Abandon(Exception):
+    """Une autre région sert désormais : ce téléchargement s'arrête, sans
+    compter comme un échec."""
+
+
+def _effacer(chemin: Path, essais: int = 30) -> None:
+    """Efface un fichier de travail, en laissant au processus d'import qu'on
+    vient d'arrêter le temps de le relâcher : sous Windows, le python.exe d'un
+    venv n'est qu'un lanceur, et le vrai interpréteur meurt un peu après lui
+    (WinError 5 constaté le 2026-10-20). Ce qui résiste reste, sans erreur :
+    la prochaine installation de la région le reprend."""
+    for _ in range(essais):
+        try:
+            chemin.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            time.sleep(0.1)
+    journal.warning("Fichier de travail laissé, encore pris : %s", chemin)
+
+
+def _surveiller(processus, continuer) -> None:
+    """Met fin à l'import dès que continuer() devient faux. Un fil à part :
+    l'import ne dit rien tant qu'il lit les nœuds, sa sortie ne suffit pas."""
+    while processus.poll() is None:
+        if not continuer():
+            processus.terminate()
+            return
+        time.sleep(0.5)
+
+
+def _importer_a_part(pbf: Path, base: Path, region: dict, date: str, suivi=None, continuer=None) -> dict:
     """importer() dans un processus à part, suivi par sa sortie : « voies N »
     au fil de l'import, « fini {comptes} » au bout. Il meurt avec hike2gpx
     (nico579_commons.enfants) : orphelin, il écrirait encore la base quand
-    l'instance suivante relance le même import."""
+    l'instance suivante relance le même import. continuer() faux l'arrête
+    (Abandon)."""
     description = base.with_name(base.name + ".region.json")
     description.write_text(json.dumps(region), encoding="utf-8")
     options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
@@ -443,6 +474,9 @@ def _importer_a_part(pbf: Path, base: Path, region: dict, date: str, suivi=None)
         with enfants.demarrer(_commande_import(pbf, base, description, date), stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, text=True, encoding="utf-8",
                               errors="replace", cwd=racine, **options) as processus:
+            if continuer:
+                threading.Thread(target=_surveiller, args=(processus, continuer), daemon=True,
+                                 name="geofabrik-import-surveillance").start()
             for ligne in processus.stdout:
                 mots = ligne.split(maxsplit=1)
                 if mots[:1] == ["voies"] and len(mots) == 2 and mots[1].strip().isdigit():
@@ -453,8 +487,10 @@ def _importer_a_part(pbf: Path, base: Path, region: dict, date: str, suivi=None)
                 else:
                     fin = (fin + [ligne.rstrip()])[-20:]
     finally:
-        description.unlink(missing_ok=True)
-        stockage_des_noeuds(base).unlink(missing_ok=True)
+        _effacer(description)
+        _effacer(stockage_des_noeuds(base))
+    if continuer and not continuer() and compte is None:
+        raise Abandon()
     if processus.returncode or compte is None:
         raise ErreurExtrait("Import de l'extrait impossible : " + " | ".join(fin)[-400:])
     return compte
@@ -508,18 +544,22 @@ def _verifier_place(octets: int, dossier: Path) -> None:
                             "Overpass reste la source")
 
 
-def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=time.sleep) -> None:
+def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=time.sleep, continuer=None) -> None:
     """Le PBF, vérifié par le MD5 publié à côté du fichier daté vers lequel
     renvoie l'adresse « -latest » : une version parue entre-temps ne fait pas
     refuser le bon fichier, et un fichier qui ne correspond pas n'est jamais
     importé. Chaque requête a ESSAIS essais, et le PBF reprend là où le flux
     s'est coupé (en-tête Range). Taille et place disque se vérifient dès les
-    en-têtes, ici, en tâche de fond, et non dans une requête de la page."""
+    en-têtes, ici, en tâche de fond, et non dans une requête de la page.
+    continuer() faux arrête tout, à chaque mégaoctet (Abandon)."""
     ouvrir = ouvrir or urllib.request.urlopen
+    continuer = continuer or (lambda: True)
     partiel = atomique.chemin_part(cible)
     flux = {"adresse": url, "recu": 0, "total": 0, "somme": hashlib.md5(usedforsecurity=False)}
 
     def lire_pbf():
+        if not continuer():
+            raise Abandon()
         recu = flux["recu"]
         entetes = {**AGENT, **({"Range": f"bytes={recu}-"} if recu else {})}
         with ouvrir(urllib.request.Request(flux["adresse"], headers=entetes), timeout=DELAI_S) as reponse, \
@@ -535,6 +575,8 @@ def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=tim
                 journal.info("Geofabrik : %s, %d Mo", flux["adresse"].rsplit("/", 1)[-1],
                              flux["total"] // 1024 ** 2)
             while bloc := reponse.read(1 << 20):
+                if not continuer():
+                    raise Abandon()
                 flux["somme"].update(bloc)
                 sortie.write(bloc)
                 recu += len(bloc)
@@ -558,24 +600,29 @@ def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=tim
         partiel.unlink(missing_ok=True)
 
 
-def installer(dossier, region: dict, *, suivi=None, ouvrir=None) -> dict:
+def installer(dossier, region: dict, *, suivi=None, ouvrir=None, continuer=None) -> dict:
     """Télécharge l'extrait, l'importe, puis remplace d'un coup l'ancienne base
-    (une lecture en cours la garde ouverte jusqu'au bout)."""
+    (une lecture en cours la garde ouverte jusqu'au bout). continuer() faux
+    arrête le téléchargement ou l'import (Abandon) ; rien n'en reste."""
     debut = time.monotonic()
     base = _base(dossier, region["id"])
     base.parent.mkdir(parents=True, exist_ok=True)
     pbf = base.with_suffix(".osm.pbf")
+    partielle = base.with_name(base.name + ".part")
+    # Ce qu'une installation abandonnée ou coupée par l'arrêt du programme a pu
+    # laisser pour cette région, téléchargement en cours (*.part) compris.
+    for reste in (pbf, partielle, stockage_des_noeuds(partielle), *pbf.parent.glob(f"{pbf.name}.*.part")):
+        _effacer(reste)
     try:
-        _telecharger(region["pbf"], pbf, ouvrir=ouvrir,
+        _telecharger(region["pbf"], pbf, ouvrir=ouvrir, continuer=continuer,
                      suivi=(lambda f: suivi("telechargement", f)) if suivi else None)
         date = date_des_donnees(pbf) or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        partielle = base.with_name(base.name + ".part")
         compte = _importer_a_part(pbf, partielle, {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones")},
-                                  date, suivi=(lambda n: suivi("import", n)) if suivi else None)
+                                  date, suivi=(lambda n: suivi("import", n)) if suivi else None, continuer=continuer)
         atomique.remplacer(partielle, base)
     finally:
-        pbf.unlink(missing_ok=True)
-        base.with_name(base.name + ".part").unlink(missing_ok=True)
+        _effacer(pbf)
+        _effacer(partielle)
     journal.info("Extrait Geofabrik %s installé en %.0f s : données du %s, %d voies, %d nœuds, %d itinéraires",
                  region["id"], time.monotonic() - debut, date, compte["voies"], compte["noeuds"],
                  compte["relations"])
@@ -605,6 +652,7 @@ class Telechargements:
         self._verrou = threading.Lock()
         self._etat = None
         self._fil = None
+        self._numero = 0        # tâche en cours ; une plus récente l'abandonne
         self._echecs = {}       # id de région -> instant (monotonic) du dernier échec
         self._ecartes = set()   # trop gros, ou place disque insuffisante : Overpass seul
 
@@ -612,43 +660,71 @@ class Telechargements:
         return dict(self._etat) if self._etat else None
 
     def lancer(self, region: dict) -> bool:
-        """Faux si un téléchargement tourne déjà, si cette région est écartée
-        (trop grosse, disque trop plein) ou si son téléchargement a échoué il y
-        a moins de REESSAI_S : le téléchargement étant automatique, une panne
-        ne doit pas le relancer à chaque demande de la page."""
+        """Faux si cette région se télécharge déjà, si elle est écartée (trop
+        grosse, disque trop plein) ou si son téléchargement a échoué il y a
+        moins de REESSAI_S : le téléchargement étant automatique, une panne ne
+        doit pas le relancer à chaque demande de la page. Une autre région en
+        cours est abandonnée, téléchargement ou import : le dernier usage
+        l'emporte (Nico, 2026-10-20 : passé du Centre à la Bretagne, il
+        attendait la fin du Centre, devenu inutile)."""
         with self._verrou:
-            if self._fil and self._fil.is_alive():
+            en_cours = self._fil is not None and self._fil.is_alive()
+            if en_cours and self._etat["id"] == region["id"]:
                 return False
             if region["id"] in self._ecartes:
                 return False
             if time.monotonic() - self._echecs.get(region["id"], -self.REESSAI_S) < self.REESSAI_S:
                 return False
+            if en_cours:
+                journal.info("Extrait Geofabrik %s abandonné : la région %s sert désormais", self._etat["id"],
+                             region["id"])
+            self._numero += 1
             self._etat = {"id": region["id"], "nom": region["nom"], "etape": "telechargement", "fraction": 0.0,
                           "voies": 0}
-            self._fil = threading.Thread(target=self._executer, args=(region,), daemon=True,
+            self._fil = threading.Thread(target=self._executer, args=(region, self._numero), daemon=True,
                                          name=f"geofabrik-{region['id']}")
             self._fil.start()
             return True
 
-    def _suivre(self, etape: str, valeur) -> None:
-        self._etat = {**self._etat, "etape": etape,
-                      **({"fraction": round(valeur, 3)} if etape == "telechargement" else {"voies": valeur})}
+    def _suivre(self, numero: int, etape: str, valeur) -> None:
+        if numero == self._numero:
+            self._etat = {**self._etat, "etape": etape,
+                          **({"fraction": round(valeur, 3)} if etape == "telechargement" else {"voies": valeur})}
 
-    def _executer(self, region: dict) -> None:
+    def _finir(self, numero: int, **etat) -> None:
+        """L'état de la page, si cette tâche est toujours celle en cours."""
+        if numero == self._numero:
+            self._etat = {**self._etat, **etat}
+
+    def _executer(self, region: dict, numero: int) -> None:
         try:
-            resultat = installer(self.dossier, region, suivi=self._suivre)
-        except ExtraitEcarte as exc:
+            resultat = installer(self.dossier, region, suivi=lambda etape, valeur: self._suivre(numero, etape, valeur),
+                                 continuer=lambda: numero == self._numero)
+        except Abandon:
+            return              # la région suivante a pris la place, et l'état de la page
+        except Exception as exc:
+            if numero != self._numero:
+                # Une erreur survenue en s'arrêtant n'est pas un échec : la région
+                # repartira sans attendre une heure si elle resert.
+                journal.info("Extrait Geofabrik %s abandonné (%s)", region["id"], exc)
+                return
+            self._echouer(region, numero, exc)
+        else:
+            self._finir(numero, etape="fini", date=resultat["date"])
+
+    def _echouer(self, region: dict, numero: int, exc: Exception) -> None:
+        """Une panne de la tâche en cours, dite dans la page et le journal. Une
+        région écartée (trop grosse, disque trop plein) ne repart plus ; après
+        toute autre panne, pas de nouvel essai avant REESSAI_S."""
+        if isinstance(exc, ExtraitEcarte):
             journal.warning("Extrait Geofabrik %s non téléchargé : %s", region["id"], exc)
             self._ecartes.add(region["id"])
-            self._etat = {**self._etat, "etape": "erreur", "erreur": str(exc)}
-        except Exception as exc:        # toute panne s'affiche dans la page et le journal
-            journal.warning("Extrait Geofabrik %s non installé : %s", region["id"], exc)
-            self._echecs[region["id"]] = time.monotonic()
-            reprise = time.strftime("%H:%M", time.localtime(time.time() + self.REESSAI_S))
-            self._etat = {**self._etat, "etape": "erreur",
-                          "erreur": f"{message(exc)} ; nouvel essai après {reprise}"}
-        else:
-            self._etat = {**self._etat, "etape": "fini", "date": resultat["date"]}
+            self._finir(numero, etape="erreur", erreur=str(exc))
+            return
+        journal.warning("Extrait Geofabrik %s non installé : %s", region["id"], exc)
+        self._echecs[region["id"]] = time.monotonic()
+        reprise = time.strftime("%H:%M", time.localtime(time.time() + self.REESSAI_S))
+        self._finir(numero, etape="erreur", erreur=f"{message(exc)} ; nouvel essai après {reprise}")
 
     def renouveler_si_perime(self, extrait: dict) -> None:
         """Lancé à chaque lecture d'un extrait trop vieux : l'ancien sert jusqu'à

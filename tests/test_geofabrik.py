@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import re
+import sys
 import time
 import urllib.error
 
@@ -288,7 +289,7 @@ def test_extrait_trop_gros_ecarte_sans_nouvel_essai(tmp_path, monkeypatch):
     with pytest.raises(geofabrik.ExtraitEcarte, match="trop gros"):
         geofabrik._telecharger(url, tmp_path / "essai.osm.pbf", ouvrir=ouvrir, attendre=pytest.fail)
 
-    def trop_gros(dossier, region, suivi=None):
+    def trop_gros(dossier, region, **options):
         raise geofabrik.ExtraitEcarte("extrait trop gros (2.1 Go), Overpass reste la source")
 
     monkeypatch.setattr(geofabrik, "installer", trop_gros)
@@ -300,7 +301,7 @@ def test_extrait_trop_gros_ecarte_sans_nouvel_essai(tmp_path, monkeypatch):
 
 
 def test_panne_dite_en_clair_avec_l_heure_du_nouvel_essai(tmp_path, monkeypatch):
-    def panne(dossier, region, suivi=None):
+    def panne(dossier, region, **options):
         raise TimeoutError("The read operation timed out")
 
     monkeypatch.setattr(geofabrik, "installer", panne)
@@ -310,6 +311,116 @@ def test_panne_dite_en_clair_avec_l_heure_du_nouvel_essai(tmp_path, monkeypatch)
     assert re.fullmatch(r"Geofabrik ne répond pas \(délai dépassé\) ; nouvel essai après \d\d:\d\d",
                         taches.etat()["erreur"])
     assert not taches.lancer(REGION)       # pas avant une heure
+
+
+def test_le_dernier_usage_l_emporte(tmp_path, monkeypatch):
+    # Nico, 2026-10-20 : passé du Centre à la Bretagne, il attendait la fin du
+    # Centre, devenu inutile. La région qui sert désormais prend la place.
+    abandonnes = []
+
+    def installer(dossier, region, suivi=None, continuer=None, **options):
+        while continuer():
+            if region["id"] == "bretagne":
+                return {"date": DATE}
+            time.sleep(0.01)
+        abandonnes.append(region["id"])
+        raise geofabrik.Abandon()
+
+    monkeypatch.setattr(geofabrik, "installer", installer)
+    taches = geofabrik.Telechargements(tmp_path)
+    centre, bretagne = {**REGION, "id": "centre", "nom": "Centre"}, {**REGION, "id": "bretagne", "nom": "Bretagne"}
+    assert taches.lancer(centre)
+    assert not taches.lancer(centre)                # la même région ne repart pas
+    premier = taches._fil
+    assert taches.lancer(bretagne)
+    premier.join(5)
+    taches._fil.join(5)
+    assert not premier.is_alive() and abandonnes == ["centre"]
+    assert taches.etat() == {"id": "bretagne", "nom": "Bretagne", "etape": "fini", "fraction": 0.0, "voies": 0,
+                             "date": DATE}
+    # Un abandon n'est pas un échec : le Centre repart aussitôt s'il resert.
+    assert taches.lancer(centre)
+    second = taches._fil
+    assert taches.lancer(bretagne)
+    second.join(5)
+    taches._fil.join(5)
+    assert abandonnes == ["centre", "centre"]
+
+
+def test_une_erreur_en_s_arretant_n_est_pas_un_echec(tmp_path, monkeypatch):
+    # Essai réel du 2026-10-20 : en abandonnant l'Auvergne, l'effacement de son
+    # index des nœuds a buté sur Windows (WinError 5) et compté comme un échec :
+    # la région ne pouvait plus repartir avant une heure.
+    def installer(dossier, region, continuer=None, **options):
+        while continuer():
+            if region["id"] == "alsace":
+                return {"date": DATE}
+            time.sleep(0.01)
+        raise PermissionError(5, "Accès refusé")
+
+    monkeypatch.setattr(geofabrik, "installer", installer)
+    taches = geofabrik.Telechargements(tmp_path)
+    auvergne, alsace = {**REGION, "id": "auvergne", "nom": "Auvergne"}, {**REGION, "id": "alsace", "nom": "Alsace"}
+    assert taches.lancer(auvergne)
+    premier = taches._fil
+    assert taches.lancer(alsace)
+    premier.join(5)
+    taches._fil.join(5)
+    assert "auvergne" not in taches._echecs and taches.etat()["etape"] == "fini"
+    assert taches.lancer(auvergne)                  # aucune heure d'attente
+    second = taches._fil
+    assert taches.lancer(alsace)
+    second.join(5)
+    taches._fil.join(5)
+
+
+def test_l_installation_efface_ce_qu_une_autre_a_laisse(tmp_path, monkeypatch):
+    # Un import abandonné, ou un téléchargement coupé par l'arrêt du programme,
+    # laisse ses fichiers de travail : la prochaine installation les efface.
+    base = geofabrik._base(tmp_path, REGION["id"])
+    base.parent.mkdir(parents=True)
+    restes = [base.with_suffix(".osm.pbf"), base.with_name(base.name + ".part"),
+              base.with_name(base.name + ".part.noeuds"), base.with_name(f"{REGION['id']}.osm.pbf.22632.989f.part")]
+    for reste in restes:
+        reste.write_bytes(b"reste")
+    vus = []
+
+    def telecharger(url, cible, **options):
+        vus.append([reste.exists() for reste in restes])
+        raise geofabrik.Abandon()
+
+    monkeypatch.setattr(geofabrik, "_telecharger", telecharger)
+    with pytest.raises(geofabrik.Abandon):
+        geofabrik.installer(tmp_path, REGION)
+    assert vus == [[False, False, False, False]]
+
+
+def test_un_import_abandonne_s_arrete_aussitot(tmp_path, monkeypatch):
+    # Un vrai processus, muet comme l'import pendant la lecture des nœuds : il
+    # s'arrête dès que la région ne sert plus, sans attendre sa sortie.
+    monkeypatch.setattr(geofabrik, "_commande_import", lambda *a: [sys.executable, "-c", "import time; time.sleep(60)"])
+    fin = time.monotonic() + 1
+    debut = time.monotonic()
+    with pytest.raises(geofabrik.Abandon):
+        geofabrik._importer_a_part(tmp_path / "e.osm.pbf", tmp_path / "e.sqlite.part", REGION, DATE,
+                                   continuer=lambda: time.monotonic() < fin)
+    assert time.monotonic() - debut < 10
+    assert not list(tmp_path.glob("*.region.json"))
+
+
+def test_un_telechargement_abandonne_ne_laisse_rien(tmp_path):
+    contenu = bytes(range(256)) * 8192
+    url = "https://exemple/essai-latest.osm.pbf"
+    lus = []
+
+    def continuer():
+        lus.append(1)
+        return len(lus) < 3
+
+    with pytest.raises(geofabrik.Abandon):
+        geofabrik._telecharger(url, tmp_path / "essai.osm.pbf", ouvrir=faux_geofabrik({url: contenu}),
+                               attendre=pytest.fail, continuer=continuer)
+    assert not list(tmp_path.iterdir())
 
 
 def test_installation_en_tache_de_fond_puis_renouvellement(tmp_path, monkeypatch):
