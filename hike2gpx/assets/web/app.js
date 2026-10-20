@@ -46,6 +46,20 @@ const TEXTES = {
     "reglages.cle": "Clé IGN pour le SCAN 25",
     "reglages.enregistrer": "Enregistrer",
     "reglages.note": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
+    "donnees.titre": "Données téléchargées",
+    "donnees.note": "Tout se retélécharge de soi-même au besoin : vider ou supprimer libère de la place, actualiser donne des données fraîches.",
+    "donnees.osm": "Chemins OSM lus sur Overpass : {n} tuiles, {taille}",
+    "donnees.bdtopo": "Chemins BD TOPO : {n} tuiles, {taille}",
+    "donnees.extrait": "Extrait {nom} du {date}, {taille}",
+    "donnees.extrait.provisoire": "Extrait {nom} du {date}, {taille}, en attendant sa région",
+    "donnees.brouter": "Tuiles BRouter {noms} : {taille}",
+    "donnees.restes": "Fichiers inutiles : {taille}",
+    "donnees.vider": "Vider",
+    "donnees.actualiser": "Actualiser",
+    "donnees.supprimer": "Supprimer",
+    "donnees.nettoyer": "Nettoyer",
+    "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
+    "unite.mo": "Mo",
     "journal.titre": "Journal des calculs",
     "journal.note": "Erreurs, blocages et lenteurs, du plus ancien au plus récent :",
     "journal.vide": "Journal vide pour l'instant.",
@@ -146,6 +160,20 @@ const TEXTES = {
     "reglages.cle": "IGN key for SCAN 25",
     "reglages.enregistrer": "Save",
     "reglages.note": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
+    "donnees.titre": "Downloaded data",
+    "donnees.note": "Everything downloads again by itself when needed: clearing or deleting frees space, refreshing brings fresh data.",
+    "donnees.osm": "OSM paths read from Overpass: {n} tiles, {taille}",
+    "donnees.bdtopo": "BD TOPO paths: {n} tiles, {taille}",
+    "donnees.extrait": "{nom} extract of {date}, {taille}",
+    "donnees.extrait.provisoire": "{nom} extract of {date}, {taille}, until its region arrives",
+    "donnees.brouter": "BRouter tiles {noms}: {taille}",
+    "donnees.restes": "Leftover files: {taille}",
+    "donnees.vider": "Clear",
+    "donnees.actualiser": "Refresh",
+    "donnees.supprimer": "Delete",
+    "donnees.nettoyer": "Clean up",
+    "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
+    "unite.mo": "MB",
     "journal.titre": "Calculation log",
     "journal.note": "Errors, blockages and slowness, oldest first:",
     "journal.vide": "The log is empty for now.",
@@ -265,6 +293,12 @@ const SERVEUR_EN = {
   "Hors connexion : les barrières de cette zone n'ont jamais été chargées.": "Offline: the barriers of this area were never loaded.",
   "Hors connexion : chemins BD TOPO de cette zone jamais chargés.": "Offline: the BD TOPO paths of this area were never loaded.",
   "Réponse Overpass trop volumineuse : barrières non vérifiées.": "Overpass response too large: barriers not checked.",
+  "Extrait inconnu.": "Unknown extract.",
+  "Cet extrait se télécharge déjà.": "This extract is already downloading.",
+  "Échec récent : nouvel essai possible dans moins d'une heure.": "Recent failure: a new try will be possible within the hour.",
+  "Un téléchargement BRouter est déjà en cours.": "A BRouter download is already running.",
+  "Aucune tuile BRouter à actualiser.": "No BRouter tile to refresh.",
+  "Action inconnue.": "Unknown action.",
 };
 
 let langue = "fr";
@@ -318,6 +352,7 @@ function appliquerLangue(code) {
   construireFonds();
   rafraichirCalques();
   afficherExtrait(etat.extrait);
+  afficherDonnees();
   afficherStatut(...etat.statut);
   if (etat.dernier) ecrireResultat(etat.dernier);
 }
@@ -1150,6 +1185,83 @@ $("enregistrerCle").addEventListener("click", async () => {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
   }
 });
+
+// ------------------------------------------------------------ données téléchargées
+
+// Nico, 2026-10-20 : « il faudrait une fonction pour vider le cache, dans les
+// réglages », « utile aussi pour actualiser les données rapidement ». Une
+// ligne par donnée, ses boutons visibles ; grisés pendant son téléchargement.
+function taille(octets) {
+  return `${decimal(octets / 1e6, octets < 1e7 ? 1 : 0)} ${t("unite.mo")}`;
+}
+
+function afficherDonnees(d) {
+  if (d) etat.donnees = d;
+  const donnees = etat.donnees;
+  if (!donnees) return;
+  const boite = $("donnees");
+  boite.replaceChildren();
+  const ligne = (texte, boutons) => {
+    const div = document.createElement("div");
+    div.className = "ligne-donnees";
+    const libelle = document.createElement("span");
+    libelle.textContent = texte;
+    div.append(libelle);
+    for (const { cle, action, cible, actif = true, confirmer } of boutons) {
+      const bouton = document.createElement("button");
+      bouton.type = "button";
+      bouton.textContent = t(cle);
+      bouton.disabled = !actif;
+      bouton.addEventListener("click", () => agirDonnees(action, cible, confirmer));
+      div.append(bouton);
+    }
+    boite.append(div);
+  };
+  const occupe = donnees.occupe || {};
+  for (const cache of ["osm", "bdtopo"]) {
+    const c = donnees[cache];
+    ligne(t(`donnees.${cache}`, { n: c.fichiers, taille: taille(c.octets) }),
+      [{ cle: "donnees.vider", action: `vider_${cache}`, actif: c.fichiers > 0 }]);
+  }
+  for (const e of donnees.extraits) {
+    const libre = occupe.extrait !== e.id;
+    ligne(t(e.provisoire ? "donnees.extrait.provisoire" : "donnees.extrait",
+      { nom: e.nom, date: dateCourte(e.date), taille: taille(e.octets) }), [
+      { cle: "donnees.actualiser", action: "actualiser_extrait", cible: e.id, actif: libre },
+      { cle: "donnees.supprimer", action: "supprimer_extrait", cible: e.id, actif: libre,
+        confirmer: t("donnees.confirmer", { nom: e.nom }) },
+    ]);
+  }
+  if (donnees.brouter.length) {
+    ligne(t("donnees.brouter", { noms: donnees.brouter.map((s) => s.nom).join(", "),
+      taille: taille(donnees.brouter.reduce((n, s) => n + s.octets, 0)) }),
+    [{ cle: "donnees.actualiser", action: "actualiser_brouter", actif: !occupe.brouter }]);
+  }
+  if (donnees.restes.fichiers) {
+    ligne(t("donnees.restes", { taille: taille(donnees.restes.octets) }),
+      [{ cle: "donnees.nettoyer", action: "nettoyer" }]);
+  }
+}
+
+async function chargerDonnees() {
+  try {
+    afficherDonnees(await api("donnees"));
+  } catch (e) { /* serveur momentanément injoignable : la section reste telle quelle */ }
+}
+
+async function agirDonnees(action, cible, confirmer) {
+  if (confirmer && !confirm(confirmer)) return;
+  try {
+    const r = await api("donnees", { action, cible });
+    if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
+    afficherDonnees(r);
+    majExtrait(true);       // un téléchargement lancé se suit dans le panneau
+  } catch (e) {
+    afficherStatut(() => t("statut.erreur", { message: e.message }), true);
+  }
+}
+
+$("reglages").addEventListener("toggle", () => { if ($("reglages").open) chargerDonnees(); });
 
 async function demarrer() {
   try {

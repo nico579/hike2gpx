@@ -284,10 +284,12 @@ class Installation:
                         chemin.stat().st_size)
         return False
 
-    def telecharger_segment(self, nom: str) -> Path:
+    def telecharger_segment(self, nom: str, vers: Path | None = None) -> Path:
+        """vers : un autre dossier que segments4 (l'actualisation des réglages
+        y prépare les tuiles avant la bascule)."""
         if not (len(nom) <= 8 and nom[0] in "EW" and "_" in nom):
             raise ValueError(f"Nom de tuile BRouter invalide : {nom}")
-        return _telecharger(SEGMENTS_URL + f"{nom}.rd5", self.segments / f"{nom}.rd5", valider=rd5_entier)
+        return _telecharger(SEGMENTS_URL + f"{nom}.rd5", (vers or self.segments) / f"{nom}.rd5", valider=rd5_entier)
 
 
 def java() -> str:

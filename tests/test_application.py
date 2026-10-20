@@ -491,8 +491,9 @@ def test_routes_init_annonce_l_application(tmp_path):
     get, post = appli.Application(tmp_path).routes()
     assert get["init"]()["app"] == "hike2gpx"
     assert {"osm", "bdtopo", "extrait"} <= set(get)
-    # Plus de téléchargement à la demande (tuile, extrait) : tout part de lui-même.
-    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "langue", "arreter_calques"}
+    # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
+    # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
+    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "langue", "arreter_calques", "donnees"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
@@ -539,3 +540,81 @@ def test_journal_garde_la_trace_des_calculs(simulee, monkeypatch):
     [erreur] = [ligne for ligne in journal["lignes"] if "WARNING Itinéraire en erreur" in ligne]
     # Le temps de chaque étape accompagne l'issue du calcul.
     assert "refusé" in erreur and "préparation" in erreur and "calcul BRouter" in erreur
+
+
+def donnees_d_essai(dossier):
+    """Un dossier de données comme celui de Nico : caches, deux extraits, une
+    tuile BRouter, l'ancien index de Geofabrik."""
+    for sous, noms in (("overpass", ["v1_866_120.json", "v1_866_121.json"]),
+                       ("franchissements", ["v3_866_120.json"]), ("bdtopo", ["v1_866_120.json"])):
+        (dossier / sous).mkdir(parents=True)
+        for nom in noms:
+            (dossier / sous / nom).write_text("{}")
+    extraits = geofabrik.dossier_extraits(dossier)
+    extraits.mkdir(parents=True)
+    for nom in ("fr-var.sqlite", "provence-alpes-cote-d-azur.sqlite"):
+        (extraits / nom).write_bytes(bytes(1000))
+    (extraits / "index-v1.json").write_bytes(bytes(500))
+    segments = dossier / "brouter" / "segments4"
+    segments.mkdir(parents=True)
+    (segments / "E5_N40.rd5").write_bytes(b"ancienne")
+    return [{**REGION_PACA, "id": "fr-var", "nom": "Var", "voies_coupees": True, "date": "2026-10-19T01:38:06Z",
+             "base": extraits / "fr-var.sqlite"},
+            {**REGION_PACA, "date": "2026-10-18T20:25:06Z", "base": extraits / "provence-alpes-cote-d-azur.sqlite"}]
+
+
+def test_les_donnees_telechargees_se_voient_et_se_videent(tmp_path, monkeypatch):
+    # Nico, 2026-10-20 : « il faudrait une fonction pour vider le cache, dans
+    # les réglages », « utile aussi pour actualiser les données rapidement ».
+    installes = donnees_d_essai(tmp_path)
+    monkeypatch.setattr(geofabrik, "installes", lambda dossier: [e for e in installes if e["base"].exists()])
+    a = appli.Application(tmp_path)
+    d = a.donnees()
+    assert d["osm"] == {"fichiers": 3, "octets": 6} and d["bdtopo"] == {"fichiers": 1, "octets": 2}
+    assert [(e["id"], e["provisoire"], e["octets"]) for e in d["extraits"]] == [
+        ("fr-var", True, 1000), (REGION_PACA["id"], False, 1000)]
+    assert [s["nom"] for s in d["brouter"]] == ["E5_N40"] and d["restes"] == {"fichiers": 1, "octets": 500}
+    assert d["occupe"] == {"extrait": None, "brouter": False}
+    # Vider : les tuiles se reliront d'elles-mêmes au besoin.
+    assert a.agir_donnees({"action": "vider_osm"})["osm"]["fichiers"] == 0
+    assert not list((tmp_path / "franchissements").iterdir()) and (tmp_path / "bdtopo" / "v1_866_120.json").exists()
+    assert a.agir_donnees({"action": "vider_bdtopo"})["bdtopo"]["fichiers"] == 0
+    # Actualiser : l'extrait repart, l'ancien sert jusqu'à la bascule.
+    lances = []
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **o: lances.append(region["id"]) or True)
+    a.agir_donnees({"action": "actualiser_extrait", "cible": "fr-var"})
+    assert lances == ["fr-var"]
+    # Pendant son téléchargement, l'extrait ne se supprime pas.
+    monkeypatch.setattr(geofabrik.Telechargements, "occupee", lambda self: True)
+    monkeypatch.setattr(geofabrik.Telechargements, "etat", lambda self: {"id": "fr-var", "etape": "import"})
+    assert a.agir_donnees({"action": "supprimer_extrait", "cible": "fr-var"}) == {
+        "erreur": "Cet extrait se télécharge déjà."}
+    monkeypatch.setattr(geofabrik.Telechargements, "occupee", lambda self: False)
+    d = a.agir_donnees({"action": "supprimer_extrait", "cible": "fr-var"})
+    assert [e["id"] for e in d["extraits"]] == [REGION_PACA["id"]] and not installes[0]["base"].exists()
+    assert a.agir_donnees({"action": "nettoyer"})["restes"]["fichiers"] == 0
+    assert a.agir_donnees({"action": "supprimer_extrait", "cible": "inconnu"}) == {"erreur": "Extrait inconnu."}
+    assert a.agir_donnees({"action": "formater"}) == {"erreur": "Action inconnue."}
+
+
+def test_les_tuiles_brouter_s_actualisent_a_cote_puis_basculent(tmp_path, monkeypatch):
+    # Les anciennes servent pendant le téléchargement ; la bascule se fait
+    # moteurs arrêtés, car sous Windows un RD5 ouvert ne se remplace pas.
+    donnees_d_essai(tmp_path)
+    a = appli.Application(tmp_path)
+    vues, arrets = [], []
+
+    def telecharger(nom, vers=None):
+        vues.append((tmp_path / "brouter" / "segments4" / f"{nom}.rd5").read_bytes())
+        vers.mkdir(parents=True, exist_ok=True)
+        (vers / f"{nom}.rd5").write_bytes(b"nouvelle")
+
+    monkeypatch.setattr(a.installation, "telecharger_segment", telecharger)
+    monkeypatch.setattr(a, "arreter", lambda: arrets.append(True))
+    d = a.agir_donnees({"action": "actualiser_brouter"})
+    assert "erreur" not in d
+    a._fil_brouter.join(5)
+    assert vues == [b"ancienne"] and arrets == [True]
+    assert (tmp_path / "brouter" / "segments4" / "E5_N40.rd5").read_bytes() == b"nouvelle"
+    assert not (tmp_path / "brouter" / "segments4" / "nouvelles").exists()
+    assert a.extrait(None)["brouter"] is None

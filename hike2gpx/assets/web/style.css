@@ -97,6 +97,9 @@ dd { margin: 0; font-weight: 600; }
 #reglages label { display: block; margin: 8px 0 4px; }
 .ligne { display: flex; gap: 6px; }
 .ligne input { flex: 1; min-width: 0; padding: 4px 6px; border: 1px solid var(--bordure); border-radius: 6px; }
+#reglages h3 { margin: 14px 0 6px; font-size: 1em; }
+.ligne-donnees { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; }
+.ligne-donnees span { flex: 1 1 12em; }
 footer { margin-top: 16px; }
 
 .point {

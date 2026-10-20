@@ -16,7 +16,9 @@ function charger() {
     return { disabled: true, hidden: false, checked: false, textContent: "", value: "", style: {},
       classList: { toggle(c, oui) { (oui ?? !classes.has(c)) ? classes.add(c) : classes.delete(c); },
         contains: (c) => classes.has(c) },
-      append() {}, replaceChildren() {}, addEventListener() {}, remove() {}, click() {} };
+      enfants: [], ecouteurs: {},
+      append(...e) { this.enfants.push(...e); }, replaceChildren(...e) { this.enfants = e; },
+      addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {}, click() {} };
   };
   const couche = () => ({ addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
     on() { return this; }, setIcon() { return this; }, clearLayers() {}, remove() {}, closePopup() {} });
@@ -26,6 +28,7 @@ function charger() {
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
       getEast: () => v.e }; } };
   const requetes = [];
+  const confirmations = Object.assign([], { reponse: false });
   const corps = element();
   const contexte = vm.createContext({
     console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance,
@@ -33,6 +36,7 @@ function charger() {
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
       addEventListener() {}, querySelectorAll() { return []; } },
     localStorage: { getItem() { return null; }, setItem() {} },
+    confirm: (texte) => { confirmations.push(texte); return confirmations.reponse; },
     setTimeout() { return 0; }, clearTimeout() {}, setInterval() { return 1; }, clearInterval() {},
     L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
       marker: couche, tileLayer: couche, divIcon: couche, control: { layers: couche },
@@ -51,9 +55,9 @@ function charger() {
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
-    + " debutLecture, finLecture, afficherLectures };", contexte);
+    + " debutLecture, finLecture, afficherLectures, afficherDonnees };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
-  return { page: contexte.page, elements, derniere, corps, requetes, carte };
+  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations };
 }
 
 function resultat(lonArrivee) {
@@ -337,4 +341,47 @@ test("vues datées : le serveur ne lit que la plus récente, et la note ne reste
   const corps = JSON.parse(arret.options.body);
   assert.deepEqual(corps.calques, ["osm"]);
   assert.ok(corps.vue > dates[1]);
+});
+
+test("données téléchargées : une ligne par donnée, ses boutons, et la suppression confirmée", () => {
+  // Nico, 2026-10-20 : « il faudrait une fonction pour vider le cache, dans les réglages ».
+  const { page, elements, requetes, confirmations } = charger();
+  page.afficherDonnees({
+    osm: { fichiers: 42, octets: 12_400_000 }, bdtopo: { fichiers: 0, octets: 0 },
+    extraits: [{ id: "fr-var", nom: "Var", date: "2026-10-19T01:38:06Z", octets: 69_080_000, provisoire: true },
+      { id: "provence-alpes-cote-d-azur", nom: "Provence Alpes-Cote-d'Azur", date: "2026-10-18T20:25:06Z",
+        octets: 345_800_000, provisoire: false }],
+    brouter: [{ nom: "E5_N40", octets: 69_219_770, date: "2026-10-19T09:00:00Z" }],
+    restes: { fichiers: 1, octets: 3_600_000 },
+    occupe: { extrait: "provence-alpes-cote-d-azur", brouter: false },
+  });
+  const lignes = elements.get("donnees").enfants;
+  const texte = (l) => l.enfants[0].textContent;
+  const boutons = (l) => l.enfants.slice(1);
+  assert.deepEqual(lignes.map(texte), [
+    "Chemins OSM lus sur Overpass : 42 tuiles, 12 Mo",
+    "Chemins BD TOPO : 0 tuiles, 0,0 Mo",
+    "Extrait Var du 19/10/2026, 69 Mo, en attendant sa région",
+    "Extrait Provence Alpes-Cote-d'Azur du 18/10/2026, 346 Mo",
+    "Tuiles BRouter E5_N40 : 69 Mo",
+    "Fichiers inutiles : 3,6 Mo",
+  ]);
+  assert.equal(boutons(lignes[0])[0].disabled, false);
+  assert.equal(boutons(lignes[1])[0].disabled, true);          // rien à vider
+  assert.deepEqual(boutons(lignes[3]).map((b) => b.disabled), [true, true]);   // en cours de téléchargement
+  // Supprimer demande confirmation ; refusée, rien ne part.
+  const supprimer = boutons(lignes[2])[1];
+  assert.equal(supprimer.textContent, "Supprimer");
+  supprimer.ecouteurs.click[0]();
+  assert.equal(confirmations[0], "Supprimer l'extrait Var ? Il se retéléchargera de lui-même s'il resert.");
+  assert.equal(requetes.filter((r) => r.url === "/api/donnees").length, 0);
+  confirmations.reponse = true;
+  supprimer.ecouteurs.click[0]();
+  const envoi = requetes.find((r) => r.url === "/api/donnees");
+  assert.deepEqual(JSON.parse(envoi.options.body), { action: "supprimer_extrait", cible: "fr-var" });
+  // Vider ne demande rien.
+  boutons(lignes[0])[0].ecouteurs.click[0]();
+  assert.deepEqual(JSON.parse(requetes.at(-1).options.body), { action: "vider_osm" });
+  page.appliquerLangue("en");
+  assert.equal(texte(elements.get("donnees").enfants[2]), "Var extract of 19/10/2026, 69 MB, until its region arrives");
 });
