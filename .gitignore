@@ -5,3 +5,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+# Construction du programme (build.py) : environnement isolé, et ressource
+# VERSIONINFO régénérée à chaque construction par hike2gpx.spec.
+build_venv/
+.version_info.txt

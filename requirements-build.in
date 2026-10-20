@@ -1,0 +1,6 @@
+# Construction du programme (build.py) : les dépendances de hike2gpx aux
+# versions exactes de requirements.txt, plus PyInstaller, qui ne sert qu'à
+# construire et n'entre pas dans le programme livré. Verrou régénéré par :
+#   uv pip compile requirements-build.in --universal --python-version 3.12 --generate-hashes -o requirements-build.txt
+-r requirements.txt
+pyinstaller
