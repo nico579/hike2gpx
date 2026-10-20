@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-from nico579_commons import atomique
+from nico579_commons import atomique, enfants
 
 from . import __version__
 from . import franchissements as fr
@@ -422,14 +422,16 @@ def _commande_import(pbf: Path, base: Path, region_json: Path, date: str) -> lis
 
 def _importer_a_part(pbf: Path, base: Path, region: dict, date: str, suivi=None) -> dict:
     """importer() dans un processus à part, suivi par sa sortie : « voies N »
-    au fil de l'import, « fini {comptes} » au bout."""
+    au fil de l'import, « fini {comptes} » au bout. Il meurt avec hike2gpx
+    (nico579_commons.enfants) : orphelin, il écrirait encore la base quand
+    l'instance suivante relance le même import."""
     description = base.with_name(base.name + ".region.json")
     description.write_text(json.dumps(region), encoding="utf-8")
     options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     racine = None if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
     compte, fin = None, []
     try:
-        with subprocess.Popen(_commande_import(pbf, base, description, date), stdout=subprocess.PIPE,
+        with enfants.demarrer(_commande_import(pbf, base, description, date), stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, text=True, encoding="utf-8",
                               errors="replace", cwd=racine, **options) as processus:
             for ligne in processus.stdout:
