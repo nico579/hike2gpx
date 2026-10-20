@@ -74,6 +74,8 @@ const TEXTES = {
     "calque.osm": "Chemins OSM",
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
     "calque.chargement": "Chargement des {nom}… (la première fois, jusqu'à une minute)",
+    "calque.avancement": "Chargement des {nom}… {faites} sur {total} tuiles · {duree} s",
+    "liaison.et": " et ",
     "calque.zoom": "Zoomez davantage (niveau {niveau}) pour voir les chemins.",
     "extrait.telechargement": "Données OSM hors ligne : téléchargement de l'extrait {nom}, {pourcent} %",
     "extrait.import": "Données OSM hors ligne : import de l'extrait {nom}, {voies} voies lues…",
@@ -170,6 +172,8 @@ const TEXTES = {
     "calque.osm": "OSM paths",
     "calque.bdtopo": "BD TOPO paths (IGN)",
     "calque.chargement": "Loading the {nom}… (the first time, up to a minute)",
+    "calque.avancement": "Loading the {nom}… {faites} of {total} tiles · {duree} s",
+    "liaison.et": " and ",
     "calque.zoom": "Zoom in further (level {niveau}) to see the paths.",
     "extrait.telechargement": "Offline OSM data: downloading the {nom} extract, {pourcent} %",
     "extrait.import": "Offline OSM data: importing the {nom} extract, {voies} ways read…",
@@ -418,9 +422,65 @@ const DESSINS = {
   },
 };
 
-function noteCalques(message) {
-  $("noteCalques").textContent = message || "";
+// Barre d'une note du panneau (préfixe de ses identifiants : noteCalques,
+// extrait, brouter) : fraction de 0 à 1, null sans fraction connue (un
+// segment va et vient), undefined pour la masquer.
+function majPiste(prefixe, fraction) {
+  const piste = $(`${prefixe}Piste`);
+  piste.hidden = fraction === undefined;
+  piste.classList.toggle("indeterminee", fraction === null);
+  $(`${prefixe}Barre`).style.width = typeof fraction === "number"
+    ? `${Math.round(100 * Math.min(1, Math.max(0, fraction)))}%` : "";
+}
+
+function noteCalques(message, fraction) {
+  $("noteCalquesTexte").textContent = message || "";
   $("noteCalques").hidden = !message;
+  majPiste("noteCalques", message ? fraction : undefined);
+}
+
+// Calques en cours de lecture (clé -> numéro de la vue et nom) : leur note
+// montre l'avancement que publie le serveur (/api/progression : tuiles lues
+// sur tant), relu toutes les 0,7 s tant qu'une lecture dure.
+const lectures = new Map();
+let minuterieLectures = null;
+
+function afficherLectures(calques) {
+  const noms = [...lectures.values()].map((l) => l.nom).join(t("liaison.et"));
+  const suivis = [...lectures.keys()].map((cle) => calques?.[cle]).filter((l) => l?.total);
+  if (!suivis.length) {
+    noteCalques(t("calque.chargement", { nom: noms }), null);
+    return;
+  }
+  const faites = suivis.reduce((somme, l) => somme + l.faites, 0);
+  const total = suivis.reduce((somme, l) => somme + l.total, 0);
+  const duree = Math.round(Math.max(...suivis.map((l) => l.duree_s)));
+  noteCalques(t("calque.avancement", { nom: noms, faites, total, duree }), faites / total);
+}
+
+async function suivreLectures() {
+  minuterieLectures = null;
+  try {
+    const p = await api("progression");
+    if (lectures.size) afficherLectures(p.calques);
+  } catch (e) { /* la barre n'est qu'une indication : le tour suivant réessaie */ }
+  if (lectures.size && !minuterieLectures) minuterieLectures = setTimeout(suivreLectures, 700);
+}
+
+function debutLecture(cle, numero, nom) {
+  lectures.set(cle, { numero, nom });
+  afficherLectures(null);
+  if (!minuterieLectures) minuterieLectures = setTimeout(suivreLectures, 700);
+}
+
+// Rend vrai s'il reste la lecture d'un autre calque.
+function finLecture(cle, numero) {
+  if (lectures.get(cle)?.numero === numero) lectures.delete(cle);
+  if (!lectures.size) {
+    clearTimeout(minuterieLectures);
+    minuterieLectures = null;
+  }
+  return lectures.size > 0;
 }
 
 // La vue telle qu'affichée, sans marge : le serveur la complète déjà aux
@@ -441,13 +501,23 @@ function abandonner(calque) {
   calque.sequence += 1;
   if (calque.annulation) calque.annulation.abort();
   calque.annulation = null;
+  lectures.delete(Object.keys(CALQUES).find((cle) => CALQUES[cle] === calque));
   return enCours;
+}
+
+// La date de chaque vue d'un calque (ms), strictement croissante, même d'un
+// rechargement de la page à l'autre : le serveur ne lit que la plus récente,
+// et refuse d'emblée une requête plus ancienne arrivée après elle.
+let derniereVue = 0;
+function dateDeVue() {
+  derniereVue = Math.max(performance.timeOrigin + performance.now(), derniereVue + 0.001);
+  return derniereVue;
 }
 
 // Le serveur arrête de lui-même la vue précédente quand une nouvelle arrive ;
 // sans nouvelle vue (zoom trop faible, calque masqué), il faut le lui dire.
 function arreterAuServeur(cles) {
-  if (cles.length) api("arreter_calques", { calques: cles }).catch(() => {});
+  if (cles.length) api("arreter_calques", { calques: cles, vue: dateDeVue() }).catch(() => {});
 }
 
 async function chargerCalque(cle, zone) {
@@ -456,19 +526,27 @@ async function chargerCalque(cle, zone) {
   const numero = calque.sequence;
   const annulation = calque.annulation = new AbortController();
   const nom = t(`calque.${cle}`);
-  const parametres = new URLSearchParams(Object.entries(zone).map(([k, v]) => [k, v.toFixed(5)]));
-  noteCalques(t("calque.chargement", { nom: `${nom.charAt(0).toLowerCase()}${nom.slice(1)}` }));
+  const parametres = new URLSearchParams([...Object.entries(zone).map(([k, v]) => [k, v.toFixed(5)]),
+    ["vue", dateDeVue().toFixed(3)]]);
+  debutLecture(cle, numero, `${nom.charAt(0).toLowerCase()}${nom.slice(1)}`);
   let donnees;
   try {
     donnees = await api(`${cle}?${parametres}`, undefined, annulation.signal);
   } catch (e) {
+    finLecture(cle, numero);
     if (numero === calque.sequence) noteCalques(`${nom} : ${e.message}`);
     return;
   }
+  const autres = finLecture(cle, numero);
   if (numero !== calque.sequence || !carte.hasLayer(calque.groupe)) return;
   calque.annulation = null;
   if (donnees.extrait_en_cours) majExtrait();   // le serveur vient de lancer l'extrait de la région
-  if (donnees.code === "vue_remplacee") return;
+  if (donnees.code === "vue_remplacee") {
+    // Remplacée par la vue d'une autre page ouverte sur le même serveur : la
+    // note ne reste pas sur un chargement qui ne viendra pas.
+    if (!autres) noteCalques("");
+    return;
+  }
   if (donnees.erreur) {
     noteCalques(`${nom} : ${ts(donnees.erreur)}`);
     return;
@@ -478,7 +556,8 @@ async function chargerCalque(cle, zone) {
   // Les tuiles lues débordent la vue : tant qu'elle y reste, rien à redemander.
   const [s, w, n, e] = donnees.bornes || [zone.s, zone.w, zone.n, zone.e];
   calque.charge = { s, w, n, e };
-  noteCalques("");
+  // L'autre calque encore en lecture garde sa note, que son suivi met à jour.
+  if (!autres) noteCalques("");
 }
 
 async function rafraichirCalques() {
@@ -568,9 +647,14 @@ async function majExtrait(forcer = false) {
 }
 
 function afficherExtrait(r) {
+  const etaitActif = extraitActif(etat.extrait);
   etat.extrait = r;
   const e = r?.en_cours;
   const actif = extraitActif(r);
+  // L'extrait vient de s'installer pendant que les chemins OSM se lisaient
+  // encore : leur lecture, partie avant lui, attendait Overpass (deux minutes
+  // le 2026-10-20) ; relancée, elle lit l'extrait.
+  if (etaitActif && !actif && r?.installe && lectures.has("osm")) chargerCalque("osm", zoneVue());
   if (actif) {
     $("extraitTexte").textContent = e.etape === "telechargement"
       ? t("extrait.telechargement", { nom: e.nom, pourcent: Math.round(100 * e.fraction) })
@@ -581,8 +665,11 @@ function afficherExtrait(r) {
     $("extraitTexte").textContent = t("extrait.erreur", { nom: e.nom, message: e.erreur });
   }
   $("extraitOsm").hidden = !(actif || r?.installe || e?.etape === "erreur");
+  // Le téléchargement a sa fraction ; l'import, dont on ne sait pas le nombre
+  // de voies d'avance, un segment qui va et vient.
+  majPiste("extrait", actif ? (e.etape === "telechargement" ? e.fraction : null) : undefined);
   const moteur = brouterActif(r);
-  if (moteur) $("brouterEnCours").textContent = t("brouter.enCours", { quoi: quoiBrouter(r.brouter) });
+  if (moteur) $("brouterTexte").textContent = t("brouter.enCours", { quoi: quoiBrouter(r.brouter) });
   $("brouterEnCours").hidden = !moteur;
   if (actif || moteur) minuterieExtrait = setTimeout(majExtrait, 1500);
   // Les données qu'attendait un calcul sont arrivées : le calcul reprend.

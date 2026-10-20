@@ -242,7 +242,6 @@ def test_itineraire_s_arrete_si_les_barrieres_sont_inconnues(simulee, monkeypatc
     assert "barrières non vérifiées" in reponse["erreur"] and "extrait_en_cours" not in reponse
     # La région a un extrait : le calcul l'a lancé de lui-même, la page attendra.
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
-    monkeypatch.setattr(geofabrik, "taille", lambda url: 372 * 1024 ** 2)
     lancees = []
     monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
     reponse = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
@@ -261,20 +260,40 @@ def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypat
     # (ou un calcul) lance l'extrait ; survoler la carte (/api/extrait) non.
     a = appli.Application(tmp_path)
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
-    monkeypatch.setattr(geofabrik, "taille", lambda url: 372 * 1024 ** 2)
     lancees = []
     monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: lancees.append(region["id"]) or True)
     monkeypatch.setattr(franchissements, "voies_affichables", lambda *z, **o: {"voies": [], "barrieres": []})
+    # La requête du calque ne parle jamais à Geofabrik : sa réponse tarde
+    # parfois une minute (2026-10-20), la taille se vérifie en tâche de fond.
+    monkeypatch.setattr(geofabrik.urllib.request, "urlopen",
+                        lambda *a, **o: pytest.fail("Geofabrik interrogé pendant la requête de la page"))
     vue = (43.30, 6.00, 43.34, 6.08)
     assert a.extrait(vue) == {"en_cours": None, "brouter": None} and lancees == []
     assert a.calque_osm(vue)["extrait_en_cours"] == {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"]}
     assert lancees == [REGION_PACA["id"]]
-    # Hors de toute région, ou extrait trop gros : rien ne part.
+    # Hors de toute région, ou région écartée (trop grosse, disque plein) : rien ne part.
     assert "extrait_en_cours" not in a.calque_osm((60.0, 6.0, 60.01, 6.01))
-    a2 = appli.Application(tmp_path / "autre")
-    monkeypatch.setattr(geofabrik, "taille", lambda url: 3 * 1024 ** 3)
-    assert "extrait_en_cours" not in a2.calque_osm(vue) and lancees == [REGION_PACA["id"]]
-    assert REGION_PACA["id"] in a2._extraits_ecartes
+    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region: False)
+    assert "extrait_en_cours" not in appli.Application(tmp_path / "autre").calque_osm(vue)
+
+
+def test_un_calque_publie_son_avancement_tuile_apres_tuile(tmp_path, monkeypatch):
+    # La page en tire la barre de sa note (« 2 sur 6 tuiles · 12 s »).
+    a = appli.Application(tmp_path)
+    vus = []
+
+    def lire(*zone, continuer, suivi, **options):
+        for faites in range(3):
+            suivi(faites, 3)
+            vus.append(a.progression()["calques"]["osm"])
+        suivi(3, 3)
+        return {"voies": [], "barrieres": []}
+
+    monkeypatch.setattr(franchissements, "voies_affichables", lire)
+    a.calque_osm((43.30, 6.00, 43.34, 6.08))
+    assert [(v["faites"], v["total"]) for v in vus] == [(0, 3), (1, 3), (2, 3)]
+    assert all(v["duree_s"] >= 0 for v in vus)
+    assert a.progression()["calques"] == {}
 
 
 def test_moteur_et_tuiles_brouter_telecharges_d_eux_memes(simulee, monkeypatch):
@@ -347,7 +366,7 @@ def test_une_nouvelle_vue_arrete_la_lecture_de_la_precedente(tmp_path, monkeypat
     vue_a, vue_b = (43.31, 6.01, 43.34, 6.06), (43.41, 6.21, 43.44, 6.26)
     lues = []
 
-    def lire(sud, ouest, nord, est, dossier, continuer):
+    def lire(sud, ouest, nord, est, dossier, continuer, suivi):
         for tuile in franchissements.tuiles_zone(sud, ouest, nord, est):
             if not continuer():
                 raise franchissements.VueRemplacee()
@@ -360,6 +379,29 @@ def test_une_nouvelle_vue_arrete_la_lecture_de_la_precedente(tmp_path, monkeypat
     assert a.calque_osm(vue_a)["code"] == "vue_remplacee"
     assert lues == [(866, 120), (868, 124), (868, 125)]
     assert a.calque_osm(vue_b)["bornes"] == (43.4, 6.2, 43.45, 6.3)
+
+
+def test_une_vue_plus_ancienne_arrivee_apres_est_refusee_d_emblee(tmp_path, monkeypatch):
+    # Calque figé du 2026-10-20 : une requête plus ancienne de la page, arrivée
+    # au serveur après la plus récente, passait pour la vue en cours ; la plus
+    # récente revenait « remplacée » et la page restait sans chemins. La page
+    # date désormais ses vues, et le serveur refuse les plus anciennes.
+    a = appli.Application(tmp_path)
+    lues, lances = [], []
+    monkeypatch.setattr(franchissements, "voies_affichables",
+                        lambda *z, **o: lues.append(z[:4]) or {"voies": [], "barrieres": []})
+    monkeypatch.setattr(a, "_extrait_automatique", lambda zone, raison: lances.append(zone))
+    vue = (43.30, 6.00, 43.34, 6.08)
+    assert "voies" in a.calque_osm(vue, 1760000000002.5)
+    assert a.calque_osm(vue, 1760000000001.0)["code"] == "vue_remplacee"
+    assert len(lues) == 1 and len(lances) == 1         # ni lecture ni extrait pour la périmée
+    assert "voies" in a.calque_osm(vue, 1760000000003.0)
+    # Un arrêt daté remplace ce qui le précède, sans toucher à ce qui le suit.
+    a.arreter_calques({"calques": ["osm"], "vue": 1760000000004.0})
+    assert a.calque_osm(vue, 1760000000003.5)["code"] == "vue_remplacee"
+    assert "voies" in a.calque_osm(vue, 1760000000005.0)
+    assert appli.lire_vue({"vue": ["1760000000005.125"]}) == 1760000000005.125
+    assert [appli.lire_vue(q) for q in ({}, {"vue": ["nan"]}, {"vue": ["x"]})] == [None, None, None]
 
 
 def test_arreter_calques_ne_touche_que_ceux_que_la_page_masque(tmp_path):
@@ -414,7 +456,7 @@ def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch
     assert "erreur" not in a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
     assert [v["etape"] for v in vues] == ["itineraire", "comparaison"]
     assert all(v["actif"] and 0 < v["fraction"] < 1 for v in vues)
-    assert a.progression() == {"actif": False}
+    assert a.progression() == {"actif": False, "calques": {}}
 
 
 def test_journal_garde_la_trace_des_calculs(simulee, monkeypatch):

@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 import math
 import re
-import shutil
 import threading
 import time
 from logging.handlers import RotatingFileHandler
@@ -88,6 +87,17 @@ def lire_zone(requete: dict):
             and -180 <= ouest < est <= 180:
         return sud, ouest, nord, est
     return None
+
+
+def lire_vue(requete: dict):
+    """L'instant (en ms, croissant même d'un rechargement de la page à
+    l'autre) où la page a demandé cette vue d'un calque : paramètre vue, ou
+    None sans lui."""
+    try:
+        vue = float(requete["vue"][0])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+    return vue if math.isfinite(vue) else None
 
 
 def valider_points(brut) -> list:
@@ -205,8 +215,9 @@ class Application:
         # arrête la lecture des tuiles de la précédente.
         self._vues = {"osm": 0, "bdtopo": 0}
         self._verrou_vues = threading.Lock()
-        self._tailles_extraits = {}     # id -> octets, demandés une fois à Geofabrik
-        self._extraits_ecartes = set()  # trop gros, ou place disque insuffisante : Overpass seul
+        # Avancement de la vue en cours de chaque calque, pour la barre de la
+        # page : {"faites", "total", "debut"} (tuiles), absent hors lecture.
+        self._lectures = {}
         # Moteur et tuiles BRouter téléchargés en tâche de fond (_brouter_automatique).
         self._verrou_brouter = threading.Lock()
         self._fil_brouter = None
@@ -366,7 +377,12 @@ class Application:
         return " ; ".join(f"{NOMS_ETAPES.get(nom, nom)} {duree:.1f} s" for nom, duree in self._temps_etapes.items())
 
     def progression(self) -> dict:
-        return dict(self._progression)
+        """L'étape du calcul en cours, et l'avancement des calques en lecture :
+        tuiles lues sur tant, depuis tant de secondes."""
+        maintenant = time.monotonic()
+        calques = {cle: {"faites": l["faites"], "total": l["total"], "duree_s": round(maintenant - l["debut"], 1)}
+                   for cle, l in list(self._lectures.items())}
+        return {**self._progression, "calques": calques}
 
     def lire_journal(self) -> dict:
         """Les dernières lignes du journal des calculs, pour la page."""
@@ -540,46 +556,80 @@ class Application:
 
     # ---------------------------------------------------------- calques
 
-    def _calque(self, cle, zone, lire):
+    def _prendre_vue(self, cle, vue=None):
+        """Le numéro de cette vue du calque, désormais la seule qui se lit, ou
+        None si une vue plus récente de la page l'a déjà remplacée. La page
+        date ses vues (vue=, en ms) : deux requêtes arrivées dans le désordre
+        ne peuvent plus faire passer la plus ancienne pour la vue en cours,
+        ce qui laissait la page sans réponse (calque figé, 2026-10-20). Sans
+        date (essais), la vue suit la précédente."""
+        with self._verrou_vues:
+            if vue is None:
+                vue = self._vues[cle] + 1
+            elif vue <= self._vues[cle]:
+                return None
+            self._vues[cle] = vue
+            return vue
+
+    def _calque(self, cle, zone, lire, numero):
         """Un calque pour la vue de la page, une vue à la fois : la demande
         d'une nouvelle vue arrête la lecture des tuiles de la précédente, que
         plus personne ne regarde. Le résultat donne les bornes des tuiles
-        lues, que la page n'a pas à redemander tant que la vue y reste."""
-        with self._verrou_vues:
-            self._vues[cle] += 1
-            numero = self._vues[cle]
+        lues, que la page n'a pas à redemander tant que la vue y reste. Tuile
+        après tuile, l'avancement de la vue en cours va dans progression()."""
+        if numero is None:
+            return {"erreur": "Vue remplacée par une autre.", "code": "vue_remplacee"}
         if zone is None:
             return {"erreur": "Zone invalide."}
         if (zone[2] - zone[0]) * (zone[3] - zone[1]) > ZONE_CALQUE_MAX_DEG2:
             return {"erreur": "Zone trop grande : zoomez davantage."}
+        debut = time.monotonic()
+
+        def suivre(faites, total):
+            if self._vues[cle] == numero:
+                self._lectures[cle] = {"numero": numero, "faites": faites, "total": total, "debut": debut}
+
         try:
-            resultat = lire(*zone, self.dossier, continuer=lambda: self._vues[cle] == numero)
+            resultat = lire(*zone, self.dossier, continuer=lambda: self._vues[cle] == numero, suivi=suivre)
         except franchissements.VueRemplacee:
             return {"erreur": "Vue remplacée par une autre.", "code": "vue_remplacee"}
         except franchissements.ErreurDonnees as exc:
             return {"erreur": str(exc)}
+        finally:
+            # Seulement la sienne : une vue plus récente a peut-être déjà la place.
+            if self._lectures.get(cle, {}).get("numero") == numero:
+                self._lectures.pop(cle, None)
         return {**resultat, "bornes": franchissements.bornes_zone(*zone)}
 
-    def calque_osm(self, zone) -> dict:
-        # Le calque des chemins OSM (zoom 14 au moins) est un usage réel de la
-        # région : son extrait se télécharge s'il manque.
+    def calque_osm(self, zone, vue=None) -> dict:
+        # La vue d'abord : une vue déjà remplacée ne lance rien, pas même un
+        # extrait. Le calque des chemins OSM (zoom 14 au moins) est un usage
+        # réel de la région : son extrait se télécharge s'il manque.
+        numero = self._prendre_vue("osm", vue)
+        if numero is None:
+            return self._calque("osm", zone, None, None)
         extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone else None
-        resultat = self._calque("osm", zone, franchissements.voies_affichables)
+        resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
 
-    def calque_bdtopo(self, zone) -> dict:
+    def calque_bdtopo(self, zone, vue=None) -> dict:
         def lire(*bornes, **options):
             return {"troncons": bdtopo.troncons_zone(*bornes, **options)}
-        return self._calque("bdtopo", zone, lire)
+        return self._calque("bdtopo", zone, lire, self._prendre_vue("bdtopo", vue))
 
     def arreter_calques(self, corps=None) -> dict:
         """La page n'affiche plus ces calques (zoom trop faible, calque masqué) :
-        leurs lectures en cours s'arrêtent avant la tuile suivante."""
-        demandes = (corps or {}).get("calques")
+        leurs lectures en cours s'arrêtent avant la tuile suivante. vue : la
+        date de cette demande, qui remplace toute vue plus ancienne."""
+        corps = corps or {}
+        demandes, vue = corps.get("calques"), corps.get("vue")
         cles = [c for c in self._vues if not isinstance(demandes, list) or c in demandes]
         with self._verrou_vues:
             for cle in cles:
-                self._vues[cle] += 1
+                if isinstance(vue, (int, float)) and math.isfinite(vue):
+                    self._vues[cle] = max(self._vues[cle], vue)
+                else:
+                    self._vues[cle] += 1
         return {"arretes": cles}
 
     # ---------------------------------------------------------- données OSM hors ligne
@@ -590,9 +640,10 @@ class Application:
         calcul, le calque des chemins OSM) : pas de bouton, décision de Nico du
         2026-10-19. Survoler la carte ne suffit pas, sans quoi chaque région
         traversée partirait. Rien si un extrait installé couvre déjà ce centre,
-        si l'extrait dépasse TAILLE_MAX, si le disque manque de place (trois
-        fois sa taille : fichier, base, index) ou après un échec récent.
-        Rend {"id", "nom"} de l'extrait en cours de téléchargement, ou None."""
+        ou après un échec récent. Taille et place disque se vérifient en tâche
+        de fond (geofabrik._telecharger) : interroger Geofabrik ici ferait
+        attendre le calque ou le calcul jusqu'à sa réponse, qui tarde parfois
+        une minute. Rend {"id", "nom"} de l'extrait en cours, ou None."""
         i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
         if geofabrik.extrait_de_tuile(self.dossier, i, j):
             return None
@@ -605,21 +656,11 @@ class Application:
         except geofabrik.ErreurExtrait as exc:
             journal.warning("Extraits Geofabrik indisponibles : %s", exc)
             return None
-        if region is None or region["id"] in self._extraits_ecartes:
-            return None
-        octets = self._tailles_extraits.get(region["id"]) or geofabrik.taille(region["pbf"])
-        if not octets:
-            return None         # Geofabrik injoignable : nouvel essai à la prochaine demande
-        self._tailles_extraits[region["id"]] = octets
-        if octets > geofabrik.TAILLE_MAX or shutil.disk_usage(self.dossier).free < 3 * octets:
-            self._extraits_ecartes.add(region["id"])
-            journal.warning("Extrait Geofabrik %s (%d Mo) non téléchargé : trop gros ou place insuffisante ; "
-                            "Overpass reste la source", region["id"], octets // 1024 ** 2)
+        if region is None:
             return None
         if not taches.lancer(region):
-            return None         # autre téléchargement en cours, ou échec de moins d'une heure
-        journal.info("Extrait Geofabrik %s (%d Mo) téléchargé automatiquement : %s", region["id"],
-                     octets // 1024 ** 2, raison)
+            return None         # autre téléchargement en cours, région écartée, ou échec de moins d'une heure
+        journal.info("Extrait Geofabrik %s : téléchargement lancé (%s)", region["id"], raison)
         return {"id": region["id"], "nom": region["nom"]}
 
     def extrait(self, zone) -> dict:

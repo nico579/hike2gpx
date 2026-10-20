@@ -663,13 +663,31 @@ def franchissements_zone(sud: float, ouest: float, nord: float, est: float, doss
     return resultat
 
 
+def _couvertes_d_abord(tuiles: list, dossier) -> list:
+    """Les tuiles qu'un extrait installé contient d'abord, dans leur ordre :
+    elles se lisent en un instant, et la barre de la page avance avant
+    d'attendre Overpass pour celles qu'aucun extrait ne contient tout
+    entières (au bord d'une région)."""
+    from . import geofabrik     # pas de cycle : geofabrik importe ce module
+    try:
+        extraits = geofabrik.installes(dossier)
+    except OSError:
+        return tuiles
+    return sorted(tuiles, key=lambda tuile: geofabrik.region_de_tuile(extraits, *tuile) is None)
+
+
 def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier, **options) -> dict:
     """Voies praticables (sentier, piste ou route) et barrières qui gênent un
     piéton, telles que les tuiles Overpass les connaissent, pour le calque des
-    chemins OSM. Une bordure de trottoir n'y figure pas : elle se franchit."""
+    chemins OSM. Une bordure de trottoir n'y figure pas : elle se franchit.
+    suivi(faites, total), tuile après tuile, pour la barre de la page."""
     voies, barrieres = {}, {}
     continuer = options.get("continuer", _toujours)
-    for i, j in tuiles_zone(sud, ouest, nord, est):
+    suivi = options.pop("suivi", None)
+    tuiles = _couvertes_d_abord(tuiles_zone(sud, ouest, nord, est), dossier)
+    if suivi:
+        suivi(0, len(tuiles))
+    for k, (i, j) in enumerate(tuiles):
         if not continuer():
             raise VueRemplacee()
         for e in charger_tuile(i, j, dossier, **options)["elements"]:
@@ -683,4 +701,6 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
             elif "barrier" in tags and "highway" not in tags and regles.status(tags, MODE)[0] != "passable":
                 barrieres[e["id"]] = {"id": e["id"], "nature": regles.LABELS.get(tags["barrier"], "Barrière"),
                                       "pts": ligne}
+        if suivi:
+            suivi(k + 1, len(tuiles))
     return {"voies": list(voies.values()), "barrieres": list(barrieres.values())}

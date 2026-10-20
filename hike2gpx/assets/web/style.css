@@ -126,6 +126,18 @@ body.calcul .leaflet-interactive { cursor: progress; }
 #progression .piste { height: 6px; border-radius: 3px; background: #e3e8ee; overflow: hidden; margin-bottom: 4px; }
 #progressionBarre { height: 100%; width: 0; background: var(--accent); transition: width .4s ease; }
 
+/* Barres des notes du panneau : tuiles d'un calque, extrait OSM, BRouter. */
+.note .piste { display: block; position: relative; height: 4px; margin-top: 4px; border-radius: 2px;
+  background: #e3e8ee; overflow: hidden; }
+.note .piste[hidden] { display: none; }
+.note .barre { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s ease; }
+/* Sans fraction connue (début d'une lecture, import de l'extrait, BRouter) :
+   un segment qui va et vient. */
+.note .piste.indeterminee .barre { position: absolute; width: 30%; transition: none;
+  animation: va-et-vient 1.2s ease-in-out infinite alternate; }
+@keyframes va-et-vient { from { left: 0; } to { left: 70%; } }
+@media (prefers-reduced-motion: reduce) { .note .piste.indeterminee .barre { animation: none; left: 35%; } }
+
 /* Plein écran : la carte seule, sans le panneau ni le choix des fonds et calques. */
 .bouton-plein-ecran {
   width: 34px; height: 34px; padding: 0;

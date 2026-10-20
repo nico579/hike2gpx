@@ -11,7 +11,7 @@ from pathlib import Path
 from nico579_commons import maj, serveweb
 
 from . import __version__, bureau
-from .application import Application, configurer_journal, lire_zone
+from .application import Application, configurer_journal, lire_vue, lire_zone
 
 journal = logging.getLogger(__name__)
 
@@ -26,8 +26,8 @@ class Handler(serveweb.Handler):
                           "/leaflet/leaflet.js": ("leaflet/leaflet.js", "text/javascript; charset=utf-8"),
                           "/leaflet/leaflet.css": ("leaflet/leaflet.css", "text/css; charset=utf-8")}
     # Les calques et l'extrait hors ligne lisent la zone de la vue :
-    # ?s=&w=&n=&e= (None si invalide).
-    arguments_get = {"osm": lambda q: (lire_zone(q),), "bdtopo": lambda q: (lire_zone(q),),
+    # ?s=&w=&n=&e= (None si invalide) ; les calques aussi sa date, &vue=.
+    arguments_get = {"osm": lambda q: (lire_zone(q), lire_vue(q)), "bdtopo": lambda q: (lire_zone(q), lire_vue(q)),
                      "extrait": lambda q: (lire_zone(q),)}
 
 
