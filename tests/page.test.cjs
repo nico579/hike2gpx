@@ -18,6 +18,7 @@ function charger() {
         contains: (c) => classes.has(c) },
       enfants: [], ecouteurs: {},
       append(...e) { this.enfants.push(...e); }, replaceChildren(...e) { this.enfants = e; },
+      setAttribute(name, value) { this[name] = value; },
       addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {}, click() {} };
   };
   const couche = () => ({ addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
@@ -343,8 +344,7 @@ test("vues datées : le serveur ne lit que la plus récente, et la note ne reste
   assert.ok(corps.vue > dates[1]);
 });
 
-test("données téléchargées : une ligne par donnée, ses boutons, et la suppression confirmée", () => {
-  // Nico, 2026-10-20 : « il faudrait une fonction pour vider le cache, dans les réglages ».
+test("un bouton unique vide les caches locaux après confirmation", () => {
   const { page, elements, requetes, confirmations } = charger();
   page.afficherDonnees({
     osm: { fichiers: 42, octets: 12_400_000 }, bdtopo: { fichiers: 0, octets: 0 },
@@ -355,33 +355,19 @@ test("données téléchargées : une ligne par donnée, ses boutons, et la suppr
     restes: { fichiers: 1, octets: 3_600_000 },
     occupe: { extrait: "provence-alpes-cote-d-azur", brouter: false },
   });
-  const lignes = elements.get("donnees").enfants;
-  const texte = (l) => l.enfants[0].textContent;
-  const boutons = (l) => l.enfants.slice(1);
-  assert.deepEqual(lignes.map(texte), [
-    "Chemins OSM lus sur Overpass : 42 tuiles, 12 Mo",
-    "Chemins BD TOPO : 0 tuiles, 0,0 Mo",
-    "Extrait Var du 19/10/2026, 69 Mo, en attendant sa région",
-    "Extrait Provence Alpes-Cote-d'Azur du 18/10/2026, 346 Mo",
-    "Tuiles BRouter E5_N40 : 69 Mo",
-    "Fichiers inutiles : 3,6 Mo",
-  ]);
-  assert.equal(boutons(lignes[0])[0].disabled, false);
-  assert.equal(boutons(lignes[1])[0].disabled, true);          // rien à vider
-  assert.deepEqual(boutons(lignes[3]).map((b) => b.disabled), [true, true]);   // en cours de téléchargement
-  // Supprimer demande confirmation ; refusée, rien ne part.
-  const supprimer = boutons(lignes[2])[1];
-  assert.equal(supprimer.textContent, "Supprimer");
-  supprimer.ecouteurs.click[0]();
-  assert.equal(confirmations[0], "Supprimer l'extrait Var ? Il se retéléchargera de lui-même s'il resert.");
+  let bouton = elements.get("donnees").enfants[0];
+  assert.equal(bouton.textContent, "Vider le cache");
+  assert.equal(bouton.disabled, true);
+  page.afficherDonnees({ occupe: { extrait: null, brouter: false } });
+  bouton = elements.get("donnees").enfants[0];
+  assert.equal(bouton.disabled, false);
+  bouton.ecouteurs.click[0]();
+  assert.match(confirmations[0], /Les tuiles de fond de carte restent dans le cache du navigateur/);
   assert.equal(requetes.filter((r) => r.url === "/api/donnees").length, 0);
   confirmations.reponse = true;
-  supprimer.ecouteurs.click[0]();
+  bouton.ecouteurs.click[0]();
   const envoi = requetes.find((r) => r.url === "/api/donnees");
-  assert.deepEqual(JSON.parse(envoi.options.body), { action: "supprimer_extrait", cible: "fr-var" });
-  // Vider ne demande rien.
-  boutons(lignes[0])[0].ecouteurs.click[0]();
-  assert.deepEqual(JSON.parse(requetes.at(-1).options.body), { action: "vider_osm" });
+  assert.deepEqual(JSON.parse(envoi.options.body), { action: "vider_cache", cible: null });
   page.appliquerLangue("en");
-  assert.equal(texte(elements.get("donnees").enfants[2]), "Var extract of 19/10/2026, 69 MB, until its region arrives");
+  assert.equal(elements.get("donnees").enfants[0].textContent, "Clear cache");
 });

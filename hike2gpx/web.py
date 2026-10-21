@@ -32,10 +32,20 @@ class Handler(serveweb.Handler):
     arguments_get = {"osm": lambda q: (lire_zone(q), lire_vue(q)), "bdtopo": lambda q: (lire_zone(q), lire_vue(q)),
                      "extrait": lambda q: (lire_zone(q),)}
 
+    def do_GET(self):
+        if self.path.split("?", 1)[0] == "/journal.txt":
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            self.send_static(self.journal_path, "text/plain; charset=utf-8", cache="no-store")
+            return
+        super().do_GET()
+
 
 def demarrer(application: Application, port: int = PORT, plage: int = PLAGE):
     get, post = application.routes()
     handler = type("Hike2gpxHandler", (Handler,), {})   # chaque serveur garde ses routes
+    handler.journal_path = configurer_journal(application.dossier)
     serveur, port = serveweb.premier_port_libre(HOST, port, plage, trusted_host="", gui_dir=GUI,
                                                 api_routes=get, post_routes=post, handler=handler,
                                                 favicon=bureau.ICONE)

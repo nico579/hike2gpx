@@ -14,6 +14,7 @@ import re
 import shutil
 import threading
 import time
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -25,7 +26,8 @@ from . import __version__, bdtopo, brouter, franchissements, geofabrik, maison, 
 journal = logging.getLogger(__name__)
 
 # Journal des calculs dans le dossier de données : 1 Mo, gardé trois fois.
-FICHIER_JOURNAL = "hike2gpx.log"
+FICHIER_JOURNAL = "hike2gpx.log"  # repli pour une Application hors serveur
+_JOURNAUX: dict[Path, Path] = {}
 LIGNES_JOURNAL = 300        # montrées par la page
 LENT_S = 60.0               # au-delà, l'itinéraire est signalé lent dans le journal
 # Étapes d'un calcul, telles que le journal en détaille les temps.
@@ -45,17 +47,20 @@ _CLE_IGN = re.compile(r"^[A-Za-z0-9_\-]{0,100}$")
 
 
 def configurer_journal(dossier) -> Path:
-    """Branche le journal de tous les modules de hike2gpx sur hike2gpx.log,
-    pour retrouver une erreur, un blocage ou une lenteur. Appelé par le
-    serveur seulement : les tests n'écrivent pas de journal."""
-    chemin = Path(dossier) / FICHIER_JOURNAL
+    """Un fichier horodaté neuf par démarrage du serveur."""
+    racine_donnees = Path(dossier).resolve()
+    chemin = _JOURNAUX.get(racine_donnees)
     racine = logging.getLogger("hike2gpx")
-    if not any(isinstance(h, RotatingFileHandler) and Path(h.baseFilename) == chemin for h in racine.handlers):
-        chemin.parent.mkdir(parents=True, exist_ok=True)
-        fichier = RotatingFileHandler(chemin, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
-        fichier.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-        racine.addHandler(fichier)
-        racine.setLevel(logging.INFO)
+    if chemin is not None and any(isinstance(h, RotatingFileHandler) and Path(h.baseFilename) == chemin
+                                  for h in racine.handlers):
+        return chemin
+    chemin = racine_donnees / f"hike2gpx-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.log"
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    fichier = RotatingFileHandler(chemin, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+    fichier.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    racine.addHandler(fichier)
+    racine.setLevel(logging.INFO)
+    _JOURNAUX[racine_donnees] = chemin
     return chemin
 
 
@@ -387,7 +392,7 @@ class Application:
 
     def lire_journal(self) -> dict:
         """Les dernières lignes du journal des calculs, pour la page."""
-        chemin = self.dossier / FICHIER_JOURNAL
+        chemin = _JOURNAUX.get(self.dossier.resolve(), self.dossier / FICHIER_JOURNAL)
         try:
             lignes = chemin.read_text(encoding="utf-8", errors="replace").splitlines()[-LIGNES_JOURNAL:]
         except OSError:
@@ -755,7 +760,35 @@ class Application:
         corps = corps if isinstance(corps, dict) else {}
         action, cible = corps.get("action"), corps.get("cible")
         taches = geofabrik.telechargements(self.dossier)
-        if action in ("vider_osm", "vider_bdtopo"):
+        if action == "vider_cache":
+            if taches.occupee() or (self._fil_brouter and self._fil_brouter.is_alive()) or self._lectures:
+                return {"erreur": "Un téléchargement ou une lecture est en cours. Réessayez après sa fin."}
+            if not self._verrou_calcul.acquire(blocking=False):
+                return {"erreur": "Un calcul est en cours. Réessayez après sa fin."}
+            try:
+                if not self._verrou_denivele.acquire(blocking=False):
+                    return {"erreur": "Un calcul de dénivelé est en cours. Réessayez après sa fin."}
+                try:
+                    self.arreter()
+                    for dossiers in self._caches().values():
+                        for dossier in dossiers:
+                            for p in dossier.glob("*.json") if dossier.is_dir() else []:
+                                p.unlink(missing_ok=True)
+                    for cache_dir in (self.dossier / "gpx2elev", self.installation.maison):
+                        if cache_dir.is_dir():
+                            shutil.rmtree(cache_dir)
+                    for p in self.installation.segments.glob("*.rd5"):
+                        p.unlink(missing_ok=True)
+                    extraits = geofabrik.dossier_extraits(self.dossier)
+                    for p in extraits.iterdir() if extraits.is_dir() else []:
+                        if p.is_file():
+                            p.unlink()
+                    journal.info("Caches locaux OSM, IGN, gpx2elev et BRouter vidés depuis les réglages")
+                finally:
+                    self._verrou_denivele.release()
+            finally:
+                self._verrou_calcul.release()
+        elif action in ("vider_osm", "vider_bdtopo"):
             for dossier in self._caches()[action[6:]]:
                 for p in dossier.glob("*.json") if dossier.is_dir() else []:
                     p.unlink(missing_ok=True)

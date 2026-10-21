@@ -82,11 +82,8 @@
       if (selected && focus) tab.focus();
     }
     panel.querySelector(".panel-scroll").scrollTop = 0;
-    if (name === "reglages") {
-      document.getElementById("reglages").open = true;
-      chargerDonnees();
-    }
-    if (name === "journal") document.getElementById("journal").open = true;
+    if (name === "reglages") chargerDonnees();
+    if (name === "journal") chargerJournal();
     if (innerWidth <= 700 && name !== "trace") document.body.classList.add("sheet-expanded");
     setTimeout(() => window.dispatchEvent(new Event("resize")), 280);
   }

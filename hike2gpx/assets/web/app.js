@@ -64,11 +64,16 @@ const TEXTES = {
     "donnees.supprimer": "Supprimer",
     "donnees.nettoyer": "Nettoyer",
     "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
+    "donnees.viderTout": "Vider le cache",
+    "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter ? Elles seront retéléchargées au besoin. Les tuiles de fond de carte restent dans le cache du navigateur.",
+    "donnees.vide": "Cache local vidé. Les tuiles du fond de carte restent gérées par le navigateur.",
+    "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
     "unite.mo": "Mo",
     "journal.titre": "Journal des calculs",
     "journal.note": "Erreurs, blocages et lenteurs, du plus ancien au plus récent :",
     "journal.vide": "Journal vide pour l'instant.",
     "journal.illisible": "Journal illisible : {message}",
+    "journal.ouvrir": "Ouvrir le fichier de log",
     "pied": "Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins BD TOPO et cartes © IGN, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.",
     "statut.deuxiemePoint": "Posez un deuxième point.",
     "statut.calcul": "Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute",
@@ -183,11 +188,16 @@ const TEXTES = {
     "donnees.supprimer": "Delete",
     "donnees.nettoyer": "Clean up",
     "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
+    "donnees.viderTout": "Clear cache",
+    "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data? It will download again when needed. Background map tiles remain in the browser cache.",
+    "donnees.vide": "Local cache cleared. Background map tiles remain managed by the browser.",
+    "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
     "unite.mo": "MB",
     "journal.titre": "Calculation log",
     "journal.note": "Errors, blockages and slowness, oldest first:",
     "journal.vide": "The log is empty for now.",
     "journal.illisible": "Log unreadable: {message}",
+    "journal.ouvrir": "Open log file",
     "pied": "Barriers and paths © OpenStreetMap contributors (ODbL), BD TOPO paths and maps © IGN, routing by BRouter. A barrier missing from OpenStreetMap cannot be avoided: the ground always has the last word.",
     "statut.deuxiemePoint": "Place a second point.",
     "statut.calcul": "Calculating… The first time in an area, reading the OSM barriers takes up to a minute",
@@ -928,7 +938,7 @@ async function calculer() {
 // Les dernières lignes du journal des calculs (erreurs, blocages, lenteurs),
 // relues à l'ouverture de la section et après chaque calcul.
 async function chargerJournal() {
-  if (!$("journal").open) return;
+  if ($("pane-journal").hidden) return;
   try {
     const j = await api("journal");
     $("cheminJournal").textContent = j.chemin;
@@ -1178,7 +1188,6 @@ $("toutEffacer").addEventListener("click", () => {
   planifierCalcul();
 });
 $("exporter").addEventListener("click", exporter);
-$("journal").addEventListener("toggle", chargerJournal);
 new PleinEcran().addTo(carte);
 // Échap quitte le plein écran du navigateur : la page revient avec lui.
 document.addEventListener("fullscreenchange", () => {
@@ -1201,59 +1210,25 @@ $("enregistrerCle").addEventListener("click", async () => {
 
 // ------------------------------------------------------------ données téléchargées
 
-// Nico, 2026-10-20 : « il faudrait une fonction pour vider le cache, dans les
-// réglages », « utile aussi pour actualiser les données rapidement ». Une
-// ligne par donnée, ses boutons visibles ; grisés pendant son téléchargement.
-function taille(octets) {
-  return `${decimal(octets / 1e6, octets < 1e7 ? 1 : 0)} ${t("unite.mo")}`;
-}
-
+// Les tuiles de fond restent dans le cache HTTP du navigateur ; seul le
+// serveur peut vider les données locales qu'il a téléchargées.
 function afficherDonnees(d) {
   if (d) etat.donnees = d;
   const donnees = etat.donnees;
   if (!donnees) return;
   const boite = $("donnees");
   boite.replaceChildren();
-  const ligne = (texte, boutons) => {
-    const div = document.createElement("div");
-    div.className = "ligne-donnees";
-    const libelle = document.createElement("span");
-    libelle.textContent = texte;
-    div.append(libelle);
-    for (const { cle, action, cible, actif = true, confirmer } of boutons) {
-      const bouton = document.createElement("button");
-      bouton.type = "button";
-      bouton.textContent = t(cle);
-      bouton.disabled = !actif;
-      bouton.addEventListener("click", () => agirDonnees(action, cible, confirmer));
-      div.append(bouton);
-    }
-    boite.append(div);
-  };
   const occupe = donnees.occupe || {};
-  for (const cache of ["osm", "bdtopo"]) {
-    const c = donnees[cache];
-    ligne(t(`donnees.${cache}`, { n: c.fichiers, taille: taille(c.octets) }),
-      [{ cle: "donnees.vider", action: `vider_${cache}`, actif: c.fichiers > 0 }]);
-  }
-  for (const e of donnees.extraits) {
-    const libre = occupe.extrait !== e.id;
-    ligne(t(e.provisoire ? "donnees.extrait.provisoire" : "donnees.extrait",
-      { nom: e.nom, date: dateCourte(e.date), taille: taille(e.octets) }), [
-      { cle: "donnees.actualiser", action: "actualiser_extrait", cible: e.id, actif: libre },
-      { cle: "donnees.supprimer", action: "supprimer_extrait", cible: e.id, actif: libre,
-        confirmer: t("donnees.confirmer", { nom: e.nom }) },
-    ]);
-  }
-  if (donnees.brouter.length) {
-    ligne(t("donnees.brouter", { noms: donnees.brouter.map((s) => s.nom).join(", "),
-      taille: taille(donnees.brouter.reduce((n, s) => n + s.octets, 0)) }),
-    [{ cle: "donnees.actualiser", action: "actualiser_brouter", actif: !occupe.brouter }]);
-  }
-  if (donnees.restes.fichiers) {
-    ligne(t("donnees.restes", { taille: taille(donnees.restes.octets) }),
-      [{ cle: "donnees.nettoyer", action: "nettoyer" }]);
-  }
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.textContent = t("donnees.viderTout");
+  bouton.disabled = Boolean(occupe.extrait || occupe.brouter);
+  bouton.title = t("donnees.infoCache");
+  bouton.addEventListener("click", () => agirDonnees("vider_cache", null, t("donnees.confirmerTout")));
+  const statut = document.createElement("p");
+  statut.id = "cacheStatus";
+  statut.setAttribute("role", "status");
+  boite.append(bouton, statut);
 }
 
 async function chargerDonnees() {
@@ -1268,13 +1243,13 @@ async function agirDonnees(action, cible, confirmer) {
     const r = await api("donnees", { action, cible });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
     afficherDonnees(r);
+    if (action === "vider_cache") $("cacheStatus").textContent = t("donnees.vide");
     majExtrait(true);       // un téléchargement lancé se suit dans le panneau
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
   }
 }
 
-$("reglages").addEventListener("toggle", () => { if ($("reglages").open) chargerDonnees(); });
 
 async function demarrer() {
   try {

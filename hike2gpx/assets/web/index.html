@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=desktop-3">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-3">
+  <link rel="stylesheet" href="/style.css?v=desktop-4">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-4">
 </head>
 <body>
-<div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong></div><span class="header-caption">Préparer sa randonnée, l’esprit plus clair.</span><span class="header-status">● <span>Serveur local</span></span></div>
+<div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div>
 <div id="carte" aria-label="Carte interactive">
   <div class="map-widget-toolbar">
     <button type="button" class="map-widget-button layers-trigger" id="layersButton" aria-label="Choisir le fond de carte, les chemins et la légende" aria-expanded="false" aria-controls="mapLayersMenu">
@@ -45,7 +45,6 @@
 </div>
 <aside id="panneau" aria-label="Préparation du parcours">
   <div class="sheet-grip"><span></span></div>
-  <header class="panel-heading"><div><span class="eyebrow">VOTRE RANDONNÉE</span><h1>Tracer un parcours</h1><span id="version"></span></div><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></header>
   <section id="routeSummary" class="route-summary" aria-label="Informations du parcours" hidden>
     <strong data-i18n="resume.parcours">Votre parcours</strong>
     <dl><div><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd></div><div><dt><span data-i18n="resultat.denivele">Dénivelé</span> · gpx2elev</dt><dd id="denivele"></dd></div></dl>
@@ -81,24 +80,20 @@
     </section>
   </section>
   <section id="pane-reglages" class="pane" role="tabpanel" aria-labelledby="tab-reglages" hidden>
-    <h2 class="pane-title">Fonds de carte et données</h2><p class="pane-intro">Choisissez votre fond sur la carte. La clé SCAN 25 et les données disponibles se gèrent ici.</p>
-    <details id="reglages"><summary data-i18n="reglages.titre">Réglages</summary>
-      <label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label>
+    <section id="reglages">
+      <div class="ign-key-label"><label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé IGN">i<span role="tooltip" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</span></span></div>
       <div class="ligne"><input id="cleIgn" type="password" autocomplete="off" spellcheck="false" aria-label="Clé IGN SCAN 25"><button id="afficherCle" type="button" aria-label="Afficher la clé IGN">Afficher</button><button id="enregistrerCle" type="button" data-i18n="reglages.enregistrer">Enregistrer</button></div>
-      <p class="note" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</p>
-      <h3 data-i18n="donnees.titre">Données téléchargées</h3><div id="donnees"></div>
-      <p class="note" data-i18n="donnees.note">Tout se retélécharge de soi-même au besoin : vider ou supprimer libère de la place, actualiser donne des données fraîches.</p>
-    </details>
+      <div id="donnees"></div>
+    </section>
   </section>
   <section id="pane-journal" class="pane" role="tabpanel" aria-labelledby="tab-journal" hidden>
-    <h2 class="pane-title">Journal des calculs</h2><p class="pane-intro">Suivez les lectures de données, les calculs et les erreurs du moteur local.</p>
-    <details id="journal"><summary data-i18n="journal.titre">Journal des calculs</summary>
+    <section id="journal">
+      <div class="journal-heading"><h2 data-i18n="journal.titre">Journal des calculs</h2><a href="/journal.txt" target="_blank" rel="noopener" data-i18n="journal.ouvrir">Ouvrir le fichier de log</a></div>
       <p class="note"><span data-i18n="journal.note">Erreurs, blocages et lenteurs, du plus ancien au plus récent :</span> <span id="cheminJournal"></span></p>
       <pre id="lignesJournal"></pre>
-    </details>
+    </section>
   </section>
   </div>
-  <footer class="panel-footer"><span class="status-dot"></span><span data-i18n="pied">Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins BD TOPO et cartes © IGN, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.</span></footer>
 </aside>
 <button type="button" id="panelToggle" class="panel-toggle" aria-controls="panneau" aria-expanded="true" aria-label="Replier le panneau du parcours" title="Replier le panneau du parcours">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg>
@@ -116,8 +111,8 @@
   </ul><p class="note" data-i18n="legende.note">Les calques de chemins se cochent sur la carte, en haut à droite, et s'affichent à partir du zoom 14.</p>
 </section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js?v=desktop-3"></script>
+<script src="/app.js?v=desktop-4"></script>
 <script src="/nico579-langue.js"></script>
-<script src="/presentation.js?v=desktop-3"></script>
+<script src="/presentation.js?v=desktop-4"></script>
 </body>
 </html>

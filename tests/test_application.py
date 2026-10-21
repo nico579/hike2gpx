@@ -597,6 +597,51 @@ def test_les_donnees_telechargees_se_voient_et_se_videent(tmp_path, monkeypatch)
     assert a.agir_donnees({"action": "formater"}) == {"erreur": "Action inconnue."}
 
 
+def test_vider_cache_unique_efface_toutes_les_donnees_locales(tmp_path):
+    donnees_d_essai(tmp_path)
+    for dossier, nom in (("gpx2elev", "profil.json"), ("brouter/maison", "etat.json")):
+        p = tmp_path / dossier / nom
+        p.parent.mkdir(parents=True)
+        p.write_text("{}")
+    a = appli.Application(tmp_path)
+    assert "erreur" not in a.agir_donnees({"action": "vider_cache"})
+    assert not list((tmp_path / "overpass").glob("*.json"))
+    assert not list((tmp_path / "franchissements").glob("*.json"))
+    assert not list((tmp_path / "bdtopo").glob("*.json"))
+    assert not (tmp_path / "gpx2elev").exists()
+    assert not (tmp_path / "brouter" / "maison").exists()
+    assert not list((tmp_path / "brouter" / "segments4").glob("*.rd5"))
+    assert not list(geofabrik.dossier_extraits(tmp_path).iterdir())
+
+
+def test_vider_cache_refuse_pendant_un_calcul(tmp_path):
+    donnees_d_essai(tmp_path)
+    a = appli.Application(tmp_path)
+    a._verrou_calcul.acquire()
+    try:
+        assert "erreur" in a.agir_donnees({"action": "vider_cache"})
+        assert (tmp_path / "brouter" / "segments4" / "E5_N40.rd5").exists()
+    finally:
+        a._verrou_calcul.release()
+
+
+def test_journal_est_horodate_et_ne_reprend_pas_l_ancien(tmp_path):
+    (tmp_path / "hike2gpx.log").write_text("ancienne session\n")
+    chemin = appli.configurer_journal(tmp_path)
+    racine = logging.getLogger("hike2gpx")
+    try:
+        racine.info("nouvelle session")
+        resultat = appli.Application(tmp_path).lire_journal()
+        assert chemin.name.startswith("hike2gpx-20") and chemin.suffix == ".log"
+        assert resultat["chemin"] == str(chemin)
+        assert any("nouvelle session" in ligne for ligne in resultat["lignes"])
+        assert not any("ancienne session" in ligne for ligne in resultat["lignes"])
+    finally:
+        for h in [h for h in racine.handlers if Path(getattr(h, "baseFilename", "")) == chemin]:
+            racine.removeHandler(h)
+            h.close()
+
+
 def test_les_tuiles_brouter_s_actualisent_a_cote_puis_basculent(tmp_path, monkeypatch):
     # Les anciennes servent pendant le téléchargement ; la bascule se fait
     # moteurs arrêtés, car sous Windows un RD5 ouvert ne se remplace pas.
