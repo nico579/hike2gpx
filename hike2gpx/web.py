@@ -23,6 +23,8 @@ GUI = Path(__file__).parent / "assets" / "web"
 
 class Handler(serveweb.Handler):
     fichiers_statiques = {**serveweb.FICHIERS_STATIQUES,
+                          "/presentation.js": ("presentation.js", "text/javascript; charset=utf-8"),
+                          "/presentation.css": ("presentation.css", "text/css; charset=utf-8"),
                           "/leaflet/leaflet.js": ("leaflet/leaflet.js", "text/javascript; charset=utf-8"),
                           "/leaflet/leaflet.css": ("leaflet/leaflet.css", "text/css; charset=utf-8")}
     # Les calques et l'extrait hors ligne lisent la zone de la vue :
