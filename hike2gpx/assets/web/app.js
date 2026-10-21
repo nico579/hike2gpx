@@ -912,6 +912,8 @@ function planifierCalcul() {
 
 function effacerResultat() {
   couches.clearLayers();
+  cacherMarqueurProfil();
+  profilRoute = null;
   etat.dernier = null;
   $("resultat").hidden = true;
   $("exporter").disabled = true;
@@ -1075,6 +1077,48 @@ function lignes(feature) {
   return feature.geometry.coordinates.map((c) => [c[1], c[0]]);
 }
 
+let profilRoute = null;
+let marqueurProfil = null;
+
+function cacherMarqueurProfil() {
+  if (marqueurProfil) marqueurProfil.remove();
+  marqueurProfil = null;
+}
+
+function preparerRouteProfil(coordonnees) {
+  const points = coordonnees.map(([lon, lat]) => [lat, lon]);
+  const distances = [0];
+  for (let i = 1; i < points.length; i++) {
+    distances.push(distances[i - 1] + L.latLng(points[i - 1]).distanceTo(L.latLng(points[i])));
+  }
+  return { points, distances, total: distances.at(-1) };
+}
+
+function positionSurProfil(fraction) {
+  if (!profilRoute || !profilRoute.total || !Number.isFinite(fraction)) return null;
+  const { points, distances, total } = profilRoute;
+  const cible = Math.max(0, Math.min(1, fraction)) * total;
+  let debut = 1;
+  let fin = distances.length - 1;
+  while (debut < fin) {
+    const milieu = Math.floor((debut + fin) / 2);
+    if (distances[milieu] < cible) debut = milieu + 1;
+    else fin = milieu;
+  }
+  const part = (cible - distances[debut - 1]) / (distances[debut] - distances[debut - 1] || 1);
+  return [0, 1].map(i => points[debut - 1][i] + part * (points[debut][i] - points[debut - 1][i]));
+}
+
+document.addEventListener("hike2gpx:profil-position", event => {
+  const position = positionSurProfil(event.detail);
+  if (!position) return cacherMarqueurProfil();
+  if (marqueurProfil) marqueurProfil.setLatLng(position);
+  else marqueurProfil = L.circleMarker(position, {
+    radius: 7, color: "#fff", weight: 2, fillColor: "#1565c0", fillOpacity: 1,
+    interactive: false, pane: "trace", className: "profile-map-cursor",
+  }).addTo(carte);
+});
+
 function paragraphe(contenu, gras = false) {
   const p = document.createElement("p");
   if (gras) {
@@ -1103,6 +1147,8 @@ function bulleFranchissement(f) {
 
 function afficher(r) {
   etat.dernier = r;
+  cacherMarqueurProfil();
+  profilRoute = null;
   couches.clearLayers();
   if (r.naif && $("comparer").checked) {
     L.polyline(lignes(r.naif), { color: "#555", weight: 4, opacity: 0.7, dashArray: "6 8", interactive: false, pane: "trace" })
@@ -1175,6 +1221,8 @@ async function calculerDenivele(r) {
   }
   if (numero !== etat.sequenceDenivele || etat.dernier !== r) return;   // un tracé plus récent est affiché
   if (d.erreur) {
+    cacherMarqueurProfil();
+    profilRoute = null;
     r.erreurDenivele = ts(d.erreur);
     $("denivele").textContent = "—";
     $("sourceDenivele").textContent = t("denivele.indisponible", { erreur: r.erreurDenivele });
@@ -1182,6 +1230,7 @@ async function calculerDenivele(r) {
     return;
   }
   r.denivele = d;
+  profilRoute = preparerRouteProfil(r.itineraire.geometry.coordinates);
   ecrireDenivele(d);
   if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:denivele", { detail: d }));
   chargerJournal();

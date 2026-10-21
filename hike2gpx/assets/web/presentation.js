@@ -124,6 +124,12 @@
   let profilePoints = [];
   let scaledPoints = [];
   let cursorIndex = 0;
+  function hideProfileCursor() {
+    profileCursor.setAttribute("hidden", "");
+    profileCursorPoint.setAttribute("hidden", "");
+    profileReadout.textContent = "";
+    document.dispatchEvent(new CustomEvent("hike2gpx:profil-position", { detail: null }));
+  }
   const collapsedDistance = document.getElementById("collapsedDistance");
   const collapsedElevation = document.getElementById("collapsedElevation");
   function syncCollapsedMetrics() {
@@ -144,6 +150,7 @@
     document.body.classList.toggle("hide-elevation", hideElevation.checked);
     elevationPanel.toggleAttribute("inert", hideElevation.checked);
     elevationPanel.setAttribute("aria-hidden", String(hideElevation.checked));
+    if (hideElevation.checked) hideProfileCursor();
     syncProfileHeight();
   }
   hideElevation.addEventListener("change", () => {
@@ -162,8 +169,7 @@
       profilePoints = [];
       profileSvg.setAttribute("hidden", "");
       profileAxis.hidden = true;
-      profileCursor.setAttribute("hidden", "");
-      profileCursorPoint.setAttribute("hidden", "");
+      hideProfileCursor();
     } else if (!wasVisible) {
       profileSource.textContent = t("profil.attente");
       profileReadout.textContent = "";
@@ -174,6 +180,7 @@
   new MutationObserver(syncRoute).observe(result, { attributes: true, attributeFilter: ["hidden"] });
   elevationToggle.addEventListener("click", () => {
     elevationContent.hidden = !elevationContent.hidden;
+    if (elevationContent.hidden) hideProfileCursor();
     elevationToggle.setAttribute("aria-expanded", String(!elevationContent.hidden));
     try { localStorage.setItem(profilePreference, String(elevationContent.hidden)); } catch (error) {}
     syncProfileHeight();
@@ -193,6 +200,9 @@
     profileCursor.removeAttribute("hidden");
     profileCursorPoint.removeAttribute("hidden");
     profileReadout.textContent = `${(distance / 1000).toFixed(2).replace(".", ",")} km · ${Math.round(altitude)} m`;
+    document.dispatchEvent(new CustomEvent("hike2gpx:profil-position", {
+      detail: distance / Math.max(1, profilePoints.at(-1)[0]),
+    }));
   }
   profileSvg.addEventListener("pointermove", event => {
     const rect = profileSvg.getBoundingClientRect();
@@ -203,11 +213,7 @@
     }
     showCursor(nearest);
   });
-  profileSvg.addEventListener("pointerleave", () => {
-    profileCursor.setAttribute("hidden", "");
-    profileCursorPoint.setAttribute("hidden", "");
-    profileReadout.textContent = "";
-  });
+  profileSvg.addEventListener("pointerleave", hideProfileCursor);
   profileSvg.addEventListener("keydown", event => {
     const next = { ArrowLeft: cursorIndex - 1, ArrowRight: cursorIndex + 1,
       Home: 0, End: scaledPoints.length - 1 }[event.key];
@@ -217,6 +223,7 @@
   });
   document.addEventListener("hike2gpx:denivele", event => {
     if (elevationPanel.hidden) return;
+    hideProfileCursor();
     const data = event.detail;
     if (data.erreur || !Array.isArray(data.profil) || data.profil.length < 2) {
       profileSource.textContent = t("profil.indisponible", { erreur: data.erreur || "données manquantes" });
