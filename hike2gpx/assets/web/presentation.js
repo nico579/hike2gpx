@@ -4,6 +4,7 @@
   const panel = document.getElementById("panneau");
   const panelToggle = document.getElementById("panelToggle");
   const panelPreference = "hike2gpx.panelCollapsed";
+  const tabPreference = "hike2gpx.activeTab";
   function setPanelCollapsed(collapsed, remember = false) {
     document.body.classList.toggle("panel-collapsed", collapsed);
     panel.toggleAttribute("inert", collapsed);
@@ -73,7 +74,7 @@
       { attributes: true, childList: true, characterData: true, subtree: true });
   }
   refreshActivity();
-  function selectPane(name, focus = false) {
+  function selectPane(name, focus = false, remember = true) {
     for (const tab of tabs) {
       const selected = tab.dataset.pane === name;
       tab.setAttribute("aria-selected", String(selected));
@@ -85,6 +86,9 @@
     if (name === "reglages") chargerDonnees();
     if (name === "journal") chargerJournal();
     if (innerWidth <= 700 && name !== "trace") document.body.classList.add("sheet-expanded");
+    if (remember) {
+      try { localStorage.setItem(tabPreference, name); } catch (error) {}
+    }
     setTimeout(() => window.dispatchEvent(new Event("resize")), 280);
   }
   tabs.forEach((tab, index) => {
@@ -96,12 +100,19 @@
       selectPane(tabs[next].dataset.pane, true);
     });
   });
+  try {
+    const savedTab = localStorage.getItem(tabPreference);
+    if (tabs.some(tab => tab.dataset.pane === savedTab)) selectPane(savedTab, false, false);
+  } catch (error) {}
   const routeSummary = document.getElementById("routeSummary");
   const result = document.getElementById("resultat");
   const exporter = document.getElementById("exporter");
   const elevationPanel = document.getElementById("elevationPanel");
   const elevationToggle = document.getElementById("elevationToggle");
   const elevationContent = document.getElementById("elevationContent");
+  const profilePreference = "hike2gpx.profileCollapsed";
+  try { elevationContent.hidden = localStorage.getItem(profilePreference) === "true"; } catch (error) {}
+  elevationToggle.setAttribute("aria-expanded", String(!elevationContent.hidden));
   const profileSvg = document.getElementById("elevationProfile");
   const profileSource = document.getElementById("profileSource");
   const profileReadout = document.getElementById("profileReadout");
@@ -139,6 +150,7 @@
   elevationToggle.addEventListener("click", () => {
     elevationContent.hidden = !elevationContent.hidden;
     elevationToggle.setAttribute("aria-expanded", String(!elevationContent.hidden));
+    try { localStorage.setItem(profilePreference, String(elevationContent.hidden)); } catch (error) {}
     syncProfileHeight();
   });
   for (const eventName of ["click", "mousedown", "dblclick"]) {
@@ -227,6 +239,12 @@
   // restent gérés par app.js, y compris lorsqu'une langue les recrée.
   const toolbar = document.querySelector(".map-widget-toolbar");
   const layersButton = document.getElementById("layersButton");
+  const layersPreference = "hike2gpx.layersOpen";
+  try {
+    const open = localStorage.getItem(layersPreference) === "true";
+    toolbar.classList.toggle("layers-open", open);
+    layersButton.setAttribute("aria-expanded", String(open));
+  } catch (error) {}
   const baseLabel = document.getElementById("baseLabel");
   const expandButton = document.getElementById("expandMapButton");
   const map = document.getElementById("carte");
@@ -236,15 +254,17 @@
   for (const eventName of ["click", "mousedown", "dblclick"]) {
     expandButton.addEventListener(eventName, event => event.stopPropagation());
   }
-  function closeLayers() {
+  function closeLayers(remember = true) {
     toolbar.classList.remove("layers-open");
     layersButton.setAttribute("aria-expanded", "false");
+    if (remember) {
+      try { localStorage.setItem(layersPreference, "false"); } catch (error) {}
+    }
   }
   function syncLayers() {
     const control = leafletControls.querySelector(".leaflet-control-layers") || toolbar.querySelector(".leaflet-control-layers");
     if (!control) return;
     if (control.parentElement !== toolbar) {
-      closeLayers();
       toolbar.append(control);
     }
     const list = control.querySelector(".leaflet-control-layers-list");
@@ -267,6 +287,7 @@
   layersButton.addEventListener("click", () => {
     const open = toolbar.classList.toggle("layers-open");
     layersButton.setAttribute("aria-expanded", String(open));
+    try { localStorage.setItem(layersPreference, String(open)); } catch (error) {}
   });
   document.addEventListener("click", event => {
     if (!toolbar.contains(event.target)) closeLayers();
@@ -281,7 +302,7 @@
     expandButton.setAttribute("aria-pressed", String(expanded));
     expandButton.setAttribute("aria-label", label);
     expandButton.title = label;
-    closeLayers();
+    closeLayers(false);
     setTimeout(() => window.dispatchEvent(new Event("resize")), 60);
   }
   document.addEventListener("fullscreenchange", syncFullscreen);

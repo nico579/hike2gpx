@@ -9,8 +9,9 @@ const vm = require("node:vm");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-function charger() {
+function charger(preferences = {}) {
   const elements = new Map();
+  const stockage = new Map(Object.entries(preferences));
   const element = () => {
     const classes = new Set();
     return { disabled: true, hidden: false, checked: false, textContent: "", value: "", style: {},
@@ -23,7 +24,7 @@ function charger() {
   };
   const couche = () => ({ addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
     on() { return this; }, setIcon() { return this; }, clearLayers() {}, remove() {}, closePopup() {} });
-  const carte = { setView() { return this; }, on() {}, createPane() { return { style: {} }; },
+  const carte = { handlers: {}, setView() { return this; }, on(name, handler) { this.handlers[name] = handler; }, createPane() { return { style: {} }; },
     hasLayer() { return false; }, getZoom() { return 14; }, invalidateSize() {},
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
@@ -36,11 +37,11 @@ function charger() {
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
       addEventListener() {}, querySelectorAll() { return []; } },
-    localStorage: { getItem() { return null; }, setItem() {} },
+    localStorage: { getItem(key) { return stockage.get(key) ?? null; }, setItem(key, value) { stockage.set(key, value); } },
     confirm: (texte) => { confirmations.push(texte); return confirmations.reponse; },
     setTimeout() { return 0; }, clearTimeout() {}, setInterval() { return 1; }, clearInterval() {},
     L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
-      marker: couche, tileLayer: couche, divIcon: couche, control: { layers: couche },
+      marker: couche, tileLayer: (url) => Object.assign(couche(), { url }), divIcon: couche, control: { layers: couche },
       latLng: (lat, lng) => ({ lat, lng }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
       DomEvent: { on() {}, disableClickPropagation() {} } },
@@ -56,9 +57,10 @@ function charger() {
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
-    + " debutLecture, finLecture, afficherLectures, afficherDonnees };", contexte);
+    + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
+    + " fond: () => fondActif, fonds: () => couchesFonds };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
-  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations };
+  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage };
 }
 
 function resultat(lonArrivee) {
@@ -68,6 +70,23 @@ function resultat(lonArrivee) {
 }
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
+
+test("les options de marche et le fond reviennent à l'ouverture", () => {
+  const { page, elements, stockage, carte } = charger({
+    "hike2gpx.options": JSON.stringify({ strict: true, ign: false, comparer: false }),
+    "hike2gpx.fond": "osm",
+  });
+  assert.equal(elements.get("strict").checked, true);
+  assert.equal(elements.get("ign").checked, false);
+  assert.equal(elements.get("comparer").checked, false);
+  page.construireFonds();
+  assert.match(page.fond().url, /tile\.openstreetmap\.org/);
+  elements.get("comparer").checked = true;
+  elements.get("comparer").ecouteurs.change[0]();
+  assert.deepEqual(JSON.parse(stockage.get("hike2gpx.options")), { strict: true, ign: false, comparer: true });
+  carte.handlers.baselayerchange({ layer: page.fonds().plan });
+  assert.equal(stockage.get("hike2gpx.fond"), "plan");
+});
 
 async function calculReussi(page, derniere) {
   page.etat.points = [{ lat: 43.3, lon: 6 }, { lat: 43.3, lon: 6.01 }];

@@ -467,10 +467,17 @@ function tuileIgn(couche, format, cle) {
 }
 
 const IGN = '© <a href="https://www.ign.fr/">IGN</a>';
+const CLE_FOND = "hike2gpx.fond";
 let controleFonds = null;
 let fondActif = null;
 let couchesFonds = {};      // clé -> fond de carte Leaflet
-carte.on("baselayerchange", (e) => { fondActif = e.layer; });
+carte.on("baselayerchange", (e) => {
+  fondActif = e.layer;
+  const cle = Object.keys(couchesFonds).find((nom) => couchesFonds[nom] === e.layer);
+  if (cle) {
+    try { localStorage.setItem(CLE_FOND, cle); } catch (erreur) { /* stockage indisponible */ }
+  }
+});
 
 // ------------------------------------------------------------ calques de chemins
 
@@ -800,6 +807,8 @@ carte.on("moveend", () => {
 // langue change ; le fond affiché reste le même.
 function construireFonds() {
   const cleActive = Object.keys(couchesFonds).find((cle) => couchesFonds[cle] === fondActif);
+  let clePreferee = null;
+  try { clePreferee = localStorage.getItem(CLE_FOND); } catch (erreur) { /* fond par défaut */ }
   couchesFonds = {};
   if (etat.cleIgn) {
     couchesFonds.scan25 = L.tileLayer(tuileIgn("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", etat.cleIgn),
@@ -814,7 +823,7 @@ function construireFonds() {
       attribution: `© <a href="https://www.openstreetmap.org/copyright">${t("attribution.osm")}</a>` });
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
-  fondActif = (couchesFonds[cleActive] || Object.values(couchesFonds)[0]).addTo(carte);
+  fondActif = (couchesFonds[clePreferee] || couchesFonds[cleActive] || Object.values(couchesFonds)[0]).addTo(carte);
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES).map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
@@ -1239,9 +1248,24 @@ new PleinEcran().addTo(carte);
 document.addEventListener("fullscreenchange", () => {
   if (!document.fullscreenElement && document.body.classList.contains("plein-ecran")) appliquerPleinEcran(false);
 });
-$("strict").addEventListener("change", planifierCalcul);
-$("ign").addEventListener("change", planifierCalcul);
-$("comparer").addEventListener("change", planifierCalcul);
+const CLE_OPTIONS = "hike2gpx.options";
+function restaurerOptions() {
+  try {
+    const options = JSON.parse(localStorage.getItem(CLE_OPTIONS) || "null");
+    if (!options || typeof options !== "object") return;
+    for (const id of ["strict", "ign", "comparer"]) {
+      if (typeof options[id] === "boolean") $(id).checked = options[id];
+    }
+  } catch (erreur) { /* conserver les valeurs par défaut */ }
+}
+function memoriserOptions() {
+  const options = Object.fromEntries(["strict", "ign", "comparer"].map((id) => [id, $(id).checked]));
+  try { localStorage.setItem(CLE_OPTIONS, JSON.stringify(options)); } catch (erreur) { /* sans importance */ }
+}
+restaurerOptions();
+for (const id of ["strict", "ign", "comparer"]) {
+  $(id).addEventListener("change", () => { memoriserOptions(); planifierCalcul(); });
+}
 $("enregistrerCle").addEventListener("click", async () => {
   try {
     const r = await api("reglages", { cle_ign: $("cleIgn").value, renouvellement_jours: Number($("renouvellementJours").value) });
