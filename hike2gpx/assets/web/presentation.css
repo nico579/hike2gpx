@@ -65,7 +65,6 @@ body.plein-ecran .panel-toggle{display:none}
 .legende h3{font-size:11px;font-weight:700;color:#4e6074;margin:0}
 .legende ul{list-style:none;margin:8px 0 0;padding:0}.legende li{display:flex;align-items:center;gap:8px;font-size:11px;line-height:1.35;margin:8px 0}
 .legende .trait{flex:none;width:24px}.legende .pastille{flex:none}
-.legende .note{font-size:10px;line-height:1.4;margin:10px 0 0}
 #reglages,#journal{display:block;margin:0;border:1px solid var(--bordure);border-radius:11px;padding:14px;background:#fff}
 .map-activity{position:absolute;left:18px;bottom:22px;z-index:1100;width:min(420px,calc(100% - 36px));max-height:min(42vh,330px);overflow-y:auto;border:1px solid #d9e5f18c;background:#ffffff8c;backdrop-filter:blur(2px);border-radius:10px;padding:11px 14px;box-shadow:0 7px 30px #1b354533;pointer-events:none}
 .map-activity-row{padding:8px 0;border-top:1px solid #dce8f6}
