@@ -31,6 +31,7 @@ const TEXTES = {
     "resultat.distance": "Distance",
     "resultat.denivele": "Dénivelé",
     "resume.parcours": "Votre parcours",
+    "resume.deniveleInfo": "gpx2elev relève l'altitude du terrain tous les 5 m, lisse le profil sur 20 m, puis calcule les montées et descentes avec un seuil de 2 m.",
     "profil.titre": "Le relief du parcours",
     "profil.depart": "Départ",
     "profil.attente": "Calcul gpx2elev en cours…",
@@ -51,6 +52,11 @@ const TEXTES = {
     "reglages.cle": "Clé IGN pour le SCAN 25",
     "reglages.enregistrer": "Enregistrer",
     "reglages.note": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
+    "reglages.renouvellement": "Renouveler les extraits OSM après",
+    "reglages.jours": "jours",
+    "disponibilite.oui": "Tracé disponible",
+    "disponibilite.non": "Tracé indisponible",
+    "statut.donneesIndisponibles": "Données OSM indisponibles pour ce tracé. Nouvelle tentative automatique après téléchargement.",
     "donnees.titre": "Données téléchargées",
     "donnees.note": "Tout se retélécharge de soi-même au besoin : vider ou supprimer libère de la place, actualiser donne des données fraîches.",
     "donnees.osm": "Chemins OSM lus sur Overpass : {n} tuiles, {taille}",
@@ -155,6 +161,7 @@ const TEXTES = {
     "resultat.distance": "Distance",
     "resultat.denivele": "Elevation",
     "resume.parcours": "Your route",
+    "resume.deniveleInfo": "gpx2elev samples terrain elevation every 5 m, smooths the profile over 20 m, then calculates ascent and descent with a 2 m threshold.",
     "profil.titre": "Route elevation",
     "profil.depart": "Start",
     "profil.attente": "Calculating with gpx2elev…",
@@ -175,6 +182,11 @@ const TEXTES = {
     "reglages.cle": "IGN key for SCAN 25",
     "reglages.enregistrer": "Save",
     "reglages.note": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
+    "reglages.renouvellement": "Refresh OSM extracts after",
+    "reglages.jours": "days",
+    "disponibilite.oui": "Routing available",
+    "disponibilite.non": "Routing unavailable",
+    "statut.donneesIndisponibles": "OSM data unavailable for this route. Automatic retry after download.",
     "donnees.titre": "Downloaded data",
     "donnees.note": "Everything downloads again by itself when needed: clearing or deleting frees space, refreshing brings fresh data.",
     "donnees.osm": "OSM paths read from Overpass: {n} tiles, {taille}",
@@ -375,6 +387,7 @@ function appliquerLangue(code) {
   afficherDonnees();
   afficherStatut(...etat.statut);
   if (etat.dernier) ecrireResultat(etat.dernier);
+  actualiserDisponibilite();
 }
 
 document.addEventListener("nico579-langue", (e) => appliquerLangue(e.detail.code));
@@ -417,7 +430,30 @@ carte.on("moveend", () => {
   try {
     localStorage.setItem(CLE_VUE, JSON.stringify({ lat: c.lat, lon: c.lng, zoom: carte.getZoom() }));
   } catch (e) { /* sans importance */ }
+  actualiserDisponibilite();
 });
+
+let sequenceDisponibilite = 0;
+function afficherDisponibilite(d) {
+  const pret = Boolean(d?.pret);
+  $("readiness").classList.toggle("available", pret);
+  $("readiness").classList.toggle("unavailable", !pret);
+  $("readinessText").textContent = t(pret ? "disponibilite.oui" : "disponibilite.non");
+  $("readiness").title = pret ? `OSM : ${d.source === "extrait" ? d.nom : "Overpass"}`
+    : d?.verification ? "Vérification d'Overpass…" : "Aucune source OSM disponible dans cette zone";
+}
+
+async function actualiserDisponibilite() {
+  const numero = ++sequenceDisponibilite;
+  const parametres = new URLSearchParams(Object.entries(zoneVue()).map(([k, v]) => [k, v.toFixed(5)]));
+  try {
+    const d = await api(`disponibilite?${parametres}`);
+    if (numero === sequenceDisponibilite) afficherDisponibilite(d);
+  } catch (e) {
+    if (numero === sequenceDisponibilite) afficherDisponibilite(null);
+  }
+}
+setInterval(actualiserDisponibilite, 10000);
 
 function tuileIgn(couche, format, cle) {
   const base = cle ? "https://data.geopf.fr/private/wmts" : "https://data.geopf.fr/wmts";
@@ -709,6 +745,7 @@ async function majExtrait(forcer = false) {
 function afficherExtrait(r) {
   const avant = extraitActif(etat.extrait) ? etat.extrait.en_cours.id : null;
   etat.extrait = r;
+  if (r?.installe) afficherDisponibilite({ pret: true, source: "extrait", nom: r.installe.nom });
   const e = r?.en_cours;
   const actif = extraitActif(r);
   // L'extrait suivi jusqu'ici a fini, même si la région de Geofabrik part
@@ -1000,7 +1037,8 @@ function boutonAction(libelle, action) {
 
 function afficherErreur(reponse) {
   effacerResultat();
-  afficherStatut(() => texteErreur(reponse), true);
+  const osmIndisponible = /Overpass|barrières non vérifiées|OSM.*indisponibles/i.test(reponse.erreur || "");
+  afficherStatut(() => osmIndisponible ? t("statut.donneesIndisponibles") : texteErreur(reponse), true);
   // Il manquait des données : le serveur les télécharge de lui-même (moteur et
   // tuiles BRouter, ou l'extrait OSM quand Overpass est en panne), et le
   // calcul reprendra une fois qu'elles seront là. Aucun bouton à cliquer.
@@ -1015,6 +1053,7 @@ function afficherErreur(reponse) {
     etat.donneesAttendues = { extrait: reponse.extrait_en_cours.id };
   }
   majExtrait(true);
+  actualiserDisponibilite();
 }
 
 function lignes(feature) {
@@ -1069,6 +1108,7 @@ function afficher(r) {
   calculerDenivele(r);
   $("resultat").hidden = false;
   $("exporter").disabled = false;
+  actualiserDisponibilite();
   // Repli sur OSM seul : les chemins IGN demandés n'ont pas pu servir, il faut le voir.
   afficherStatut(() => {
     const bilan = t("statut.bilan", { duree: decimal(r.duree_s, 2), total: r.franchissements.length });
@@ -1102,6 +1142,8 @@ function ecrireResultat(r) {
     liste.append(li);
   }
   $("aucunAVerifier").hidden = r.sur_le_trace.length > 0;
+  $("aVerifierTitle").hidden = r.sur_le_trace.length === 0;
+  $("resultat").classList.toggle("empty", r.sur_le_trace.length === 0);
 }
 
 // ------------------------------------------------------------ dénivelé
@@ -1198,7 +1240,7 @@ $("ign").addEventListener("change", planifierCalcul);
 $("comparer").addEventListener("change", planifierCalcul);
 $("enregistrerCle").addEventListener("click", async () => {
   try {
-    const r = await api("reglages", { cle_ign: $("cleIgn").value });
+    const r = await api("reglages", { cle_ign: $("cleIgn").value, renouvellement_jours: Number($("renouvellementJours").value) });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
     etat.cleIgn = r.cle_ign;
     construireFonds();
@@ -1258,6 +1300,7 @@ async function demarrer() {
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
     etat.cleIgn = reglages.cle_ign || "";
     $("cleIgn").value = etat.cleIgn;
+    $("renouvellementJours").value = reglages.renouvellement_jours ?? 30;
     // Premier lancement : le moteur BRouter s'installe de lui-même, en tâche
     // de fond ; le panneau suit son téléchargement.
     if (!infos.moteur_installe) {

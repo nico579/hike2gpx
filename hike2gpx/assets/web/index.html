@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=desktop-4">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-4">
+  <link rel="stylesheet" href="/style.css?v=desktop-6">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-6">
 </head>
 <body>
-<div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div>
+<div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
 <div id="carte" aria-label="Carte interactive">
   <div class="map-widget-toolbar">
     <button type="button" class="map-widget-button layers-trigger" id="layersButton" aria-label="Choisir le fond de carte, les chemins et la légende" aria-expanded="false" aria-controls="mapLayersMenu">
@@ -47,7 +47,7 @@
   <div class="sheet-grip"><span></span></div>
   <section id="routeSummary" class="route-summary" aria-label="Informations du parcours" hidden>
     <strong data-i18n="resume.parcours">Votre parcours</strong>
-    <dl><div><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd></div><div><dt><span data-i18n="resultat.denivele">Dénivelé</span> · gpx2elev</dt><dd id="denivele"></dd></div></dl>
+    <dl><div><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd></div><div><dt class="elevation-label"><span data-i18n="resultat.denivele">Dénivelé</span><span class="info-tooltip" tabindex="0" aria-label="Calcul du dénivelé">i<span role="tooltip" data-i18n="resume.deniveleInfo">gpx2elev relève l'altitude du terrain tous les 5 m, lisse le profil sur 20 m, puis calcule les montées et descentes avec un seuil de 2 m.</span></span></dt><dd id="denivele"></dd></div></dl>
   </section>
   <nav class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
     <button type="button" role="tab" id="tab-trace" data-pane="trace" aria-controls="pane-trace" aria-selected="true">Parcours</button>
@@ -74,7 +74,7 @@
     <div id="actions"></div>
     <section id="resultat" hidden>
       <p id="sourceDenivele" class="note"></p><p id="comparaison"></p>
-      <h2 data-i18n="resultat.aVerifier">Points à vérifier sur le tracé</h2>
+      <h2 id="aVerifierTitle" data-i18n="resultat.aVerifier" hidden>Points à vérifier sur le tracé</h2>
       <p id="aucunAVerifier" class="note" hidden data-i18n="resultat.aucun">Aucun franchissement connu sur ce tracé.</p>
       <ol id="aVerifier"></ol>
     </section>
@@ -82,7 +82,10 @@
   <section id="pane-reglages" class="pane" role="tabpanel" aria-labelledby="tab-reglages" hidden>
     <section id="reglages">
       <div class="ign-key-label"><label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé IGN">i<span role="tooltip" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</span></span></div>
-      <div class="ligne"><input id="cleIgn" type="password" autocomplete="off" spellcheck="false" aria-label="Clé IGN SCAN 25"><button id="afficherCle" type="button" aria-label="Afficher la clé IGN">Afficher</button><button id="enregistrerCle" type="button" data-i18n="reglages.enregistrer">Enregistrer</button></div>
+      <div class="ligne"><input id="cleIgn" type="password" autocomplete="off" spellcheck="false" aria-label="Clé IGN SCAN 25"><button id="afficherCle" type="button" aria-label="Afficher la clé IGN">Afficher</button></div>
+      <label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les extraits OSM après</label>
+      <div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div>
+      <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
       <div id="donnees"></div>
     </section>
   </section>
@@ -111,8 +114,8 @@
   </ul><p class="note" data-i18n="legende.note">Les calques de chemins se cochent sur la carte, en haut à droite, et s'affichent à partir du zoom 14.</p>
 </section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js?v=desktop-4"></script>
+<script src="/app.js?v=desktop-6"></script>
 <script src="/nico579-langue.js"></script>
-<script src="/presentation.js?v=desktop-4"></script>
+<script src="/presentation.js?v=desktop-5"></script>
 </body>
 </html>

@@ -67,7 +67,7 @@ body.plein-ecran .panel-toggle{display:none}
 .legende .trait{flex:none;width:24px}.legende .pastille{flex:none}
 .legende .note{font-size:10px;line-height:1.4;margin:10px 0 0}
 #reglages,#journal{display:block;margin:0;border:1px solid var(--bordure);border-radius:11px;padding:14px;background:#fff}
-.map-activity{position:absolute;left:18px;bottom:22px;z-index:1100;width:min(420px,calc(100% - 36px));max-height:min(42vh,330px);overflow-y:auto;border:1px solid #cddff4;background:#fafdffed;backdrop-filter:blur(6px);border-radius:10px;padding:11px 14px;box-shadow:0 7px 30px #1b354533;pointer-events:none}
+.map-activity{position:absolute;left:18px;bottom:22px;z-index:1100;width:min(420px,calc(100% - 36px));max-height:min(42vh,330px);overflow-y:auto;border:1px solid #d9e5f18c;background:#ffffff8c;backdrop-filter:blur(2px);border-radius:10px;padding:11px 14px;box-shadow:0 7px 30px #1b354533;pointer-events:none}
 .map-activity-row{padding:8px 0;border-top:1px solid #dce8f6}
 .map-activity-row:first-child{border-top:0;padding-top:0}
 .map-activity-row:last-child{padding-bottom:0}
@@ -101,6 +101,20 @@ body.profile-collapsed .map-activity{bottom:81px}
 .info-tooltip:focus-visible{outline:2px solid #d4a100;outline-offset:2px}
 .info-tooltip [role=tooltip]{display:none;position:absolute;z-index:1400;top:24px;left:-10px;width:260px;padding:9px 11px;border:1px solid #edd789;border-radius:8px;background:#fff9db;box-shadow:0 5px 18px #5b4b1b30;color:#4b431f;font-size:11px;font-weight:400;line-height:1.4}
 .info-tooltip:hover [role=tooltip],.info-tooltip:focus [role=tooltip]{display:block}
+.header-actions{display:flex;align-items:center;gap:18px}
+.readiness{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border-radius:14px;font-size:11px;font-weight:700;white-space:nowrap}
+.readiness.available{color:#176547;background:#e4f5ec}
+.readiness.unavailable{color:#a13a38;background:#fbe9e8}
+.readiness-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.elevation-label{display:inline-flex;align-items:center;gap:6px}
+.route-summary .info-tooltip [role=tooltip]{left:auto;right:-10px}
+.setting-label{display:block}
+.renouvellement-ligne{display:flex;align-items:center;gap:8px}
+.renouvellement-ligne input{width:70px}
+.settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
+#noteCalques,#extraitOsm,#brouterEnCours{display:none!important}
+#resultat #sourceDenivele,#resultat #comparaison,#resultat #aucunAVerifier{display:none!important}
+#resultat.empty{display:none!important}
 .journal-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .journal-heading h2{font-size:14px;margin:0}
 .journal-heading a{font-size:11px;color:var(--accent);white-space:nowrap}

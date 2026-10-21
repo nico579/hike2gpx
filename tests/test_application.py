@@ -50,9 +50,11 @@ def test_sur_le_trace_seulement_si_le_trace_coupe_la_coupe():
 
 def test_reglages_cle_ign(tmp_path):
     a = appli.Application(tmp_path)
-    assert a.reglages() == {"cle_ign": ""}
-    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1"}
-    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1"}
+    assert a.reglages() == {"cle_ign": "", "renouvellement_jours": 30}
+    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30}
+    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30}
+    assert a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 45})["renouvellement_jours"] == 45
+    assert "erreur" in a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 0})
     assert "erreur" in a.enregistrer_reglages({"cle_ign": "<script>"})
 
 
@@ -487,6 +489,20 @@ def test_route_denivele(tmp_path, monkeypatch):
     assert a.denivele({}) == {"erreur": "Tracé invalide."}
 
 
+def test_disponibilite_depuis_extrait_ou_overpass(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    zone = (43.3, 6.0, 43.31, 6.01)
+    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: {"nom": "Var"})
+    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
+    assert a.disponibilite(zone) == {"pret": True, "source": "extrait", "nom": "Var"}
+    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: None)
+    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: True)
+    assert a.disponibilite(zone)["pret"] is True
+    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
+    assert a.disponibilite(zone)["pret"] is False
+
+
+
 def test_routes_init_annonce_l_application(tmp_path):
     get, post = appli.Application(tmp_path).routes()
     assert get["init"]()["app"] == "hike2gpx"
@@ -504,7 +520,7 @@ def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
     assert get["langue"]()["code"] is None
     assert post["langue"]({"code": "en"})["enregistre"]
     autre = appli.Application(tmp_path)
-    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test"}
+    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test", "renouvellement_jours": 30}
 
 
 def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch):

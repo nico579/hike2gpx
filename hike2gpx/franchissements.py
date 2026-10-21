@@ -92,6 +92,38 @@ def _verrou(cle) -> threading.Lock:
 # vues précédentes (journal du 2026-10-19 : 429 en rafale, tuiles en 5 min).
 CRENEAUX = 2
 _creneaux = threading.BoundedSemaphore(CRENEAUX)
+_sante_overpass = {"disponible": None, "verifiee": 0.0, "fil": None}
+_verrou_sante = threading.Lock()
+
+
+def _noter_overpass(disponible: bool) -> None:
+    with _verrou_sante:
+        _sante_overpass.update(disponible=disponible, verifiee=time.monotonic())
+
+
+def disponibilite_overpass() -> bool | None:
+    """Sonde courte en arrière-plan, sans faire attendre la page ni un calcul.
+
+    Une requête de données réussie ou échouée met aussi cet état à jour.
+    """
+    with _verrou_sante:
+        etat = _sante_overpass["disponible"]
+        age = time.monotonic() - _sante_overpass["verifiee"]
+        fil = _sante_overpass["fil"]
+        if (etat is None or age > (60 if etat is False else 300)) and not (fil and fil.is_alive()):
+            def sonder():
+                try:
+                    demande = urllib.request.Request(ENDPOINT.rsplit("/", 1)[0] + "/status",
+                                                     headers={"User-Agent": f"hike2gpx/{__version__}"})
+                    with urllib.request.urlopen(demande, timeout=6) as reponse:
+                        reponse.read(128)
+                    _noter_overpass(True)
+                except OSError:
+                    _noter_overpass(False)
+            fil = threading.Thread(target=sonder, daemon=True, name="overpass-disponibilite")
+            _sante_overpass["fil"] = fil
+            fil.start()
+        return etat
 
 
 class ErreurDonnees(RuntimeError):
@@ -588,7 +620,9 @@ def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep, continue
         if donnees.get("remark") or not isinstance(donnees.get("elements"), list):
             derniere = ErreurDonnees(str(donnees.get("remark") or "réponse incomplète"))
             continue
+        _noter_overpass(True)
         return donnees["elements"]
+    _noter_overpass(False)
     raise ErreurDonnees(f"Overpass ne répond pas : barrières non vérifiées ({derniere}).") from derniere
 
 

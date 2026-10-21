@@ -238,15 +238,23 @@ class Application:
     def reglages(self) -> dict:
         prefs = atomique.lire_json(self.preferences, {})
         cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
-        return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else ""}
+        jours = prefs.get("renouvellement_jours", 30) if isinstance(prefs, dict) else 30
+        jours = jours if type(jours) is int and 1 <= jours <= 365 else 30
+        return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
+                "renouvellement_jours": jours}
 
     def enregistrer_reglages(self, payload) -> dict:
-        cle = (payload or {}).get("cle_ign", "")
+        payload = payload or {}
+        cle = payload.get("cle_ign", "")
         if not isinstance(cle, str) or not _CLE_IGN.match(cle.strip()):
             return {"erreur": "Clé IGN invalide : lettres, chiffres, _ et - seulement."}
+        jours = payload.get("renouvellement_jours", self.reglages()["renouvellement_jours"])
+        if type(jours) is not int or not 1 <= jours <= 365:
+            return {"erreur": "Le délai de renouvellement doit être compris entre 1 et 365 jours."}
         prefs = atomique.lire_json(self.preferences, {})
         prefs = prefs if isinstance(prefs, dict) else {}
         prefs["cle_ign"] = cle.strip()
+        prefs["renouvellement_jours"] = jours
         atomique.ecrire_json(self.preferences, prefs)
         return self.reglages()
 
@@ -711,6 +719,18 @@ class Application:
             return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
         return reponse
 
+    def disponibilite(self, zone) -> dict:
+        """Source OSM utilisable pour la zone, sans attendre un extrait en cours."""
+        if zone is None:
+            return {"pret": False, "source": None}
+        i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
+        installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
+        if installe is not None:
+            return {"pret": True, "source": "extrait", "nom": installe["nom"]}
+        disponible = franchissements.disponibilite_overpass()
+        return {"pret": disponible is True, "source": "overpass" if disponible else None,
+                "verification": disponible is None}
+
     # ---------------------------------------------------------- données téléchargées
 
     def _caches(self) -> dict:
@@ -865,6 +885,7 @@ class Application:
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
                "osm": self.calque_osm, "bdtopo": self.calque_bdtopo, "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
+               "disponibilite": self.disponibilite,
                **get_langue}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,

@@ -51,7 +51,7 @@ journal = logging.getLogger(__name__)
 
 INDEX_URL = "https://download.geofabrik.de/index-v1.json"
 INDEX_TTL_S = 30 * 86400
-RENOUVELLEMENT_S = 7 * 86400        # le même âge maximal que le cache Overpass (TTL_S)
+RENOUVELLEMENT_S = 30 * 86400       # valeur par défaut, configurable dans les réglages
 TAILLE_MAX = 2 * 1024 ** 3          # au-delà (grands pays d'un seul tenant), Overpass seul
 # Geofabrik met parfois une minute à répondre, puis répond en 0,2 s (mesuré le
 # 2026-10-20, après l'échec de l'extrait Centre sur un délai de 30 s) : délai
@@ -829,7 +829,11 @@ class Telechargements:
     def renouveler_si_perime(self, extrait: dict) -> None:
         """Lancé à chaque lecture d'un extrait trop vieux : l'ancien sert jusqu'à
         la bascule."""
-        if age_s(extrait) > RENOUVELLEMENT_S and not (self._fil and self._fil.is_alive()):
+        prefs = atomique.lire_json(self.dossier / "preferences.json", {})
+        prefs = prefs if isinstance(prefs, dict) else {}
+        jours = prefs.get("renouvellement_jours", 30)
+        jours = jours if type(jours) is int and 1 <= jours <= 365 else 30
+        if age_s(extrait) > jours * 86400 and not (self._fil and self._fil.is_alive()):
             journal.info("Extrait OSM %s du %s : renouvellement en tâche de fond", extrait["id"],
                          extrait["date"])
             self.lancer(extrait)
