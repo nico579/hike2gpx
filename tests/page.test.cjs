@@ -355,11 +355,14 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
     restes: { fichiers: 1, octets: 3_600_000 },
     occupe: { extrait: "provence-alpes-cote-d-azur", brouter: false },
   });
-  let bouton = elements.get("donnees").enfants[0];
+  let controles = elements.get("donnees").enfants[0];
+  let bouton = controles.enfants[0];
   assert.equal(bouton.textContent, "Vider le cache");
+  assert.match(controles.enfants[1].enfants[0].textContent, /IGN LiDAR HD|gpx2elev/);
+  assert.match(controles.enfants[1].enfants[0].textContent, /tuiles des fonds de carte IGN et OSM/);
   assert.equal(bouton.disabled, true);
   page.afficherDonnees({ occupe: { extrait: null, brouter: false } });
-  bouton = elements.get("donnees").enfants[0];
+  bouton = elements.get("donnees").enfants[0].enfants[0];
   assert.equal(bouton.disabled, false);
   bouton.ecouteurs.click[0]();
   assert.match(confirmations[0], /Les tuiles de fond de carte restent dans le cache du navigateur/);
@@ -369,5 +372,6 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
   const envoi = requetes.find((r) => r.url === "/api/donnees");
   assert.deepEqual(JSON.parse(envoi.options.body), { action: "vider_cache", cible: null });
   page.appliquerLangue("en");
-  assert.equal(elements.get("donnees").enfants[0].textContent, "Clear cache");
+  assert.equal(elements.get("donnees").enfants[0].enfants[0].textContent, "Clear cache");
+  assert.match(elements.get("donnees").enfants[0].enfants[1].enfants[0].textContent, /BRouter data/);
 });

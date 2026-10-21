@@ -71,6 +71,8 @@ const TEXTES = {
     "donnees.nettoyer": "Nettoyer",
     "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
     "donnees.viderTout": "Vider le cache",
+    "donnees.aideCache": "Détail des caches vidés",
+    "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins BD TOPO de l'IGN, les extraits OSM téléchargés (départements et régions), les données BRouter (moteur et tuiles de routage) et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte IGN et OSM, conservées dans le cache du navigateur, ne sont pas effacées.",
     "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter ? Elles seront retéléchargées au besoin. Les tuiles de fond de carte restent dans le cache du navigateur.",
     "donnees.vide": "Cache local vidé. Les tuiles du fond de carte restent gérées par le navigateur.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
@@ -201,6 +203,8 @@ const TEXTES = {
     "donnees.nettoyer": "Clean up",
     "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
     "donnees.viderTout": "Clear cache",
+    "donnees.aideCache": "Details of cleared caches",
+    "donnees.detailCache": "This clears Overpass responses and OSM crossings, IGN BD TOPO paths, downloaded OSM extracts (departments and regions), BRouter data (engine and routing tiles), and gpx2elev elevation models. They are downloaded again when needed. IGN and OSM background map tiles held in the browser cache are not cleared.",
     "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data? It will download again when needed. Background map tiles remain in the browser cache.",
     "donnees.vide": "Local cache cleared. Background map tiles remain managed by the browser.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
@@ -1265,12 +1269,25 @@ function afficherDonnees(d) {
   bouton.type = "button";
   bouton.textContent = t("donnees.viderTout");
   bouton.disabled = Boolean(occupe.extrait || occupe.brouter);
-  bouton.title = t("donnees.infoCache");
   bouton.addEventListener("click", () => agirDonnees("vider_cache", null, t("donnees.confirmerTout")));
+  const controles = document.createElement("div");
+  controles.className = "cache-controls";
+  const info = document.createElement("span");
+  info.className = "info-tooltip";
+  info.tabIndex = 0;
+  info.setAttribute("aria-label", t("donnees.aideCache"));
+  info.setAttribute("aria-describedby", "cacheTooltip");
+  info.textContent = "i";
+  const explication = document.createElement("span");
+  explication.id = "cacheTooltip";
+  explication.setAttribute("role", "tooltip");
+  explication.textContent = t("donnees.detailCache");
+  info.append(explication);
+  controles.append(bouton, info);
   const statut = document.createElement("p");
   statut.id = "cacheStatus";
   statut.setAttribute("role", "status");
-  boite.append(bouton, statut);
+  boite.append(controles, statut);
 }
 
 async function chargerDonnees() {

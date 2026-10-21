@@ -123,9 +123,11 @@ body.profile-collapsed .map-activity{bottom:81px}
 #reglages h3{font-size:13px;border-top:1px solid var(--bordure);padding-top:16px;margin-top:18px}
 #donnees{font-size:12px}.ligne-donnees{padding:10px 0;border-bottom:1px solid #eef2f7;gap:5px}.ligne-donnees button{font-size:11px;padding:5px 8px}
 #donnees{margin-top:22px;border-top:1px solid var(--bordure);padding-top:16px}
-#donnees>button{padding:9px 13px;border:1px solid #d7e3f0;border-radius:8px;background:#f5f9ff;color:#315b88;cursor:pointer;font-size:12px}
-#donnees>button:hover:not(:disabled){background:#e9f2ff}
-#donnees>button:disabled{opacity:.5;cursor:default}
+.cache-controls{display:flex;align-items:center;gap:8px}
+.cache-controls .info-tooltip [role=tooltip]{left:-135px;width:330px}
+#donnees .cache-controls>button{padding:9px 13px;border:1px solid #d7e3f0;border-radius:8px;background:#f5f9ff;color:#315b88;cursor:pointer;font-size:12px}
+#donnees .cache-controls>button:hover:not(:disabled){background:#e9f2ff}
+#donnees .cache-controls>button:disabled{opacity:.5;cursor:default}
 #cacheStatus{min-height:1em;margin:8px 0 0;font-size:11px;color:#5d7186}
 #lignesJournal{max-height:none;min-height:170px;max-width:100%;margin-top:11px;padding:12px;font-size:11px;line-height:1.5;background:#f7f9fc;border-color:#e4ebf3}
 .panel-footer{display:flex;gap:7px;align-items:flex-start;margin:0;border-top:1px solid var(--bordure);padding:10px 23px;font-size:9px;line-height:1.4;color:#8997a7;background:#fff;flex-shrink:0}
