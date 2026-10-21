@@ -107,7 +107,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 .readiness.unavailable{color:#a13a38;background:#fbe9e8}
 .readiness-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
 .elevation-label{display:inline-flex;align-items:center;gap:6px}
-.route-summary .info-tooltip [role=tooltip]{left:auto;right:-10px}
+.route-summary .info-tooltip [role=tooltip]{left:auto;right:-100px;width:330px}
 .setting-label{display:block}
 .renouvellement-ligne{display:flex;align-items:center;gap:8px}
 .renouvellement-ligne input{width:70px}

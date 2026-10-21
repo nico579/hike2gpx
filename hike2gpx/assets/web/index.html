@@ -6,7 +6,7 @@
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-6">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-6">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-7">
 </head>
 <body>
 <div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
@@ -47,7 +47,7 @@
   <div class="sheet-grip"><span></span></div>
   <section id="routeSummary" class="route-summary" aria-label="Informations du parcours" hidden>
     <strong data-i18n="resume.parcours">Votre parcours</strong>
-    <dl><div><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd></div><div><dt class="elevation-label"><span data-i18n="resultat.denivele">Dénivelé</span><span class="info-tooltip" tabindex="0" aria-label="Calcul du dénivelé">i<span role="tooltip" data-i18n="resume.deniveleInfo">gpx2elev relève l'altitude du terrain tous les 5 m, lisse le profil sur 20 m, puis calcule les montées et descentes avec un seuil de 2 m.</span></span></dt><dd id="denivele"></dd></div></dl>
+    <dl><div><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd></div><div><dt class="elevation-label"><span data-i18n="resultat.denivele">Dénivelé</span><span class="info-tooltip" tabindex="0" aria-label="Calcul du dénivelé">i<span role="tooltip" data-i18n="resume.deniveleInfo">gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.</span></span></dt><dd id="denivele"></dd></div></dl>
   </section>
   <nav class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
     <button type="button" role="tab" id="tab-trace" data-pane="trace" aria-controls="pane-trace" aria-selected="true">Parcours</button>
@@ -114,7 +114,7 @@
   </ul><p class="note" data-i18n="legende.note">Les calques de chemins se cochent sur la carte, en haut à droite, et s'affichent à partir du zoom 14.</p>
 </section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js?v=desktop-6"></script>
+<script src="/app.js?v=desktop-7"></script>
 <script src="/nico579-langue.js"></script>
 <script src="/presentation.js?v=desktop-5"></script>
 </body>
