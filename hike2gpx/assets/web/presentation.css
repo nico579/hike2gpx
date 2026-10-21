@@ -82,6 +82,10 @@ body.profile-collapsed .map-activity{bottom:81px}
 #elevationToggle{display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;color:#305574;text-align:left;font-size:12px;font-weight:700}
 #elevationToggle:hover{background:#f5f9ff50}
 #elevationRange{margin-left:auto;font-size:11px;color:#73869a;font-weight:500}
+#collapsedMetrics{display:none;font-size:11px;color:#416582;font-weight:500;white-space:nowrap}
+#collapsedMetrics strong{color:#235b9f;font-weight:700}
+#elevationToggle[aria-expanded=false] #collapsedMetrics{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
+#elevationToggle[aria-expanded=false] #elevationRange{margin-left:0}
 #elevationToggle>span:last-child{font-size:17px;line-height:1;transition:transform .2s}
 #elevationToggle[aria-expanded=false]>span:last-child{transform:rotate(180deg)}
 #elevationContent{padding:0 16px 10px}
@@ -111,6 +115,9 @@ body.profile-collapsed .map-activity{bottom:81px}
 .renouvellement-ligne{display:flex;align-items:center;gap:8px}
 .renouvellement-ligne input{width:70px}
 .settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
+.display-settings{margin-top:17px;padding-top:7px;border-top:1px solid var(--bordure)}
+#reglages .display-settings .option{display:flex;align-items:flex-start;gap:9px;margin:0;padding:9px 0}
+body.hide-elevation .elevation-panel,body.hide-map-toolbar .map-widget-toolbar{display:none!important}
 #noteCalques,#extraitOsm,#brouterEnCours{display:none!important}
 #resultat #sourceDenivele,#resultat #comparaison,#resultat #aucunAVerifier{display:none!important}
 #resultat.empty{display:none!important}
@@ -144,6 +151,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 .bouton-plein-ecran{display:none}
 .map-widget-toolbar{position:absolute;top:14px;right:16px;z-index:1000;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .map-widget-button{height:38px;border:1px solid #e0e6ed;border-radius:8px;background:#fff;box-shadow:0 2px 8px #243b5310;color:#344860;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 11px;font-size:11px;cursor:pointer}
+.layers-trigger{border-color:#d9e5f18c;background:#ffffff8c;backdrop-filter:blur(2px)}
 .map-widget-button:hover{background:#f5f8fc;color:var(--accent)}
 .map-widget-button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .map-widget-button .chevron{width:13px;height:13px;transition:transform .18s}
@@ -151,7 +159,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 .map-expand-button{width:38px;padding:0}
 .map-expand-button svg{width:18px;height:18px}
 .leaflet-top.leaflet-left .map-expand-button{float:left;clear:both;margin:9px 0 0 10px;width:34px;height:34px;padding:0;border:2px solid #0003;border-radius:4px;background-clip:padding-box}
-.map-widget-toolbar .leaflet-control-layers{position:absolute;right:0;top:44px;float:none;margin:0!important;width:288px;max-width:calc(100vw - 32px);max-height:calc(100vh - 132px);overflow-y:auto;padding:15px!important;border-radius:12px!important;box-shadow:0 12px 35px #132b4824!important;background:#fff}
+.map-widget-toolbar .leaflet-control-layers{position:absolute;right:0;top:44px;float:none;margin:0!important;width:288px;max-width:calc(100vw - 32px);max-height:calc(100vh - 132px);overflow-y:auto;padding:15px!important;border:1px solid #d9e5f18c!important;border-radius:12px!important;box-shadow:0 10px 34px #1b354538!important;background:#ffffff8c;backdrop-filter:blur(2px)}
 .map-widget-toolbar .leaflet-control-layers-list{display:none!important}
 .map-widget-toolbar.layers-open .leaflet-control-layers-list{display:block!important}
 .map-widget-toolbar:not(.layers-open) .leaflet-control-layers{display:none!important}

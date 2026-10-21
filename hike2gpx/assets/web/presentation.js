@@ -110,6 +110,9 @@
   const elevationPanel = document.getElementById("elevationPanel");
   const elevationToggle = document.getElementById("elevationToggle");
   const elevationContent = document.getElementById("elevationContent");
+  const hideElevation = document.getElementById("hideElevation");
+  const elevationVisibilityPreference = "hike2gpx.hideElevation";
+  try { hideElevation.checked = localStorage.getItem(elevationVisibilityPreference) === "true"; } catch (error) {}
   const profilePreference = "hike2gpx.profileCollapsed";
   try { elevationContent.hidden = localStorage.getItem(profilePreference) === "true"; } catch (error) {}
   elevationToggle.setAttribute("aria-expanded", String(!elevationContent.hidden));
@@ -122,11 +125,33 @@
   let profilePoints = [];
   let scaledPoints = [];
   let cursorIndex = 0;
+  const collapsedDistance = document.getElementById("collapsedDistance");
+  const collapsedElevation = document.getElementById("collapsedElevation");
+  function syncCollapsedMetrics() {
+    collapsedDistance.textContent = document.getElementById("distance").textContent || "—";
+    collapsedElevation.textContent = document.getElementById("denivele").textContent || "—";
+  }
+  for (const id of ["distance", "denivele"]) {
+    new MutationObserver(syncCollapsedMetrics).observe(document.getElementById(id),
+      { childList: true, characterData: true, subtree: true });
+  }
+  syncCollapsedMetrics();
   function syncProfileHeight() {
-    const visible = !elevationPanel.hidden;
+    const visible = !elevationPanel.hidden && !hideElevation.checked;
     document.body.classList.toggle("profile-open", visible && !elevationContent.hidden);
     document.body.classList.toggle("profile-collapsed", visible && elevationContent.hidden);
   }
+  function syncElevationVisibility() {
+    document.body.classList.toggle("hide-elevation", hideElevation.checked);
+    elevationPanel.toggleAttribute("inert", hideElevation.checked);
+    elevationPanel.setAttribute("aria-hidden", String(hideElevation.checked));
+    syncProfileHeight();
+  }
+  hideElevation.addEventListener("change", () => {
+    try { localStorage.setItem(elevationVisibilityPreference, String(hideElevation.checked)); } catch (error) {}
+    syncElevationVisibility();
+  });
+  syncElevationVisibility();
   function syncRoute() {
     const ready = !result.hidden && !exporter.disabled;
     const wasVisible = !elevationPanel.hidden;
@@ -238,6 +263,19 @@
   // Habillage de la commande Leaflet existante : les vrais fonds et calques
   // restent gérés par app.js, y compris lorsqu'une langue les recrée.
   const toolbar = document.querySelector(".map-widget-toolbar");
+  const hideMapToolbar = document.getElementById("hideMapToolbar");
+  const mapVisibilityPreference = "hike2gpx.hideMapToolbar";
+  try { hideMapToolbar.checked = localStorage.getItem(mapVisibilityPreference) === "true"; } catch (error) {}
+  function syncMapToolbarVisibility() {
+    document.body.classList.toggle("hide-map-toolbar", hideMapToolbar.checked);
+    toolbar.toggleAttribute("inert", hideMapToolbar.checked);
+    toolbar.setAttribute("aria-hidden", String(hideMapToolbar.checked));
+  }
+  hideMapToolbar.addEventListener("change", () => {
+    try { localStorage.setItem(mapVisibilityPreference, String(hideMapToolbar.checked)); } catch (error) {}
+    syncMapToolbarVisibility();
+  });
+  syncMapToolbarVisibility();
   const layersButton = document.getElementById("layersButton");
   const layersPreference = "hike2gpx.layersOpen";
   try {
