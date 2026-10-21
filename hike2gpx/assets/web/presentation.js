@@ -106,7 +106,6 @@
   } catch (error) {}
   const routeSummary = document.getElementById("routeSummary");
   const result = document.getElementById("resultat");
-  const exporter = document.getElementById("exporter");
   const elevationPanel = document.getElementById("elevationPanel");
   const elevationToggle = document.getElementById("elevationToggle");
   const elevationContent = document.getElementById("elevationContent");
@@ -153,7 +152,9 @@
   });
   syncElevationVisibility();
   function syncRoute() {
-    const ready = !result.hidden && !exporter.disabled;
+    // L'export est désactivé dès qu'un point change, pendant que le nouveau
+    // parcours se calcule. Garder le profil précédent en place jusque-là.
+    const ready = !result.hidden;
     const wasVisible = !elevationPanel.hidden;
     routeSummary.hidden = !ready;
     elevationPanel.hidden = !ready;
@@ -171,7 +172,6 @@
     syncProfileHeight();
   }
   new MutationObserver(syncRoute).observe(result, { attributes: true, attributeFilter: ["hidden"] });
-  new MutationObserver(syncRoute).observe(exporter, { attributes: true, attributeFilter: ["disabled"] });
   elevationToggle.addEventListener("click", () => {
     elevationContent.hidden = !elevationContent.hidden;
     elevationToggle.setAttribute("aria-expanded", String(!elevationContent.hidden));
