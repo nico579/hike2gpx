@@ -5,6 +5,23 @@
   const panelToggle = document.getElementById("panelToggle");
   const panelPreference = "hike2gpx.panelCollapsed";
   const tabPreference = "hike2gpx.activeTab";
+  const transparencySlider = document.getElementById("panelTransparency");
+  const transparencyValue = document.getElementById("panelTransparencyValue");
+  const transparencyPreference = "hike2gpx.panelTransparency";
+  function setTransparency(value, remember = false) {
+    const parsed = Number(value);
+    const transparency = Number.isFinite(parsed) ? Math.max(0, Math.min(80, Math.round(parsed))) : 45;
+    transparencySlider.value = String(transparency);
+    transparencyValue.textContent = `${transparency} %`;
+    document.documentElement.style.setProperty("--band-opacity", String(1 - transparency / 100));
+    if (remember) {
+      try { localStorage.setItem(transparencyPreference, String(transparency)); } catch (error) {}
+    }
+  }
+  let savedTransparency = transparencySlider.value;
+  try { savedTransparency = localStorage.getItem(transparencyPreference) ?? savedTransparency; } catch (error) {}
+  setTransparency(savedTransparency);
+  transparencySlider.addEventListener("input", () => setTransparency(transparencySlider.value, true));
   function setPanelCollapsed(collapsed, remember = false) {
     document.body.classList.toggle("panel-collapsed", collapsed);
     panel.toggleAttribute("inert", collapsed);
