@@ -30,6 +30,11 @@ const TEXTES = {
     "option.comparer": "Montrer le tracé qui ignore les barrières",
     "resultat.distance": "Distance",
     "resultat.denivele": "Dénivelé",
+    "resume.parcours": "Votre parcours",
+    "profil.titre": "Le relief du parcours",
+    "profil.depart": "Départ",
+    "profil.attente": "Calcul gpx2elev en cours…",
+    "profil.indisponible": "Profil gpx2elev indisponible : {erreur}",
     "resultat.aVerifier": "Points à vérifier sur le tracé",
     "resultat.aucun": "Aucun franchissement connu sur ce tracé.",
     "legende.titre": "Légende",
@@ -82,8 +87,8 @@ const TEXTES = {
     "brouter.enCours": "Données BRouter : téléchargement en cours ({quoi})…",
     "brouter.attente": "Téléchargement des données BRouter ({quoi}) : le calcul reprendra de lui-même.",
     "serveur.injoignable": "Serveur injoignable : {message}",
-    "denivele.estimation": "Estimation de BRouter ; calcul de gpx2elev en cours…",
-    "denivele.indisponible": "Estimation de BRouter ; gpx2elev indisponible : {erreur}",
+    "denivele.calcul": "Calcul du dénivelé par gpx2elev en cours…",
+    "denivele.indisponible": "Dénivelé indisponible : gpx2elev, {erreur}",
     "denivele.source": "gpx2elev, {modele} : échantillonnage 5 m, lissage 20 m, hystérésis 2 m ; altitude de {min} à {max} m.",
     "calque.osm": "Chemins OSM",
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
@@ -121,7 +126,7 @@ const TEXTES = {
     "icone.depart": "D",
     "icone.arrivee": "A",
     "ign.nature": "Chemin IGN de {m} m",
-    "gpx.estimation": "D+ {montee} m (estimation BRouter)",
+    "gpx.deniveleIndisponible": "dénivelé gpx2elev indisponible",
     "gpx.description": "Distance {km}, {denivele}, passages à vérifier : {n}. ",
     "gpx.barrieres": "Barrières © contributeurs OpenStreetMap",
     "gpx.bdtopo": ", chemins BD TOPO © IGN",
@@ -144,6 +149,11 @@ const TEXTES = {
     "option.comparer": "Show the route that ignores barriers",
     "resultat.distance": "Distance",
     "resultat.denivele": "Elevation",
+    "resume.parcours": "Your route",
+    "profil.titre": "Route elevation",
+    "profil.depart": "Start",
+    "profil.attente": "Calculating with gpx2elev…",
+    "profil.indisponible": "gpx2elev profile unavailable: {erreur}",
     "resultat.aVerifier": "Points to check along the route",
     "resultat.aucun": "No known crossing on this route.",
     "legende.titre": "Legend",
@@ -196,8 +206,8 @@ const TEXTES = {
     "brouter.enCours": "BRouter data: downloading ({quoi})…",
     "brouter.attente": "Downloading BRouter data ({quoi}): the calculation will resume by itself.",
     "serveur.injoignable": "Server unreachable: {message}",
-    "denivele.estimation": "BRouter estimate; gpx2elev calculation in progress…",
-    "denivele.indisponible": "BRouter estimate; gpx2elev unavailable: {erreur}",
+    "denivele.calcul": "Calculating elevation with gpx2elev…",
+    "denivele.indisponible": "Elevation unavailable: gpx2elev, {erreur}",
     "denivele.source": "gpx2elev, {modele}: 5 m sampling, 20 m smoothing, 2 m hysteresis; elevation from {min} to {max} m.",
     "calque.osm": "OSM paths",
     "calque.bdtopo": "BD TOPO paths (IGN)",
@@ -235,7 +245,7 @@ const TEXTES = {
     "icone.depart": "S",
     "icone.arrivee": "F",
     "ign.nature": "IGN path, {m} m",
-    "gpx.estimation": "D+ {montee} m (BRouter estimate)",
+    "gpx.deniveleIndisponible": "gpx2elev elevation unavailable",
     "gpx.description": "Distance {km}, {denivele}, crossings to check: {n}. ",
     "gpx.barrieres": "Barriers © OpenStreetMap contributors",
     "gpx.bdtopo": ", BD TOPO paths © IGN",
@@ -1064,9 +1074,9 @@ function ecrireResultat(r) {
   if (r.denivele) {
     ecrireDenivele(r.denivele);
   } else {
-    $("denivele").textContent = r.denivele_m == null ? "?" : `+${Math.round(r.denivele_m)} m`;
+    $("denivele").textContent = "…";
     $("sourceDenivele").textContent = r.erreurDenivele ? t("denivele.indisponible", { erreur: r.erreurDenivele })
-      : t("denivele.estimation");
+      : t("denivele.calcul");
   }
   const n = (r.naif_traverse || []).length;
   $("comparaison").textContent = !r.naif ? ""
@@ -1099,11 +1109,14 @@ async function calculerDenivele(r) {
   if (numero !== etat.sequenceDenivele || etat.dernier !== r) return;   // un tracé plus récent est affiché
   if (d.erreur) {
     r.erreurDenivele = ts(d.erreur);
+    $("denivele").textContent = "—";
     $("sourceDenivele").textContent = t("denivele.indisponible", { erreur: r.erreurDenivele });
+    if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:denivele", { detail: d }));
     return;
   }
   r.denivele = d;
   ecrireDenivele(d);
+  if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:denivele", { detail: d }));
   chargerJournal();
 }
 
@@ -1122,7 +1135,7 @@ function echapper(contenu) {
 function descriptionGpx(r) {
   const denivele = r.denivele
     ? `D+ ${r.denivele.montee_m} m, D- ${r.denivele.descente_m} m (gpx2elev, ${r.denivele.modele})`
-    : t("gpx.estimation", { montee: Math.round(r.denivele_m ?? 0) });
+    : t("gpx.deniveleIndisponible");
   return t("gpx.description", { km: km(r.longueur_m), denivele, n: r.sur_le_trace.length })
     + t("gpx.barrieres") + ((r.portions_ign || []).length ? t("gpx.bdtopo") : "") + t("gpx.trace");
 }

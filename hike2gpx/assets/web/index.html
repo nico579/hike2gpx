@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="/presentation.css">
+  <link rel="stylesheet" href="/style.css?v=desktop-3">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-3">
 </head>
 <body>
 <div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong></div><span class="header-caption">Préparer sa randonnée, l’esprit plus clair.</span><span class="header-status">● <span>Serveur local</span></span></div>
@@ -22,6 +22,22 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6"/></svg>
   </button>
   <section id="mapActivity" class="map-activity" aria-label="Progression des opérations" aria-live="polite" hidden><div id="mapActivityRows"></div></section>
+  <section id="elevationPanel" class="elevation-panel" aria-label="Profil de dénivelé" hidden>
+    <button id="elevationToggle" type="button" aria-controls="elevationContent" aria-expanded="true"><span>⌁ <span data-i18n="profil.titre">Le relief du parcours</span></span><span id="elevationRange"></span><span aria-hidden="true">⌄</span></button>
+    <div id="elevationContent">
+      <div class="profile-meta"><span id="profileSource">Calcul gpx2elev en cours…</span><span id="profileReadout"></span></div>
+      <svg id="elevationProfile" viewBox="0 0 800 132" role="img" tabindex="0" aria-label="Profil de dénivelé gpx2elev" hidden>
+        <line x1="16" y1="116" x2="784" y2="116" class="profile-grid"/>
+        <line x1="16" y1="70" x2="784" y2="70" class="profile-grid"/>
+        <line x1="16" y1="24" x2="784" y2="24" class="profile-grid"/>
+        <path id="profileArea" class="profile-area"/>
+        <path id="profileLine" class="profile-line"/>
+        <line id="profileCursor" class="profile-cursor" y1="16" y2="116" hidden/>
+        <circle id="profileCursorPoint" class="profile-cursor-point" r="4" hidden/>
+      </svg>
+      <div id="profileAxis" class="profile-axis" hidden><span data-i18n="profil.depart">Départ</span><span id="profileMid"></span><span id="profileEnd"></span></div>
+    </div>
+  </section>
 </div>
 <div id="progression" role="progressbar" aria-live="polite" hidden>
   <div class="piste"><div id="progressionBarre"></div></div>
@@ -30,6 +46,10 @@
 <aside id="panneau" aria-label="Préparation du parcours">
   <div class="sheet-grip"><span></span></div>
   <header class="panel-heading"><div><span class="eyebrow">VOTRE RANDONNÉE</span><h1>Tracer un parcours</h1><span id="version"></span></div><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></header>
+  <section id="routeSummary" class="route-summary" aria-label="Informations du parcours" hidden>
+    <strong data-i18n="resume.parcours">Votre parcours</strong>
+    <dl><div><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd></div><div><dt><span data-i18n="resultat.denivele">Dénivelé</span> · gpx2elev</dt><dd id="denivele"></dd></div></dl>
+  </section>
   <nav class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
     <button type="button" role="tab" id="tab-trace" data-pane="trace" aria-controls="pane-trace" aria-selected="true">Parcours</button>
     <button type="button" role="tab" id="tab-reglages" data-pane="reglages" aria-controls="pane-reglages" aria-selected="false" tabindex="-1">Réglages</button>
@@ -54,7 +74,6 @@
     <p id="brouterEnCours" class="note" hidden><span id="brouterTexte"></span><span id="brouterPiste" class="piste indeterminee" role="progressbar"><span id="brouterBarre" class="barre"></span></span></p>
     <div id="actions"></div>
     <section id="resultat" hidden>
-      <dl><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd><dt data-i18n="resultat.denivele">Dénivelé</dt><dd id="denivele"></dd></dl>
       <p id="sourceDenivele" class="note"></p><p id="comparaison"></p>
       <h2 data-i18n="resultat.aVerifier">Points à vérifier sur le tracé</h2>
       <p id="aucunAVerifier" class="note" hidden data-i18n="resultat.aucun">Aucun franchissement connu sur ce tracé.</p>
@@ -97,8 +116,8 @@
   </ul><p class="note" data-i18n="legende.note">Les calques de chemins se cochent sur la carte, en haut à droite, et s'affichent à partir du zoom 14.</p>
 </section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js"></script>
+<script src="/app.js?v=desktop-3"></script>
 <script src="/nico579-langue.js"></script>
-<script src="/presentation.js"></script>
+<script src="/presentation.js?v=desktop-3"></script>
 </body>
 </html>

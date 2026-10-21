@@ -99,6 +99,117 @@
       selectPane(tabs[next].dataset.pane, true);
     });
   });
+  const routeSummary = document.getElementById("routeSummary");
+  const result = document.getElementById("resultat");
+  const exporter = document.getElementById("exporter");
+  const elevationPanel = document.getElementById("elevationPanel");
+  const elevationToggle = document.getElementById("elevationToggle");
+  const elevationContent = document.getElementById("elevationContent");
+  const profileSvg = document.getElementById("elevationProfile");
+  const profileSource = document.getElementById("profileSource");
+  const profileReadout = document.getElementById("profileReadout");
+  const profileAxis = document.getElementById("profileAxis");
+  const profileCursor = document.getElementById("profileCursor");
+  const profileCursorPoint = document.getElementById("profileCursorPoint");
+  let profilePoints = [];
+  let scaledPoints = [];
+  let cursorIndex = 0;
+  function syncProfileHeight() {
+    const visible = !elevationPanel.hidden;
+    document.body.classList.toggle("profile-open", visible && !elevationContent.hidden);
+    document.body.classList.toggle("profile-collapsed", visible && elevationContent.hidden);
+  }
+  function syncRoute() {
+    const ready = !result.hidden && !exporter.disabled;
+    const wasVisible = !elevationPanel.hidden;
+    routeSummary.hidden = !ready;
+    elevationPanel.hidden = !ready;
+    if (!ready) {
+      profilePoints = [];
+      profileSvg.setAttribute("hidden", "");
+      profileAxis.hidden = true;
+      profileCursor.setAttribute("hidden", "");
+      profileCursorPoint.setAttribute("hidden", "");
+    } else if (!wasVisible) {
+      profileSource.textContent = t("profil.attente");
+      profileReadout.textContent = "";
+      document.getElementById("elevationRange").textContent = "";
+    }
+    syncProfileHeight();
+  }
+  new MutationObserver(syncRoute).observe(result, { attributes: true, attributeFilter: ["hidden"] });
+  new MutationObserver(syncRoute).observe(exporter, { attributes: true, attributeFilter: ["disabled"] });
+  elevationToggle.addEventListener("click", () => {
+    elevationContent.hidden = !elevationContent.hidden;
+    elevationToggle.setAttribute("aria-expanded", String(!elevationContent.hidden));
+    syncProfileHeight();
+  });
+  for (const eventName of ["click", "mousedown", "dblclick"]) {
+    elevationPanel.addEventListener(eventName, event => event.stopPropagation());
+  }
+  function showCursor(index) {
+    if (!scaledPoints.length) return;
+    cursorIndex = Math.max(0, Math.min(scaledPoints.length - 1, index));
+    const [x, y] = scaledPoints[cursorIndex];
+    const [distance, altitude] = profilePoints[cursorIndex];
+    profileCursor.setAttribute("x1", x);
+    profileCursor.setAttribute("x2", x);
+    profileCursorPoint.setAttribute("cx", x);
+    profileCursorPoint.setAttribute("cy", y);
+    profileCursor.removeAttribute("hidden");
+    profileCursorPoint.removeAttribute("hidden");
+    profileReadout.textContent = `${(distance / 1000).toFixed(2).replace(".", ",")} km · ${Math.round(altitude)} m`;
+  }
+  profileSvg.addEventListener("pointermove", event => {
+    const rect = profileSvg.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * 800 / rect.width;
+    let nearest = 0;
+    for (let i = 1; i < scaledPoints.length; i++) {
+      if (Math.abs(scaledPoints[i][0] - x) < Math.abs(scaledPoints[nearest][0] - x)) nearest = i;
+    }
+    showCursor(nearest);
+  });
+  profileSvg.addEventListener("pointerleave", () => {
+    profileCursor.setAttribute("hidden", "");
+    profileCursorPoint.setAttribute("hidden", "");
+    profileReadout.textContent = "";
+  });
+  profileSvg.addEventListener("keydown", event => {
+    const next = { ArrowLeft: cursorIndex - 1, ArrowRight: cursorIndex + 1,
+      Home: 0, End: scaledPoints.length - 1 }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    showCursor(next);
+  });
+  document.addEventListener("hike2gpx:denivele", event => {
+    if (elevationPanel.hidden) return;
+    const data = event.detail;
+    if (data.erreur || !Array.isArray(data.profil) || data.profil.length < 2) {
+      profileSource.textContent = t("profil.indisponible", { erreur: data.erreur || "données manquantes" });
+      profileSvg.setAttribute("hidden", "");
+      profileAxis.hidden = true;
+      return;
+    }
+    profilePoints = data.profil.filter(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite));
+    if (profilePoints.length < 2) return;
+    const min = Math.min(...profilePoints.map(p => p[1]));
+    const max = Math.max(...profilePoints.map(p => p[1]));
+    const low = min - Math.max(5, (max - min) * 0.08);
+    const high = max + Math.max(5, (max - min) * 0.08);
+    const distance = Math.max(1, profilePoints.at(-1)[0]);
+    scaledPoints = profilePoints.map(([d, z]) => [16 + 768 * d / distance, 116 - 92 * (z - low) / (high - low)]);
+    const line = scaledPoints.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+    document.getElementById("profileLine").setAttribute("d", line);
+    document.getElementById("profileArea").setAttribute("d", `${line} L784 116 L16 116 Z`);
+    document.getElementById("elevationRange").textContent = `${data.altitude_min_m} – ${data.altitude_max_m} m`;
+    profileSource.textContent = `gpx2elev · ${data.modele} · D+ ${data.montee_m} m · D− ${data.descente_m} m`;
+    document.getElementById("profileMid").textContent = `${(distance / 2000).toFixed(2).replace(".", ",")} km`;
+    document.getElementById("profileEnd").textContent = `${(distance / 1000).toFixed(2).replace(".", ",")} km`;
+    profileSvg.setAttribute("aria-label", `Profil gpx2elev : de ${data.altitude_min_m} à ${data.altitude_max_m} mètres sur ${(distance / 1000).toFixed(2)} kilomètres. Flèches gauche et droite pour explorer.`);
+    profileSvg.removeAttribute("hidden");
+    profileAxis.hidden = false;
+  });
+  syncRoute();
   const grip = document.querySelector(".sheet-grip");
   const showKey = document.getElementById("afficherCle");
   showKey.addEventListener("click", () => {

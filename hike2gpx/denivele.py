@@ -16,6 +16,7 @@ from gpx2elev import core
 from gpx2elev.providers import MissingCoverage, Repository
 
 POINTS_MAX = 200_000
+PROFIL_MAX_POINTS = 500
 
 
 class ErreurDenivele(RuntimeError):
@@ -60,6 +61,15 @@ def calculer(coordonnees, dossier, *, en_ligne: bool = True, lecteur=None) -> di
         raise ErreurDenivele(str(exc).splitlines()[0] or "Aucun modèle de terrain disponible.") from exc
     finally:
         depot.close()
+    # Courbe issue des altitudes lissées par gpx2elev, réduite pour la page.
+    points = [(round(float(distance), 1), round(float(altitude), 1))
+              for profil in calcul.profiles
+              for distance, altitude in zip(profil.distance, profil.elevations)]
+    pas = max(1, math.ceil((len(points) - 1) / (PROFIL_MAX_POINTS - 1)))
+    profil = points[::pas]
+    if profil[-1] != points[-1]:
+        profil.append(points[-1])
     return {"montee_m": round(calcul.gain.up), "descente_m": round(calcul.gain.down),
             "altitude_min_m": round(calcul.minimum), "altitude_max_m": round(calcul.maximum),
-            "modele": serie.source.label, "protocole": core.PROTOCOL, "depuis_le_cache": serie.from_cache}
+            "modele": serie.source.label, "protocole": core.PROTOCOL, "depuis_le_cache": serie.from_cache,
+            "profil": profil}
