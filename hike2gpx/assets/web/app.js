@@ -473,8 +473,14 @@ const CLE_FOND = "hike2gpx.fond";
 let controleFonds = null;
 let fondActif = null;
 let couchesFonds = {};      // clé -> fond de carte Leaflet
+function ajusterRecouvrementTuiles() {
+  const surzoom = Math.max(0, carte.getZoom() - (fondActif?.options?.maxNativeZoom ?? carte.getZoom()));
+  $("carte").style.setProperty("--tile-overlap", `${2 / 2 ** surzoom}px`);
+}
+carte.on("zoomend", ajusterRecouvrementTuiles);
 carte.on("baselayerchange", (e) => {
   fondActif = e.layer;
+  ajusterRecouvrementTuiles();
   const cle = Object.keys(couchesFonds).find((nom) => couchesFonds[nom] === e.layer);
   if (cle) {
     try { localStorage.setItem(CLE_FOND, cle); } catch (erreur) { /* stockage indisponible */ }
@@ -826,6 +832,7 @@ function construireFonds() {
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
   fondActif = (couchesFonds[clePreferee] || couchesFonds[cleActive] || Object.values(couchesFonds)[0]).addTo(carte);
+  ajusterRecouvrementTuiles();
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES).map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);

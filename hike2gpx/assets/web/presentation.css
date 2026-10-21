@@ -10,6 +10,10 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid
 .brand-icon{display:grid;place-items:center;width:35px;height:35px;background:var(--accent);border-radius:10px;color:#fff;font-size:28px;line-height:1;transform:none}
 #version{margin-left:8px;font-size:11px;font-weight:400;letter-spacing:0;color:#8392a2;white-space:nowrap}
 #carte{top:52px;left:var(--panneau);right:0;bottom:0;background:#e7eddf}
+/* À un zoom Chrome fractionnaire (80 % notamment), les tuiles de 256 px
+   laissent un filet du fond visible. Le recouvrement reste à 2 px affichés,
+   même quand Leaflet agrandit un fond au-delà de son zoom natif. */
+#carte .leaflet-tile-pane img.leaflet-tile{width:calc(256px + var(--tile-overlap, 2px))!important;height:calc(256px + var(--tile-overlap, 2px))!important;mix-blend-mode:normal}
 #panneau{top:52px;left:0;bottom:0;width:var(--panneau);padding:0;display:flex;flex-direction:column;overflow:hidden;background:#fff;border-right:1px solid var(--bordure);z-index:1001;box-shadow:4px 0 20px #20395208}
 body.panel-collapsed{--panneau:0px}
 #carte{transition:left .24s ease}

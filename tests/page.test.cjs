@@ -14,7 +14,8 @@ function charger(preferences = {}) {
   const stockage = new Map(Object.entries(preferences));
   const element = () => {
     const classes = new Set();
-    return { disabled: true, hidden: false, checked: false, textContent: "", value: "", style: {},
+    return { disabled: true, hidden: false, checked: false, textContent: "", value: "",
+      style: { setProperty(name, value) { this[name] = value; } },
       classList: { toggle(c, oui) { (oui ?? !classes.has(c)) ? classes.add(c) : classes.delete(c); },
         contains: (c) => classes.has(c) },
       enfants: [], ecouteurs: {},
@@ -24,8 +25,8 @@ function charger(preferences = {}) {
   };
   const couche = () => ({ addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
     on() { return this; }, setIcon() { return this; }, clearLayers() {}, remove() {}, closePopup() {} });
-  const carte = { handlers: {}, setView() { return this; }, on(name, handler) { this.handlers[name] = handler; }, createPane() { return { style: {} }; },
-    hasLayer() { return false; }, getZoom() { return 14; }, invalidateSize() {},
+  const carte = { handlers: {}, zoom: 14, setView() { return this; }, on(name, handler) { this.handlers[name] = handler; }, createPane() { return { style: {} }; },
+    hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
       getEast: () => v.e }; } };
@@ -41,7 +42,7 @@ function charger(preferences = {}) {
     confirm: (texte) => { confirmations.push(texte); return confirmations.reponse; },
     setTimeout() { return 0; }, clearTimeout() {}, setInterval() { return 1; }, clearInterval() {},
     L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
-      marker: couche, tileLayer: (url) => Object.assign(couche(), { url }), divIcon: couche, control: { layers: couche },
+      marker: couche, tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: couche, control: { layers: couche },
       latLng: (lat, lng) => ({ lat, lng }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
       DomEvent: { on() {}, disableClickPropagation() {} } },
@@ -86,6 +87,9 @@ test("les options de marche et le fond reviennent à l'ouverture", () => {
   assert.deepEqual(JSON.parse(stockage.get("hike2gpx.options")), { strict: true, ign: false, comparer: true });
   carte.handlers.baselayerchange({ layer: page.fonds().plan });
   assert.equal(stockage.get("hike2gpx.fond"), "plan");
+  carte.zoom = 19;
+  carte.handlers.zoomend();
+  assert.equal(elements.get("carte").style["--tile-overlap"], "1px");
 });
 
 async function calculReussi(page, derniere) {
