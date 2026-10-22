@@ -21,6 +21,22 @@ def test_raccourci_lance_le_programme_sans_argument(tmp_path):
     assert bureau.ICONE.is_file() and bureau.ICONE.with_suffix(".png").is_file()
 
 
+def test_raccourci_au_premier_lancement_une_seule_fois(monkeypatch, tmp_path):
+    appels = []
+    monkeypatch.setattr(bureau, "creer_raccourci", lambda code, dossier: appels.append((code, dossier)))
+    assert bureau.raccourci_au_premier_lancement(lambda: "en", tmp_path, fige=True)
+    assert not bureau.raccourci_au_premier_lancement(lambda: "en", tmp_path, fige=True)
+    assert appels == [("en", tmp_path)]
+    assert (tmp_path / bureau.MARQUEUR_RACCOURCI).is_file()
+
+
+def test_raccourci_au_premier_lancement_rien_depuis_les_sources(monkeypatch, tmp_path):
+    appels = []
+    monkeypatch.setattr(bureau, "creer_raccourci", lambda *a: appels.append(a))
+    assert not bureau.raccourci_au_premier_lancement(lambda: "fr", tmp_path)
+    assert appels == [] and not (tmp_path / bureau.MARQUEUR_RACCOURCI).exists()
+
+
 def test_langue_du_menu(monkeypatch):
     assert bureau.langue(lambda: "en") == "en"
     monkeypatch.setattr(bureau.locale, "getlocale", lambda: ("French_France", "1252"))
