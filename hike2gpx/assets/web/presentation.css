@@ -74,8 +74,6 @@ body.plein-ecran .panel-toggle{display:none}
 .boutons #exporter:hover:not(:disabled){background:#1854b1;color:#fff}
 .gpx-import{display:grid;gap:7px;padding-top:8px;border-top:1px solid var(--bordure)}
 .gpx-import #chargerGpx{width:100%}
-.gpx-charge{min-width:0;font-size:12px;color:#42566d}
-.gpx-charge #nomGpx{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gpx-import #chargerGpx[data-i18n="bouton.supprimerGpx"]{color:#ae3540;border-color:#efcdd0}
 .gpx-erreur{margin:0;color:#bc3944;font-size:12px}
 .section-title{font-size:14px;margin:0 0 8px;border-top:1px solid var(--bordure);padding-top:14px}
@@ -96,6 +94,7 @@ body.plein-ecran .panel-toggle{display:none}
 .legende h3{font-size:11px;font-weight:700;color:#4e6074;margin:0}
 .legende ul{list-style:none;margin:8px 0 0;padding:0}.legende li{display:flex;align-items:center;gap:8px;font-size:11px;line-height:1.35;margin:8px 0}
 .legende .trait{flex:none;width:24px}.legende .pastille{flex:none}
+.legende .trait.gpx{border-top:4px dashed #ffe14a;filter:drop-shadow(0 0 1px #344132)}
 #reglages,#journal{display:block;margin:0;border:1px solid var(--bordure);border-radius:11px;padding:14px;background:transparent}
 .map-activity{position:absolute;left:calc(var(--panneau) + 18px);bottom:22px;z-index:1100;width:min(420px,calc(100% - var(--panneau) - 36px));max-height:min(42vh,330px);overflow-y:auto;border:1px solid #d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);border-radius:10px;padding:11px 14px;box-shadow:0 7px 30px #1b354533;pointer-events:none;transition:left .24s ease,width .24s ease}
 .map-activity-row{padding:8px 0;border-top:1px solid #dce8f6}

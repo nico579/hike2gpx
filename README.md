@@ -71,7 +71,10 @@ vers l'objet dans OpenStreetMap. « Exporter le GPX » enregistre l'itinéraire,
 avec ces points en points de passage.
 
 « Charger un GPX » affiche un tracé existant (pistes et itinéraires GPX) en
-violet sur la carte et centre la vue dessus. Il sert de repère pendant la
+jaune sur la carte et centre la vue dessus. Son nom, sans extension, apparaît
+dans les couches sous « Chemins BD TOPO (IGN) » : la coche masque ou réaffiche
+le tracé sans le supprimer. La légende montre aussi son trait jaune tant que le
+GPX est chargé. Il sert de repère pendant la
 préparation du parcours : il ne modifie pas les points de passage ni l'export.
 Le bouton devient « Supprimer le GPX » après le chargement et retire ce tracé
 de la carte sans toucher au fichier sur l'ordinateur. On peut ensuite charger

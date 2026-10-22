@@ -65,6 +65,7 @@ const TEXTES = {
     "legende.osm": "chemins OSM (tirets : sentiers)",
     "legende.barriere": "clôtures et murs connus d'OSM",
     "legende.bdtopo": "chemins BD TOPO de l'IGN",
+    "legende.gpx": "GPX chargé",
     "reglages.titre": "Réglages",
     "reglages.cle": "Clé IGN pour le SCAN 25",
     "reglages.enregistrer": "Enregistrer",
@@ -220,6 +221,7 @@ const TEXTES = {
     "legende.osm": "OSM paths (dashed: footpaths)",
     "legende.barriere": "fences and walls known to OSM",
     "legende.bdtopo": "IGN BD TOPO paths",
+    "legende.gpx": "Loaded GPX",
     "reglages.titre": "Settings",
     "reglages.cle": "IGN key for SCAN 25",
     "reglages.enregistrer": "Save",
@@ -590,7 +592,8 @@ carte.on("baselayerchange", (e) => {
 carte.createPane("trace").style.zIndex = 450;
 carte.createPane("sensTrace").style.zIndex = 451;
 carte.createPane("gpxImporte").style.zIndex = 449;
-const traceGpxImporte = L.layerGroup().addTo(carte);
+const traceGpxImporte = L.layerGroup();
+let nomGpxImporte = null;
 let sequenceImportGpx = 0;
 const rendu = L.canvas({ padding: 0.2 });
 const ZOOM_CALQUES = 14;
@@ -1009,6 +1012,7 @@ function construireFonds() {
   const calques = Object.fromEntries(Object.entries(CALQUES)
     .filter(([cle]) => !horsFrance || cle === "osm")
     .map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
+  if (nomGpxImporte) calques[echapper(nomGpxImporte)] = traceGpxImporte;
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
 }
 
@@ -1568,8 +1572,11 @@ async function chargerGpx(fichier) {
         maxLat = Math.max(maxLat, lat); maxLon = Math.max(maxLon, lon);
       }
     }
-    $("nomGpx").textContent = fichier.name;
-    $("gpxCharge").hidden = false;
+    nomGpxImporte = fichier.name.replace(/\.gpx$/i, "") || fichier.name;
+    traceGpxImporte.addTo(carte);
+    if (controleFonds) controleFonds.addOverlay(traceGpxImporte, echapper(nomGpxImporte));
+    else construireFonds();
+    $("legendGpx").hidden = false;
     $("chargerGpx").dataset.i18n = "bouton.supprimerGpx";
     $("chargerGpx").textContent = t("bouton.supprimerGpx");
     carte.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [30, 30], maxZoom: 16 });
@@ -1583,10 +1590,12 @@ async function chargerGpx(fichier) {
 
 function supprimerGpx() {
   ++sequenceImportGpx;
+  if (controleFonds) controleFonds.removeLayer(traceGpxImporte);
+  traceGpxImporte.remove();
   traceGpxImporte.clearLayers();
   $("fichierGpx").value = "";
-  $("nomGpx").textContent = "";
-  $("gpxCharge").hidden = true;
+  nomGpxImporte = null;
+  $("legendGpx").hidden = true;
   $("chargerGpx").dataset.i18n = "bouton.chargerGpx";
   $("chargerGpx").textContent = t("bouton.chargerGpx");
   $("erreurGpx").hidden = true;
@@ -1605,7 +1614,7 @@ $("toutEffacer").addEventListener("click", () => {
 });
 $("exporter").addEventListener("click", exporter);
 $("chargerGpx").addEventListener("click", () => {
-  if ($("gpxCharge").hidden) $("fichierGpx").click();
+  if (!nomGpxImporte) $("fichierGpx").click();
   else supprimerGpx();
 });
 $("fichierGpx").addEventListener("change", (event) => {

@@ -54,7 +54,14 @@ function charger(preferences = {}, documentGpx = null) {
       polyline: (points, options) => Object.assign(couche(), { points, options }), circleMarker: couche,
       marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
       tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }),
-      control: { layers: (fonds, calques) => Object.assign(couche(), { fonds, calques }) },
+      control: { layers: (fonds, calques) => Object.assign(couche(), { fonds, calques,
+        addOverlay(layer, name) { this.calques[name] = layer; return this; },
+        removeLayer(layer) {
+          for (const [name, value] of Object.entries(this.calques)) {
+            if (value === layer) delete this.calques[name];
+          }
+          return this;
+        } }) },
       latLng: (lat, lng) => ({ lat: Array.isArray(lat) ? lat[0] : lat,
         lng: Array.isArray(lat) ? lat[1] : lng, distanceTo() { return 1000; } }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
@@ -98,22 +105,30 @@ function documentGpx(segments) {
     } };
 }
 
-test("charger puis supprimer un GPX affiche un tracé distinct du parcours", async () => {
+test("un GPX chargé se coche dans les couches sans perdre son tracé", async () => {
   const { page, elements, carte, stockage } = charger({}, documentGpx([[[43.3, 6], [43.31, 6.02]]]));
-  const fichier = { name: "rando.gpx", size: 250, text: async () => "<gpx/>" };
+  const fichier = { name: "2026-09-20_09-03.gpx", size: 250, text: async () => "<gpx/>" };
   await elements.get("fichierGpx").ecouteurs.change[0]({ target: { files: [fichier], value: "rando.gpx" } });
   assert.equal(page.traceGpxImporte.layers.length, 2);
   assert.equal(page.traceGpxImporte.layers[0].options.pane, "gpxImporte");
   assert.equal(page.traceGpxImporte.layers[1].options.color, "#ffe14a");
   assert.equal(JSON.stringify(carte.fit.bounds), "[[43.3,6],[43.31,6.02]]");
-  assert.equal(elements.get("nomGpx").textContent, "rando.gpx");
-  assert.equal(elements.get("gpxCharge").hidden, false);
+  assert.deepEqual(Object.keys(page.controle().calques),
+    ["Chemins OSM", "Chemins BD TOPO (IGN)", "2026-09-20_09-03"]);
+  assert.equal(elements.get("legendGpx").hidden, false);
+  page.traceGpxImporte.remove();
+  carte.handlers["overlayadd overlayremove"]({ layer: page.traceGpxImporte, type: "overlayremove" });
+  assert.equal(page.traceGpxImporte.layers.length, 2);
+  page.traceGpxImporte.addTo(carte);
+  page.construireFonds();
+  assert.equal(page.controle().calques["2026-09-20_09-03"], page.traceGpxImporte);
   assert.equal(elements.get("chargerGpx").textContent, "Supprimer le GPX");
   assert.equal(page.etat.points.length, 0);
   assert.equal(stockage.has("hike2gpx.points"), false);
   elements.get("chargerGpx").click();
   assert.equal(page.traceGpxImporte.layers.length, 0);
-  assert.equal(elements.get("gpxCharge").hidden, true);
+  assert.equal(page.controle().calques["2026-09-20_09-03"], undefined);
+  assert.equal(elements.get("legendGpx").hidden, true);
   assert.equal(elements.get("chargerGpx").textContent, "Charger un GPX");
 });
 
@@ -127,8 +142,17 @@ test("un GPX invalide conserve le tracé précédemment chargé", async () => {
     { hasAttribute: () => true, getAttribute: (nom) => nom === "lat" ? "91" : "6" }] }];
   await importer("mauvais.gpx");
   assert.equal(page.traceGpxImporte.layers.length, 2);
-  assert.equal(elements.get("nomGpx").textContent, "bon.gpx");
+  assert.equal(page.controle().calques.bon, page.traceGpxImporte);
+  assert.equal(page.controle().calques.mauvais, undefined);
   assert.equal(elements.get("erreurGpx").hidden, false);
+});
+
+test("le nom du fichier GPX est échappé dans le contrôle Leaflet", async () => {
+  const { page, elements } = charger({}, documentGpx([[[43.3, 6], [43.31, 6.02]]]));
+  await elements.get("fichierGpx").ecouteurs.change[0]({ target: {
+    files: [{ name: "<b>rando</b>.gpx", size: 250, text: async () => "<gpx/>" }], value: "" } });
+  assert.equal(page.controle().calques["&lt;b&gt;rando&lt;/b&gt;"], page.traceGpxImporte);
+  assert.equal(page.controle().calques["<b>rando</b>"], undefined);
 });
 
 test("le parcours revient après rechargement et se recalcule", async () => {

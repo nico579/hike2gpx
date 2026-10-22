@@ -6,7 +6,7 @@
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-6">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-23">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-24">
 </head>
 <body>
 <div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
@@ -72,7 +72,6 @@
       <div class="gpx-import">
         <input id="fichierGpx" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden>
         <button id="chargerGpx" type="button" data-i18n="bouton.chargerGpx">Charger un GPX</button>
-        <div id="gpxCharge" class="gpx-charge" hidden><span id="nomGpx"></span></div>
         <p id="erreurGpx" class="gpx-erreur" role="alert" hidden></p>
       </div>
     </div>
@@ -123,10 +122,11 @@
     <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
     <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
     <li id="legendBdtopo"><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
+    <li id="legendGpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">GPX chargé</span></li>
   </ul>
 </section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js?v=desktop-29"></script>
+<script src="/app.js?v=desktop-30"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
