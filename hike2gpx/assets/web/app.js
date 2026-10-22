@@ -34,8 +34,7 @@ const TEXTES = {
     "option.comparer": "Montrer le tracé qui ignore les barrières",
     "resultat.distance": "Distance",
 "resultat.duree": "Durée estimée",
-"resultat.pointHaut": "Point haut",
-"resultat.pointBas": "Point bas",
+"resultat.altitudeMaxMin": "Altitude max/min",
     "resultat.denivele": "Dénivelé",
     "resume.parcours": "Votre parcours",
 "resume.dureeInfo": "Modèle de Tobler sur le profil gpx2elev lissé : v = 6 × exp(−3,5 × |pente + 0,05|) km/h. La pente est calculée tous les 20 m dans le sens du parcours ; les durées sont additionnées sans pauses. Le facteur 0,6 ne s'applique qu'aux portions identifiées hors sentier ; les chemins IGN restent des chemins.",
@@ -181,8 +180,7 @@ const TEXTES = {
     "option.comparer": "Show the route that ignores barriers",
     "resultat.distance": "Distance",
 "resultat.duree": "Estimated time",
-"resultat.pointHaut": "Highest point",
-"resultat.pointBas": "Lowest point",
+"resultat.altitudeMaxMin": "Max/min altitude",
     "resultat.denivele": "Elevation",
     "resume.parcours": "Your route",
 "resume.dureeInfo": "Tobler's model on the smoothed gpx2elev profile: v = 6 × exp(−3.5 × |slope + 0.05|) km/h. Slope is measured every 20 m in travel direction; segment times are added without breaks. The 0.6 factor applies only to identified off-path sections; IGN paths remain paths.",
@@ -1380,7 +1378,7 @@ async function calculerDenivele(r) {
 }
 
 function ecrireDenivele(d) {
-  $("denivele").textContent = `+${d.montee_m} m, −${d.descente_m} m`;
+  $("denivele").textContent = `D+ ${d.montee_m} m\nD− ${d.descente_m} m`;
   $("pointHaut").textContent = `${d.altitude_max_m} m`;
   $("pointBas").textContent = `${d.altitude_min_m} m`;
   const minutes = Math.ceil(d.duree_marche_s / 300) * 5;
