@@ -137,7 +137,10 @@ const TEXTES = {
     "fond.scan25": "SCAN 25 (IGN)",
     "fond.plan": "Plan IGN",
     "fond.photos": "Photos aériennes (IGN)",
-    "fond.osm": "OpenStreetMap",
+    "fond.osmRando": "OSM rando",
+    "fond.osm": "OSM",
+    "fond.osmVelo": "OSM vélo",
+    "fond.satellite": "Satellite",
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
@@ -283,7 +286,10 @@ const TEXTES = {
     "fond.scan25": "SCAN 25 (IGN)",
     "fond.plan": "Plan IGN",
     "fond.photos": "Aerial photos (IGN)",
-    "fond.osm": "OpenStreetMap",
+    "fond.osmRando": "OSM hiking",
+    "fond.osm": "OSM",
+    "fond.osmVelo": "OSM cycling",
+    "fond.satellite": "Satellite",
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
@@ -941,12 +947,26 @@ function construireFonds() {
     couchesFonds.photos = L.tileLayer(tuileIgn("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg"),
       { maxNativeZoom: 19, maxZoom: 19, attribution: IGN });
   }
+  couchesFonds.osmRando = L.tileLayer("https://tile.openmaps.fr/openhikingmap/{z}/{x}/{y}.png",
+    { maxNativeZoom: 18, maxZoom: 19,
+      attribution: '<a href="https://wiki.openstreetmap.org/wiki/OpenHikingMap">© OpenHikingMap</a> '
+        + '<a href="https://openmaps.fr/donate">❤️ Donation</a> '
+        + '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a>' });
   couchesFonds.osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: `© <a href="https://www.openstreetmap.org/copyright">${t("attribution.osm")}</a>` });
+  couchesFonds.osmVelo = L.tileLayer("https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
+    { maxNativeZoom: 19, maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
+        + '· <a href="https://www.cyclosm.org/">CyclOSM</a>' });
+  couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { maxNativeZoom: 19, maxZoom: 19,
+      attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
-  const choix = horsFrance ? "osm" : (clePreferee || (cleActive === "osm" ? "plan" : cleActive));
+  const choix = horsFrance
+    ? ((clePreferee && couchesFonds[clePreferee]) ? clePreferee : "osm")
+    : (clePreferee || (cleActive === "osm" ? "plan" : cleActive));
   fondActif = (couchesFonds[choix] || couchesFonds.plan || couchesFonds.osm).addTo(carte);
   ajusterRecouvrementTuiles();
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));

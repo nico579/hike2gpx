@@ -134,11 +134,11 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
   assert.equal(page.etat.points.length, 0);
 });
 
-test("Madrid affiche uniquement OSM puis les couches IGN reviennent en France", async () => {
+test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent en France", async () => {
   const { page, elements, requetes, stockage } = charger();
   page.etat.cleIgn = "cle-test";
   page.construireFonds();
-  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "osm"]);
+  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "osmRando", "osm", "osmVelo", "satellite"]);
 
   elements.get("cityQuery").value = "Madrid";
   const rechercheMadrid = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
@@ -146,8 +146,11 @@ test("Madrid affiche uniquement OSM puis les couches IGN reviennent en France", 
     { nom: "Madrid", detail: "Espagne", code_pays: "es", lat: 40.416782, lon: -3.703507 },
   ] });
   await rechercheMadrid;
-  assert.deepEqual(Object.keys(page.fonds()), ["osm"]);
-  assert.deepEqual(Object.keys(page.controle().fonds), ["OpenStreetMap"]);
+  assert.deepEqual(Object.keys(page.fonds()), ["osmRando", "osm", "osmVelo", "satellite"]);
+  assert.deepEqual(Object.keys(page.controle().fonds), ["OSM rando", "OSM", "OSM vélo", "Satellite"]);
+  assert.match(page.fonds().osmRando.url, /openmaps\.fr\/openhikingmap/);
+  assert.match(page.fonds().osmVelo.url, /tile-cyclosm\.openstreetmap\.fr\/cyclosm/);
+  assert.match(page.fonds().satellite.url, /World_Imagery/);
   assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
   assert.match(page.fond().url, /tile\.openstreetmap\.org/);
   assert.equal(page.CALQUES.bdtopo.groupe.removed, true);
@@ -158,9 +161,13 @@ test("Madrid affiche uniquement OSM puis les couches IGN reviennent en France", 
   const recharge = charger(Object.fromEntries(stockage));
   recharge.page.restaurerCalques();
   recharge.page.construireFonds();
-  assert.deepEqual(Object.keys(recharge.page.fonds()), ["osm"]);
+  assert.deepEqual(Object.keys(recharge.page.fonds()), ["osmRando", "osm", "osmVelo", "satellite"]);
   assert.equal(recharge.page.CALQUES.bdtopo.groupe.addedTo, undefined);
   assert.equal(recharge.elements.get("ignOption").hidden, true);
+  recharge.carte.handlers.baselayerchange({ layer: recharge.page.fonds().satellite });
+  const rechargeSatellite = charger(Object.fromEntries(recharge.stockage));
+  rechargeSatellite.page.construireFonds();
+  assert.equal(rechargeSatellite.page.fond(), rechargeSatellite.page.fonds().satellite);
 
   elements.get("cityQuery").value = "Grenoble";
   const rechercheGrenoble = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
@@ -168,7 +175,7 @@ test("Madrid affiche uniquement OSM puis les couches IGN reviennent en France", 
     { nom: "Grenoble", detail: "Isère", code_pays: "fr", lat: 45.1842, lon: 5.7155 },
   ] });
   await rechercheGrenoble;
-  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "osm"]);
+  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "osmRando", "osm", "osmVelo", "satellite"]);
   assert.equal(Object.keys(page.controle().calques).length, 2);
   assert.match(page.fond().url, /GEOGRAPHICALGRIDSYSTEMS\.PLANIGNV2/);
   assert.equal(elements.get("ignOption").hidden, false);

@@ -28,8 +28,9 @@ il se contente d'ouvrir la page de la nouvelle version.
 Tout se passe dans une page locale, ouverte dans le navigateur, et dans le
 menu d'une icône de la zone de notification.
 
-**La carte.** Quatre fonds au choix : le SCAN 25 de l'IGN (avec une clé IGN,
-voir plus bas), le Plan IGN, les photos aériennes de l'IGN et OpenStreetMap.
+**La carte.** Les fonds IGN sont le SCAN 25 (avec une clé IGN, voir plus bas),
+le Plan IGN et les photos aériennes. S'y ajoutent OpenStreetMap, OSM rando
+(OpenHikingMap), OSM vélo (CyclOSM) et une vue satellite mondiale (Esri).
 Par-dessus, deux calques à cocher, à partir du zoom 14, montrent les chemins
 que connaît chaque source : ceux d'OpenStreetMap (les sentiers en tirets),
 avec les clôtures et murs qu'il cartographie, et ceux de la BD TOPO de l'IGN.
@@ -37,7 +38,7 @@ Les mettre côte à côte montre d'un coup d'œil les sentiers qu'une source
 ignore. Une recherche de ville recentre la carte : les communes françaises par
 l'API Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
 d'OpenStreetMap. Après une recherche de ville hors de France, la carte affiche
-uniquement le fond et les chemins OSM ; les couches IGN reviennent en France.
+les fonds OSM ou satellite et les chemins OSM ; les couches IGN reviennent en France.
 Un bouton passe la carte en plein écran. Un voyant dit si le tracé est possible
 tout de suite, grâce à un extrait OSM déjà installé ou à Overpass.
 
