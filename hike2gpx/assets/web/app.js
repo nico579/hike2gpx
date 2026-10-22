@@ -833,6 +833,7 @@ function restaurerCalques() {
 
 function choisirZone(estHorsFrance) {
   if (horsFrance === estHorsFrance) return;
+  ++sequenceExtrait;
   horsFrance = estHorsFrance;
   afficherOptionsIgn();
   // Retirer le contrôle avant BD TOPO : Leaflet interpréterait sinon ce retrait
@@ -866,6 +867,8 @@ function afficherOptionsIgn() {
 // installé, il y remplace Overpass.
 const ZOOM_EXTRAIT = 10;
 let minuterieExtrait = null;
+let sequenceExtrait = 0;
+let essaisPays = 0;
 
 function dateCourte(iso) {
   return new Date(iso).toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR");
@@ -888,11 +891,24 @@ function quoiBrouter(b) {
 // forcer : lire l'état même au zoom faible (lancement de la page, calcul en attente).
 async function majExtrait(forcer = false) {
   clearTimeout(minuterieExtrait);
+  const numero = ++sequenceExtrait;
   const enCours = extraitActif(etat.extrait) || brouterActif(etat.extrait) || etat.donneesAttendues;
   if (carte.getZoom() < ZOOM_EXTRAIT && !enCours && !forcer) { afficherExtrait(null); return; }
   const parametres = new URLSearchParams(Object.entries(zoneVue()).map(([k, v]) => [k, v.toFixed(5)]));
   try {
-    afficherExtrait(await api(`extrait?${parametres}`));
+    const resultat = await api(`extrait?${parametres}`);
+    if (numero !== sequenceExtrait) return;
+    if (typeof resultat.hors_france === "boolean") {
+      essaisPays = 0;
+      choisirZone(resultat.hors_france);
+    } else {
+      ++essaisPays;
+    }
+    afficherExtrait(resultat);
+    // L'index des contours français peut encore se préparer au premier usage.
+    if (essaisPays && essaisPays <= 30 && !minuterieExtrait) {
+      minuterieExtrait = setTimeout(() => majExtrait(true), 3000);
+    }
   } catch (e) { /* serveur momentanément injoignable : la ligne reste telle quelle */ }
 }
 
@@ -943,8 +959,10 @@ function afficherExtrait(r) {
 }
 
 carte.on("moveend", () => {
+  ++sequenceExtrait;
+  essaisPays = 0;
   clearTimeout(minuterieExtrait);
-  minuterieExtrait = setTimeout(majExtrait, 600);
+  minuterieExtrait = setTimeout(() => majExtrait(true), 600);
 });
 
 // Fonds de carte et contrôle des calques, refaits quand la clé IGN ou la
@@ -1543,7 +1561,9 @@ async function chargerGpx(fichier) {
     traceGpxImporte.clearLayers();
     let minLat = 90, minLon = 180, maxLat = -90, maxLon = -180;
     for (const points of segments) {
-      L.polyline(points, { pane: "gpxImporte", color: "#a134a1", weight: 4, opacity: 0.9,
+      L.polyline(points, { pane: "gpxImporte", color: "#344132", weight: 7, opacity: 0.9,
+        dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
+      L.polyline(points, { pane: "gpxImporte", color: "#ffe14a", weight: 4, opacity: 1,
         dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
       for (const [lat, lon] of points) {
         minLat = Math.min(minLat, lat); minLon = Math.min(minLon, lon);
@@ -1552,6 +1572,8 @@ async function chargerGpx(fichier) {
     }
     $("nomGpx").textContent = fichier.name;
     $("gpxCharge").hidden = false;
+    $("chargerGpx").dataset.i18n = "bouton.supprimerGpx";
+    $("chargerGpx").textContent = t("bouton.supprimerGpx");
     carte.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [30, 30], maxZoom: 16 });
   } catch (erreur) {
     if (sequence === sequenceImportGpx) {
@@ -1567,6 +1589,8 @@ function supprimerGpx() {
   $("fichierGpx").value = "";
   $("nomGpx").textContent = "";
   $("gpxCharge").hidden = true;
+  $("chargerGpx").dataset.i18n = "bouton.chargerGpx";
+  $("chargerGpx").textContent = t("bouton.chargerGpx");
   $("erreurGpx").hidden = true;
 }
 
@@ -1582,13 +1606,15 @@ $("toutEffacer").addEventListener("click", () => {
   planifierCalcul();
 });
 $("exporter").addEventListener("click", exporter);
-$("chargerGpx").addEventListener("click", () => $("fichierGpx").click());
+$("chargerGpx").addEventListener("click", () => {
+  if ($("gpxCharge").hidden) $("fichierGpx").click();
+  else supprimerGpx();
+});
 $("fichierGpx").addEventListener("change", (event) => {
   const fichier = event.target.files?.[0];
   event.target.value = "";
   if (fichier) return chargerGpx(fichier);
 });
-$("supprimerGpx").addEventListener("click", supprimerGpx);
 new PleinEcran().addTo(carte);
 // Échap quitte le plein écran du navigateur : la page revient avec lui.
 document.addEventListener("fullscreenchange", () => {

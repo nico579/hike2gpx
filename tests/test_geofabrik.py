@@ -347,6 +347,29 @@ def test_le_dernier_usage_l_emporte(tmp_path, monkeypatch):
     assert abandonnes == ["centre", "centre"]
 
 
+def test_quitter_une_region_abandonne_son_import(tmp_path, monkeypatch):
+    abandonnes = []
+
+    def installer(dossier, region, continuer=None, **options):
+        while continuer():
+            time.sleep(0.01)
+        abandonnes.append(region["id"])
+        raise geofabrik.Abandon()
+
+    monkeypatch.setattr(geofabrik, "installer", installer)
+    taches = geofabrik.Telechargements(tmp_path)
+    assert taches.lancer(REGION)
+    fil = taches._fil
+    assert not taches.abandonner_hors_tuile(*fr.tuile_du_point(43.3, 6.0))
+    assert taches.abandonner_hors_tuile(*fr.tuile_du_point(40.4, -3.7))
+    fil.join(5)
+    assert abandonnes == ["essai"]
+    assert taches.etat() is None
+    assert taches.lancer(REGION)  # l'abandon ne bloque pas un usage ultérieur
+    assert taches.abandonner_hors_tuile(*fr.tuile_du_point(40.4, -3.7))
+    taches._fil.join(5)
+
+
 def test_une_erreur_en_s_arretant_n_est_pas_un_echec(tmp_path, monkeypatch):
     # Essai réel du 2026-10-20 : en abandonnant l'Auvergne, l'effacement de son
     # index des nœuds a buté sur Windows (WinError 5) et compté comme un échec :

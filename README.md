@@ -39,8 +39,9 @@ avec les clôtures et murs qu'il cartographie, et ceux de la BD TOPO de l'IGN.
 Les mettre côte à côte montre d'un coup d'œil les sentiers qu'une source
 ignore. Une recherche de ville recentre la carte : les communes françaises par
 l'API Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
-d'OpenStreetMap. Après une recherche de ville hors de France, la carte affiche
-les fonds OSM ou satellite et les chemins OSM ; les couches IGN reviennent en France.
+d'OpenStreetMap. Hors de France, la carte affiche les fonds OSM ou satellite et
+les chemins OSM ; les couches IGN reviennent quand la carte est déplacée en France.
+Les téléchargements d'extraits OSM quittés par la carte s'arrêtent.
 Un bouton passe la carte en plein écran. Un voyant dit si le tracé est possible
 tout de suite, grâce à un extrait OSM déjà installé ou à Overpass.
 
@@ -72,8 +73,9 @@ avec ces points en points de passage.
 « Charger un GPX » affiche un tracé existant (pistes et itinéraires GPX) en
 violet sur la carte et centre la vue dessus. Il sert de repère pendant la
 préparation du parcours : il ne modifie pas les points de passage ni l'export.
-Un nouveau fichier remplace le précédent ; « Supprimer le GPX » retire ce
-tracé de la carte sans toucher au fichier sur l'ordinateur. Le tracé chargé
+Le bouton devient « Supprimer le GPX » après le chargement et retire ce tracé
+de la carte sans toucher au fichier sur l'ordinateur. On peut ensuite charger
+un autre fichier. Le tracé chargé
 reste affiché jusqu'à la fermeture ou au rechargement de la page.
 
 **Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des

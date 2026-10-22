@@ -15,7 +15,7 @@ function charger(preferences = {}, documentGpx = null) {
   const minuteurs = [];
   const element = () => {
     const classes = new Set();
-    return { disabled: true, hidden: false, checked: false, textContent: "", value: "",
+    return { disabled: true, hidden: false, checked: false, textContent: "", value: "", dataset: {},
       style: { setProperty(name, value) { this[name] = value; } },
       classList: { toggle(c, oui) { (oui ?? !classes.has(c)) ? classes.add(c) : classes.delete(c); },
         contains: (c) => classes.has(c) },
@@ -32,6 +32,7 @@ function charger(preferences = {}, documentGpx = null) {
     on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
       ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
     hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
+    getCenter() { return { lat: (this.vue.s + this.vue.n) / 2, lng: (this.vue.w + this.vue.e) / 2 }; },
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
       getEast: () => v.e }; } };
@@ -101,16 +102,19 @@ test("charger puis supprimer un GPX affiche un tracé distinct du parcours", asy
   const { page, elements, carte, stockage } = charger({}, documentGpx([[[43.3, 6], [43.31, 6.02]]]));
   const fichier = { name: "rando.gpx", size: 250, text: async () => "<gpx/>" };
   await elements.get("fichierGpx").ecouteurs.change[0]({ target: { files: [fichier], value: "rando.gpx" } });
-  assert.equal(page.traceGpxImporte.layers.length, 1);
+  assert.equal(page.traceGpxImporte.layers.length, 2);
   assert.equal(page.traceGpxImporte.layers[0].options.pane, "gpxImporte");
+  assert.equal(page.traceGpxImporte.layers[1].options.color, "#ffe14a");
   assert.equal(JSON.stringify(carte.fit.bounds), "[[43.3,6],[43.31,6.02]]");
   assert.equal(elements.get("nomGpx").textContent, "rando.gpx");
   assert.equal(elements.get("gpxCharge").hidden, false);
+  assert.equal(elements.get("chargerGpx").textContent, "Supprimer le GPX");
   assert.equal(page.etat.points.length, 0);
   assert.equal(stockage.has("hike2gpx.points"), false);
-  elements.get("supprimerGpx").click();
+  elements.get("chargerGpx").click();
   assert.equal(page.traceGpxImporte.layers.length, 0);
   assert.equal(elements.get("gpxCharge").hidden, true);
+  assert.equal(elements.get("chargerGpx").textContent, "Charger un GPX");
 });
 
 test("un GPX invalide conserve le tracé précédemment chargé", async () => {
@@ -122,7 +126,7 @@ test("un GPX invalide conserve le tracé précédemment chargé", async () => {
   document.getElementsByTagNameNS = () => [{ getElementsByTagNameNS: () => [
     { hasAttribute: () => true, getAttribute: (nom) => nom === "lat" ? "91" : "6" }] }];
   await importer("mauvais.gpx");
-  assert.equal(page.traceGpxImporte.layers.length, 1);
+  assert.equal(page.traceGpxImporte.layers.length, 2);
   assert.equal(elements.get("nomGpx").textContent, "bon.gpx");
   assert.equal(elements.get("erreurGpx").hidden, false);
 });
@@ -238,6 +242,34 @@ test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent 
   const rechargeFrance = charger(Object.fromEntries(stockage));
   rechargeFrance.page.construireFonds();
   assert.equal(rechargeFrance.page.fond(), rechargeFrance.page.fonds().reliefLidar);
+});
+
+test("un déplacement manuel de Madrid à Garéoult rétablit les couches IGN", async () => {
+  const { page, elements, requetes, carte, minuteurs } = charger();
+  elements.get("cityQuery").value = "Madrid";
+  const recherche = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  repondre(requetes.findLast((r) => r.url === "/api/communes"), { communes: [
+    { nom: "Madrid", code_pays: "es", lat: 40.416782, lon: -3.703507 },
+  ] });
+  await recherche;
+  assert.equal(page.fonds().plan, undefined);
+
+  carte.vue = { s: 43.30, w: 5.98, n: 43.35, e: 6.04 };
+  carte.handlers.moveend();
+  const lecture = minuteurs.findLast((m) => m.ms === 600 && !m.annule).callback();
+  repondre(requetes.findLast((r) => r.url.startsWith("/api/extrait?")),
+    { en_cours: null, brouter: null, hors_france: false });
+  await lecture;
+  assert.ok(page.fonds().plan);
+  assert.equal(elements.get("ignOption").hidden, false);
+
+  carte.vue = { s: 40.40, w: -3.73, n: 40.43, e: -3.68 };
+  carte.handlers.moveend();
+  const retour = minuteurs.findLast((m) => m.ms === 600 && !m.annule).callback();
+  repondre(requetes.findLast((r) => r.url.startsWith("/api/extrait?")),
+    { en_cours: null, brouter: null, hors_france: true });
+  await retour;
+  assert.equal(page.fonds().plan, undefined);
 });
 
 test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {

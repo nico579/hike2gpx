@@ -711,17 +711,23 @@ class Application:
         return {"id": region["id"], "nom": region["nom"]}
 
     def extrait(self, zone) -> dict:
-        """Les données OSM hors ligne de la vue de la page : l'extrait installé
-        qui contient son centre, et le téléchargement en cours. Simple lecture :
-        rien ne se télécharge parce que la carte passe au-dessus d'une région."""
+        """Données de la vue : extrait installé et pays. Un téléchargement devenu
+        étranger à la vue est abandonné ; cette lecture n'en lance aucun."""
         en_cours_brouter = self._brouter_en_cours
-        reponse = {"en_cours": geofabrik.telechargements(self.dossier).etat(),
+        taches = geofabrik.telechargements(self.dossier)
+        if zone is not None:
+            i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
+            taches.abandonner_hors_tuile(i, j)
+        reponse = {"en_cours": taches.etat(),
                    "brouter": {**en_cours_brouter, "segments": list(en_cours_brouter["segments"])}
                    if en_cours_brouter else None}
         if zone is None:
             return reponse
-        installe = geofabrik.extrait_de_tuile(
-            self.dossier, *franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2))
+        lat, lon = (zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2
+        regions_france = osmfr.regions(self.dossier)
+        if regions_france:
+            reponse["hors_france"] = not any(geofabrik.contient_point(r, lat, lon) for r in regions_france)
+        installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
         if installe:
             return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
         return reponse

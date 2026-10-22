@@ -260,6 +260,20 @@ REGION_PACA = {"id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d
                "polygones": [[[(4.2, 42.9), (7.8, 42.9), (7.8, 45.2), (4.2, 45.2), (4.2, 42.9)]]]}
 
 
+def test_extrait_signale_le_pays_et_abandonne_l_ancienne_region(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(osmfr, "regions", lambda dossier: [REGION_PACA])
+    abandonnees = []
+    monkeypatch.setattr(geofabrik.Telechargements, "abandonner_hors_tuile",
+                        lambda self, i, j: abandonnees.append((i, j)))
+    france = (43.30, 6.00, 43.34, 6.08)
+    madrid = (40.40, -3.73, 40.43, -3.68)
+    assert a.extrait(france)["hors_france"] is False
+    assert a.extrait(madrid)["hors_france"] is True
+    assert abandonnees == [franchissements.tuile_du_point(43.32, 6.04),
+                           franchissements.tuile_du_point(40.415, -3.705)]
+
+
 def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypatch):
     # Décision de Nico du 2026-10-19 : pas de bouton. Le calque des chemins OSM
     # (ou un calcul) lance l'extrait ; survoler la carte (/api/extrait) non.
