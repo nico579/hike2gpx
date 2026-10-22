@@ -31,8 +31,8 @@ menu d'une icône de la zone de notification.
 **La carte.** Les fonds IGN sont le SCAN 25 (avec une clé IGN, voir plus bas),
 le Plan IGN et les photos aériennes. S'y ajoutent OpenStreetMap, OSM rando
 (OpenTopoMap), OSM vélo (CyclOSM) et une vue satellite mondiale (Esri).
-En France, un calque optionnel superpose le relief du terrain LiDAR HD de l'IGN
-en transparence, dans les zones déjà publiées par l'IGN ; son choix est mémorisé.
+En France, le relief du terrain LiDAR HD de l'IGN est aussi disponible comme
+fond de carte dans les zones déjà publiées par l'IGN ; son choix est mémorisé.
 Par-dessus, deux calques à cocher, à partir du zoom 14, montrent les chemins
 que connaît chaque source : ceux d'OpenStreetMap (les sentiers en tirets),
 avec les clôtures et murs qu'il cartographie, et ceux de la BD TOPO de l'IGN.

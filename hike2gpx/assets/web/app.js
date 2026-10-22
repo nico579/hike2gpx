@@ -141,7 +141,7 @@ const TEXTES = {
     "fond.osm": "OSM",
     "fond.osmVelo": "OSM vélo",
     "fond.satellite": "Satellite",
-    "calque.reliefLidar": "Relief LiDAR HD (IGN)",
+    "fond.reliefLidar": "Relief LiDAR HD (IGN)",
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
@@ -291,7 +291,7 @@ const TEXTES = {
     "fond.osm": "OSM",
     "fond.osmVelo": "OSM cycling",
     "fond.satellite": "Satellite",
-    "calque.reliefLidar": "LiDAR HD terrain relief (IGN)",
+    "fond.reliefLidar": "LiDAR HD terrain relief (IGN)",
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
@@ -557,23 +557,6 @@ function tuileIgn(couche, format, cle, matrices = "PM") {
 
 const IGN = '© <a href="https://www.ign.fr/">IGN</a>';
 const CLE_FOND = "hike2gpx.fond";
-const CLE_RELIEF_LIDAR = "hike2gpx.reliefLidar";
-carte.createPane("reliefLidar").style.zIndex = 250;
-const reliefLidar = L.tileLayer(
-  tuileIgn("IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png", null, "PM_0_18"),
-  { pane: "reliefLidar", opacity: 0.65, maxNativeZoom: 18, maxZoom: 19, attribution: IGN },
-);
-carte.on("overlayadd overlayremove", (e) => {
-  if (e.layer !== reliefLidar) return;
-  try { localStorage.setItem(CLE_RELIEF_LIDAR, String(e.type === "overlayadd")); }
-  catch (erreur) { /* stockage indisponible */ }
-});
-function restaurerReliefLidar() {
-  if (horsFrance) return;
-  try {
-    if (localStorage.getItem(CLE_RELIEF_LIDAR) === "true") reliefLidar.addTo(carte);
-  } catch (erreur) { /* couche désactivée par défaut */ }
-}
 let controleFonds = null;
 let fondActif = null;
 let couchesFonds = {};      // clé -> fond de carte Leaflet
@@ -844,7 +827,6 @@ function choisirZone(estHorsFrance) {
     controleFonds = null;
   }
   if (horsFrance) {
-    reliefLidar.remove();
     const bdtopo = CALQUES.bdtopo;
     bdtopo.groupe.remove();
     if (abandonner(bdtopo)) arreterAuServeur(["bdtopo"]);
@@ -966,6 +948,10 @@ function construireFonds() {
       { maxNativeZoom: 18, maxZoom: 19, attribution: IGN });
     couchesFonds.photos = L.tileLayer(tuileIgn("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg"),
       { maxNativeZoom: 19, maxZoom: 19, attribution: IGN });
+    couchesFonds.reliefLidar = L.tileLayer(
+      tuileIgn("IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png", null, "PM_0_18"),
+      { maxNativeZoom: 18, maxZoom: 19, attribution: IGN },
+    );
   }
   couchesFonds.osmRando = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 17, maxZoom: 19,
@@ -987,13 +973,11 @@ function construireFonds() {
     ? ((clePreferee && couchesFonds[clePreferee]) ? clePreferee : "osm")
     : (clePreferee || (cleActive === "osm" ? "plan" : cleActive));
   fondActif = (couchesFonds[choix] || couchesFonds.plan || couchesFonds.osm).addTo(carte);
-  restaurerReliefLidar();
   ajusterRecouvrementTuiles();
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES)
     .filter(([cle]) => !horsFrance || cle === "osm")
     .map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
-  if (!horsFrance) calques[t("calque.reliefLidar")] = reliefLidar;
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
 }
 
