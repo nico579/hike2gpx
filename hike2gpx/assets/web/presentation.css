@@ -41,10 +41,10 @@ body.plein-ecran .panel-toggle{display:none}
 .route-summary>strong{display:block;font-size:12px;color:#3d5e80;margin-bottom:8px}
 .route-summary dl{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:0}
 .route-summary dl>div:nth-child(even){border-left:1px solid var(--bordure);padding-left:11px}
-.route-summary dl>.summary-elevation{grid-column:1/-1;border-left:0;border-top:1px solid var(--bordure);padding:7px 0 0}
+.route-summary dl>.summary-elevation{display:flex;align-items:center;gap:11px;grid-column:1/-1;border-left:0;border-top:1px solid var(--bordure);padding:7px 0 0}
 .route-summary dt{font-size:10px;color:#65768a;margin:0}
 .route-summary dd{font-size:17px;line-height:1.25;font-weight:700;color:#2367d1;margin:3px 0 0}
-.route-summary .summary-elevation dd{font-size:15px}
+.route-summary .summary-elevation dd{font-size:15px;margin:0;white-space:nowrap}
 .langues{align-self:center;gap:4px}
 .bouton-langue{padding:4px 7px;font-size:11px;color:#728093;background:#f7f9fc;border-radius:6px}
 .bouton-langue.active{background:#eaf2ff;color:#1854b1;border-color:#cddff7}
