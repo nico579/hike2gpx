@@ -490,7 +490,7 @@ $("citySearch").addEventListener("submit", async (e) => {
     for (const ville of reponse.communes) {
       const bouton = document.createElement("button");
       bouton.type = "button";
-      bouton.textContent = ville.departement ? `${ville.nom} · ${ville.departement}` : ville.nom;
+      bouton.textContent = ville.detail ? `${ville.nom} · ${ville.detail}` : ville.nom;
       bouton.addEventListener("click", () => {
         carte.setView([ville.lat, ville.lon], 13);
         $("cityQuery").value = ville.nom;

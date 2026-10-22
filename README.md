@@ -34,7 +34,9 @@ Par-dessus, deux calques à cocher, à partir du zoom 14, montrent les chemins
 que connaît chaque source : ceux d'OpenStreetMap (les sentiers en tirets),
 avec les clôtures et murs qu'il cartographie, et ceux de la BD TOPO de l'IGN.
 Les mettre côte à côte montre d'un coup d'œil les sentiers qu'une source
-ignore. Une recherche de ville (par l'API Géo de l'État) recentre la carte, et
+ignore. Une recherche de ville recentre la carte : les communes françaises par
+l'API Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
+d'OpenStreetMap. Et
 un bouton la passe en plein écran. Un voyant dit si le tracé est possible tout
 de suite, grâce à un extrait OSM déjà installé ou à Overpass.
 
