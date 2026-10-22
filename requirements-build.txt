@@ -232,9 +232,9 @@ macholib==1.16.4 ; sys_platform == 'darwin' \
     --hash=sha256:da1a3fa8266e30f0ce7e97c6a54eefaae8edd1e5f86f3eb8b95457cae90265ea \
     --hash=sha256:f408c93ab2e995cd2c46e34fe328b130404be143469e41bc366c807448979362
     # via pyinstaller
-nico579-commons==0.6.1 \
-    --hash=sha256:3ec3bb54536341700ea208d4248d9a38df03db0d88da678f20e3ffacd9786bd0 \
-    --hash=sha256:a8d7b869b8faaf2a360192107b3d3125e1589b323bcb70e068199cf971841070
+nico579-commons==0.6.2 \
+    --hash=sha256:457c65dc7df46bec3a923e94c9dd0de6d6b723d61723aeb0b646caa1fd8f42da \
+    --hash=sha256:4e3606a1795d82c28d6c4cd0ca0738ef87862cf8ad92ac5536338bc3af65fb22
     # via
     #   -r requirements.txt
     #   gpx2elev
