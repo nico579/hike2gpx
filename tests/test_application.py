@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -679,3 +680,55 @@ def test_les_tuiles_brouter_s_actualisent_a_cote_puis_basculent(tmp_path, monkey
     assert (tmp_path / "brouter" / "segments4" / "E5_N40.rd5").read_bytes() == b"nouvelle"
     assert not (tmp_path / "brouter" / "segments4" / "nouvelles").exists()
     assert a.extrait(None)["brouter"] is None
+
+
+def test_brouter_se_renouvelle_apres_le_delai_des_reglages(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    a.installation.segments.mkdir(parents=True)
+    ancienne = a.installation.segments / "E5_N40.rd5"
+    recente = a.installation.segments / "E0_N45.rd5"
+    ancienne.write_bytes(b"ancienne")
+    recente.write_bytes(b"recente")
+    date_ancienne = time.time() - 2 * 86400
+    os.utime(ancienne, (date_ancienne, date_ancienne))
+    monkeypatch.setattr(a.installation, "installee", lambda: True)
+    telechargees = []
+
+    def telecharger(nom, vers=None):
+        telechargees.append(nom)
+        assert ancienne.read_bytes() == b"ancienne"
+        vers.mkdir(parents=True, exist_ok=True)
+        (vers / f"{nom}.rd5").write_bytes(b"nouvelle")
+
+    monkeypatch.setattr(a.installation, "telecharger_segment", telecharger)
+    monkeypatch.setattr(a, "arreter", lambda: None)
+    assert a.installer_moteur() == {"brouter_en_cours": None}  # délai par défaut : 30 jours
+    a.enregistrer_reglages({"renouvellement_jours": 1})
+    assert a.installer_moteur() == {"brouter_en_cours": {"moteur": False, "segments": ["E5_N40"]}}
+    a._fil_brouter.join(5)
+    assert telechargees == ["E5_N40"]
+    assert ancienne.read_bytes() == b"nouvelle"
+    assert recente.read_bytes() == b"recente"
+    assert a.installer_moteur() == {"brouter_en_cours": None}
+
+
+def test_renouvellement_brouter_en_echec_attend_une_heure(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    a.installation.segments.mkdir(parents=True)
+    ancienne = a.installation.segments / "E5_N40.rd5"
+    ancienne.write_bytes(b"ancienne")
+    date_ancienne = time.time() - 40 * 86400
+    os.utime(ancienne, (date_ancienne, date_ancienne))
+    monkeypatch.setattr(a.installation, "installee", lambda: True)
+    essais = []
+
+    def telecharger(nom, vers=None):
+        essais.append(nom)
+        raise brouter.ErreurBRouter("réseau indisponible")
+
+    monkeypatch.setattr(a.installation, "telecharger_segment", telecharger)
+    assert a.installer_moteur()["brouter_en_cours"]["segments"] == ["E5_N40"]
+    a._fil_brouter.join(5)
+    assert ancienne.read_bytes() == b"ancienne"
+    assert a.installer_moteur() == {"brouter_en_cours": None}
+    assert essais == ["E5_N40"]

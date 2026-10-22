@@ -308,9 +308,11 @@ class Application:
             self.serveur = self.serveur_maison = None
 
     def installer_moteur(self, _payload=None) -> dict:
-        """Au lancement de la page, le moteur absent s'installe de lui-même, en
-        tâche de fond."""
-        return {"brouter_en_cours": self._brouter_automatique([])}
+        """Installe le moteur absent ou renouvelle les tuiles périmées en fond."""
+        en_cours = self._brouter_automatique([])
+        if en_cours is None:
+            en_cours = self._renouveler_brouter_si_perime()
+        return {"brouter_en_cours": en_cours}
 
     # Après un échec, pas de nouvel essai pour le même élément avant une heure.
     REESSAI_BROUTER_S = 3600.0
@@ -838,9 +840,29 @@ class Application:
             return {"erreur": "Action inconnue."}
         return self.donnees()
 
-    def _actualiser_brouter(self) -> str | None:
-        noms = [p.stem for p in sorted(self.installation.segments.glob("*.rd5"))] \
-            if self.installation.segments.is_dir() else []
+    def _renouveler_brouter_si_perime(self) -> dict | None:
+        """Le délai des réglages s'applique aussi aux tuiles BRouter installées."""
+        limite = time.time() - self.reglages()["renouvellement_jours"] * 86400
+        maintenant = time.monotonic()
+        noms = []
+        for chemin in sorted(self.installation.segments.glob("*.rd5")):
+            try:
+                perimee = chemin.stat().st_mtime < limite
+            except FileNotFoundError:  # un vidage du cache peut supprimer la tuile entre-temps
+                continue
+            echec_recent = maintenant - self._echecs_brouter.get(
+                chemin.stem, -self.REESSAI_BROUTER_S) < self.REESSAI_BROUTER_S
+            if perimee and not echec_recent:
+                noms.append(chemin.stem)
+        if not noms or self._actualiser_brouter(noms) is not None:
+            return None
+        journal.info("Tuiles BRouter périmées : renouvellement en tâche de fond (%s)", ", ".join(noms))
+        return {"moteur": False, "segments": noms}
+
+    def _actualiser_brouter(self, noms: list[str] | None = None) -> str | None:
+        if noms is None:
+            noms = [p.stem for p in sorted(self.installation.segments.glob("*.rd5"))] \
+                if self.installation.segments.is_dir() else []
         with self._verrou_brouter:
             if self._fil_brouter and self._fil_brouter.is_alive():
                 return "Un téléchargement BRouter est déjà en cours."
@@ -864,6 +886,7 @@ class Application:
                     self.installation.telecharger_segment(nom, vers=attente)
                     pretes.append(nom)
                 except (brouter.ErreurBRouter, ValueError) as exc:
+                    self._echecs_brouter[nom] = time.monotonic()
                     journal.warning("Tuile BRouter %s non actualisée : %s", nom, exc)
                 finally:
                     self._brouter_en_cours["segments"].remove(nom)
@@ -872,8 +895,10 @@ class Application:
                     self.arreter()
                     for nom in pretes:
                         atomique.remplacer(attente / f"{nom}.rd5", self.installation.segments / f"{nom}.rd5")
-                journal.info("Tuiles BRouter actualisées depuis les réglages : %s", ", ".join(pretes))
+                journal.info("Tuiles BRouter actualisées : %s", ", ".join(pretes))
         except OSError as exc:
+            for nom in noms:
+                self._echecs_brouter[nom] = time.monotonic()
             journal.warning("Tuiles BRouter non actualisées : %s", exc)
         finally:
             shutil.rmtree(attente, ignore_errors=True)

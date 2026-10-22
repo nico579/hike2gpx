@@ -51,7 +51,7 @@ const TEXTES = {
     "reglages.cle": "Clé IGN pour le SCAN 25",
     "reglages.enregistrer": "Enregistrer",
     "reglages.note": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
-    "reglages.renouvellement": "Renouveler les extraits OSM après",
+    "reglages.renouvellement": "Renouveler les données locales après",
     "reglages.jours": "jours",
     "reglages.masquerCartes": "Masquer le bandeau des cartes",
     "reglages.masquerDenivele": "Masquer le bandeau du dénivelé",
@@ -185,7 +185,7 @@ const TEXTES = {
     "reglages.cle": "IGN key for SCAN 25",
     "reglages.enregistrer": "Save",
     "reglages.note": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
-    "reglages.renouvellement": "Refresh OSM extracts after",
+    "reglages.renouvellement": "Refresh local data after",
     "reglages.jours": "days",
     "reglages.masquerCartes": "Hide the map layers panel",
     "reglages.masquerDenivele": "Hide the elevation panel",
@@ -717,11 +717,17 @@ carte.on("overlayadd overlayremove", (e) => {
 });
 
 function restaurerCalques() {
+  let coches = Object.keys(CALQUES);
   try {
-    for (const cle of JSON.parse(localStorage.getItem(CLE_CALQUES) || "[]")) {
-      if (CALQUES[cle]) CALQUES[cle].groupe.addTo(carte);
+    const choix = localStorage.getItem(CLE_CALQUES);
+    if (choix !== null) {
+      const sauves = JSON.parse(choix);
+      if (Array.isArray(sauves)) coches = sauves;
     }
-  } catch (e) { /* stockage indisponible : calques éteints */ }
+  } catch (e) { /* préférence illisible : conserver les deux calques par défaut */ }
+  for (const cle of coches) {
+    if (CALQUES[cle]) CALQUES[cle].groupe.addTo(carte);
+  }
 }
 
 // ------------------------------------------------------------ données OSM hors ligne
@@ -1333,6 +1339,7 @@ $("enregistrerCle").addEventListener("click", async () => {
     etat.cleIgn = r.cle_ign;
     construireFonds();
     afficherStatut(() => t(etat.cleIgn ? "cle.enregistree" : "cle.retiree"));
+    verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
   }
@@ -1394,6 +1401,13 @@ async function agirDonnees(action, cible, confirmer) {
 }
 
 
+async function verifierBrouter() {
+  try {
+    const resultat = await api("moteur", {});
+    if (resultat.brouter_en_cours) majExtrait(true);
+  } catch (e) { /* vérification reportée au prochain passage */ }
+}
+
 async function demarrer() {
   try {
     const [infos, reglages] = await Promise.all([api("etat"), api("reglages")]);
@@ -1402,12 +1416,7 @@ async function demarrer() {
     etat.cleIgn = reglages.cle_ign || "";
     $("cleIgn").value = etat.cleIgn;
     $("renouvellementJours").value = reglages.renouvellement_jours ?? 30;
-    // Premier lancement : le moteur BRouter s'installe de lui-même, en tâche
-    // de fond ; le panneau suit son téléchargement.
-    if (!infos.moteur_installe) {
-      await api("moteur", {});
-      majExtrait(true);
-    }
+    await verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("serveur.injoignable", { message: e.message }), true);
   }
@@ -1417,3 +1426,4 @@ async function demarrer() {
 }
 
 demarrer();
+setInterval(verifierBrouter, 60 * 60 * 1000);

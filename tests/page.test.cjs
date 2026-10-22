@@ -59,7 +59,7 @@ function charger(preferences = {}) {
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
-    + " fond: () => fondActif, fonds: () => couchesFonds };", contexte);
+    + " fond: () => fondActif, fonds: () => couchesFonds, restaurerCalques };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage };
 }
@@ -71,6 +71,31 @@ function resultat(lonArrivee) {
 }
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
+
+test("une ouverture vérifie les tuiles BRouter même si le moteur est déjà installé", async () => {
+  const { requetes } = charger();
+  repondre(requetes.find((r) => r.url === "/api/etat"),
+    { version: "0.1.0", brouter: "1.7.10", moteur_installe: true });
+  repondre(requetes.find((r) => r.url === "/api/reglages"),
+    { cle_ign: "", renouvellement_jours: 30 });
+  await new Promise(setImmediate);
+  assert.ok(requetes.some((r) => r.url === "/api/moteur"));
+});
+
+test("les deux calques sont cochés par défaut, sans écraser un choix mémorisé", () => {
+  function cochés(preferences) {
+    const { page } = charger(preferences);
+    const vus = [];
+    for (const [nom, calque] of Object.entries(page.CALQUES)) {
+      calque.groupe.addTo = () => vus.push(nom);
+    }
+    page.restaurerCalques();
+    return vus;
+  }
+  assert.deepEqual(cochés({}), ["osm", "bdtopo"]);
+  assert.deepEqual(cochés({ "hike2gpx.calques": "[]" }), []);
+  assert.deepEqual(cochés({ "hike2gpx.calques": '["osm"]' }), ["osm"]);
+});
 
 test("les options de marche et le fond reviennent à l'ouverture", () => {
   const { page, elements, stockage, carte } = charger({
