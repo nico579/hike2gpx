@@ -1,92 +1,122 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>hike2gpx</title>
-<link rel="stylesheet" href="/leaflet/leaflet.css">
-<link rel="stylesheet" href="/style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hike2gpx — tracer un parcours</title>
+  <link rel="stylesheet" href="/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/style.css?v=desktop-6">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-21">
 </head>
 <body>
-<div id="carte" aria-label="Carte"></div>
+<div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
+<div id="carte" aria-label="Carte interactive">
+  <div class="map-widget-toolbar">
+    <button type="button" class="map-widget-button layers-trigger" id="layersButton" aria-label="Choisir le fond de carte, les chemins et la légende" aria-expanded="false" aria-controls="mapLayersMenu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 6-10 6L2 9l10-6Zm-10 12 10 6 10-6M2 12l10 6 10-6"/></svg>
+      <span id="baseLabel">Plan IGN</span>
+      <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg>
+    </button>
+  </div>
+  <button type="button" class="map-widget-button map-expand-button leaflet-control" id="expandMapButton" aria-label="Mettre la carte en plein écran" aria-pressed="false" title="Mettre la carte en plein écran">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6"/></svg>
+  </button>
+  <section id="mapActivity" class="map-activity" aria-label="Progression des opérations" aria-live="polite" hidden><div id="mapActivityRows"></div></section>
+  <section id="elevationPanel" class="elevation-panel" aria-label="Profil de dénivelé" hidden>
+    <button id="elevationToggle" type="button" aria-controls="elevationContent" aria-expanded="true"><span>⌁ <span data-i18n="profil.titre">Le relief du parcours</span></span><span id="collapsedMetrics"><span data-i18n="resultat.distance">Distance</span> <strong id="collapsedDistance"></strong><span aria-hidden="true"> · </span><span data-i18n="resultat.denivele">Dénivelé</span> <strong id="collapsedElevation"></strong></span><span id="elevationRange"></span><span aria-hidden="true">⌄</span></button>
+    <div id="elevationContent">
+      <div class="profile-meta"><span id="profileSource">Calcul gpx2elev en cours…</span><span id="profileReadout"></span></div>
+      <svg id="elevationProfile" viewBox="0 0 800 132" preserveAspectRatio="none" role="img" tabindex="0" aria-label="Profil de dénivelé gpx2elev" hidden>
+        <line x1="16" y1="116" x2="784" y2="116" class="profile-grid"/>
+        <line x1="16" y1="70" x2="784" y2="70" class="profile-grid"/>
+        <line x1="16" y1="24" x2="784" y2="24" class="profile-grid"/>
+        <path id="profileArea" class="profile-area"/>
+        <path id="profileLine" class="profile-line"/>
+        <line id="profileCursor" class="profile-cursor" y1="16" y2="116" hidden/>
+        <circle id="profileCursorPoint" class="profile-cursor-point" r="4" hidden/>
+      </svg>
+      <div id="profileAxis" class="profile-axis" hidden><span data-i18n="profil.depart">Départ</span><span id="profileMid"></span><span id="profileEnd"></span></div>
+    </div>
+  </section>
+</div>
 <div id="progression" role="progressbar" aria-live="polite" hidden>
   <div class="piste"><div id="progressionBarre"></div></div>
   <span id="progressionTexte"></span>
 </div>
-<aside id="panneau">
-  <header>
-    <h1>hike2gpx</h1>
-    <span id="version"></span>
-    <span class="langues" data-nico579-langue data-classe="bouton-langue"></span>
-  </header>
-  <p class="aide" data-i18n="aide">Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée.
-    Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.</p>
-  <div class="boutons">
-    <button id="retirerDernier" type="button" disabled data-i18n="bouton.retirerDernier">Retirer le dernier point</button>
-    <button id="toutEffacer" type="button" disabled data-i18n="bouton.toutEffacer">Tout effacer</button>
-    <button id="boucler" type="button" disabled data-i18n="bouton.boucler">Revenir au départ</button>
-    <button id="exporter" type="button" class="principal" disabled data-i18n="bouton.exporter">Exporter le GPX</button>
-  </div>
-  <label class="option"><input type="checkbox" id="strict"> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
-  <label class="option"><input type="checkbox" id="ign" checked> <span data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
-  <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
-  <p id="statut" role="status"></p>
-  <p id="noteCalques" class="note" hidden><span id="noteCalquesTexte"></span><span id="noteCalquesPiste" class="piste" role="progressbar" hidden><span id="noteCalquesBarre" class="barre"></span></span></p>
-  <p id="extraitOsm" class="note" hidden><span id="extraitTexte"></span><span id="extraitPiste" class="piste" role="progressbar" hidden><span id="extraitBarre" class="barre"></span></span></p>
-  <p id="brouterEnCours" class="note" hidden><span id="brouterTexte"></span><span id="brouterPiste" class="piste indeterminee" role="progressbar"><span id="brouterBarre" class="barre"></span></span></p>
-  <div id="actions"></div>
-  <section id="resultat" hidden>
-    <dl>
-      <dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd>
-      <dt data-i18n="resultat.denivele">Dénivelé</dt><dd id="denivele"></dd>
-    </dl>
-    <p id="sourceDenivele" class="note"></p>
-    <p id="comparaison"></p>
-    <h2 data-i18n="resultat.aVerifier">Points à vérifier sur le tracé</h2>
-    <p id="aucunAVerifier" class="note" hidden data-i18n="resultat.aucun">Aucun franchissement connu sur ce tracé.</p>
-    <ol id="aVerifier"></ol>
+<aside id="panneau" aria-label="Préparation du parcours">
+  <div class="sheet-grip"><span></span></div>
+  <section id="routeSummary" class="route-summary" aria-label="Informations du parcours" hidden>
+    <strong data-i18n="resume.parcours">Votre parcours</strong>
+    <dl><div><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd></div><div><dt class="elevation-label"><span data-i18n="resultat.duree">Durée estimée</span><span class="info-tooltip" tabindex="0" aria-label="Calcul de la durée">i<span role="tooltip" data-i18n="resume.dureeInfo">Modèle de Tobler sur le profil gpx2elev lissé : v = 6 × exp(−3,5 × |pente + 0,05|) km/h. La pente est calculée tous les 20 m dans le sens du parcours ; les durées sont additionnées sans pauses. Le facteur 0,6 ne s'applique qu'aux portions identifiées hors sentier ; les chemins IGN restent des chemins.</span></span></dt><dd id="duree"></dd></div><div><dt data-i18n="resultat.pointHaut">Point haut</dt><dd id="pointHaut"></dd></div><div><dt data-i18n="resultat.pointBas">Point bas</dt><dd id="pointBas"></dd></div><div class="summary-elevation"><dt class="elevation-label"><span data-i18n="resultat.denivele">Dénivelé</span><span class="info-tooltip" tabindex="0" aria-label="Calcul du dénivelé">i<span role="tooltip" data-i18n="resume.deniveleInfo">gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.</span></span></dt><dd id="denivele"></dd></div></dl>
   </section>
-  <section class="legende">
-    <h2 data-i18n="legende.titre">Légende</h2>
-    <ul>
-      <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
-      <li><span class="trait ign"></span> <span data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
-      <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
-      <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
-      <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
-      <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
-      <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
-      <li><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
-    </ul>
-    <p class="note" data-i18n="legende.note">Les calques de chemins se cochent sur la carte, en haut à droite, et
-      s'affichent à partir du zoom 14.</p>
-  </section>
-  <details id="reglages">
-    <summary data-i18n="reglages.titre">Réglages</summary>
-    <label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label>
-    <div class="ligne">
-      <input id="cleIgn" type="text" autocomplete="off" spellcheck="false">
-      <button id="enregistrerCle" type="button" data-i18n="reglages.enregistrer">Enregistrer</button>
+  <nav class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
+    <button type="button" role="tab" id="tab-trace" data-pane="trace" aria-controls="pane-trace" aria-selected="true">Parcours</button>
+    <button type="button" role="tab" id="tab-reglages" data-pane="reglages" aria-controls="pane-reglages" aria-selected="false" tabindex="-1">Réglages</button>
+    <button type="button" role="tab" id="tab-journal" data-pane="journal" aria-controls="pane-journal" aria-selected="false" tabindex="-1">Journal</button>
+  </nav>
+  <div class="panel-scroll">
+  <section id="pane-trace" class="pane" role="tabpanel" aria-labelledby="tab-trace">
+    <p class="aide" data-i18n="aide">Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.</p>
+    <div class="boutons">
+      <div class="route-actions">
+        <span class="action-control"><button id="retirerDernier" type="button" disabled aria-describedby="retirerDernierInfo"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg><span data-i18n="bouton.retirerDernier">Retirer</span></button><span id="retirerDernierInfo" class="action-tooltip" role="tooltip" data-i18n="bouton.retirerDernierInfo">Retire le dernier point ajouté au parcours.</span></span>
+        <span class="action-control"><button id="toutEffacer" type="button" disabled aria-describedby="toutEffacerInfo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7M10 11v6m4-6v6"/></svg><span data-i18n="bouton.toutEffacer">Effacer</span></button><span id="toutEffacerInfo" class="action-tooltip" role="tooltip" data-i18n="bouton.toutEffacerInfo">Efface tous les points et le tracé du parcours en cours.</span></span>
+        <span class="action-control"><button id="boucler" type="button" disabled aria-describedby="bouclerInfo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 5 11l4 4M5 11h10a5 5 0 0 1 0 10h-3"/></svg><span data-i18n="bouton.boucler">Revenir</span></button><span id="bouclerInfo" class="action-tooltip" role="tooltip" data-i18n="bouton.bouclerInfo">Ajoute le point de départ à la fin du parcours pour fermer la boucle.</span></span>
+      </div>
+      <button id="exporter" type="button" class="principal" disabled data-i18n="bouton.exporter">Exporter le GPX</button>
     </div>
-    <p class="note" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN,
-      sous Licence Ouverte.</p>
-    <h3 data-i18n="donnees.titre">Données téléchargées</h3>
-    <div id="donnees"></div>
-    <p class="note" data-i18n="donnees.note">Tout se retélécharge de soi-même au besoin : vider ou supprimer libère de la
-      place, actualiser donne des données fraîches.</p>
-  </details>
-  <details id="journal">
-    <summary data-i18n="journal.titre">Journal des calculs</summary>
-    <p class="note"><span data-i18n="journal.note">Erreurs, blocages et lenteurs, du plus ancien au plus récent :</span>
-      <span id="cheminJournal"></span></p>
-    <pre id="lignesJournal"></pre>
-  </details>
-  <footer class="note" data-i18n="pied">Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins BD TOPO
-    et cartes © IGN, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain
-    a toujours le dernier mot.</footer>
+    <h2 class="section-title">Votre façon de marcher</h2>
+    <label class="option"><input type="checkbox" id="strict"> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
+    <label class="option"><input type="checkbox" id="ign" checked> <span data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
+    <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
+    <p id="statut" role="status"></p>
+    <p id="noteCalques" class="note" hidden><span id="noteCalquesTexte"></span><span id="noteCalquesPiste" class="piste" role="progressbar" hidden><span id="noteCalquesBarre" class="barre"></span></span></p>
+    <p id="extraitOsm" class="note" hidden><span id="extraitTexte"></span><span id="extraitPiste" class="piste" role="progressbar" hidden><span id="extraitBarre" class="barre"></span></span></p>
+    <p id="brouterEnCours" class="note" hidden><span id="brouterTexte"></span><span id="brouterPiste" class="piste indeterminee" role="progressbar"><span id="brouterBarre" class="barre"></span></span></p>
+    <div id="actions"></div>
+    <section id="resultat" hidden>
+      <p id="sourceDenivele" class="note"></p><p id="comparaison"></p>
+      <h2 id="aVerifierTitle" data-i18n="resultat.aVerifier" hidden>Points à vérifier sur le tracé</h2>
+      <p id="aucunAVerifier" class="note" hidden data-i18n="resultat.aucun">Aucun franchissement connu sur ce tracé.</p>
+      <ol id="aVerifier"></ol>
+    </section>
+  </section>
+  <section id="pane-reglages" class="pane" role="tabpanel" aria-labelledby="tab-reglages" hidden>
+    <section id="reglages">
+      <div class="setting-row ign-key-row"><div class="ign-key-label"><label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé IGN">i<span role="tooltip" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</span></span></div><div class="ligne"><input id="cleIgn" type="password" autocomplete="off" spellcheck="false" aria-label="Clé IGN SCAN 25"><button id="afficherCle" type="button" aria-label="Afficher la clé IGN" aria-pressed="false" title="Afficher la clé IGN"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="eye-strike" d="M3 21 21 3"/></svg></button></div></div>
+      <div class="setting-row renewal-row"><label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les données locales après</label><div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div></div>
+      <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
+      <div class="display-settings"><label class="option"><input id="hideMapToolbar" type="checkbox"> <span data-i18n="reglages.masquerCartes">Masquer le bandeau des cartes</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
+      <div id="donnees"></div>
+    </section>
+  </section>
+  <section id="pane-journal" class="pane" role="tabpanel" aria-labelledby="tab-journal" hidden>
+    <section id="journal">
+      <div class="journal-heading"><h2 data-i18n="journal.titre">Journal des calculs</h2><a href="/journal.txt" target="_blank" rel="noopener" data-i18n="journal.ouvrir">Ouvrir le fichier de log</a></div>
+      <p class="note"><span data-i18n="journal.note">Erreurs, blocages et lenteurs, du plus ancien au plus récent :</span> <span id="cheminJournal"></span></p>
+      <pre id="lignesJournal"></pre>
+    </section>
+  </section>
+  </div>
 </aside>
+<button type="button" id="panelToggle" class="panel-toggle" aria-controls="panneau" aria-expanded="true" aria-label="Replier le panneau du parcours" title="Replier le panneau du parcours">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg>
+</button>
+<section id="mapLegend" class="legende" aria-label="Légende de la carte" hidden>
+  <h3 data-i18n="legende.titre">Légende</h3><ul>
+    <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
+    <li><span class="trait ign"></span> <span data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
+    <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
+    <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
+    <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
+    <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
+    <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
+    <li><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
+  </ul>
+</section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js"></script>
+<script src="/app.js?v=desktop-19"></script>
 <script src="/nico579-langue.js"></script>
+<script src="/presentation.js?v=desktop-12"></script>
 </body>
 </html>

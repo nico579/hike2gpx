@@ -46,9 +46,29 @@ def test_rampe_de_dix_pour_cent_sur_un_kilometre(tmp_path):
     assert (r["altitude_min_m"], r["altitude_max_m"]) == (100, 200)
     assert r["modele"] == "IGN LiDAR HD" and r["protocole"] == core.PROTOCOL
     assert r["depuis_le_cache"] is False
+    assert r["profil"][0] == pytest.approx([0, 100], abs=0.2)
+    assert r["profil"][-1] == pytest.approx([1000, 200], abs=1)
+    assert r["duree_marche_s"] == pytest.approx(1000 * 3.6 / (6 * math.exp(-3.5 * 0.15)), abs=30)
     # Le même tracé ne relit pas le terrain : le profil vient du cache de gpx2elev.
     assert denivele.calculer(trace_est_ouest(), tmp_path, lecteur=lecteur)["depuis_le_cache"] is True
     assert lecteur.lectures == 1
+
+
+def test_tobler_tient_compte_du_sens_et_du_hors_sentier():
+    montee = [(d, d * 0.1) for d in range(0, 1001, 5)]
+    descente = [(d, 50 - d * 0.05) for d in range(0, 1001, 5)]
+    plat = [(d, 0) for d in range(0, 1001, 5)]
+    assert denivele.duree_tobler(montee) == pytest.approx(1000 * 3.6 / (6 * math.exp(-3.5 * 0.15)))
+    assert denivele.duree_tobler(descente) == pytest.approx(1000 * 3.6 / 6)
+    assert denivele.duree_tobler(descente) < denivele.duree_tobler(plat) < denivele.duree_tobler(montee)
+    assert denivele.duree_tobler(plat, hors_sentier=True) == pytest.approx(denivele.duree_tobler(plat) / 0.6)
+
+
+def test_profil_reduit_garde_les_extremites(tmp_path):
+    r = denivele.calculer(trace_est_ouest(5000), tmp_path, lecteur=Rampe())
+    assert 2 < len(r["profil"]) <= denivele.PROFIL_MAX_POINTS
+    assert r["profil"][0][0] == 0
+    assert r["profil"][-1][0] == pytest.approx(5000, abs=1)
 
 
 def test_aucun_modele_disponible(tmp_path):

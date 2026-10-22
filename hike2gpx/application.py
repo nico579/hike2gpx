@@ -14,18 +14,20 @@ import re
 import shutil
 import threading
 import time
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, bdtopo, brouter, franchissements, geofabrik, maison, osmfr
+from . import __version__, bdtopo, brouter, communes, franchissements, geofabrik, maison, osmfr
 
 journal = logging.getLogger(__name__)
 
 # Journal des calculs dans le dossier de données : 1 Mo, gardé trois fois.
-FICHIER_JOURNAL = "hike2gpx.log"
+FICHIER_JOURNAL = "hike2gpx.log"  # repli pour une Application hors serveur
+_JOURNAUX: dict[Path, Path] = {}
 LIGNES_JOURNAL = 300        # montrées par la page
 LENT_S = 60.0               # au-delà, l'itinéraire est signalé lent dans le journal
 # Étapes d'un calcul, telles que le journal en détaille les temps.
@@ -45,17 +47,20 @@ _CLE_IGN = re.compile(r"^[A-Za-z0-9_\-]{0,100}$")
 
 
 def configurer_journal(dossier) -> Path:
-    """Branche le journal de tous les modules de hike2gpx sur hike2gpx.log,
-    pour retrouver une erreur, un blocage ou une lenteur. Appelé par le
-    serveur seulement : les tests n'écrivent pas de journal."""
-    chemin = Path(dossier) / FICHIER_JOURNAL
+    """Un fichier horodaté neuf par démarrage du serveur."""
+    racine_donnees = Path(dossier).resolve()
+    chemin = _JOURNAUX.get(racine_donnees)
     racine = logging.getLogger("hike2gpx")
-    if not any(isinstance(h, RotatingFileHandler) and Path(h.baseFilename) == chemin for h in racine.handlers):
-        chemin.parent.mkdir(parents=True, exist_ok=True)
-        fichier = RotatingFileHandler(chemin, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
-        fichier.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-        racine.addHandler(fichier)
-        racine.setLevel(logging.INFO)
+    if chemin is not None and any(isinstance(h, RotatingFileHandler) and Path(h.baseFilename) == chemin
+                                  for h in racine.handlers):
+        return chemin
+    chemin = racine_donnees / f"hike2gpx-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.log"
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    fichier = RotatingFileHandler(chemin, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+    fichier.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    racine.addHandler(fichier)
+    racine.setLevel(logging.INFO)
+    _JOURNAUX[racine_donnees] = chemin
     return chemin
 
 
@@ -233,15 +238,23 @@ class Application:
     def reglages(self) -> dict:
         prefs = atomique.lire_json(self.preferences, {})
         cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
-        return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else ""}
+        jours = prefs.get("renouvellement_jours", 30) if isinstance(prefs, dict) else 30
+        jours = jours if type(jours) is int and 1 <= jours <= 365 else 30
+        return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
+                "renouvellement_jours": jours}
 
     def enregistrer_reglages(self, payload) -> dict:
-        cle = (payload or {}).get("cle_ign", "")
+        payload = payload or {}
+        cle = payload.get("cle_ign", "")
         if not isinstance(cle, str) or not _CLE_IGN.match(cle.strip()):
             return {"erreur": "Clé IGN invalide : lettres, chiffres, _ et - seulement."}
+        jours = payload.get("renouvellement_jours", self.reglages()["renouvellement_jours"])
+        if type(jours) is not int or not 1 <= jours <= 365:
+            return {"erreur": "Le délai de renouvellement doit être compris entre 1 et 365 jours."}
         prefs = atomique.lire_json(self.preferences, {})
         prefs = prefs if isinstance(prefs, dict) else {}
         prefs["cle_ign"] = cle.strip()
+        prefs["renouvellement_jours"] = jours
         atomique.ecrire_json(self.preferences, prefs)
         return self.reglages()
 
@@ -295,9 +308,11 @@ class Application:
             self.serveur = self.serveur_maison = None
 
     def installer_moteur(self, _payload=None) -> dict:
-        """Au lancement de la page, le moteur absent s'installe de lui-même, en
-        tâche de fond."""
-        return {"brouter_en_cours": self._brouter_automatique([])}
+        """Installe le moteur absent ou renouvelle les tuiles périmées en fond."""
+        en_cours = self._brouter_automatique([])
+        if en_cours is None:
+            en_cours = self._renouveler_brouter_si_perime()
+        return {"brouter_en_cours": en_cours}
 
     # Après un échec, pas de nouvel essai pour le même élément avant une heure.
     REESSAI_BROUTER_S = 3600.0
@@ -387,7 +402,7 @@ class Application:
 
     def lire_journal(self) -> dict:
         """Les dernières lignes du journal des calculs, pour la page."""
-        chemin = self.dossier / FICHIER_JOURNAL
+        chemin = _JOURNAUX.get(self.dossier.resolve(), self.dossier / FICHIER_JOURNAL)
         try:
             lignes = chemin.read_text(encoding="utf-8", errors="replace").splitlines()[-LIGNES_JOURNAL:]
         except OSError:
@@ -706,6 +721,18 @@ class Application:
             return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
         return reponse
 
+    def disponibilite(self, zone) -> dict:
+        """Source OSM utilisable pour la zone, sans attendre un extrait en cours."""
+        if zone is None:
+            return {"pret": False, "source": None}
+        i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
+        installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
+        if installe is not None:
+            return {"pret": True, "source": "extrait", "nom": installe["nom"]}
+        disponible = franchissements.disponibilite_overpass()
+        return {"pret": disponible is True, "source": "overpass" if disponible else None,
+                "verification": disponible is None}
+
     # ---------------------------------------------------------- données téléchargées
 
     def _caches(self) -> dict:
@@ -755,7 +782,35 @@ class Application:
         corps = corps if isinstance(corps, dict) else {}
         action, cible = corps.get("action"), corps.get("cible")
         taches = geofabrik.telechargements(self.dossier)
-        if action in ("vider_osm", "vider_bdtopo"):
+        if action == "vider_cache":
+            if taches.occupee() or (self._fil_brouter and self._fil_brouter.is_alive()) or self._lectures:
+                return {"erreur": "Un téléchargement ou une lecture est en cours. Réessayez après sa fin."}
+            if not self._verrou_calcul.acquire(blocking=False):
+                return {"erreur": "Un calcul est en cours. Réessayez après sa fin."}
+            try:
+                if not self._verrou_denivele.acquire(blocking=False):
+                    return {"erreur": "Un calcul de dénivelé est en cours. Réessayez après sa fin."}
+                try:
+                    self.arreter()
+                    for dossiers in self._caches().values():
+                        for dossier in dossiers:
+                            for p in dossier.glob("*.json") if dossier.is_dir() else []:
+                                p.unlink(missing_ok=True)
+                    for cache_dir in (self.dossier / "gpx2elev", self.installation.maison):
+                        if cache_dir.is_dir():
+                            shutil.rmtree(cache_dir)
+                    for p in self.installation.segments.glob("*.rd5"):
+                        p.unlink(missing_ok=True)
+                    extraits = geofabrik.dossier_extraits(self.dossier)
+                    for p in extraits.iterdir() if extraits.is_dir() else []:
+                        if p.is_file():
+                            p.unlink()
+                    journal.info("Caches locaux OSM, IGN, gpx2elev et BRouter vidés depuis les réglages")
+                finally:
+                    self._verrou_denivele.release()
+            finally:
+                self._verrou_calcul.release()
+        elif action in ("vider_osm", "vider_bdtopo"):
             for dossier in self._caches()[action[6:]]:
                 for p in dossier.glob("*.json") if dossier.is_dir() else []:
                     p.unlink(missing_ok=True)
@@ -785,9 +840,29 @@ class Application:
             return {"erreur": "Action inconnue."}
         return self.donnees()
 
-    def _actualiser_brouter(self) -> str | None:
-        noms = [p.stem for p in sorted(self.installation.segments.glob("*.rd5"))] \
-            if self.installation.segments.is_dir() else []
+    def _renouveler_brouter_si_perime(self) -> dict | None:
+        """Le délai des réglages s'applique aussi aux tuiles BRouter installées."""
+        limite = time.time() - self.reglages()["renouvellement_jours"] * 86400
+        maintenant = time.monotonic()
+        noms = []
+        for chemin in sorted(self.installation.segments.glob("*.rd5")):
+            try:
+                perimee = chemin.stat().st_mtime < limite
+            except FileNotFoundError:  # un vidage du cache peut supprimer la tuile entre-temps
+                continue
+            echec_recent = maintenant - self._echecs_brouter.get(
+                chemin.stem, -self.REESSAI_BROUTER_S) < self.REESSAI_BROUTER_S
+            if perimee and not echec_recent:
+                noms.append(chemin.stem)
+        if not noms or self._actualiser_brouter(noms) is not None:
+            return None
+        journal.info("Tuiles BRouter périmées : renouvellement en tâche de fond (%s)", ", ".join(noms))
+        return {"moteur": False, "segments": noms}
+
+    def _actualiser_brouter(self, noms: list[str] | None = None) -> str | None:
+        if noms is None:
+            noms = [p.stem for p in sorted(self.installation.segments.glob("*.rd5"))] \
+                if self.installation.segments.is_dir() else []
         with self._verrou_brouter:
             if self._fil_brouter and self._fil_brouter.is_alive():
                 return "Un téléchargement BRouter est déjà en cours."
@@ -811,6 +886,7 @@ class Application:
                     self.installation.telecharger_segment(nom, vers=attente)
                     pretes.append(nom)
                 except (brouter.ErreurBRouter, ValueError) as exc:
+                    self._echecs_brouter[nom] = time.monotonic()
                     journal.warning("Tuile BRouter %s non actualisée : %s", nom, exc)
                 finally:
                     self._brouter_en_cours["segments"].remove(nom)
@@ -819,8 +895,10 @@ class Application:
                     self.arreter()
                     for nom in pretes:
                         atomique.remplacer(attente / f"{nom}.rd5", self.installation.segments / f"{nom}.rd5")
-                journal.info("Tuiles BRouter actualisées depuis les réglages : %s", ", ".join(pretes))
+                journal.info("Tuiles BRouter actualisées : %s", ", ".join(pretes))
         except OSError as exc:
+            for nom in noms:
+                self._echecs_brouter[nom] = time.monotonic()
             journal.warning("Tuiles BRouter non actualisées : %s", exc)
         finally:
             shutil.rmtree(attente, ignore_errors=True)
@@ -832,8 +910,10 @@ class Application:
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
                "osm": self.calque_osm, "bdtopo": self.calque_bdtopo, "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
+               "disponibilite": self.disponibilite,
                **get_langue}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
-                "arreter_calques": self.arreter_calques, "donnees": self.agir_donnees, **post_langue}
+                "communes": communes.chercher, "arreter_calques": self.arreter_calques,
+                "donnees": self.agir_donnees, **post_langue}
         return get, post

@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -50,9 +51,11 @@ def test_sur_le_trace_seulement_si_le_trace_coupe_la_coupe():
 
 def test_reglages_cle_ign(tmp_path):
     a = appli.Application(tmp_path)
-    assert a.reglages() == {"cle_ign": ""}
-    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1"}
-    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1"}
+    assert a.reglages() == {"cle_ign": "", "renouvellement_jours": 30}
+    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30}
+    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30}
+    assert a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 45})["renouvellement_jours"] == 45
+    assert "erreur" in a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 0})
     assert "erreur" in a.enregistrer_reglages({"cle_ign": "<script>"})
 
 
@@ -487,13 +490,27 @@ def test_route_denivele(tmp_path, monkeypatch):
     assert a.denivele({}) == {"erreur": "Tracé invalide."}
 
 
+def test_disponibilite_depuis_extrait_ou_overpass(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    zone = (43.3, 6.0, 43.31, 6.01)
+    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: {"nom": "Var"})
+    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
+    assert a.disponibilite(zone) == {"pret": True, "source": "extrait", "nom": "Var"}
+    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: None)
+    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: True)
+    assert a.disponibilite(zone)["pret"] is True
+    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
+    assert a.disponibilite(zone)["pret"] is False
+
+
+
 def test_routes_init_annonce_l_application(tmp_path):
     get, post = appli.Application(tmp_path).routes()
     assert get["init"]()["app"] == "hike2gpx"
     assert {"osm", "bdtopo", "extrait"} <= set(get)
     # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
     # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
-    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "langue", "arreter_calques", "donnees"}
+    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "communes", "langue", "arreter_calques", "donnees"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
@@ -504,7 +521,7 @@ def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
     assert get["langue"]()["code"] is None
     assert post["langue"]({"code": "en"})["enregistre"]
     autre = appli.Application(tmp_path)
-    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test"}
+    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test", "renouvellement_jours": 30}
 
 
 def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch):
@@ -597,6 +614,51 @@ def test_les_donnees_telechargees_se_voient_et_se_videent(tmp_path, monkeypatch)
     assert a.agir_donnees({"action": "formater"}) == {"erreur": "Action inconnue."}
 
 
+def test_vider_cache_unique_efface_toutes_les_donnees_locales(tmp_path):
+    donnees_d_essai(tmp_path)
+    for dossier, nom in (("gpx2elev", "profil.json"), ("brouter/maison", "etat.json")):
+        p = tmp_path / dossier / nom
+        p.parent.mkdir(parents=True)
+        p.write_text("{}")
+    a = appli.Application(tmp_path)
+    assert "erreur" not in a.agir_donnees({"action": "vider_cache"})
+    assert not list((tmp_path / "overpass").glob("*.json"))
+    assert not list((tmp_path / "franchissements").glob("*.json"))
+    assert not list((tmp_path / "bdtopo").glob("*.json"))
+    assert not (tmp_path / "gpx2elev").exists()
+    assert not (tmp_path / "brouter" / "maison").exists()
+    assert not list((tmp_path / "brouter" / "segments4").glob("*.rd5"))
+    assert not list(geofabrik.dossier_extraits(tmp_path).iterdir())
+
+
+def test_vider_cache_refuse_pendant_un_calcul(tmp_path):
+    donnees_d_essai(tmp_path)
+    a = appli.Application(tmp_path)
+    a._verrou_calcul.acquire()
+    try:
+        assert "erreur" in a.agir_donnees({"action": "vider_cache"})
+        assert (tmp_path / "brouter" / "segments4" / "E5_N40.rd5").exists()
+    finally:
+        a._verrou_calcul.release()
+
+
+def test_journal_est_horodate_et_ne_reprend_pas_l_ancien(tmp_path):
+    (tmp_path / "hike2gpx.log").write_text("ancienne session\n")
+    chemin = appli.configurer_journal(tmp_path)
+    racine = logging.getLogger("hike2gpx")
+    try:
+        racine.info("nouvelle session")
+        resultat = appli.Application(tmp_path).lire_journal()
+        assert chemin.name.startswith("hike2gpx-20") and chemin.suffix == ".log"
+        assert resultat["chemin"] == str(chemin)
+        assert any("nouvelle session" in ligne for ligne in resultat["lignes"])
+        assert not any("ancienne session" in ligne for ligne in resultat["lignes"])
+    finally:
+        for h in [h for h in racine.handlers if Path(getattr(h, "baseFilename", "")) == chemin]:
+            racine.removeHandler(h)
+            h.close()
+
+
 def test_les_tuiles_brouter_s_actualisent_a_cote_puis_basculent(tmp_path, monkeypatch):
     # Les anciennes servent pendant le téléchargement ; la bascule se fait
     # moteurs arrêtés, car sous Windows un RD5 ouvert ne se remplace pas.
@@ -618,3 +680,55 @@ def test_les_tuiles_brouter_s_actualisent_a_cote_puis_basculent(tmp_path, monkey
     assert (tmp_path / "brouter" / "segments4" / "E5_N40.rd5").read_bytes() == b"nouvelle"
     assert not (tmp_path / "brouter" / "segments4" / "nouvelles").exists()
     assert a.extrait(None)["brouter"] is None
+
+
+def test_brouter_se_renouvelle_apres_le_delai_des_reglages(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    a.installation.segments.mkdir(parents=True)
+    ancienne = a.installation.segments / "E5_N40.rd5"
+    recente = a.installation.segments / "E0_N45.rd5"
+    ancienne.write_bytes(b"ancienne")
+    recente.write_bytes(b"recente")
+    date_ancienne = time.time() - 2 * 86400
+    os.utime(ancienne, (date_ancienne, date_ancienne))
+    monkeypatch.setattr(a.installation, "installee", lambda: True)
+    telechargees = []
+
+    def telecharger(nom, vers=None):
+        telechargees.append(nom)
+        assert ancienne.read_bytes() == b"ancienne"
+        vers.mkdir(parents=True, exist_ok=True)
+        (vers / f"{nom}.rd5").write_bytes(b"nouvelle")
+
+    monkeypatch.setattr(a.installation, "telecharger_segment", telecharger)
+    monkeypatch.setattr(a, "arreter", lambda: None)
+    assert a.installer_moteur() == {"brouter_en_cours": None}  # délai par défaut : 30 jours
+    a.enregistrer_reglages({"renouvellement_jours": 1})
+    assert a.installer_moteur() == {"brouter_en_cours": {"moteur": False, "segments": ["E5_N40"]}}
+    a._fil_brouter.join(5)
+    assert telechargees == ["E5_N40"]
+    assert ancienne.read_bytes() == b"nouvelle"
+    assert recente.read_bytes() == b"recente"
+    assert a.installer_moteur() == {"brouter_en_cours": None}
+
+
+def test_renouvellement_brouter_en_echec_attend_une_heure(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    a.installation.segments.mkdir(parents=True)
+    ancienne = a.installation.segments / "E5_N40.rd5"
+    ancienne.write_bytes(b"ancienne")
+    date_ancienne = time.time() - 40 * 86400
+    os.utime(ancienne, (date_ancienne, date_ancienne))
+    monkeypatch.setattr(a.installation, "installee", lambda: True)
+    essais = []
+
+    def telecharger(nom, vers=None):
+        essais.append(nom)
+        raise brouter.ErreurBRouter("réseau indisponible")
+
+    monkeypatch.setattr(a.installation, "telecharger_segment", telecharger)
+    assert a.installer_moteur()["brouter_en_cours"]["segments"] == ["E5_N40"]
+    a._fil_brouter.join(5)
+    assert ancienne.read_bytes() == b"ancienne"
+    assert a.installer_moteur() == {"brouter_en_cours": None}
+    assert essais == ["E5_N40"]

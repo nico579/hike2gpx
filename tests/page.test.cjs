@@ -9,21 +9,28 @@ const vm = require("node:vm");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-function charger() {
+function charger(preferences = {}) {
   const elements = new Map();
+  const stockage = new Map(Object.entries(preferences));
+  const minuteurs = [];
   const element = () => {
     const classes = new Set();
-    return { disabled: true, hidden: false, checked: false, textContent: "", value: "", style: {},
+    return { disabled: true, hidden: false, checked: false, textContent: "", value: "",
+      style: { setProperty(name, value) { this[name] = value; } },
       classList: { toggle(c, oui) { (oui ?? !classes.has(c)) ? classes.add(c) : classes.delete(c); },
         contains: (c) => classes.has(c) },
       enfants: [], ecouteurs: {},
       append(...e) { this.enfants.push(...e); }, replaceChildren(...e) { this.enfants = e; },
-      addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {}, click() {} };
+      setAttribute(name, value) { this[name] = value; },
+      addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {},
+      click() { for (const action of this.ecouteurs.click || []) action(); } };
   };
-  const couche = () => ({ addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
-    on() { return this; }, setIcon() { return this; }, clearLayers() {}, remove() {}, closePopup() {} });
-  const carte = { setView() { return this; }, on() {}, createPane() { return { style: {} }; },
-    hasLayer() { return false; }, getZoom() { return 14; }, invalidateSize() {},
+  const couche = () => ({ handlers: {}, layers: [], addTo(parent) { parent.layers?.push(this); return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
+    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() {}, closePopup() {} });
+  const carte = { handlers: {}, zoom: 14, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; },
+    on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
+      ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
+    hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
       getEast: () => v.e }; } };
@@ -35,12 +42,16 @@ function charger() {
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
       addEventListener() {}, querySelectorAll() { return []; } },
-    localStorage: { getItem() { return null; }, setItem() {} },
+    localStorage: { getItem(key) { return stockage.get(key) ?? null; }, setItem(key, value) { stockage.set(key, value); } },
     confirm: (texte) => { confirmations.push(texte); return confirmations.reponse; },
-    setTimeout() { return 0; }, clearTimeout() {}, setInterval() { return 1; }, clearInterval() {},
+    setTimeout(callback, ms) { minuteurs.push({ callback, ms }); return minuteurs.length; },
+    clearTimeout(id) { if (minuteurs[id - 1]) minuteurs[id - 1].annule = true; },
+    setInterval() { return 1; }, clearInterval() {},
     L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
-      marker: couche, tileLayer: couche, divIcon: couche, control: { layers: couche },
-      latLng: (lat, lng) => ({ lat, lng }),
+      marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
+      tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }), control: { layers: couche },
+      latLng: (lat, lng) => ({ lat: Array.isArray(lat) ? lat[0] : lat,
+        lng: Array.isArray(lat) ? lat[1] : lng, distanceTo() { return 1000; } }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
       DomEvent: { on() {}, disableClickPropagation() {} } },
     // Comme le vrai fetch, une requête coupée par son signal est rejetée.
@@ -55,9 +66,11 @@ function charger() {
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
-    + " debutLecture, finLecture, afficherLectures, afficherDonnees };", contexte);
+    + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
+    + " fond: () => fondActif, fonds: () => couchesFonds, restaurerCalques,"
+    + " preparerFleches, afficherFleches, fleches, setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
-  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations };
+  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs };
 }
 
 function resultat(lonArrivee) {
@@ -67,6 +80,137 @@ function resultat(lonArrivee) {
 }
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
+
+test("le parcours revient après rechargement et se recalcule", async () => {
+  const avant = charger();
+  avant.page.ajouterPoint({ lat: 43.3, lng: 6 });
+  avant.page.ajouterPoint({ lat: 43.31, lng: 6.02 });
+  assert.equal(avant.stockage.get("hike2gpx.points"), "[[43.3,6],[43.31,6.02]]");
+
+  const apres = charger(Object.fromEntries(avant.stockage));
+  assert.equal(JSON.stringify(apres.page.etat.points.map((p) => [p.lat, p.lon])),
+    "[[43.3,6],[43.31,6.02]]");
+  assert.equal(apres.elements.get("exporter").disabled, true);
+  const minuterie = apres.minuteurs.findLast((m) => m.ms === 250 && !m.annule);
+  assert.ok(minuterie, "le calcul est relancé après la restauration");
+  const calcul = minuterie.callback();
+  assert.deepEqual(JSON.parse(apres.derniere().options.body).points, [[43.3, 6], [43.31, 6.02]]);
+  repondre(apres.derniere(), resultat(6.02));
+  await calcul;
+  assert.equal(apres.elements.get("exporter").disabled, false);
+});
+
+test("déplacer, retirer et effacer mettent à jour le parcours sauvegardé", () => {
+  const { page, elements, stockage } = charger();
+  page.ajouterPoint({ lat: 43.3, lng: 6 });
+  page.ajouterPoint({ lat: 43.31, lng: 6.02 });
+  page.etat.points[1].marqueur.position = { lat: 43.32, lng: 6.03 };
+  page.etat.points[1].marqueur.handlers.dragend();
+  assert.equal(stockage.get("hike2gpx.points"), "[[43.3,6],[43.32,6.03]]");
+  elements.get("retirerDernier").ecouteurs.click[0]();
+  assert.equal(stockage.get("hike2gpx.points"), "[[43.3,6]]");
+  elements.get("toutEffacer").ecouteurs.click[0]();
+  assert.equal(stockage.get("hike2gpx.points"), "[]");
+  assert.equal(charger(Object.fromEntries(stockage)).page.etat.points.length, 0);
+});
+
+test("une sauvegarde de points invalide est ignorée", () => {
+  for (const valeur of ["{", "[[91,6]]", "[[43.3,6],[null,6]]"]) {
+    assert.equal(charger({ "hike2gpx.points": valeur }).page.etat.points.length, 0);
+  }
+});
+
+test("rechercher une ville recentre la carte sans ajouter de point", async () => {
+  const { elements, requetes, carte, page } = charger();
+  elements.get("cityQuery").value = "Grenoble";
+  const recherche = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  const requete = requetes.find((r) => r.url === "/api/communes");
+  assert.equal(JSON.parse(requete.options.body).recherche, "Grenoble");
+  repondre(requete, { communes: [{ nom: "Grenoble", departement: "Isère", lat: 45.1842, lon: 5.7155 }] });
+  await recherche;
+  assert.equal(JSON.stringify(carte.center), "[45.1842,5.7155]");
+  assert.equal(carte.viewZoom, 13);
+  assert.equal(page.etat.points.length, 0);
+});
+
+test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {
+  const { page, elements, derniere, requetes } = charger();
+  page.etat.points = [{ lat: 43.3, lon: 6 }, { lat: 43.3, lon: 6.01 }];
+  const calcul = page.calculer();
+  const trajet = resultat(6.01);
+  trajet.longueur_m = 10000;
+  repondre(derniere(), trajet);
+  await calcul;
+  assert.equal(elements.get("duree").textContent, "…");
+  const relief = requetes.find((r) => r.url === "/api/denivele");
+  repondre(relief, { montee_m: 120, descente_m: 90, altitude_min_m: 400, altitude_max_m: 700,
+    modele: "IGN LiDAR HD", duree_marche_s: 8100 });
+  await new Promise(setImmediate);
+  assert.equal(elements.get("duree").textContent, "2 h 15");
+  assert.equal(elements.get("pointHaut").textContent, "700 m");
+  assert.equal(elements.get("pointBas").textContent, "400 m");
+});
+
+test("les flèches suivent le sens du tracé et disparaissent au zoom éloigné", () => {
+  const { page, carte } = charger();
+  const est = page.preparerFleches([[6, 43], [6.01, 43]]);
+  const ouest = page.preparerFleches([[6.01, 43], [6, 43]]);
+  assert.ok(est.length > 0);
+  assert.ok(Math.abs(est[0].angle) < 1);
+  assert.ok(Math.abs(ouest[0].angle) > 179);
+  page.setFleches(est);
+  page.afficherFleches();
+  assert.equal(page.fleches.layers.length, est.length);
+  assert.ok(page.fleches.layers.every((fleche) => fleche.options.pane === "sensTrace"));
+  carte.zoom = 11;
+  carte.handlers.zoomend();
+  assert.equal(page.fleches.layers.length, 0);
+});
+
+test("une ouverture vérifie les tuiles BRouter même si le moteur est déjà installé", async () => {
+  const { requetes } = charger();
+  repondre(requetes.find((r) => r.url === "/api/etat"),
+    { version: "0.1.0", brouter: "1.7.10", moteur_installe: true });
+  repondre(requetes.find((r) => r.url === "/api/reglages"),
+    { cle_ign: "", renouvellement_jours: 30 });
+  await new Promise(setImmediate);
+  assert.ok(requetes.some((r) => r.url === "/api/moteur"));
+});
+
+test("les deux calques sont cochés par défaut, sans écraser un choix mémorisé", () => {
+  function cochés(preferences) {
+    const { page } = charger(preferences);
+    const vus = [];
+    for (const [nom, calque] of Object.entries(page.CALQUES)) {
+      calque.groupe.addTo = () => vus.push(nom);
+    }
+    page.restaurerCalques();
+    return vus;
+  }
+  assert.deepEqual(cochés({}), ["osm", "bdtopo"]);
+  assert.deepEqual(cochés({ "hike2gpx.calques": "[]" }), []);
+  assert.deepEqual(cochés({ "hike2gpx.calques": '["osm"]' }), ["osm"]);
+});
+
+test("les options de marche et le fond reviennent à l'ouverture", () => {
+  const { page, elements, stockage, carte } = charger({
+    "hike2gpx.options": JSON.stringify({ strict: true, ign: false, comparer: false }),
+    "hike2gpx.fond": "osm",
+  });
+  assert.equal(elements.get("strict").checked, true);
+  assert.equal(elements.get("ign").checked, false);
+  assert.equal(elements.get("comparer").checked, false);
+  page.construireFonds();
+  assert.match(page.fond().url, /tile\.openstreetmap\.org/);
+  elements.get("comparer").checked = true;
+  elements.get("comparer").ecouteurs.change[0]();
+  assert.deepEqual(JSON.parse(stockage.get("hike2gpx.options")), { strict: true, ign: false, comparer: true });
+  carte.handlers.baselayerchange({ layer: page.fonds().plan });
+  assert.equal(stockage.get("hike2gpx.fond"), "plan");
+  carte.zoom = 19;
+  carte.handlers.zoomend();
+  assert.equal(elements.get("carte").style["--tile-overlap"], "1px");
+});
 
 async function calculReussi(page, derniere) {
   page.etat.points = [{ lat: 43.3, lon: 6 }, { lat: 43.3, lon: 6.01 }];
@@ -343,8 +487,7 @@ test("vues datées : le serveur ne lit que la plus récente, et la note ne reste
   assert.ok(corps.vue > dates[1]);
 });
 
-test("données téléchargées : une ligne par donnée, ses boutons, et la suppression confirmée", () => {
-  // Nico, 2026-10-20 : « il faudrait une fonction pour vider le cache, dans les réglages ».
+test("un bouton unique vide les caches locaux après confirmation", () => {
   const { page, elements, requetes, confirmations } = charger();
   page.afficherDonnees({
     osm: { fichiers: 42, octets: 12_400_000 }, bdtopo: { fichiers: 0, octets: 0 },
@@ -355,33 +498,23 @@ test("données téléchargées : une ligne par donnée, ses boutons, et la suppr
     restes: { fichiers: 1, octets: 3_600_000 },
     occupe: { extrait: "provence-alpes-cote-d-azur", brouter: false },
   });
-  const lignes = elements.get("donnees").enfants;
-  const texte = (l) => l.enfants[0].textContent;
-  const boutons = (l) => l.enfants.slice(1);
-  assert.deepEqual(lignes.map(texte), [
-    "Chemins OSM lus sur Overpass : 42 tuiles, 12 Mo",
-    "Chemins BD TOPO : 0 tuiles, 0,0 Mo",
-    "Extrait Var du 19/10/2026, 69 Mo, en attendant sa région",
-    "Extrait Provence Alpes-Cote-d'Azur du 18/10/2026, 346 Mo",
-    "Tuiles BRouter E5_N40 : 69 Mo",
-    "Fichiers inutiles : 3,6 Mo",
-  ]);
-  assert.equal(boutons(lignes[0])[0].disabled, false);
-  assert.equal(boutons(lignes[1])[0].disabled, true);          // rien à vider
-  assert.deepEqual(boutons(lignes[3]).map((b) => b.disabled), [true, true]);   // en cours de téléchargement
-  // Supprimer demande confirmation ; refusée, rien ne part.
-  const supprimer = boutons(lignes[2])[1];
-  assert.equal(supprimer.textContent, "Supprimer");
-  supprimer.ecouteurs.click[0]();
-  assert.equal(confirmations[0], "Supprimer l'extrait Var ? Il se retéléchargera de lui-même s'il resert.");
+  let controles = elements.get("donnees").enfants[0];
+  let bouton = controles.enfants[0];
+  assert.equal(bouton.textContent, "Vider le cache");
+  assert.match(controles.enfants[1].enfants[0].textContent, /IGN LiDAR HD|gpx2elev/);
+  assert.match(controles.enfants[1].enfants[0].textContent, /tuiles des fonds de carte IGN et OSM/);
+  assert.equal(bouton.disabled, true);
+  page.afficherDonnees({ occupe: { extrait: null, brouter: false } });
+  bouton = elements.get("donnees").enfants[0].enfants[0];
+  assert.equal(bouton.disabled, false);
+  bouton.ecouteurs.click[0]();
+  assert.match(confirmations[0], /Les tuiles de fond de carte restent dans le cache du navigateur/);
   assert.equal(requetes.filter((r) => r.url === "/api/donnees").length, 0);
   confirmations.reponse = true;
-  supprimer.ecouteurs.click[0]();
+  bouton.ecouteurs.click[0]();
   const envoi = requetes.find((r) => r.url === "/api/donnees");
-  assert.deepEqual(JSON.parse(envoi.options.body), { action: "supprimer_extrait", cible: "fr-var" });
-  // Vider ne demande rien.
-  boutons(lignes[0])[0].ecouteurs.click[0]();
-  assert.deepEqual(JSON.parse(requetes.at(-1).options.body), { action: "vider_osm" });
+  assert.deepEqual(JSON.parse(envoi.options.body), { action: "vider_cache", cible: null });
   page.appliquerLangue("en");
-  assert.equal(texte(elements.get("donnees").enfants[2]), "Var extract of 19/10/2026, 69 MB, until its region arrives");
+  assert.equal(elements.get("donnees").enfants[0].enfants[0].textContent, "Clear cache");
+  assert.match(elements.get("donnees").enfants[0].enfants[1].enfants[0].textContent, /BRouter data/);
 });
