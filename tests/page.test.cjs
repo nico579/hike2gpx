@@ -150,6 +150,8 @@ test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent 
   assert.deepEqual(Object.keys(page.controle().fonds), ["OSM rando", "OSM", "OSM vélo", "Satellite"]);
   assert.match(page.fonds().osmRando.url, /tile\.opentopomap\.org/);
   assert.match(page.fonds().osmVelo.url, /tile-cyclosm\.openstreetmap\.fr\/cyclosm/);
+  assert.equal(page.fonds().osmVelo.options.maxNativeZoom, 18);
+  assert.equal(page.fonds().osmVelo.options.maxZoom, 19);
   assert.match(page.fonds().satellite.url, /World_Imagery/);
   assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
   assert.match(page.fond().url, /tile\.openstreetmap\.org/);

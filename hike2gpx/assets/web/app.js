@@ -955,7 +955,7 @@ function construireFonds() {
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: `© <a href="https://www.openstreetmap.org/copyright">${t("attribution.osm")}</a>` });
   couchesFonds.osmVelo = L.tileLayer("https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
-    { maxNativeZoom: 19, maxZoom: 19,
+    { maxNativeZoom: 18, maxZoom: 19,
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
         + '· <a href="https://www.cyclosm.org/">CyclOSM</a>' });
   couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
