@@ -33,8 +33,18 @@ const TEXTES = {
     "option.ign": "Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)",
     "option.comparer": "Montrer le tracé qui ignore les barrières",
     "resultat.distance": "Distance",
+"resultat.duree": "Durée estimée",
+"resultat.pointHaut": "Point haut",
+"resultat.pointBas": "Point bas",
     "resultat.denivele": "Dénivelé",
     "resume.parcours": "Votre parcours",
+"resume.dureeInfo": "Estimation de marche : distance à 5 km/h plus une heure par 600 m de montée, sans pauses. La montée provient de gpx2elev.",
+"recherche.label": "Rechercher une ville",
+"recherche.placeholder": "Rechercher une ville…",
+"recherche.bouton": "Chercher",
+"recherche.attente": "Recherche en cours…",
+"recherche.aucun": "Aucune ville trouvée.",
+"recherche.erreur": "Recherche indisponible : {message}",
     "resume.deniveleInfo": "gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.",
     "profil.titre": "Le relief du parcours",
     "profil.depart": "Départ",
@@ -170,8 +180,18 @@ const TEXTES = {
     "option.ign": "Also use IGN paths missing from OSM (to check on site)",
     "option.comparer": "Show the route that ignores barriers",
     "resultat.distance": "Distance",
+"resultat.duree": "Estimated time",
+"resultat.pointHaut": "Highest point",
+"resultat.pointBas": "Lowest point",
     "resultat.denivele": "Elevation",
     "resume.parcours": "Your route",
+"resume.dureeInfo": "Walking estimate: distance at 5 km/h plus one hour per 600 m of ascent, without breaks. Ascent comes from gpx2elev.",
+"recherche.label": "Search for a town",
+"recherche.placeholder": "Search for a town…",
+"recherche.bouton": "Search",
+"recherche.attente": "Searching…",
+"recherche.aucun": "No town found.",
+"recherche.erreur": "Search unavailable: {message}",
     "resume.deniveleInfo": "gpx2elev samples elevation every 5 m. It selects the best model covering the whole route: IGN LiDAR HD first, then Mapterhorn, FABDEM, Copernicus GLO-30 or SRTM. It smooths the profile over 20 m and calculates ascent/descent with a 2 m threshold. The selected model appears on the profile. If none is available, elevation remains unavailable; the BRouter estimate is not substituted.",
     "profil.titre": "Route elevation",
     "profil.depart": "Start",
@@ -392,6 +412,7 @@ function appliquerLangue(code) {
   langue = code === "en" ? "en" : "fr";
   document.documentElement.lang = langue;
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  $("cityQuery").placeholder = t("recherche.placeholder");
   if ($("pleinEcran")) {
     $("pleinEcran").title = t(document.body.classList.contains("plein-ecran") ? "pleinEcran.quitter" : "pleinEcran.entrer");
   }
@@ -440,6 +461,51 @@ function lireVue() {
 
 const vueInitiale = lireVue();
 const carte = L.map("carte").setView([vueInitiale.lat, vueInitiale.lon], vueInitiale.zoom);
+let sequenceRecherche = 0;
+const resultatsVilles = $("cityResults");
+$("cityQuery").addEventListener("input", () => {
+  sequenceRecherche++;
+  resultatsVilles.hidden = true;
+  $("citySubmit").disabled = false;
+});
+$("cityQuery").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") resultatsVilles.hidden = true;
+});
+$("citySearch").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const recherche = $("cityQuery").value.trim();
+  if (recherche.length < 2) return;
+  const numero = ++sequenceRecherche;
+  resultatsVilles.replaceChildren();
+  resultatsVilles.textContent = t("recherche.attente");
+  resultatsVilles.hidden = false;
+  $("citySubmit").disabled = true;
+  try {
+    const reponse = await api("communes", { recherche });
+    if (numero !== sequenceRecherche) return;
+    if (reponse.erreur) throw new Error(reponse.erreur);
+    resultatsVilles.replaceChildren();
+    if (!reponse.communes.length) resultatsVilles.textContent = t("recherche.aucun");
+    let premier = null;
+    for (const ville of reponse.communes) {
+      const bouton = document.createElement("button");
+      bouton.type = "button";
+      bouton.textContent = ville.departement ? `${ville.nom} · ${ville.departement}` : ville.nom;
+      bouton.addEventListener("click", () => {
+        carte.setView([ville.lat, ville.lon], 13);
+        $("cityQuery").value = ville.nom;
+        resultatsVilles.hidden = true;
+      });
+      resultatsVilles.append(bouton);
+      premier ||= bouton;
+    }
+    if (reponse.communes.length === 1) premier.click();
+  } catch (erreur) {
+    if (numero === sequenceRecherche) resultatsVilles.textContent = t("recherche.erreur", { message: erreur.message });
+  } finally {
+    if (numero === sequenceRecherche) $("citySubmit").disabled = false;
+  }
+});
 carte.on("moveend", () => {
   const c = carte.getCenter();
   try {
@@ -1208,9 +1274,10 @@ function afficher(r) {
 function ecrireResultat(r) {
   $("distance").textContent = km(r.longueur_m);
   if (r.denivele) {
-    ecrireDenivele(r.denivele);
+    ecrireDenivele(r.denivele, r.longueur_m);
   } else {
-    $("denivele").textContent = "…";
+    for (const id of ["denivele", "duree", "pointHaut", "pointBas"])
+      $(id).textContent = r.erreurDenivele ? "—" : "…";
     $("sourceDenivele").textContent = r.erreurDenivele ? t("denivele.indisponible", { erreur: r.erreurDenivele })
       : t("denivele.calcul");
   }
@@ -1249,20 +1316,24 @@ async function calculerDenivele(r) {
     cacherMarqueurProfil();
     profilRoute = null;
     r.erreurDenivele = ts(d.erreur);
-    $("denivele").textContent = "—";
+    for (const id of ["denivele", "duree", "pointHaut", "pointBas"]) $(id).textContent = "—";
     $("sourceDenivele").textContent = t("denivele.indisponible", { erreur: r.erreurDenivele });
     if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:denivele", { detail: d }));
     return;
   }
   r.denivele = d;
   profilRoute = preparerRouteProfil(r.itineraire.geometry.coordinates);
-  ecrireDenivele(d);
+  ecrireDenivele(d, r.longueur_m);
   if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:denivele", { detail: d }));
   chargerJournal();
 }
 
-function ecrireDenivele(d) {
+function ecrireDenivele(d, longueurM) {
   $("denivele").textContent = `+${d.montee_m} m, −${d.descente_m} m`;
+  $("pointHaut").textContent = `${d.altitude_max_m} m`;
+  $("pointBas").textContent = `${d.altitude_min_m} m`;
+  const minutes = Math.ceil((longueurM / 5000 + d.montee_m / 600) * 12) * 5;
+  $("duree").textContent = minutes >= 60 ? `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}` : `${minutes} min`;
   $("sourceDenivele").textContent = t("denivele.source",
     { modele: d.modele, min: d.altitude_min_m, max: d.altitude_max_m });
 }

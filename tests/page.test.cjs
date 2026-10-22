@@ -22,11 +22,12 @@ function charger(preferences = {}) {
       enfants: [], ecouteurs: {},
       append(...e) { this.enfants.push(...e); }, replaceChildren(...e) { this.enfants = e; },
       setAttribute(name, value) { this[name] = value; },
-      addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {}, click() {} };
+      addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {},
+      click() { for (const action of this.ecouteurs.click || []) action(); } };
   };
   const couche = () => ({ handlers: {}, addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
     on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() {}, remove() {}, closePopup() {} });
-  const carte = { handlers: {}, zoom: 14, setView() { return this; }, on(name, handler) { this.handlers[name] = handler; }, createPane() { return { style: {} }; },
+  const carte = { handlers: {}, zoom: 14, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; }, on(name, handler) { this.handlers[name] = handler; }, createPane() { return { style: {} }; },
     hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
@@ -47,7 +48,8 @@ function charger(preferences = {}) {
     L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
       marker: (latlng) => Object.assign(couche(), { position: latlng, getLatLng() { return this.position; } }),
       tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: couche, control: { layers: couche },
-      latLng: (lat, lng) => ({ lat, lng }),
+      latLng: (lat, lng) => ({ lat: Array.isArray(lat) ? lat[0] : lat,
+        lng: Array.isArray(lat) ? lat[1] : lng, distanceTo() { return 1000; } }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
       DomEvent: { on() {}, disableClickPropagation() {} } },
     // Comme le vrai fetch, une requête coupée par son signal est rejetée.
@@ -113,6 +115,36 @@ test("une sauvegarde de points invalide est ignorée", () => {
   for (const valeur of ["{", "[[91,6]]", "[[43.3,6],[null,6]]"]) {
     assert.equal(charger({ "hike2gpx.points": valeur }).page.etat.points.length, 0);
   }
+});
+
+test("rechercher une ville recentre la carte sans ajouter de point", async () => {
+  const { elements, requetes, carte, page } = charger();
+  elements.get("cityQuery").value = "Grenoble";
+  const recherche = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  const requete = requetes.find((r) => r.url === "/api/communes");
+  assert.equal(JSON.parse(requete.options.body).recherche, "Grenoble");
+  repondre(requete, { communes: [{ nom: "Grenoble", departement: "Isère", lat: 45.1842, lon: 5.7155 }] });
+  await recherche;
+  assert.equal(JSON.stringify(carte.center), "[45.1842,5.7155]");
+  assert.equal(carte.viewZoom, 13);
+  assert.equal(page.etat.points.length, 0);
+});
+
+test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {
+  const { page, elements, derniere, requetes } = charger();
+  page.etat.points = [{ lat: 43.3, lon: 6 }, { lat: 43.3, lon: 6.01 }];
+  const calcul = page.calculer();
+  const trajet = resultat(6.01);
+  trajet.longueur_m = 10000;
+  repondre(derniere(), trajet);
+  await calcul;
+  assert.equal(elements.get("duree").textContent, "…");
+  const relief = requetes.find((r) => r.url === "/api/denivele");
+  repondre(relief, { montee_m: 120, descente_m: 90, altitude_min_m: 400, altitude_max_m: 700, modele: "IGN LiDAR HD" });
+  await new Promise(setImmediate);
+  assert.equal(elements.get("duree").textContent, "2 h 15");
+  assert.equal(elements.get("pointHaut").textContent, "700 m");
+  assert.equal(elements.get("pointBas").textContent, "400 m");
 });
 
 test("une ouverture vérifie les tuiles BRouter même si le moteur est déjà installé", async () => {

@@ -21,7 +21,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, bdtopo, brouter, franchissements, geofabrik, maison, osmfr
+from . import __version__, bdtopo, brouter, communes, franchissements, geofabrik, maison, osmfr
 
 journal = logging.getLogger(__name__)
 
@@ -914,5 +914,6 @@ class Application:
                **get_langue}
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
-                "arreter_calques": self.arreter_calques, "donnees": self.agir_donnees, **post_langue}
+                "communes": communes.chercher, "arreter_calques": self.arreter_calques,
+                "donnees": self.agir_donnees, **post_langue}
         return get, post

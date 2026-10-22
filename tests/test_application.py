@@ -510,7 +510,7 @@ def test_routes_init_annonce_l_application(tmp_path):
     assert {"osm", "bdtopo", "extrait"} <= set(get)
     # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
     # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
-    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "langue", "arreter_calques", "donnees"}
+    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "communes", "langue", "arreter_calques", "donnees"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
