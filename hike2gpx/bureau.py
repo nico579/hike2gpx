@@ -59,6 +59,20 @@ def creer_raccourci(code_langue: str, dossier: Path, **options) -> int:
                            description="hike2gpx", langue=code_langue, **options)
 
 
+MARQUEUR_RACCOURCI = ".raccourci_cree"
+
+
+def raccourci_au_premier_lancement(lire_langue, dossier: Path, **options) -> bool:
+    """L'icône du Bureau au tout premier lancement du bundle publié, jamais
+    ensuite : le marqueur, dans le dossier de données, retient qu'elle a été
+    posée, et un raccourci supprimé par l'utilisateur ne revient pas.
+    `options` va au commun (fige=, pour les tests)."""
+    from nico579_commons import raccourci
+    return raccourci.au_premier_lancement(
+        Path(dossier) / MARQUEUR_RACCOURCI,
+        lambda: creer_raccourci(langue(lire_langue), dossier), **options)
+
+
 def application_installation():
     """Ce que nico579_commons.maj_install doit savoir de hike2gpx : ses données
     vivent hors du dossier d'installation (HIKE2GPX_HOME, sinon le dossier de

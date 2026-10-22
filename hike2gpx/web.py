@@ -96,6 +96,8 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
     # fond, que s'il manque ou a plus d'un mois.
     osmfr.regions(dossier)
     geofabrik.regions(dossier)
+    # Bundle publié, premier lancement : l'icône sur le Bureau, une fois.
+    bureau.raccourci_au_premier_lancement(application.lire_langue, Path(dossier))
 
     def arreter():
         """Arrête le serveur et BRouter, une seule fois, depuis l'icône (sur
