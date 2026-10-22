@@ -74,6 +74,8 @@ body.plein-ecran .panel-toggle{display:none}
 .boutons #exporter:hover:not(:disabled){background:#1854b1;color:#fff}
 .gpx-import{display:grid;gap:7px;padding-top:8px;border-top:1px solid var(--bordure)}
 .gpx-import #chargerGpx{width:100%}
+.gpx-import #chargerGpx[data-i18n="bouton.chargerGpx"]{background:#ffe14a;border-color:#d6b52a;color:#344132;font-weight:700}
+.gpx-import #chargerGpx[data-i18n="bouton.chargerGpx"]:hover:not(:disabled){background:#f5d030;color:#344132}
 .gpx-import #chargerGpx[data-i18n="bouton.supprimerGpx"]{color:#ae3540;border-color:#efcdd0}
 .gpx-erreur{margin:0;color:#bc3944;font-size:12px}
 .section-title{font-size:14px;margin:0 0 8px;border-top:1px solid var(--bordure);padding-top:14px}
