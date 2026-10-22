@@ -566,6 +566,7 @@ carte.on("baselayerchange", (e) => {
 
 // Le tracé et ses franchissements passent au-dessus des chemins dessinés.
 carte.createPane("trace").style.zIndex = 450;
+carte.createPane("sensTrace").style.zIndex = 451;
 const rendu = L.canvas({ padding: 0.2 });
 const ZOOM_CALQUES = 14;
 const CLE_CALQUES = "hike2gpx.calques";
@@ -964,7 +965,7 @@ function afficherFleches() {
       className: "route-direction-icon", iconSize: [14, 14], iconAnchor: [7, 7],
       html: `<svg viewBox="0 0 18 18" aria-hidden="true" style="transform:rotate(${angle}deg)"><path d="M4 4 14 9 4 14 6 9Z"/></svg>`,
     });
-    L.marker([lat, lon], { icon: iconeFleche, interactive: false, keyboard: false, pane: "trace" }).addTo(fleches);
+    L.marker([lat, lon], { icon: iconeFleche, interactive: false, keyboard: false, pane: "sensTrace" }).addTo(fleches);
   }
 }
 

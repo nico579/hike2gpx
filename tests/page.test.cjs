@@ -161,6 +161,7 @@ test("les flèches suivent le sens du tracé et disparaissent au zoom éloigné"
   page.setFleches(est);
   page.afficherFleches();
   assert.equal(page.fleches.layers.length, est.length);
+  assert.ok(page.fleches.layers.every((fleche) => fleche.options.pane === "sensTrace"));
   carte.zoom = 11;
   carte.handlers.zoomend();
   assert.equal(page.fleches.layers.length, 0);
