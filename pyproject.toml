@@ -14,7 +14,7 @@ dependencies = [
     # Pillow pour l'icône de la zone de notification ; 0.6 : enfants, les
     # processus enfants (BRouter, import) meurent avec hike2gpx. Jusqu'à la
     # 1.0 (décision du 2026-09-29) : c'est le verrou qui fixe la version.
-    "nico579-commons[tray]>=0.6.1,<1",
+    "nico579-commons[tray]>=0.6.2,<1",
     # Moteur de dénivelé de gpx2elev (MNT, protocole 5 m / 20 m / 2 m) ; 0.6.4 : commun 0.6.
     "gpx2elev>=0.6.4,<0.7",
     # Écriture du réseau fusionné OSM + BD TOPO en PBF, le seul format que lit

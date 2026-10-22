@@ -210,9 +210,9 @@ jeepney==0.9.0 ; sys_platform == 'linux' \
     --hash=sha256:97e5714520c16fc0a45695e5365a2e11b81ea79bba796e26f9f1d178cb182683 \
     --hash=sha256:cf0e9e845622b81e4a28df94c40345400256ec608d0e55bb8a3feaa9163f5732
     # via nico579-commons
-nico579-commons==0.6.1 \
-    --hash=sha256:3ec3bb54536341700ea208d4248d9a38df03db0d88da678f20e3ffacd9786bd0 \
-    --hash=sha256:a8d7b869b8faaf2a360192107b3d3125e1589b323bcb70e068199cf971841070
+nico579-commons==0.6.2 \
+    --hash=sha256:457c65dc7df46bec3a923e94c9dd0de6d6b723d61723aeb0b646caa1fd8f42da \
+    --hash=sha256:4e3606a1795d82c28d6c4cd0ca0738ef87862cf8ad92ac5536338bc3af65fb22
     # via
     #   hike2gpx (pyproject.toml)
     #   gpx2elev
