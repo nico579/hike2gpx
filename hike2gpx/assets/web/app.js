@@ -6,6 +6,7 @@
 
 const DELAI_CALCUL_MS = 250;
 const CLE_VUE = "hike2gpx.vue";
+const CLE_POINTS = "hike2gpx.points";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
 
 const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0,
@@ -895,7 +896,7 @@ function bullePoint(point) {
   return div;
 }
 
-function ajouterPoint(latlng) {
+function ajouterPoint(latlng, recalculer = true) {
   const point = { lat: latlng.lat, lon: latlng.lng };
   point.marqueur = L.marker(latlng, { draggable: true, keyboard: false, icon: icone(0, 1) }).addTo(carte);
   point.marqueur.on("dragend", () => {
@@ -908,7 +909,7 @@ function ajouterPoint(latlng) {
   point.marqueur.bindPopup(() => bullePoint(point));
   etat.points.push(point);
   rafraichirPoints();
-  planifierCalcul();
+  if (recalculer) planifierCalcul();
 }
 
 function retirerPoint(point) {
@@ -925,6 +926,9 @@ function retirerPoint(point) {
 // tracé reste visible jusqu'au suivant, pour ne pas faire clignoter la carte.
 function planifierCalcul() {
   clearTimeout(etat.minuterie);
+  try {
+    localStorage.setItem(CLE_POINTS, JSON.stringify(etat.points.map((p) => [p.lat, p.lon])));
+  } catch (e) { /* le parcours reste utilisable si le stockage est indisponible */ }
   etat.sequence++;
   etat.dernier = null;
   $("exporter").disabled = true;
@@ -1335,6 +1339,17 @@ function memoriserOptions() {
   try { localStorage.setItem(CLE_OPTIONS, JSON.stringify(options)); } catch (erreur) { /* sans importance */ }
 }
 restaurerOptions();
+function restaurerPoints() {
+  let points;
+  try { points = JSON.parse(localStorage.getItem(CLE_POINTS) || "null"); }
+  catch (e) { return; }
+  if (!Array.isArray(points) || !points.every((p) => Array.isArray(p) && p.length === 2
+    && Number.isFinite(p[0]) && Math.abs(p[0]) <= 90
+    && Number.isFinite(p[1]) && Math.abs(p[1]) <= 180)) return;
+  for (const [lat, lon] of points) ajouterPoint(L.latLng(lat, lon), false);
+  if (points.length) planifierCalcul();
+}
+restaurerPoints();
 for (const id of ["strict", "ign", "comparer"]) {
   $(id).addEventListener("change", () => { memoriserOptions(); planifierCalcul(); });
 }

@@ -12,6 +12,7 @@ const assert = require("node:assert/strict");
 function charger(preferences = {}) {
   const elements = new Map();
   const stockage = new Map(Object.entries(preferences));
+  const minuteurs = [];
   const element = () => {
     const classes = new Set();
     return { disabled: true, hidden: false, checked: false, textContent: "", value: "",
@@ -23,8 +24,8 @@ function charger(preferences = {}) {
       setAttribute(name, value) { this[name] = value; },
       addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {}, click() {} };
   };
-  const couche = () => ({ addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
-    on() { return this; }, setIcon() { return this; }, clearLayers() {}, remove() {}, closePopup() {} });
+  const couche = () => ({ handlers: {}, addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
+    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() {}, remove() {}, closePopup() {} });
   const carte = { handlers: {}, zoom: 14, setView() { return this; }, on(name, handler) { this.handlers[name] = handler; }, createPane() { return { style: {} }; },
     hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
@@ -40,9 +41,12 @@ function charger(preferences = {}) {
       addEventListener() {}, querySelectorAll() { return []; } },
     localStorage: { getItem(key) { return stockage.get(key) ?? null; }, setItem(key, value) { stockage.set(key, value); } },
     confirm: (texte) => { confirmations.push(texte); return confirmations.reponse; },
-    setTimeout() { return 0; }, clearTimeout() {}, setInterval() { return 1; }, clearInterval() {},
+    setTimeout(callback, ms) { minuteurs.push({ callback, ms }); return minuteurs.length; },
+    clearTimeout(id) { if (minuteurs[id - 1]) minuteurs[id - 1].annule = true; },
+    setInterval() { return 1; }, clearInterval() {},
     L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
-      marker: couche, tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: couche, control: { layers: couche },
+      marker: (latlng) => Object.assign(couche(), { position: latlng, getLatLng() { return this.position; } }),
+      tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: couche, control: { layers: couche },
       latLng: (lat, lng) => ({ lat, lng }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
       DomEvent: { on() {}, disableClickPropagation() {} } },
@@ -61,7 +65,7 @@ function charger(preferences = {}) {
     + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
     + " fond: () => fondActif, fonds: () => couchesFonds, restaurerCalques };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
-  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage };
+  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs };
 }
 
 function resultat(lonArrivee) {
@@ -71,6 +75,45 @@ function resultat(lonArrivee) {
 }
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
+
+test("le parcours revient après rechargement et se recalcule", async () => {
+  const avant = charger();
+  avant.page.ajouterPoint({ lat: 43.3, lng: 6 });
+  avant.page.ajouterPoint({ lat: 43.31, lng: 6.02 });
+  assert.equal(avant.stockage.get("hike2gpx.points"), "[[43.3,6],[43.31,6.02]]");
+
+  const apres = charger(Object.fromEntries(avant.stockage));
+  assert.equal(JSON.stringify(apres.page.etat.points.map((p) => [p.lat, p.lon])),
+    "[[43.3,6],[43.31,6.02]]");
+  assert.equal(apres.elements.get("exporter").disabled, true);
+  const minuterie = apres.minuteurs.findLast((m) => m.ms === 250 && !m.annule);
+  assert.ok(minuterie, "le calcul est relancé après la restauration");
+  const calcul = minuterie.callback();
+  assert.deepEqual(JSON.parse(apres.derniere().options.body).points, [[43.3, 6], [43.31, 6.02]]);
+  repondre(apres.derniere(), resultat(6.02));
+  await calcul;
+  assert.equal(apres.elements.get("exporter").disabled, false);
+});
+
+test("déplacer, retirer et effacer mettent à jour le parcours sauvegardé", () => {
+  const { page, elements, stockage } = charger();
+  page.ajouterPoint({ lat: 43.3, lng: 6 });
+  page.ajouterPoint({ lat: 43.31, lng: 6.02 });
+  page.etat.points[1].marqueur.position = { lat: 43.32, lng: 6.03 };
+  page.etat.points[1].marqueur.handlers.dragend();
+  assert.equal(stockage.get("hike2gpx.points"), "[[43.3,6],[43.32,6.03]]");
+  elements.get("retirerDernier").ecouteurs.click[0]();
+  assert.equal(stockage.get("hike2gpx.points"), "[[43.3,6]]");
+  elements.get("toutEffacer").ecouteurs.click[0]();
+  assert.equal(stockage.get("hike2gpx.points"), "[]");
+  assert.equal(charger(Object.fromEntries(stockage)).page.etat.points.length, 0);
+});
+
+test("une sauvegarde de points invalide est ignorée", () => {
+  for (const valeur of ["{", "[[91,6]]", "[[43.3,6],[null,6]]"]) {
+    assert.equal(charger({ "hike2gpx.points": valeur }).page.etat.points.length, 0);
+  }
+});
 
 test("une ouverture vérifie les tuiles BRouter même si le moteur est déjà installé", async () => {
   const { requetes } = charger();
