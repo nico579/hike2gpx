@@ -36,9 +36,10 @@ avec les clôtures et murs qu'il cartographie, et ceux de la BD TOPO de l'IGN.
 Les mettre côte à côte montre d'un coup d'œil les sentiers qu'une source
 ignore. Une recherche de ville recentre la carte : les communes françaises par
 l'API Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
-d'OpenStreetMap. Et
-un bouton la passe en plein écran. Un voyant dit si le tracé est possible tout
-de suite, grâce à un extrait OSM déjà installé ou à Overpass.
+d'OpenStreetMap. Après une recherche de ville hors de France, la carte affiche
+uniquement le fond et les chemins OSM ; les couches IGN reviennent en France.
+Un bouton passe la carte en plein écran. Un voyant dit si le tracé est possible
+tout de suite, grâce à un extrait OSM déjà installé ou à Overpass.
 
 **Le tracé.** Un clic pose le départ, puis les étapes et l'arrivée ; un point
 se déplace en le faisant glisser et se retire depuis sa bulle. « Revenir »

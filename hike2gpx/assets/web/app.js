@@ -458,6 +458,7 @@ function lireVue() {
 }
 
 const vueInitiale = lireVue();
+let horsFrance = vueInitiale.hors_france === true;
 const carte = L.map("carte").setView([vueInitiale.lat, vueInitiale.lon], vueInitiale.zoom);
 let sequenceRecherche = 0;
 const resultatsVilles = $("cityResults");
@@ -490,7 +491,9 @@ $("citySearch").addEventListener("submit", async (e) => {
       bouton.type = "button";
       bouton.textContent = ville.detail ? `${ville.nom} · ${ville.detail}` : ville.nom;
       bouton.addEventListener("click", () => {
+        choisirZone(ville.code_pays !== "fr");
         carte.setView([ville.lat, ville.lon], 13);
+        memoriserVue(ville.lat, ville.lon, 13);
         $("cityQuery").value = ville.nom;
         resultatsVilles.hidden = true;
       });
@@ -504,11 +507,14 @@ $("citySearch").addEventListener("submit", async (e) => {
     if (numero === sequenceRecherche) $("citySubmit").disabled = false;
   }
 });
+function memoriserVue(lat, lon, zoom) {
+  try {
+    localStorage.setItem(CLE_VUE, JSON.stringify({ lat, lon, zoom, hors_france: horsFrance }));
+  } catch (e) { /* sans importance */ }
+}
 carte.on("moveend", () => {
   const c = carte.getCenter();
-  try {
-    localStorage.setItem(CLE_VUE, JSON.stringify({ lat: c.lat, lon: c.lng, zoom: carte.getZoom() }));
-  } catch (e) { /* sans importance */ }
+  memoriserVue(c.lat, c.lng, carte.getZoom());
   actualiserDisponibilite();
 });
 
@@ -798,8 +804,34 @@ function restaurerCalques() {
     }
   } catch (e) { /* préférence illisible : conserver les deux calques par défaut */ }
   for (const cle of coches) {
-    if (CALQUES[cle]) CALQUES[cle].groupe.addTo(carte);
+    if (CALQUES[cle] && (!horsFrance || cle === "osm")) CALQUES[cle].groupe.addTo(carte);
   }
+}
+
+function choisirZone(estHorsFrance) {
+  if (horsFrance === estHorsFrance) return;
+  horsFrance = estHorsFrance;
+  afficherOptionsIgn();
+  // Retirer le contrôle avant BD TOPO : Leaflet interpréterait sinon ce retrait
+  // automatique comme un choix de l'utilisateur et écraserait sa préférence.
+  if (controleFonds) {
+    controleFonds.remove();
+    controleFonds = null;
+  }
+  if (horsFrance) {
+    const bdtopo = CALQUES.bdtopo;
+    bdtopo.groupe.remove();
+    if (abandonner(bdtopo)) arreterAuServeur(["bdtopo"]);
+    bdtopo.groupe.clearLayers();
+    bdtopo.charge = null;
+  } else {
+    restaurerCalques();
+  }
+  construireFonds();
+}
+
+function afficherOptionsIgn() {
+  for (const id of ["ignOption", "legendIgn", "legendBdtopo"]) $(id).hidden = horsFrance;
 }
 
 // ------------------------------------------------------------ données OSM hors ligne
@@ -899,23 +931,28 @@ function construireFonds() {
   let clePreferee = null;
   try { clePreferee = localStorage.getItem(CLE_FOND); } catch (erreur) { /* fond par défaut */ }
   couchesFonds = {};
-  if (etat.cleIgn) {
+  if (!horsFrance && etat.cleIgn) {
     couchesFonds.scan25 = L.tileLayer(tuileIgn("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", etat.cleIgn),
       { maxNativeZoom: 16, maxZoom: 19, attribution: IGN });
   }
-  couchesFonds.plan = L.tileLayer(tuileIgn("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png"),
-    { maxNativeZoom: 18, maxZoom: 19, attribution: IGN });
-  couchesFonds.photos = L.tileLayer(tuileIgn("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg"),
-    { maxNativeZoom: 19, maxZoom: 19, attribution: IGN });
+  if (!horsFrance) {
+    couchesFonds.plan = L.tileLayer(tuileIgn("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png"),
+      { maxNativeZoom: 18, maxZoom: 19, attribution: IGN });
+    couchesFonds.photos = L.tileLayer(tuileIgn("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg"),
+      { maxNativeZoom: 19, maxZoom: 19, attribution: IGN });
+  }
   couchesFonds.osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: `© <a href="https://www.openstreetmap.org/copyright">${t("attribution.osm")}</a>` });
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
-  fondActif = (couchesFonds[clePreferee] || couchesFonds[cleActive] || Object.values(couchesFonds)[0]).addTo(carte);
+  const choix = horsFrance ? "osm" : (clePreferee || (cleActive === "osm" ? "plan" : cleActive));
+  fondActif = (couchesFonds[choix] || couchesFonds.plan || couchesFonds.osm).addTo(carte);
   ajusterRecouvrementTuiles();
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));
-  const calques = Object.fromEntries(Object.entries(CALQUES).map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
+  const calques = Object.fromEntries(Object.entries(CALQUES)
+    .filter(([cle]) => !horsFrance || cle === "osm")
+    .map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
 }
 
@@ -1096,7 +1133,7 @@ async function calculer() {
     afficherStatut(etat.points.length ? () => t("statut.deuxiemePoint") : "");
     return;
   }
-  const ign = $("ign").checked;
+  const ign = !horsFrance && $("ign").checked;
   afficherStatut(() => t("statut.calcul") + (ign ? t("statut.calculIgn") : "."));
   occupe(true);
   let reponse;
@@ -1554,6 +1591,7 @@ async function verifierBrouter() {
 }
 
 async function demarrer() {
+  afficherOptionsIgn();
   try {
     const [infos, reglages] = await Promise.all([api("etat"), api("reglages")]);
     etat.version = infos.version;

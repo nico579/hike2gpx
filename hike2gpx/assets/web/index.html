@@ -72,7 +72,7 @@
     </div>
     <h2 class="section-title">Votre façon de marcher</h2>
     <label class="option"><input type="checkbox" id="strict"> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
-    <label class="option"><input type="checkbox" id="ign" checked> <span data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
+    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
     <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
     <p id="statut" role="status"></p>
     <p id="noteCalques" class="note" hidden><span id="noteCalquesTexte"></span><span id="noteCalquesPiste" class="piste" role="progressbar" hidden><span id="noteCalquesBarre" class="barre"></span></span></p>
@@ -110,17 +110,17 @@
 <section id="mapLegend" class="legende" aria-label="Légende de la carte" hidden>
   <h3 data-i18n="legende.titre">Légende</h3><ul>
     <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
-    <li><span class="trait ign"></span> <span data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
+    <li id="legendIgn"><span class="trait ign"></span> <span data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
     <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
     <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
     <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
     <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
     <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
-    <li><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
+    <li id="legendBdtopo"><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
   </ul>
 </section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js?v=desktop-20"></script>
+<script src="/app.js?v=desktop-21"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>

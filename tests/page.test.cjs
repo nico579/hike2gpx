@@ -22,11 +22,11 @@ function charger(preferences = {}) {
       enfants: [], ecouteurs: {},
       append(...e) { this.enfants.push(...e); }, replaceChildren(...e) { this.enfants = e; },
       setAttribute(name, value) { this[name] = value; },
-      addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {},
+      addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() { this.removed = true; },
       click() { for (const action of this.ecouteurs.click || []) action(); } };
   };
-  const couche = () => ({ handlers: {}, layers: [], addTo(parent) { parent.layers?.push(this); return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
-    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() {}, closePopup() {} });
+  const couche = () => ({ handlers: {}, layers: [], addTo(parent) { this.addedTo = parent; parent.layers?.push(this); return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
+    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() { this.removed = true; }, closePopup() {} });
   const carte = { handlers: {}, zoom: 14, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; },
     on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
       ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
@@ -49,7 +49,8 @@ function charger(preferences = {}) {
     setInterval() { return 1; }, clearInterval() {},
     L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
       marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
-      tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }), control: { layers: couche },
+      tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }),
+      control: { layers: (fonds, calques) => Object.assign(couche(), { fonds, calques }) },
       latLng: (lat, lng) => ({ lat: Array.isArray(lat) ? lat[0] : lat,
         lng: Array.isArray(lat) ? lat[1] : lng, distanceTo() { return 1000; } }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
@@ -67,7 +68,7 @@ function charger(preferences = {}) {
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
-    + " fond: () => fondActif, fonds: () => couchesFonds, restaurerCalques,"
+    + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs };
@@ -126,11 +127,52 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
   const recherche = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
   const requete = requetes.find((r) => r.url === "/api/communes");
   assert.equal(JSON.parse(requete.options.body).recherche, "Grenoble");
-  repondre(requete, { communes: [{ nom: "Grenoble", detail: "Isère", lat: 45.1842, lon: 5.7155 }] });
+  repondre(requete, { communes: [{ nom: "Grenoble", detail: "Isère", code_pays: "fr", lat: 45.1842, lon: 5.7155 }] });
   await recherche;
   assert.equal(JSON.stringify(carte.center), "[45.1842,5.7155]");
   assert.equal(carte.viewZoom, 13);
   assert.equal(page.etat.points.length, 0);
+});
+
+test("Madrid affiche uniquement OSM puis les couches IGN reviennent en France", async () => {
+  const { page, elements, requetes, stockage } = charger();
+  page.etat.cleIgn = "cle-test";
+  page.construireFonds();
+  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "osm"]);
+
+  elements.get("cityQuery").value = "Madrid";
+  const rechercheMadrid = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  repondre(requetes.findLast((r) => r.url === "/api/communes"), { communes: [
+    { nom: "Madrid", detail: "Espagne", code_pays: "es", lat: 40.416782, lon: -3.703507 },
+  ] });
+  await rechercheMadrid;
+  assert.deepEqual(Object.keys(page.fonds()), ["osm"]);
+  assert.deepEqual(Object.keys(page.controle().fonds), ["OpenStreetMap"]);
+  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.match(page.fond().url, /tile\.openstreetmap\.org/);
+  assert.equal(page.CALQUES.bdtopo.groupe.removed, true);
+  assert.equal(elements.get("ignOption").hidden, true);
+  assert.equal(elements.get("legendBdtopo").hidden, true);
+  assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, true);
+
+  const recharge = charger(Object.fromEntries(stockage));
+  recharge.page.restaurerCalques();
+  recharge.page.construireFonds();
+  assert.deepEqual(Object.keys(recharge.page.fonds()), ["osm"]);
+  assert.equal(recharge.page.CALQUES.bdtopo.groupe.addedTo, undefined);
+  assert.equal(recharge.elements.get("ignOption").hidden, true);
+
+  elements.get("cityQuery").value = "Grenoble";
+  const rechercheGrenoble = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  repondre(requetes.findLast((r) => r.url === "/api/communes"), { communes: [
+    { nom: "Grenoble", detail: "Isère", code_pays: "fr", lat: 45.1842, lon: 5.7155 },
+  ] });
+  await rechercheGrenoble;
+  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "osm"]);
+  assert.equal(Object.keys(page.controle().calques).length, 2);
+  assert.match(page.fond().url, /GEOGRAPHICALGRIDSYSTEMS\.PLANIGNV2/);
+  assert.equal(elements.get("ignOption").hidden, false);
+  assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, false);
 });
 
 test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {
