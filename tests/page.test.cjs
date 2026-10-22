@@ -68,7 +68,7 @@ function charger(preferences = {}) {
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
-    + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
+    + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques, reliefLidar,"
     + " preparerFleches, afficherFleches, fleches, setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs };
@@ -135,10 +135,16 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
 });
 
 test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent en France", async () => {
-  const { page, elements, requetes, stockage } = charger();
+  const { page, elements, requetes, stockage, carte } = charger();
   page.etat.cleIgn = "cle-test";
   page.construireFonds();
   assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "osmRando", "osm", "osmVelo", "satellite"]);
+  assert.ok(page.controle().calques["Relief LiDAR HD (IGN)"]);
+  assert.match(page.reliefLidar.url, /IGNF_LIDAR-HD_MNT_ELEVATION\.ELEVATIONGRIDCOVERAGE\.SHADOW/);
+  assert.match(page.reliefLidar.url, /TILEMATRIXSET=PM_0_18/);
+  assert.equal(page.reliefLidar.options.opacity, 0.65);
+  carte.handlers["overlayadd overlayremove"]({ layer: page.reliefLidar, type: "overlayadd" });
+  assert.equal(stockage.get("hike2gpx.reliefLidar"), "true");
 
   elements.get("cityQuery").value = "Madrid";
   const rechercheMadrid = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
@@ -154,6 +160,7 @@ test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent 
   assert.equal(page.fonds().osmVelo.options.maxZoom, 19);
   assert.match(page.fonds().satellite.url, /World_Imagery/);
   assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.equal(page.reliefLidar.removed, true);
   assert.match(page.fond().url, /tile\.openstreetmap\.org/);
   assert.equal(page.CALQUES.bdtopo.groupe.removed, true);
   assert.equal(elements.get("ignOption").hidden, true);
@@ -165,6 +172,7 @@ test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent 
   recharge.page.construireFonds();
   assert.deepEqual(Object.keys(recharge.page.fonds()), ["osmRando", "osm", "osmVelo", "satellite"]);
   assert.equal(recharge.page.CALQUES.bdtopo.groupe.addedTo, undefined);
+  assert.equal(recharge.page.reliefLidar.addedTo, undefined);
   assert.equal(recharge.elements.get("ignOption").hidden, true);
   recharge.carte.handlers.baselayerchange({ layer: recharge.page.fonds().satellite });
   const rechargeSatellite = charger(Object.fromEntries(recharge.stockage));
@@ -178,10 +186,18 @@ test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent 
   ] });
   await rechercheGrenoble;
   assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "osmRando", "osm", "osmVelo", "satellite"]);
-  assert.equal(Object.keys(page.controle().calques).length, 2);
+  assert.equal(Object.keys(page.controle().calques).length, 3);
+  assert.equal(page.reliefLidar.addedTo, carte);
   assert.match(page.fond().url, /GEOGRAPHICALGRIDSYSTEMS\.PLANIGNV2/);
   assert.equal(elements.get("ignOption").hidden, false);
   assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, false);
+  const rechargeFrance = charger(Object.fromEntries(stockage));
+  rechargeFrance.page.construireFonds();
+  assert.equal(rechargeFrance.page.reliefLidar.addedTo, rechargeFrance.carte);
+  rechargeFrance.carte.handlers["overlayadd overlayremove"]({
+    layer: rechargeFrance.page.reliefLidar, type: "overlayremove",
+  });
+  assert.equal(rechargeFrance.stockage.get("hike2gpx.reliefLidar"), "false");
 });
 
 test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {
