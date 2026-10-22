@@ -270,13 +270,22 @@
   syncRoute();
   const grip = document.querySelector(".sheet-grip");
   const showKey = document.getElementById("afficherCle");
+  const keyInput = document.getElementById("cleIgn");
+  function updateShowKey() {
+    const visible = keyInput.type === "text";
+    const english = document.documentElement.lang === "en";
+    const label = english ? (visible ? "Hide IGN key" : "Show IGN key")
+      : (visible ? "Masquer la clé IGN" : "Afficher la clé IGN");
+    showKey.setAttribute("aria-pressed", String(visible));
+    showKey.setAttribute("aria-label", label);
+    showKey.title = label;
+  }
   showKey.addEventListener("click", () => {
-    const input = document.getElementById("cleIgn");
-    const visible = input.type !== "text";
-    input.type = visible ? "text" : "password";
-    showKey.textContent = visible ? "Masquer" : "Afficher";
-    showKey.setAttribute("aria-label", visible ? "Masquer la clé IGN" : "Afficher la clé IGN");
+    keyInput.type = keyInput.type === "password" ? "text" : "password";
+    updateShowKey();
   });
+  document.addEventListener("nico579-langue", updateShowKey);
+  updateShowKey();
   grip.addEventListener("click", () => {
     document.body.classList.toggle("sheet-expanded");
     setTimeout(() => window.dispatchEvent(new Event("resize")), 280);

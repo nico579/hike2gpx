@@ -143,6 +143,10 @@ body.profile-collapsed .map-activity{bottom:81px}
 .setting-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;margin:9px 0 14px}
 .setting-row .ligne{margin:0;min-width:0}
 .ign-key-row{grid-template-columns:minmax(0,1fr) 148px}
+#afficherCle{display:grid;place-items:center;flex:none;width:36px;min-height:37px;padding:0}
+#afficherCle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#afficherCle .eye-strike{display:none}
+#afficherCle[aria-pressed=true] .eye-strike{display:block}
 #reglages .setting-row label{margin:0;font-size:12px;line-height:1.5;color:#546a80}
 .settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
 .display-settings{margin-top:17px;padding-top:7px;border-top:1px solid var(--bordure)}
