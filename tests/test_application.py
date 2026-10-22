@@ -659,6 +659,26 @@ def test_journal_est_horodate_et_ne_reprend_pas_l_ancien(tmp_path):
             h.close()
 
 
+def test_journal_ne_garde_que_les_dernieres_sessions(tmp_path):
+    # Un fichier par démarrage : sans élagage, ils s'accumuleraient à jamais.
+    anciennes = [f"hike2gpx-202610{jour:02d}-120000-000000.log" for jour in range(1, 13)]
+    for nom in anciennes:
+        (tmp_path / nom).write_text("session\n")
+    (tmp_path / (anciennes[0] + ".1")).write_text("rotation\n")
+    (tmp_path / "hike2gpx.log").write_text("journal d'avant les sessions\n")
+    chemin = appli.configurer_journal(tmp_path)
+    racine = logging.getLogger("hike2gpx")
+    try:
+        restants = sorted(p.name for p in tmp_path.glob("hike2gpx-*"))
+        assert len(restants) == appli.SESSIONS_GARDEES and restants[-1] == chemin.name
+        assert restants[:-1] == anciennes[-(appli.SESSIONS_GARDEES - 1):]      # les plus récentes
+        assert (tmp_path / "hike2gpx.log").exists()         # rien d'autre n'est touché
+    finally:
+        for h in [h for h in racine.handlers if Path(getattr(h, "baseFilename", "")) == chemin]:
+            racine.removeHandler(h)
+            h.close()
+
+
 def test_les_tuiles_brouter_s_actualisent_a_cote_puis_basculent(tmp_path, monkeypatch):
     # Les anciennes servent pendant le téléchargement ; la bascule se fait
     # moteurs arrêtés, car sous Windows un RD5 ouvert ne se remplace pas.

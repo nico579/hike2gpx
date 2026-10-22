@@ -16,7 +16,7 @@ Une fois installé, l'extrait devient la source des tuiles qu'il contient :
 lecture instantanée, sans quota ni panne, même hors connexion. Une tuile en
 sort au format exact des réponses d'Overpass, l'analyse des franchissements
 ne voit pas la différence. Overpass ne sert plus qu'au-delà (autre région,
-tuile à cheval sur une frontière). Plus vieil que RENOUVELLEMENT_S, l'extrait
+tuile à cheval sur une frontière). Plus vieux que jours_renouvellement(), l'extrait
 se renouvelle de lui-même en tâche de fond, l'ancien servant jusqu'à la
 bascule.
 """
@@ -51,7 +51,7 @@ journal = logging.getLogger(__name__)
 
 INDEX_URL = "https://download.geofabrik.de/index-v1.json"
 INDEX_TTL_S = 30 * 86400
-RENOUVELLEMENT_S = 30 * 86400       # valeur par défaut, configurable dans les réglages
+RENOUVELLEMENT_JOURS = 30           # par défaut ; réglable de 1 à 365 jours dans la page
 TAILLE_MAX = 2 * 1024 ** 3          # au-delà (grands pays d'un seul tenant), Overpass seul
 # Geofabrik met parfois une minute à répondre, puis répond en 0,2 s (mesuré le
 # 2026-10-20, après l'échec de l'extrait Centre sur un délai de 30 s) : délai
@@ -712,6 +712,16 @@ def age_s(extrait: dict, maintenant=time.time) -> float:
     return maintenant() - horodatage(extrait)
 
 
+def jours_renouvellement(dossier) -> int:
+    """Le délai de renouvellement des données locales, en jours : celui des
+    réglages de la page (preferences.json), sinon RENOUVELLEMENT_JOURS. La
+    seule lecture de ce réglage, pour les extraits comme pour les tuiles
+    BRouter (application.py)."""
+    prefs = atomique.lire_json(Path(dossier) / "preferences.json", {})
+    jours = prefs.get("renouvellement_jours") if isinstance(prefs, dict) else None
+    return jours if type(jours) is int and 1 <= jours <= 365 else RENOUVELLEMENT_JOURS
+
+
 # ------------------------------------------------------------------ tâche de fond
 
 class Telechargements:
@@ -829,11 +839,7 @@ class Telechargements:
     def renouveler_si_perime(self, extrait: dict) -> None:
         """Lancé à chaque lecture d'un extrait trop vieux : l'ancien sert jusqu'à
         la bascule."""
-        prefs = atomique.lire_json(self.dossier / "preferences.json", {})
-        prefs = prefs if isinstance(prefs, dict) else {}
-        jours = prefs.get("renouvellement_jours", 30)
-        jours = jours if type(jours) is int and 1 <= jours <= 365 else 30
-        if age_s(extrait) > jours * 86400 and not (self._fil and self._fil.is_alive()):
+        if age_s(extrait) > jours_renouvellement(self.dossier) * 86400 and not (self._fil and self._fil.is_alive()):
             journal.info("Extrait OSM %s du %s : renouvellement en tâche de fond", extrait["id"],
                          extrait["date"])
             self.lancer(extrait)

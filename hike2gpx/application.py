@@ -29,6 +29,7 @@ journal = logging.getLogger(__name__)
 FICHIER_JOURNAL = "hike2gpx.log"  # repli pour une Application hors serveur
 _JOURNAUX: dict[Path, Path] = {}
 LIGNES_JOURNAL = 300        # montrées par la page
+SESSIONS_GARDEES = 10       # journaux horodatés gardés, celui de la session en cours compris
 LENT_S = 60.0               # au-delà, l'itinéraire est signalé lent dans le journal
 # Étapes d'un calcul, telles que le journal en détaille les temps.
 NOMS_ETAPES = {"debut": "préparation", "donnees": "lecture des données", "fusion": "fusion IGN",
@@ -47,13 +48,19 @@ _CLE_IGN = re.compile(r"^[A-Za-z0-9_\-]{0,100}$")
 
 
 def configurer_journal(dossier) -> Path:
-    """Un fichier horodaté neuf par démarrage du serveur."""
+    """Un fichier horodaté neuf par démarrage du serveur ; seules les
+    SESSIONS_GARDEES dernières sessions restent, rotations comprises, sans
+    quoi un fichier de plus s'ajouterait à chaque démarrage, à jamais."""
     racine_donnees = Path(dossier).resolve()
     chemin = _JOURNAUX.get(racine_donnees)
     racine = logging.getLogger("hike2gpx")
     if chemin is not None and any(isinstance(h, RotatingFileHandler) and Path(h.baseFilename) == chemin
                                   for h in racine.handlers):
         return chemin
+    # Le nom horodaté se trie dans l'ordre chronologique.
+    for ancienne in sorted(racine_donnees.glob("hike2gpx-*.log"))[:-(SESSIONS_GARDEES - 1)]:
+        for fichier in racine_donnees.glob(ancienne.name + "*"):
+            fichier.unlink(missing_ok=True)
     chemin = racine_donnees / f"hike2gpx-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.log"
     chemin.parent.mkdir(parents=True, exist_ok=True)
     fichier = RotatingFileHandler(chemin, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
@@ -238,10 +245,8 @@ class Application:
     def reglages(self) -> dict:
         prefs = atomique.lire_json(self.preferences, {})
         cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
-        jours = prefs.get("renouvellement_jours", 30) if isinstance(prefs, dict) else 30
-        jours = jours if type(jours) is int and 1 <= jours <= 365 else 30
         return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
-                "renouvellement_jours": jours}
+                "renouvellement_jours": geofabrik.jours_renouvellement(self.dossier)}
 
     def enregistrer_reglages(self, payload) -> dict:
         payload = payload or {}

@@ -129,7 +129,7 @@ const TEXTES = {
     "extrait.import": "Données OSM hors ligne : import de l'extrait {nom}, {voies} voies lues…",
     "extrait.relais.telechargement": "Données OSM hors ligne : extrait {nom} du {date} ; la région {region} se télécharge pour prendre le relais, {pourcent} %",
     "extrait.relais.import": "Données OSM hors ligne : extrait {nom} du {date} ; la région {region} s'importe pour prendre le relais, {voies} voies lues…",
-    "extrait.installe": "Données OSM hors ligne : extrait {nom} du {date}, renouvelé chaque semaine.",
+    "extrait.installe": "Données OSM hors ligne : extrait {nom} du {date}, renouvelé tous les {jours} jours.",
     "extrait.erreur": "Extrait {nom} non installé : {message}",
     "extrait.attente": "Overpass ne répond pas ; l'extrait OSM {nom} se télécharge, le calcul reprendra de lui-même.",
     "bdtopo.troncon": "Tronçon",
@@ -276,7 +276,7 @@ const TEXTES = {
     "extrait.import": "Offline OSM data: importing the {nom} extract, {voies} ways read…",
     "extrait.relais.telechargement": "Offline OSM data: {nom} extract of {date}; the {region} region is downloading to take over, {pourcent} %",
     "extrait.relais.import": "Offline OSM data: {nom} extract of {date}; the {region} region is importing to take over, {voies} ways read…",
-    "extrait.installe": "Offline OSM data: {nom} extract of {date}, renewed every week.",
+    "extrait.installe": "Offline OSM data: {nom} extract of {date}, renewed every {jours} days.",
     "extrait.erreur": "{nom} extract not installed: {message}",
     "extrait.attente": "Overpass is not responding; the {nom} OSM extract is downloading, the calculation will resume by itself.",
     "bdtopo.troncon": "Section",
@@ -868,7 +868,8 @@ function afficherExtrait(r) {
       ? t("extrait.telechargement", { nom: e.nom, pourcent: Math.round(100 * e.fraction) })
       : t("extrait.import", { nom: e.nom, voies: nombre(e.voies) });
   } else if (r?.installe) {
-    $("extraitTexte").textContent = t("extrait.installe", { nom: r.installe.nom, date: dateCourte(r.installe.date) });
+    $("extraitTexte").textContent = t("extrait.installe", { nom: r.installe.nom, date: dateCourte(r.installe.date),
+      jours: etat.renouvellementJours ?? 30 });
   } else if (e?.etape === "erreur") {
     $("extraitTexte").textContent = t("extrait.erreur", { nom: e.nom, message: e.erreur });
   }
@@ -1481,6 +1482,8 @@ $("enregistrerCle").addEventListener("click", async () => {
     const r = await api("reglages", { cle_ign: $("cleIgn").value, renouvellement_jours: Number($("renouvellementJours").value) });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
     etat.cleIgn = r.cle_ign;
+    etat.renouvellementJours = r.renouvellement_jours;
+    afficherExtrait(etat.extrait);
     construireFonds();
     afficherStatut(() => t(etat.cleIgn ? "cle.enregistree" : "cle.retiree"));
     verifierBrouter();
@@ -1559,7 +1562,8 @@ async function demarrer() {
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
     etat.cleIgn = reglages.cle_ign || "";
     $("cleIgn").value = etat.cleIgn;
-    $("renouvellementJours").value = reglages.renouvellement_jours ?? 30;
+    etat.renouvellementJours = reglages.renouvellement_jours ?? 30;
+    $("renouvellementJours").value = etat.renouvellementJours;
     await verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("serveur.injoignable", { message: e.message }), true);

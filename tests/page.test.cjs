@@ -371,11 +371,11 @@ test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcu
   assert.equal(page.etat.donneesAttendues.extrait, "paca");
   // Tout est arrivé : l'extrait sert, et le calcul qui attendait repart.
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
-  assert.equal(texte(), `Données OSM hors ligne : extrait ${nom} du 18/10/2026, renouvelé chaque semaine.`);
+  assert.equal(texte(), `Données OSM hors ligne : extrait ${nom} du 18/10/2026, renouvelé tous les 30 jours.`);
   assert.equal(elements.get("brouterEnCours").hidden, true);
   assert.equal(page.etat.donneesAttendues, false);
   page.appliquerLangue("en");
-  assert.equal(texte(), `Offline OSM data: ${nom} extract of 18/10/2026, renewed every week.`);
+  assert.equal(texte(), `Offline OSM data: ${nom} extract of 18/10/2026, renewed every 30 days.`);
   // Moteur et tuile BRouter manquants : même attente, sans bouton.
   page.appliquerLangue("fr");
   page.afficherErreur({ erreur: "Données BRouter absentes pour cette zone.", segments_manquants: ["E0_N45"],
@@ -414,7 +414,7 @@ test("cascade : le Var sert aussitôt, la PACA se prépare sans faire attendre",
   // La PACA installée : c'est elle qui sert.
   const installe = { id: "provence-alpes-cote-d-azur", nom: paca, date: "2026-10-18T20:25:06Z" };
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini", relais: true }, installe, brouter: null });
-  assert.equal(texte(), `Données OSM hors ligne : extrait ${paca} du 18/10/2026, renouvelé chaque semaine.`);
+  assert.equal(texte(), `Données OSM hors ligne : extrait ${paca} du 18/10/2026, renouvelé tous les 30 jours.`);
 });
 
 test("chargement des calques : la note suit les tuiles lues, barre comprise", () => {
