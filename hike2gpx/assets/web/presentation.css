@@ -124,8 +124,8 @@ body.profile-collapsed .map-activity{bottom:81px}
 .profile-cursor-point{fill:#fff;stroke:#2367d1;stroke-width:2}
 #reglages summary,#journal summary{font-size:13px;font-weight:700;color:#2e455d}
 .ign-key-label{display:flex;align-items:center;gap:7px}
-#reglages .ign-key-label{margin:8px 0 4px}
-#reglages .ign-key-label label{font-size:12px;line-height:1.5;font-weight:400;color:#546a80;margin:0}
+#reglages .ign-key-label{margin:0}
+#reglages .ign-key-label label{font-size:12px;line-height:1.5;font-weight:400;color:#546a80;margin:0;white-space:nowrap}
 .info-tooltip{position:relative;display:inline-grid;place-items:center;width:17px;height:17px;flex:none;border-radius:50%;background:#f9df71;color:#664e00;font-size:11px;font-weight:700;cursor:help}
 .info-tooltip:focus-visible{outline:2px solid #d4a100;outline-offset:2px}
 .info-tooltip [role=tooltip]{display:none;position:absolute;z-index:1400;top:24px;left:-10px;width:260px;padding:9px 11px;border:1px solid #edd789;border-radius:8px;background:#fff9db;box-shadow:0 5px 18px #5b4b1b30;color:#4b431f;font-size:11px;font-weight:400;line-height:1.4}
@@ -139,7 +139,11 @@ body.profile-collapsed .map-activity{bottom:81px}
 .route-summary .info-tooltip [role=tooltip]{left:auto;right:-100px;width:330px}
 .setting-label{display:block}
 .renouvellement-ligne{display:flex;align-items:center;gap:8px}
-.renouvellement-ligne input{width:70px}
+.renouvellement-ligne input{flex:none;width:52px}
+.setting-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;margin:9px 0 14px}
+.setting-row .ligne{margin:0;min-width:0}
+.ign-key-row{grid-template-columns:minmax(0,1fr) 148px}
+#reglages .setting-row label{margin:0;font-size:12px;line-height:1.5;color:#546a80}
 .settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
 .display-settings{margin-top:17px;padding-top:7px;border-top:1px solid var(--bordure)}
 #reglages .display-settings .option{display:flex;align-items:flex-start;gap:9px;margin:0;padding:9px 0}
