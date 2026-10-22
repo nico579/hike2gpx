@@ -6,7 +6,7 @@
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-6">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-13">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-14">
 </head>
 <body>
 <div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
@@ -58,9 +58,11 @@
   <section id="pane-trace" class="pane" role="tabpanel" aria-labelledby="tab-trace">
     <p class="aide" data-i18n="aide">Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.</p>
     <div class="boutons">
-      <button id="retirerDernier" type="button" disabled data-i18n="bouton.retirerDernier">Retirer le dernier point</button>
-      <button id="toutEffacer" type="button" disabled data-i18n="bouton.toutEffacer">Tout effacer</button>
-      <button id="boucler" type="button" disabled data-i18n="bouton.boucler">Revenir au départ</button>
+      <div class="route-actions">
+        <span class="action-control"><button id="retirerDernier" type="button" disabled aria-describedby="retirerDernierInfo" data-i18n="bouton.retirerDernier">Retirer</button><span id="retirerDernierInfo" class="action-tooltip" role="tooltip" data-i18n="bouton.retirerDernierInfo">Retire le dernier point ajouté au parcours.</span></span>
+        <span class="action-control"><button id="toutEffacer" type="button" disabled aria-describedby="toutEffacerInfo" data-i18n="bouton.toutEffacer">Effacer</button><span id="toutEffacerInfo" class="action-tooltip" role="tooltip" data-i18n="bouton.toutEffacerInfo">Efface tous les points et le tracé du parcours en cours.</span></span>
+        <span class="action-control"><button id="boucler" type="button" disabled aria-describedby="bouclerInfo" data-i18n="bouton.boucler">Revenir</button><span id="bouclerInfo" class="action-tooltip" role="tooltip" data-i18n="bouton.bouclerInfo">Ajoute le point de départ à la fin du parcours pour fermer la boucle.</span></span>
+      </div>
       <button id="exporter" type="button" class="principal" disabled data-i18n="bouton.exporter">Exporter le GPX</button>
     </div>
     <h2 class="section-title">Votre façon de marcher</h2>
@@ -115,7 +117,7 @@
   </ul>
 </section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js?v=desktop-14"></script>
+<script src="/app.js?v=desktop-15"></script>
 <script src="/nico579-langue.js"></script>
 <script src="/presentation.js?v=desktop-11"></script>
 </body>
