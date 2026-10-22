@@ -9,7 +9,7 @@ const vm = require("node:vm");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-function charger(preferences = {}) {
+function charger(preferences = {}, documentGpx = null) {
   const elements = new Map();
   const stockage = new Map(Object.entries(preferences));
   const minuteurs = [];
@@ -28,6 +28,7 @@ function charger(preferences = {}) {
   const couche = () => ({ handlers: {}, layers: [], addTo(parent) { this.addedTo = parent; parent.layers?.push(this); return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
     on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() { this.removed = true; }, closePopup() {} });
   const carte = { handlers: {}, zoom: 14, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; },
+    fitBounds(bounds, options) { this.fit = { bounds, options }; return this; },
     on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
       ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
     hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
@@ -39,6 +40,7 @@ function charger(preferences = {}) {
   const corps = element();
   const contexte = vm.createContext({
     console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance,
+    DOMParser: class { parseFromString() { return documentGpx; } },
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
       addEventListener() {}, querySelectorAll() { return []; } },
@@ -47,7 +49,8 @@ function charger(preferences = {}) {
     setTimeout(callback, ms) { minuteurs.push({ callback, ms }); return minuteurs.length; },
     clearTimeout(id) { if (minuteurs[id - 1]) minuteurs[id - 1].annule = true; },
     setInterval() { return 1; }, clearInterval() {},
-    L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
+    L: { map() { return carte; }, layerGroup: couche, canvas: couche,
+      polyline: (points, options) => Object.assign(couche(), { points, options }), circleMarker: couche,
       marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
       tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }),
       control: { layers: (fonds, calques) => Object.assign(couche(), { fonds, calques }) },
@@ -69,7 +72,8 @@ function charger(preferences = {}) {
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
-    + " preparerFleches, afficherFleches, fleches, setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
+    + " preparerFleches, afficherFleches, fleches, traceGpxImporte,"
+    + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs };
 }
@@ -81,6 +85,47 @@ function resultat(lonArrivee) {
 }
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
+
+function documentGpx(segments) {
+  const point = ([lat, lon]) => ({ hasAttribute: (nom) => nom === "lat" || nom === "lon",
+    getAttribute: (nom) => nom === "lat" ? String(lat) : String(lon) });
+  return { documentElement: { localName: "gpx" }, getElementsByTagName: () => [],
+    getElementsByTagNameNS(_ns, nom) {
+      if (nom === "trkseg") return segments.map((s) => ({ getElementsByTagNameNS: (_n, tag) =>
+        tag === "trkpt" ? s.map(point) : [] }));
+      return [];
+    } };
+}
+
+test("charger puis supprimer un GPX affiche un tracé distinct du parcours", async () => {
+  const { page, elements, carte, stockage } = charger({}, documentGpx([[[43.3, 6], [43.31, 6.02]]]));
+  const fichier = { name: "rando.gpx", size: 250, text: async () => "<gpx/>" };
+  await elements.get("fichierGpx").ecouteurs.change[0]({ target: { files: [fichier], value: "rando.gpx" } });
+  assert.equal(page.traceGpxImporte.layers.length, 1);
+  assert.equal(page.traceGpxImporte.layers[0].options.pane, "gpxImporte");
+  assert.equal(JSON.stringify(carte.fit.bounds), "[[43.3,6],[43.31,6.02]]");
+  assert.equal(elements.get("nomGpx").textContent, "rando.gpx");
+  assert.equal(elements.get("gpxCharge").hidden, false);
+  assert.equal(page.etat.points.length, 0);
+  assert.equal(stockage.has("hike2gpx.points"), false);
+  elements.get("supprimerGpx").click();
+  assert.equal(page.traceGpxImporte.layers.length, 0);
+  assert.equal(elements.get("gpxCharge").hidden, true);
+});
+
+test("un GPX invalide conserve le tracé précédemment chargé", async () => {
+  const document = documentGpx([[[43.3, 6], [43.31, 6.02]]]);
+  const { page, elements } = charger({}, document);
+  const importer = (name) => elements.get("fichierGpx").ecouteurs.change[0]({ target: {
+    files: [{ name, size: 250, text: async () => "<gpx/>" }], value: name } });
+  await importer("bon.gpx");
+  document.getElementsByTagNameNS = () => [{ getElementsByTagNameNS: () => [
+    { hasAttribute: () => true, getAttribute: (nom) => nom === "lat" ? "91" : "6" }] }];
+  await importer("mauvais.gpx");
+  assert.equal(page.traceGpxImporte.layers.length, 1);
+  assert.equal(elements.get("nomGpx").textContent, "bon.gpx");
+  assert.equal(elements.get("erreurGpx").hidden, false);
+});
 
 test("le parcours revient après rechargement et se recalcule", async () => {
   const avant = charger();

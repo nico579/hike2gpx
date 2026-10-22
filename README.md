@@ -69,6 +69,13 @@ le survoler montre le point correspondant sur l'itinéraire. Les franchissements
 vers l'objet dans OpenStreetMap. « Exporter le GPX » enregistre l'itinéraire,
 avec ces points en points de passage.
 
+« Charger un GPX » affiche un tracé existant (pistes et itinéraires GPX) en
+violet sur la carte et centre la vue dessus. Il sert de repère pendant la
+préparation du parcours : il ne modifie pas les points de passage ni l'export.
+Un nouveau fichier remplace le précédent ; « Supprimer le GPX » retire ce
+tracé de la carte sans toucher au fichier sur l'ordinateur. Le tracé chargé
+reste affiché jusqu'à la fermeture ou au rechargement de la page.
+
 **Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
 données téléchargées (30 jours par défaut), la transparence des bandeaux et
 leur masquage, et un bouton qui vide tous les caches locaux. Le journal de la

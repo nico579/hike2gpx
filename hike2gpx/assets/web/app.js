@@ -29,6 +29,12 @@ const TEXTES = {
     "bouton.boucler": "Revenir",
     "bouton.bouclerInfo": "Ajoute le point de départ à la fin du parcours pour fermer la boucle.",
     "bouton.exporter": "Exporter le GPX",
+    "bouton.chargerGpx": "Charger un GPX",
+    "bouton.supprimerGpx": "Supprimer le GPX",
+    "gpx.note": "Tracé de référence sur la carte, sans modifier votre parcours.",
+    "gpx.erreur": "Impossible de charger ce GPX : {message}",
+    "gpx.invalide": "fichier GPX invalide ou sans tracé.",
+    "gpx.tropGrand": "fichier trop volumineux (20 Mo maximum).",
     "option.strict": "Mode strict : éviter aussi les passages à vérifier",
     "option.ign": "Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)",
     "option.comparer": "Montrer le tracé qui ignore les barrières",
@@ -179,6 +185,12 @@ const TEXTES = {
     "bouton.boucler": "Return",
     "bouton.bouclerInfo": "Adds the starting point to the end of the route to close the loop.",
     "bouton.exporter": "Export GPX",
+    "bouton.chargerGpx": "Load a GPX",
+    "bouton.supprimerGpx": "Remove GPX",
+    "gpx.note": "Reference track on the map; your route is unchanged.",
+    "gpx.erreur": "Unable to load this GPX: {message}",
+    "gpx.invalide": "invalid GPX file or no track found.",
+    "gpx.tropGrand": "file too large (20 MB maximum).",
     "option.strict": "Strict mode: also avoid crossings to check",
     "option.ign": "Also use IGN paths missing from OSM (to check on site)",
     "option.comparer": "Show the route that ignores barriers",
@@ -579,6 +591,9 @@ carte.on("baselayerchange", (e) => {
 // Le tracé et ses franchissements passent au-dessus des chemins dessinés.
 carte.createPane("trace").style.zIndex = 450;
 carte.createPane("sensTrace").style.zIndex = 451;
+carte.createPane("gpxImporte").style.zIndex = 449;
+const traceGpxImporte = L.layerGroup().addTo(carte);
+let sequenceImportGpx = 0;
 const rendu = L.canvas({ padding: 0.2 });
 const ZOOM_CALQUES = 14;
 const CLE_CALQUES = "hike2gpx.calques";
@@ -1491,6 +1506,70 @@ function exporter() {
   setTimeout(() => URL.revokeObjectURL(lien.href), 1000);
 }
 
+function lireTracesGpx(source) {
+  const xml = new DOMParser().parseFromString(source, "application/xml");
+  if (xml.documentElement?.localName !== "gpx" || xml.getElementsByTagName("parsererror").length) {
+    throw new Error(t("gpx.invalide"));
+  }
+  const segments = [];
+  const lirePoints = (parent, nom) => Array.from(parent.getElementsByTagNameNS("*", nom), (point) => {
+    const latitude = point.getAttribute("lat");
+    const longitude = point.getAttribute("lon");
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (!latitude?.trim() || !longitude?.trim() || !Number.isFinite(lat) || !Number.isFinite(lon)
+      || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error(t("gpx.invalide"));
+    return [lat, lon];
+  });
+  for (const segment of xml.getElementsByTagNameNS("*", "trkseg")) {
+    const points = lirePoints(segment, "trkpt");
+    if (points.length) segments.push(points);
+  }
+  for (const route of xml.getElementsByTagNameNS("*", "rte")) {
+    const points = lirePoints(route, "rtept");
+    if (points.length) segments.push(points);
+  }
+  if (!segments.length) throw new Error(t("gpx.invalide"));
+  return segments;
+}
+
+async function chargerGpx(fichier) {
+  const sequence = ++sequenceImportGpx;
+  $("erreurGpx").hidden = true;
+  try {
+    if (fichier.size > 20_000_000) throw new Error(t("gpx.tropGrand"));
+    const segments = lireTracesGpx(await fichier.text());
+    if (sequence !== sequenceImportGpx) return;
+    traceGpxImporte.clearLayers();
+    let minLat = 90, minLon = 180, maxLat = -90, maxLon = -180;
+    for (const points of segments) {
+      L.polyline(points, { pane: "gpxImporte", color: "#a134a1", weight: 4, opacity: 0.9,
+        dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
+      for (const [lat, lon] of points) {
+        minLat = Math.min(minLat, lat); minLon = Math.min(minLon, lon);
+        maxLat = Math.max(maxLat, lat); maxLon = Math.max(maxLon, lon);
+      }
+    }
+    $("nomGpx").textContent = fichier.name;
+    $("gpxCharge").hidden = false;
+    carte.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [30, 30], maxZoom: 16 });
+  } catch (erreur) {
+    if (sequence === sequenceImportGpx) {
+      $("erreurGpx").textContent = t("gpx.erreur", { message: erreur.message });
+      $("erreurGpx").hidden = false;
+    }
+  }
+}
+
+function supprimerGpx() {
+  ++sequenceImportGpx;
+  traceGpxImporte.clearLayers();
+  $("fichierGpx").value = "";
+  $("nomGpx").textContent = "";
+  $("gpxCharge").hidden = true;
+  $("erreurGpx").hidden = true;
+}
+
 // ------------------------------------------------------------ démarrage
 
 carte.on("click", (e) => ajouterPoint(e.latlng));
@@ -1503,6 +1582,13 @@ $("toutEffacer").addEventListener("click", () => {
   planifierCalcul();
 });
 $("exporter").addEventListener("click", exporter);
+$("chargerGpx").addEventListener("click", () => $("fichierGpx").click());
+$("fichierGpx").addEventListener("change", (event) => {
+  const fichier = event.target.files?.[0];
+  event.target.value = "";
+  if (fichier) return chargerGpx(fichier);
+});
+$("supprimerGpx").addEventListener("click", supprimerGpx);
 new PleinEcran().addTo(carte);
 // Échap quitte le plein écran du navigateur : la page revient avec lui.
 document.addEventListener("fullscreenchange", () => {
