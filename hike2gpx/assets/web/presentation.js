@@ -360,9 +360,6 @@
     layersButton.setAttribute("aria-expanded", String(open));
     try { localStorage.setItem(layersPreference, String(open)); } catch (error) {}
   });
-  document.addEventListener("click", event => {
-    if (!toolbar.contains(event.target) && !event.target.closest?.("#chargerGpx")) closeLayers();
-  });
   document.addEventListener("keydown", event => {
     if (event.key === "Escape") closeLayers();
   });
