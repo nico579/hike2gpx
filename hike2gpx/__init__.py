@@ -1,4 +1,4 @@
 """hike2gpx : tracer une randonnée sur fond IGN sans traverser les clôtures,
 barrières et interdictions cartographiées dans OpenStreetMap."""
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"

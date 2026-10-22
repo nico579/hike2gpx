@@ -126,7 +126,7 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
   const recherche = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
   const requete = requetes.find((r) => r.url === "/api/communes");
   assert.equal(JSON.parse(requete.options.body).recherche, "Grenoble");
-  repondre(requete, { communes: [{ nom: "Grenoble", departement: "Isère", lat: 45.1842, lon: 5.7155 }] });
+  repondre(requete, { communes: [{ nom: "Grenoble", detail: "Isère", lat: 45.1842, lon: 5.7155 }] });
   await recherche;
   assert.equal(JSON.stringify(carte.center), "[45.1842,5.7155]");
   assert.equal(carte.viewZoom, 13);
