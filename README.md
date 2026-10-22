@@ -1,8 +1,9 @@
 # hike2gpx
 
-hike2gpx trace un itinéraire de randonnée sur un fond IGN (SCAN 25, Plan IGN
-ou photos aériennes) sans traverser les clôtures, barrières et interdictions
-que décrit OpenStreetMap, puis l'exporte en GPX.
+hike2gpx trace un itinéraire de randonnée sur un fond IGN ou OpenStreetMap
+sans traverser les clôtures, barrières et interdictions que décrit
+OpenStreetMap, peut emprunter en plus les chemins que seule l'IGN connaît,
+calcule son dénivelé et sa durée, puis l'exporte en GPX.
 
 Les planificateurs courants, Visorando, Locus Map, brouter-web, ne voient pas
 une clôture dessinée en ligne qui coupe un sentier. Ce n'est pas un oubli de
@@ -21,6 +22,54 @@ autres applications de nico579 : quand une version plus récente est publiée,
 un bandeau de la page et le menu de son icône proposent de l'installer ; il
 la télécharge, la vérifie, puis redémarre dessus. Lancé depuis les sources,
 il se contente d'ouvrir la page de la nouvelle version.
+
+## Ce que fait hike2gpx
+
+Tout se passe dans une page locale, ouverte dans le navigateur, et dans le
+menu d'une icône de la zone de notification.
+
+**La carte.** Quatre fonds au choix : le SCAN 25 de l'IGN (avec une clé IGN,
+voir plus bas), le Plan IGN, les photos aériennes de l'IGN et OpenStreetMap.
+Par-dessus, deux calques à cocher, à partir du zoom 14, montrent les chemins
+que connaît chaque source : ceux d'OpenStreetMap (les sentiers en tirets),
+avec les clôtures et murs qu'il cartographie, et ceux de la BD TOPO de l'IGN.
+Les mettre côte à côte montre d'un coup d'œil les sentiers qu'une source
+ignore. Une recherche de ville (par l'API Géo de l'État) recentre la carte, et
+un bouton la passe en plein écran. Un voyant dit si le tracé est possible tout
+de suite, grâce à un extrait OSM déjà installé ou à Overpass.
+
+**Le tracé.** Un clic pose le départ, puis les étapes et l'arrivée ; un point
+se déplace en le faisant glisser et se retire depuis sa bulle. « Revenir »
+referme la boucle sur le départ, « Retirer » ôte le dernier point, « Effacer »
+repart de zéro. Le calcul est celui de BRouter, en local, avec les barrières
+d'OpenStreetMap mises en travers des chemins (voir plus bas). Trois options le
+règlent :
+
+- **Mode strict** : éviter aussi les passages « à vérifier », pas seulement
+  les bloquants ;
+- **Chemins IGN** : laisser BRouter emprunter aussi les chemins de la BD TOPO
+  absents d'OpenStreetMap. Ils s'affichent en tirets orange et rejoignent les
+  points à vérifier, car rien ne garantit qu'ils existent encore ni qu'on y
+  passe ;
+- **Comparaison** : montrer en pointillé le tracé standard, celui qui ignore
+  les barrières, avec sa longueur et les franchissements bloquants qu'il
+  traverserait.
+
+**Le résultat.** Un résumé donne la distance, la durée estimée (modèle de
+Tobler, appliqué à la pente du profil), le dénivelé positif et négatif, le
+point haut et le point bas. Le profil d'altitude se déplie en bas de la carte ;
+le survoler montre le point correspondant sur l'itinéraire. Les franchissements
+à vérifier sont listés, chacun avec un lien pour centrer la carte et un autre
+vers l'objet dans OpenStreetMap. « Exporter le GPX » enregistre l'itinéraire,
+avec ces points en points de passage.
+
+**Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
+données téléchargées (30 jours par défaut), la transparence des bandeaux et
+leur masquage, et un bouton qui vide tous les caches locaux. Le journal de la
+session (erreurs, blocages, lenteurs) s'ouvre depuis la page. La page parle
+français ou anglais, et retrouve à sa réouverture la vue, le fond, les calques
+et les options de la fois précédente. Téléchargements, imports et calculs en
+cours s'affichent dans un bandeau en bas de la carte.
 
 ## Comment ça marche
 
@@ -47,18 +96,11 @@ Le calcul passe par cinq pièces.
    tracé rendu par BRouter passait malgré tout une coupe interdite, hike2gpx le
    refuserait au lieu de l'afficher.
 3. **La page.** Une page locale, servie par la bibliothèque commune
-   [nico579-commons](https://pypi.org/project/nico579-commons/) : on clique
-   pour poser le départ, les étapes et l'arrivée, on déplace les points, et
-   l'on exporte le GPX, avec en points de passage les franchissements à
-   vérifier sur le tracé. Le tracé standard, qui ignore les barrières, peut
-   s'afficher en pointillé pour comparaison. Deux calques à cocher, à partir
-   du zoom 14, montrent les chemins que connaît OpenStreetMap (avec ses
-   clôtures et murs) et ceux de la BD TOPO de l'IGN : de quoi comparer les
-   deux sources. Pendant un calcul, une barre en bas de la carte suit ses
-   étapes ; un bouton sous le zoom passe la carte en plein écran. Chaque
-   calcul laisse sa trace dans `hike2gpx.log`, au dossier de données, avec le
-   temps de chaque étape, ses erreurs et ses lenteurs ; la page en montre la
-   fin dans « Journal des calculs ».
+   [nico579-commons](https://pypi.org/project/nico579-commons/), qui partage
+   avec les autres applications de nico579 l'icône, la langue et la mise à
+   jour. Chaque calcul laisse sa trace dans le journal de la session
+   (`hike2gpx-<date>.log`, au dossier de données ; les dix dernières sessions
+   sont gardées), avec le temps de chaque étape, ses erreurs et ses lenteurs.
 4. **Le dénivelé.** Une fois l'itinéraire affiché, le moteur de
    [gpx2elev](https://pypi.org/project/gpx2elev/) recalcule son dénivelé :
    tracé échantillonné tous les 5 m, meilleur modèle de terrain disponible
@@ -149,8 +191,15 @@ long parcours se découpe en étapes.
 
 ## Installation
 
-Il faut Python 3.12, [uv](https://docs.astral.sh/uv/) et Java 11 ou plus pour
-BRouter.
+Le plus simple : télécharger le programme de son système dans les
+[releases](https://github.com/nico579/hike2gpx/releases) (Windows, Linux,
+macOS), le décompresser, par exemple sous Windows dans
+`%LOCALAPPDATA%\Programs\hike2gpx`, et lancer `hike2gpx`. Il embarque son
+Java et se met à jour tout seul ; « Créer un raccourci sur le Bureau », dans
+le menu de son icône, pose le raccourci.
+
+Depuis les sources, il faut Python 3.12, [uv](https://docs.astral.sh/uv/) et
+Java 11 ou plus pour BRouter.
 
 ```
 uv venv --python 3.12 .venv
