@@ -42,8 +42,15 @@ class Handler(serveweb.Handler):
         super().do_GET()
 
 
-def demarrer(application: Application, port: int = PORT, plage: int = PLAGE):
+def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, installateur=None):
+    """installateur : celui de bureau.installateur(), dont les routes du
+    commun (/api/maj, /api/maj-installer, /api/maj-verifier) font vivre le
+    bandeau de mise à jour de la page."""
     get, post = application.routes()
+    if installateur is not None:
+        from nico579_commons import maj_install
+        get_maj, post_maj = maj_install.routes(installateur, lambda: application.lire_langue() or "fr")
+        get, post = {**get, **get_maj}, {**post, **post_maj}
     handler = type("Hike2gpxHandler", (Handler,), {})   # chaque serveur garde ses routes
     handler.journal_path = configurer_journal(application.dossier)
     serveur, port = serveweb.premier_port_libre(HOST, port, plage, trusted_host="", gui_dir=GUI,
@@ -72,7 +79,15 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
         return
     chemin_journal = configurer_journal(dossier)
     application = Application(dossier)
-    serveur, port = demarrer(application, port)
+    arret, verrou, fini = threading.Event(), threading.Lock(), []
+    verificateur = maj.Verificateur(bureau.DEPOT, __version__, cache=Path(dossier) / "maj.json")
+    # La nouvelle version prête, l'assistant du commun attend notre fin :
+    # lever arret referme l'icône, puis finally arrête serveur et BRouter.
+    installateur = bureau.installateur(verificateur, quitter=arret.set)
+    # Restes d'une mise à jour interrompue (assistant tué, coupure), à côté de
+    # l'installation : effacés en tâche de fond, sans retarder le démarrage.
+    threading.Thread(target=installateur.nettoyer_restes, name="menage-maj", daemon=True).start()
+    serveur, port = demarrer(application, port, installateur=installateur)
     url = f"http://{HOST}:{port}/"
     print(f"hike2gpx {__version__} : {url} (données : {dossier}, journal : {chemin_journal})", flush=True)
     journal.info("hike2gpx %s démarré : %s, données %s", __version__, url, dossier)
@@ -81,8 +96,6 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
     # fond, que s'il manque ou a plus d'un mois.
     osmfr.regions(dossier)
     geofabrik.regions(dossier)
-
-    arret, verrou, fini = threading.Event(), threading.Lock(), []
 
     def arreter():
         """Arrête le serveur et BRouter, une seule fois, depuis l'icône (sur
@@ -97,12 +110,11 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
         arret.set()
         journal.info("hike2gpx arrêté")
 
-    verificateur = maj.Verificateur(bureau.DEPOT, __version__, cache=Path(dossier) / "maj.json")
     verificateur.veiller(arret)
     if ouvrir:
         webbrowser.open(url)
-    zone = bureau.icone_de_notification(url, arreter, verificateur, application.lire_langue, Path(dossier), arret) \
-        if icone else None
+    zone = bureau.icone_de_notification(url, arreter, verificateur, application.lire_langue, Path(dossier), arret,
+                                        installateur) if icone else None
     try:
         if zone is not None:
             zone.executer()     # rend la main quand Arrêter ou Redémarrer referment l'icône
