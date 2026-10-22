@@ -25,9 +25,11 @@ function charger(preferences = {}) {
       addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {},
       click() { for (const action of this.ecouteurs.click || []) action(); } };
   };
-  const couche = () => ({ handlers: {}, addTo() { return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
-    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() {}, remove() {}, closePopup() {} });
-  const carte = { handlers: {}, zoom: 14, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; }, on(name, handler) { this.handlers[name] = handler; }, createPane() { return { style: {} }; },
+  const couche = () => ({ handlers: {}, layers: [], addTo(parent) { parent.layers?.push(this); return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
+    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() {}, closePopup() {} });
+  const carte = { handlers: {}, zoom: 14, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; },
+    on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
+      ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
     hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
@@ -46,8 +48,8 @@ function charger(preferences = {}) {
     clearTimeout(id) { if (minuteurs[id - 1]) minuteurs[id - 1].annule = true; },
     setInterval() { return 1; }, clearInterval() {},
     L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
-      marker: (latlng) => Object.assign(couche(), { position: latlng, getLatLng() { return this.position; } }),
-      tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: couche, control: { layers: couche },
+      marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
+      tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }), control: { layers: couche },
       latLng: (lat, lng) => ({ lat: Array.isArray(lat) ? lat[0] : lat,
         lng: Array.isArray(lat) ? lat[1] : lng, distanceTo() { return 1000; } }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
@@ -65,7 +67,8 @@ function charger(preferences = {}) {
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
-    + " fond: () => fondActif, fonds: () => couchesFonds, restaurerCalques };", contexte);
+    + " fond: () => fondActif, fonds: () => couchesFonds, restaurerCalques,"
+    + " preparerFleches, afficherFleches, fleches, setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs };
 }
@@ -140,11 +143,27 @@ test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", 
   await calcul;
   assert.equal(elements.get("duree").textContent, "…");
   const relief = requetes.find((r) => r.url === "/api/denivele");
-  repondre(relief, { montee_m: 120, descente_m: 90, altitude_min_m: 400, altitude_max_m: 700, modele: "IGN LiDAR HD" });
+  repondre(relief, { montee_m: 120, descente_m: 90, altitude_min_m: 400, altitude_max_m: 700,
+    modele: "IGN LiDAR HD", duree_marche_s: 8100 });
   await new Promise(setImmediate);
   assert.equal(elements.get("duree").textContent, "2 h 15");
   assert.equal(elements.get("pointHaut").textContent, "700 m");
   assert.equal(elements.get("pointBas").textContent, "400 m");
+});
+
+test("les flèches suivent le sens du tracé et disparaissent au zoom éloigné", () => {
+  const { page, carte } = charger();
+  const est = page.preparerFleches([[6, 43], [6.01, 43]]);
+  const ouest = page.preparerFleches([[6.01, 43], [6, 43]]);
+  assert.ok(est.length > 0);
+  assert.ok(Math.abs(est[0].angle) < 1);
+  assert.ok(Math.abs(ouest[0].angle) > 179);
+  page.setFleches(est);
+  page.afficherFleches();
+  assert.equal(page.fleches.layers.length, est.length);
+  carte.zoom = 11;
+  carte.handlers.zoomend();
+  assert.equal(page.fleches.layers.length, 0);
 });
 
 test("une ouverture vérifie les tuiles BRouter même si le moteur est déjà installé", async () => {

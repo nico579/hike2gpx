@@ -38,7 +38,7 @@ const TEXTES = {
 "resultat.pointBas": "Point bas",
     "resultat.denivele": "Dénivelé",
     "resume.parcours": "Votre parcours",
-"resume.dureeInfo": "Estimation de marche : distance à 5 km/h plus une heure par 600 m de montée, sans pauses. La montée provient de gpx2elev.",
+"resume.dureeInfo": "Modèle de Tobler sur le profil gpx2elev lissé : v = 6 × exp(−3,5 × |pente + 0,05|) km/h. La pente est calculée tous les 20 m dans le sens du parcours ; les durées sont additionnées sans pauses. Le facteur 0,6 ne s'applique qu'aux portions identifiées hors sentier ; les chemins IGN restent des chemins.",
 "recherche.label": "Rechercher une ville",
 "recherche.placeholder": "Rechercher une ville…",
 "recherche.bouton": "Chercher",
@@ -185,7 +185,7 @@ const TEXTES = {
 "resultat.pointBas": "Lowest point",
     "resultat.denivele": "Elevation",
     "resume.parcours": "Your route",
-"resume.dureeInfo": "Walking estimate: distance at 5 km/h plus one hour per 600 m of ascent, without breaks. Ascent comes from gpx2elev.",
+"resume.dureeInfo": "Tobler's model on the smoothed gpx2elev profile: v = 6 × exp(−3.5 × |slope + 0.05|) km/h. Slope is measured every 20 m in travel direction; segment times are added without breaks. The 0.6 factor applies only to identified off-path sections; IGN paths remain paths.",
 "recherche.label": "Search for a town",
 "recherche.placeholder": "Search for a town…",
 "recherche.bouton": "Search",
@@ -922,6 +922,51 @@ function construireFonds() {
 // ------------------------------------------------------------ points
 
 const couches = L.layerGroup().addTo(carte);
+const fleches = L.layerGroup().addTo(carte);
+let flechesTrace = [];
+carte.on("zoomend", () => afficherFleches());
+
+function preparerFleches(coordonnees) {
+  const segments = [];
+  let total = 0;
+  for (let i = 1; i < coordonnees.length; i++) {
+    const depart = coordonnees[i - 1];
+    const arrivee = coordonnees[i];
+    const longueur = L.latLng([depart[1], depart[0]]).distanceTo(L.latLng([arrivee[1], arrivee[0]]));
+    if (longueur > 0) {
+      segments.push({ depart, arrivee, debut: total, fin: total + longueur });
+      total += longueur;
+    }
+  }
+  if (!total) return [];
+  const ecart = Math.max(300, total / 9);
+  const cibles = [];
+  for (let distance = ecart / 2; distance < total - ecart / 2; distance += ecart) cibles.push(distance);
+  if (!cibles.length) cibles.push(total / 2);
+  let rang = 0;
+  return cibles.map((distance) => {
+    while (rang < segments.length - 1 && segments[rang].fin < distance) rang++;
+    const { depart, arrivee, debut, fin } = segments[rang];
+    const fraction = (distance - debut) / (fin - debut);
+    const lat = depart[1] + (arrivee[1] - depart[1]) * fraction;
+    const lon = depart[0] + (arrivee[0] - depart[0]) * fraction;
+    const dx = (arrivee[0] - depart[0]) * Math.cos(lat * Math.PI / 180);
+    const dy = arrivee[1] - depart[1];
+    return { lat, lon, angle: Math.atan2(-dy, dx) * 180 / Math.PI };
+  });
+}
+
+function afficherFleches() {
+  fleches.clearLayers();
+  if (carte.getZoom() < 12) return;
+  for (const { lat, lon, angle } of flechesTrace) {
+    const iconeFleche = L.divIcon({
+      className: "route-direction-icon", iconSize: [14, 14], iconAnchor: [7, 7],
+      html: `<svg viewBox="0 0 18 18" aria-hidden="true" style="transform:rotate(${angle}deg)"><path d="M4 4 14 9 4 14 6 9Z"/></svg>`,
+    });
+    L.marker([lat, lon], { icon: iconeFleche, interactive: false, keyboard: false, pane: "trace" }).addTo(fleches);
+  }
+}
 
 function icone(rang, total) {
   const depart = rang === 0;
@@ -1003,6 +1048,8 @@ function planifierCalcul() {
 
 function effacerResultat() {
   couches.clearLayers();
+  flechesTrace = [];
+  fleches.clearLayers();
   cacherMarqueurProfil();
   profilRoute = null;
   etat.dernier = null;
@@ -1247,6 +1294,8 @@ function afficher(r) {
   }
   L.polyline(lignes(r.itineraire), { color: "#1565c0", weight: 5, opacity: 0.85, interactive: false, pane: "trace" })
     .addTo(couches);
+  flechesTrace = preparerFleches(r.itineraire.geometry.coordinates);
+  afficherFleches();
   for (const p of r.portions_ign || []) {
     L.polyline(p.coords, { color: COULEURS.uncertain, weight: 5, opacity: 0.95, dashArray: "8 6", interactive: false, pane: "trace" })
       .addTo(couches);
@@ -1274,7 +1323,7 @@ function afficher(r) {
 function ecrireResultat(r) {
   $("distance").textContent = km(r.longueur_m);
   if (r.denivele) {
-    ecrireDenivele(r.denivele, r.longueur_m);
+    ecrireDenivele(r.denivele);
   } else {
     for (const id of ["denivele", "duree", "pointHaut", "pointBas"])
       $(id).textContent = r.erreurDenivele ? "—" : "…";
@@ -1323,17 +1372,19 @@ async function calculerDenivele(r) {
   }
   r.denivele = d;
   profilRoute = preparerRouteProfil(r.itineraire.geometry.coordinates);
-  ecrireDenivele(d, r.longueur_m);
+  ecrireDenivele(d);
   if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:denivele", { detail: d }));
   chargerJournal();
 }
 
-function ecrireDenivele(d, longueurM) {
+function ecrireDenivele(d) {
   $("denivele").textContent = `+${d.montee_m} m, −${d.descente_m} m`;
   $("pointHaut").textContent = `${d.altitude_max_m} m`;
   $("pointBas").textContent = `${d.altitude_min_m} m`;
-  const minutes = Math.ceil((longueurM / 5000 + d.montee_m / 600) * 12) * 5;
-  $("duree").textContent = minutes >= 60 ? `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}` : `${minutes} min`;
+  const minutes = Math.ceil(d.duree_marche_s / 300) * 5;
+  $("duree").textContent = Number.isFinite(minutes)
+    ? (minutes >= 60 ? `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}` : `${minutes} min`)
+    : "—";
   $("sourceDenivele").textContent = t("denivele.source",
     { modele: d.modele, min: d.altitude_min_m, max: d.altitude_max_m });
 }

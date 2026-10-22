@@ -17,6 +17,7 @@ from gpx2elev.providers import MissingCoverage, Repository
 
 POINTS_MAX = 200_000
 PROFIL_MAX_POINTS = 500
+PAS_TOBLER_M = 20.0
 
 
 class ErreurDenivele(RuntimeError):
@@ -49,6 +50,41 @@ def gpx(coordonnees) -> bytes:
             f"<trk><trkseg>{points}</trkseg></trk></gpx>").encode("utf-8")
 
 
+def duree_tobler(profil, *, hors_sentier: bool = False) -> float:
+    """Secondes de marche sur le profil lissé complet, dans le sens du tracé.
+
+    La pente est dh/dx, avec x horizontal en mètres. Une fenêtre de 20 m
+    limite l'effet du bruit altimétrique résiduel des échantillons de 5 m.
+    Le coefficient hors sentier ne vaut que pour un trajet ainsi identifié ;
+    un chemin IGN absent d'OSM reste un chemin.
+    """
+    points = list(profil)
+    if len(points) < 2:
+        return 0.0
+    reechantillonnes = [points[0]]
+    cible = points[0][0] + PAS_TOBLER_M
+    precedent = points[0]
+    for courant in points[1:]:
+        distance, altitude = courant
+        if distance <= precedent[0]:
+            continue
+        while cible <= distance:
+            fraction = (cible - precedent[0]) / (distance - precedent[0])
+            reechantillonnes.append((cible, precedent[1] + fraction * (altitude - precedent[1])))
+            cible += PAS_TOBLER_M
+        precedent = courant
+    if reechantillonnes[-1][0] < precedent[0]:
+        reechantillonnes.append(precedent)
+    secondes = 0.0
+    for (debut, altitude_debut), (fin, altitude_fin) in zip(reechantillonnes, reechantillonnes[1:]):
+        pente = (altitude_fin - altitude_debut) / (fin - debut)
+        vitesse_kmh = 6 * math.exp(-3.5 * abs(pente + 0.05))
+        if hors_sentier:
+            vitesse_kmh *= 0.6
+        secondes += (fin - debut) * 3.6 / vitesse_kmh
+    return secondes
+
+
 def calculer(coordonnees, dossier, *, en_ligne: bool = True, lecteur=None) -> dict:
     """Montée, descente et altitudes extrêmes du tracé selon gpx2elev.
     `lecteur` remplace la lecture des modèles de terrain (essais)."""
@@ -62,14 +98,16 @@ def calculer(coordonnees, dossier, *, en_ligne: bool = True, lecteur=None) -> di
     finally:
         depot.close()
     # Courbe issue des altitudes lissées par gpx2elev, réduite pour la page.
-    points = [(round(float(distance), 1), round(float(altitude), 1))
+    points = [(float(distance), float(altitude))
               for profil in calcul.profiles
               for distance, altitude in zip(profil.distance, profil.elevations)]
+    duree_marche_s = round(duree_tobler(points))
     pas = max(1, math.ceil((len(points) - 1) / (PROFIL_MAX_POINTS - 1)))
-    profil = points[::pas]
-    if profil[-1] != points[-1]:
-        profil.append(points[-1])
+    profil = [(round(distance, 1), round(altitude, 1)) for distance, altitude in points[::pas]]
+    derniere = (round(points[-1][0], 1), round(points[-1][1], 1))
+    if profil[-1] != derniere:
+        profil.append(derniere)
     return {"montee_m": round(calcul.gain.up), "descente_m": round(calcul.gain.down),
             "altitude_min_m": round(calcul.minimum), "altitude_max_m": round(calcul.maximum),
             "modele": serie.source.label, "protocole": core.PROTOCOL, "depuis_le_cache": serie.from_cache,
-            "profil": profil}
+            "profil": profil, "duree_marche_s": duree_marche_s}
