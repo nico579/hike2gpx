@@ -30,7 +30,7 @@ menu d'une icône de la zone de notification.
 
 **La carte.** Les fonds IGN sont le SCAN 25 (avec une clé IGN, voir plus bas),
 le Plan IGN et les photos aériennes. S'y ajoutent OpenStreetMap, OSM rando
-(OpenHikingMap), OSM vélo (CyclOSM) et une vue satellite mondiale (Esri).
+(OpenTopoMap), OSM vélo (CyclOSM) et une vue satellite mondiale (Esri).
 Par-dessus, deux calques à cocher, à partir du zoom 14, montrent les chemins
 que connaît chaque source : ceux d'OpenStreetMap (les sentiers en tirets),
 avec les clôtures et murs qu'il cartographie, et ceux de la BD TOPO de l'IGN.

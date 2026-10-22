@@ -947,11 +947,10 @@ function construireFonds() {
     couchesFonds.photos = L.tileLayer(tuileIgn("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg"),
       { maxNativeZoom: 19, maxZoom: 19, attribution: IGN });
   }
-  couchesFonds.osmRando = L.tileLayer("https://tile.openmaps.fr/openhikingmap/{z}/{x}/{y}.png",
-    { maxNativeZoom: 18, maxZoom: 19,
-      attribution: '<a href="https://wiki.openstreetmap.org/wiki/OpenHikingMap">© OpenHikingMap</a> '
-        + '<a href="https://openmaps.fr/donate">❤️ Donation</a> '
-        + '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a>' });
+  couchesFonds.osmRando = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    { maxNativeZoom: 17, maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM '
+        + '| © <a href="https://opentopomap.org/">OpenTopoMap</a> (CC-BY-SA)' });
   couchesFonds.osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: `© <a href="https://www.openstreetmap.org/copyright">${t("attribution.osm")}</a>` });
