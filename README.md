@@ -123,10 +123,10 @@ franchissements se jugent de la même façon. Overpass ne sert plus qu'ailleurs 
 hors des extraits installés, ou sur une tuile à cheval sur leur limite ; et
 une tuile qui attendait Overpass au moment où un extrait s'installe bascule
 aussitôt sur lui. OSM
-France et Geofabrik refont leurs extraits chaque jour ; plus vieux qu'une
-semaine, l'âge maximal du cache
-Overpass, l'extrait se renouvelle de lui-même en tâche de fond, l'ancien
-servant jusqu'à la bascule.
+France et Geofabrik refont leurs extraits chaque jour ; plus vieux que le délai
+choisi dans les réglages (30 jours par défaut, de 1 à 365), l'extrait se
+renouvelle de lui-même en tâche de fond, l'ancien servant jusqu'à la bascule.
+Les tuiles BRouter suivent le même délai.
 
 ## Limites
 
