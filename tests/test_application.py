@@ -75,7 +75,8 @@ def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
 
     zones = [region("spain", 36, -10, 44, 4), region("switzerland", 45, 5, 48, 11),
              region("austria", 46, 9, 49, 17), region("netherlands", 50, 3, 54, 8),
-             region("norway", 58, 9, 62, 12), region("luxembourg", 49, 5, 50, 7)]
+             region("norway", 58, 9, 62, 12), region("luxembourg", 49, 5, 50, 7),
+             region("us", 36, -121, 38, -118)]
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: zones)
     app = appli.Application(tmp_path)
     assert app.extrait((40.4, -3.8, 40.5, -3.6))["pays"] == "es"
@@ -84,6 +85,7 @@ def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
     assert app.extrait((52.0, 5.0, 52.2, 5.2))["pays"] == "nl"
     assert app.extrait((59.9, 10.7, 60.0, 10.8))["pays"] == "no"
     assert app.extrait((49.6, 6.1, 49.7, 6.2))["pays"] == "lu"
+    assert app.extrait((37.7, -119.7, 37.8, -119.5))["pays"] == "us"
     assert "pays" not in app.extrait((52, 12, 52.1, 12.1))
 
 
