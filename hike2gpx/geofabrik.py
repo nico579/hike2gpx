@@ -100,6 +100,11 @@ def _dans(lat: float, lon: float, polygones: list) -> bool:
     return False
 
 
+def contient_point(region: dict, lat: float, lon: float) -> bool:
+    s, w, n, e = region["bornes"]
+    return s <= lat <= n and w <= lon <= e and _dans(lat, lon, region["polygones"])
+
+
 def contient_tuile(region: dict, i: int, j: int) -> bool:
     """La tuile entière dans le contour : ses coins, le milieu de ses côtés et
     son centre (les contours de Geofabrik sont lisses et larges)."""
@@ -236,9 +241,11 @@ def regions(dossier, **options) -> list:
 # ------------------------------------------------------------------ extraits installés
 
 def _base(dossier, identifiant: str) -> Path:
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", identifiant):
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*", identifiant):
         raise ValueError(f"Identifiant d'extrait invalide : {identifiant}")
-    return dossier_extraits(dossier) / f"{identifiant}.sqlite"
+    # L'index Geofabrik contient des sous-régions comme us/utah. Le nom du
+    # fichier reste plat pour que installes() et le nettoyage les retrouvent.
+    return dossier_extraits(dossier) / f"{identifiant.replace('/', '__')}.sqlite"
 
 
 def _lire(base: Path):
@@ -736,6 +743,7 @@ class Telechargements:
         self._etat = None
         self._fil = None
         self._numero = 0        # tâche en cours ; une plus récente l'abandonne
+        self._region = None
         self._echecs = {}       # id de région -> instant (monotonic) du dernier échec
         self._ecartes = set()   # trop gros, ou place disque insuffisante : Overpass seul
 
@@ -783,6 +791,7 @@ class Telechargements:
                 journal.info("Extrait OSM %s abandonné : la région %s sert désormais", self._etat["id"],
                              region["id"])
             self._numero += 1
+            self._region = region
             self._etat = {"id": region["id"], "nom": region["nom"], "etape": "telechargement", "fraction": 0.0,
                           "voies": 0, "relais": relais}
             self._fil = threading.Thread(target=self._executer, args=(region, self._numero, ensuite), daemon=True,
@@ -790,15 +799,28 @@ class Telechargements:
             self._fil.start()
             return True
 
+    def abandonner_hors_tuile(self, i: int, j: int) -> bool:
+        """Arrête un extrait devenu inutile quand la carte quitte sa région."""
+        with self._verrou:
+            if not self.occupee() or self._region is None or contient_tuile(self._region, i, j):
+                return False
+            journal.info("Extrait OSM %s abandonné : la carte a quitté sa région", self._etat["id"])
+            self._numero += 1
+            self._etat = None
+            self._region = None
+            return True
+
     def _suivre(self, numero: int, etape: str, valeur) -> None:
-        if numero == self._numero:
-            self._etat = {**self._etat, "etape": etape,
-                          **({"fraction": round(valeur, 3)} if etape == "telechargement" else {"voies": valeur})}
+        with self._verrou:
+            if numero == self._numero:
+                self._etat = {**self._etat, "etape": etape,
+                               **({"fraction": round(valeur, 3)} if etape == "telechargement" else {"voies": valeur})}
 
     def _finir(self, numero: int, **etat) -> None:
         """L'état de la page, si cette tâche est toujours celle en cours."""
-        if numero == self._numero:
-            self._etat = {**self._etat, **etat}
+        with self._verrou:
+            if numero == self._numero:
+                self._etat = {**self._etat, **etat}
 
     def _executer(self, region: dict, numero: int, ensuite: dict | None = None) -> None:
         try:

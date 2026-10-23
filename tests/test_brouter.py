@@ -35,6 +35,22 @@ def test_profil_inattendu_refuse():
         brouter.profil_hike2gpx("assign dummy 0\n")
 
 
+def test_brouter_ecrit_son_journal_dans_le_dossier_commun(tmp_path, monkeypatch):
+    installation = brouter.Installation(tmp_path)
+    monkeypatch.setattr(installation, "ecrire_profil", lambda: None)
+    monkeypatch.setattr(brouter, "java", lambda: "java")
+    ouverts = []
+
+    def arreter_avant_demarrage(*args, **options):
+        ouverts.append(Path(options["stdout"].name))
+        raise RuntimeError("arrêt simulé")
+
+    monkeypatch.setattr(brouter.enfants, "demarrer", arreter_avant_demarrage)
+    with pytest.raises(RuntimeError, match="arrêt simulé"):
+        brouter.Serveur(installation, port=9999).demarrer()
+    assert ouverts == [tmp_path / "logs" / "brouter.log"]
+
+
 @pytest.mark.parametrize("lat, lon, nom", [(43.3, 6.04, "E5_N40"), (45.0, 5.0, "E5_N45"),
                                            (48.8, 2.3, "E0_N45"), (43.6, -1.4, "W5_N40")])
 def test_nom_segment(lat, lon, nom):

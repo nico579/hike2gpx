@@ -35,7 +35,7 @@ from pathlib import Path
 
 from nico579_commons import atomique, enfants
 
-from . import __version__
+from . import __version__, journaux
 
 journal = logging.getLogger(__name__)
 
@@ -367,7 +367,9 @@ class Serveur:
             inst.ecrire_profil()
         elif self.profils == inst.profils_maison:
             inst.ecrire_profil_maison()
-        sortie = open(inst.racine / "brouter.log", "ab")
+        chemin_log = journaux.dossier(inst.racine.parent) / "brouter.log"
+        chemin_log.parent.mkdir(parents=True, exist_ok=True)
+        sortie = open(chemin_log, "ab")
         commande = [java(), MEMOIRE, f"-DmaxRunningTime={DELAI_CALCUL_S}", "-cp", str(inst.jar),
                     "btools.server.RouteServer", str(self.segments or inst.segments), str(self.profils or inst.profils),
                     str(inst.personnalises), str(self.port), "4", "127.0.0.1"]

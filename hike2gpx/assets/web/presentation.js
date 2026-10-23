@@ -101,7 +101,6 @@
     }
     panel.querySelector(".panel-scroll").scrollTop = 0;
     if (name === "reglages") chargerDonnees();
-    if (name === "journal") chargerJournal();
     if (innerWidth <= 700 && name !== "trace") document.body.classList.add("sheet-expanded");
     if (remember) {
       try { localStorage.setItem(tabPreference, name); } catch (error) {}
@@ -310,6 +309,8 @@
   });
   syncMapToolbarVisibility();
   const layersButton = document.getElementById("layersButton");
+  const providersInfoButton = document.getElementById("providersInfoButton");
+  const providersInfoPanel = document.getElementById("providersInfoPanel");
   const layersPreference = "hike2gpx.layersOpen";
   try {
     const open = localStorage.getItem(layersPreference) === "true";
@@ -321,6 +322,37 @@
   const map = document.getElementById("carte");
   const legend = document.getElementById("mapLegend");
   const leafletControls = document.querySelector(".leaflet-top.leaflet-right");
+  const layersLayoutObserver = new ResizeObserver(() => requestAnimationFrame(syncProfileWidth));
+  let observedLayersControl = null;
+  layersLayoutObserver.observe(elevationPanel);
+  function syncProfileWidth() {
+    const control = toolbar.querySelector(".leaflet-control-layers");
+    if (!control) return;
+    const profileVisible = toolbar.classList.contains("layers-open") && !elevationPanel.hidden
+      && !document.body.classList.contains("hide-elevation")
+      && !document.body.classList.contains("hide-map-toolbar");
+    if (!profileVisible) {
+      control.style.maxHeight = "";
+      map.classList.remove("profile-beside-layers");
+      return;
+    }
+    const profile = elevationPanel.getBoundingClientRect();
+    const menu = control.getBoundingClientRect();
+    const room = menu.left - profile.left - 12;
+    if (room < 320) {
+      control.style.maxHeight = `${Math.max(100, profile.top - menu.top - 12)}px`;
+      map.classList.remove("profile-beside-layers");
+      return;
+    }
+    control.style.maxHeight = "";
+    const fullMenu = control.getBoundingClientRect();
+    if (fullMenu.bottom > profile.top) {
+      map.style.setProperty("--layers-profile-right", `${map.getBoundingClientRect().right - fullMenu.left + 12}px`);
+      map.classList.add("profile-beside-layers");
+    } else {
+      map.classList.remove("profile-beside-layers");
+    }
+  }
   document.querySelector(".leaflet-control-zoom").after(expandButton);
   for (const eventName of ["click", "mousedown", "dblclick"]) {
     expandButton.addEventListener(eventName, event => event.stopPropagation());
@@ -328,13 +360,67 @@
   function closeLayers(remember = true) {
     toolbar.classList.remove("layers-open");
     layersButton.setAttribute("aria-expanded", "false");
+    requestAnimationFrame(syncProfileWidth);
     if (remember) {
       try { localStorage.setItem(layersPreference, "false"); } catch (error) {}
     }
   }
+  function remplirPaysCouverts() {
+    const langue = document.documentElement.lang === "en" ? "en" : "fr";
+    const noms = new Intl.DisplayNames([langue], { type: "region" });
+    const pays = Object.entries(window.HIKE2GPX_MAP_PROVIDERS || {})
+      .filter(([code]) => code !== "autre")
+      .map(([code, provider]) => ({
+        nom: noms.of(code.toUpperCase()),
+        fond: provider.defaultBase !== "osm",
+        chemins: (provider.overlays || []).length > 0,
+      }))
+      .filter(pays => pays.fond || pays.chemins)
+      .sort((a, b) => a.nom.localeCompare(b.nom, langue));
+    const titre = document.createElement("h3");
+    const intitulé = langue === "en" ? "Countries covered in addition to OSM (worldwide)"
+      : "Pays couverts en plus d’OSM (monde entier)";
+    titre.textContent = intitulé;
+    providersInfoButton.setAttribute("aria-label", intitulé);
+    providersInfoButton.title = intitulé;
+    providersInfoPanel.setAttribute("aria-label", intitulé);
+    const liste = document.createElement("ul");
+    for (const paysCouvert of pays) {
+      const ligne = document.createElement("li");
+      const nom = document.createElement("span");
+      nom.textContent = paysCouvert.nom;
+      const couverture = document.createElement("span");
+      couverture.textContent = langue === "en"
+        ? (paysCouvert.fond && paysCouvert.chemins ? "Map and paths" : paysCouvert.fond ? "Map" : "Paths")
+        : (paysCouvert.fond && paysCouvert.chemins ? "Fond et chemins" : paysCouvert.fond ? "Fond" : "Chemins");
+      ligne.append(nom, couverture);
+      liste.append(ligne);
+    }
+    providersInfoPanel.replaceChildren(titre, liste);
+  }
+  function closeProvidersInfo() {
+    providersInfoPanel.hidden = true;
+    providersInfoButton.setAttribute("aria-expanded", "false");
+  }
+  providersInfoButton.addEventListener("click", () => {
+    const ouvrir = providersInfoPanel.hidden;
+    if (ouvrir) {
+      closeLayers(false);
+      remplirPaysCouverts();
+    }
+    providersInfoPanel.hidden = !ouvrir;
+    providersInfoButton.setAttribute("aria-expanded", String(ouvrir));
+  });
+  document.addEventListener("nico579-langue", remplirPaysCouverts);
+  remplirPaysCouverts();
   function syncLayers() {
     const control = leafletControls.querySelector(".leaflet-control-layers") || toolbar.querySelector(".leaflet-control-layers");
     if (!control) return;
+    if (control !== observedLayersControl) {
+      if (observedLayersControl) layersLayoutObserver.unobserve(observedLayersControl);
+      observedLayersControl = control;
+      layersLayoutObserver.observe(control);
+    }
     if (control.parentElement !== toolbar) {
       toolbar.append(control);
     }
@@ -346,6 +432,7 @@
     }
     const selected = control.querySelector(".leaflet-control-layers-base input:checked");
     if (selected) baseLabel.textContent = selected.closest("label").textContent.trim();
+    requestAnimationFrame(syncProfileWidth);
   }
   syncLayers();
   new MutationObserver(syncLayers).observe(leafletControls, { childList: true });
@@ -356,16 +443,19 @@
   // avant lui pour actualiser le nom du fond choisi.
   toolbar.addEventListener("change", () => setTimeout(syncLayers, 0), true);
   layersButton.addEventListener("click", () => {
+    closeProvidersInfo();
     const open = toolbar.classList.toggle("layers-open");
     layersButton.setAttribute("aria-expanded", String(open));
     try { localStorage.setItem(layersPreference, String(open)); } catch (error) {}
-  });
-  document.addEventListener("click", event => {
-    if (!toolbar.contains(event.target)) closeLayers();
+    requestAnimationFrame(syncProfileWidth);
   });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape") closeLayers();
+    if (event.key === "Escape") {
+      closeLayers();
+      closeProvidersInfo();
+    }
   });
+  window.addEventListener("resize", () => requestAnimationFrame(syncProfileWidth));
   function syncFullscreen() {
     const expanded = document.fullscreenElement === map;
     document.body.classList.toggle("plein-ecran", expanded);

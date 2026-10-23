@@ -29,13 +29,19 @@ const TEXTES = {
     "bouton.boucler": "Revenir",
     "bouton.bouclerInfo": "Ajoute le point de départ à la fin du parcours pour fermer la boucle.",
     "bouton.exporter": "Exporter le GPX",
+    "bouton.chargerGpx": "Charger un GPX",
+    "bouton.supprimerGpx": "Supprimer le GPX",
+    "gpx.erreur": "Impossible de charger ce GPX : {message}",
+    "gpx.invalide": "fichier GPX invalide ou sans tracé.",
+    "gpx.tropGrand": "fichier trop volumineux (20 Mo maximum).",
     "option.strict": "Mode strict : éviter aussi les passages à vérifier",
     "option.ign": "Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)",
+    "option.cheminsRoutables": "Emprunter aussi les {nom} absents d’OSM (à vérifier sur place)",
+    "option.cheminsAffichage": "{nom} : affichage seul, calcul sur les chemins OSM",
     "option.comparer": "Montrer le tracé qui ignore les barrières",
     "resultat.distance": "Distance",
 "resultat.duree": "Durée estimée",
-"resultat.pointHaut": "Point haut",
-"resultat.pointBas": "Point bas",
+"resultat.altitudeMaxMin": "Altitude max/min",
     "resultat.denivele": "Dénivelé",
     "resume.parcours": "Votre parcours",
 "resume.dureeInfo": "Modèle de Tobler sur le profil gpx2elev lissé : v = 6 × exp(−3,5 × |pente + 0,05|) km/h. La pente est calculée tous les 20 m dans le sens du parcours ; les durées sont additionnées sans pauses. Le facteur 0,6 ne s'applique qu'aux portions identifiées hors sentier ; les chemins IGN restent des chemins.",
@@ -61,6 +67,10 @@ const TEXTES = {
     "legende.osm": "chemins OSM (tirets : sentiers)",
     "legende.barriere": "clôtures et murs connus d'OSM",
     "legende.bdtopo": "chemins BD TOPO de l'IGN",
+    "legende.senderos": "sentiers balisés espagnols (GR rouge, PR jaune, SL vert)",
+    "legende.suisseSentiers": "sentiers de randonnée swisstopo",
+    "legende.usgsSentiers": "sentiers recensés par l’USGS",
+    "legende.gpx": "GPX chargé",
     "reglages.titre": "Réglages",
     "reglages.cle": "Clé IGN pour le SCAN 25",
     "reglages.enregistrer": "Enregistrer",
@@ -70,6 +80,8 @@ const TEXTES = {
     "reglages.masquerCartes": "Masquer le bandeau des cartes",
     "reglages.masquerDenivele": "Masquer le bandeau du dénivelé",
     "reglages.transparence": "Transparence des bandeaux",
+    "reglages.ouvrirJournaux": "Ouvrir le dossier des journaux",
+    "reglages.erreurJournaux": "Impossible d'ouvrir le dossier des journaux : {message}",
     "disponibilite.oui": "Tracé disponible",
     "disponibilite.non": "Tracé indisponible",
     "statut.donneesIndisponibles": "Données OSM indisponibles pour ce tracé. Nouvelle tentative automatique après téléchargement.",
@@ -93,11 +105,6 @@ const TEXTES = {
     "donnees.vide": "Cache local vidé. Les tuiles du fond de carte restent gérées par le navigateur.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
     "unite.mo": "Mo",
-    "journal.titre": "Journal des calculs",
-    "journal.note": "Erreurs, blocages et lenteurs, du plus ancien au plus récent :",
-    "journal.vide": "Journal vide pour l'instant.",
-    "journal.illisible": "Journal illisible : {message}",
-    "journal.ouvrir": "Ouvrir le fichier de log",
     "pied": "Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins BD TOPO et cartes © IGN, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.",
     "statut.deuxiemePoint": "Posez un deuxième point.",
     "statut.calcul": "Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute",
@@ -118,9 +125,12 @@ const TEXTES = {
     "serveur.injoignable": "Serveur injoignable : {message}",
     "denivele.calcul": "Calcul du dénivelé par gpx2elev en cours…",
     "denivele.indisponible": "Dénivelé indisponible : gpx2elev, {erreur}",
-    "denivele.source": "gpx2elev, {modele} : échantillonnage 5 m, lissage 20 m, hystérésis 2 m ; altitude de {min} à {max} m.",
+    "denivele.source": "Source des altitudes du parcours : {modele} · calcul gpx2elev (pas 5 m, lissage 20 m, seuil 2 m).",
     "calque.osm": "Chemins OSM",
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
+    "calque.senderos": "Sentiers balisés GR/PR/SL (IGN Espagne)",
+    "calque.suisseSentiers": "Sentiers de randonnée (swisstopo)",
+    "calque.usgsSentiers": "Sentiers recensés par l’USGS",
     "calque.chargement": "Chargement des {nom}… (la première fois, jusqu'à une minute)",
     "calque.avancement": "Chargement des {nom}… {faites} sur {total} tuiles · {duree} s",
     "liaison.et": " et ",
@@ -138,7 +148,18 @@ const TEXTES = {
     "fond.scan25": "SCAN 25 (IGN)",
     "fond.plan": "Plan IGN",
     "fond.photos": "Photos aériennes (IGN)",
-    "fond.osm": "OpenStreetMap",
+    "fond.osmRando": "OSM rando",
+    "fond.osm": "OSM",
+    "fond.osmVelo": "OSM vélo",
+    "fond.satellite": "Satellite",
+    "fond.reliefLidar": "Relief LiDAR HD (IGN)",
+    "fond.espagne": "Carte topographique (IGN Espagne)",
+    "fond.suisse": "Carte nationale (swisstopo)",
+    "fond.autriche": "Carte officielle (basemap.at)",
+    "fond.paysBas": "Carte topographique (PDOK)",
+    "fond.norvege": "Carte de randonnée (Kartverket)",
+    "fond.luxembourg": "Carte topographique (Luxembourg)",
+    "fond.etatsUnis": "Carte topographique (USGS)",
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
@@ -176,13 +197,19 @@ const TEXTES = {
     "bouton.boucler": "Return",
     "bouton.bouclerInfo": "Adds the starting point to the end of the route to close the loop.",
     "bouton.exporter": "Export GPX",
+    "bouton.chargerGpx": "Load a GPX",
+    "bouton.supprimerGpx": "Remove GPX",
+    "gpx.erreur": "Unable to load this GPX: {message}",
+    "gpx.invalide": "invalid GPX file or no track found.",
+    "gpx.tropGrand": "file too large (20 MB maximum).",
     "option.strict": "Strict mode: also avoid crossings to check",
     "option.ign": "Also use IGN paths missing from OSM (to check on site)",
+    "option.cheminsRoutables": "Also use {nom} missing from OSM (check on site)",
+    "option.cheminsAffichage": "{nom}: map display only; routing uses OSM paths",
     "option.comparer": "Show the route that ignores barriers",
     "resultat.distance": "Distance",
 "resultat.duree": "Estimated time",
-"resultat.pointHaut": "Highest point",
-"resultat.pointBas": "Lowest point",
+"resultat.altitudeMaxMin": "Max/min altitude",
     "resultat.denivele": "Elevation",
     "resume.parcours": "Your route",
 "resume.dureeInfo": "Tobler's model on the smoothed gpx2elev profile: v = 6 × exp(−3.5 × |slope + 0.05|) km/h. Slope is measured every 20 m in travel direction; segment times are added without breaks. The 0.6 factor applies only to identified off-path sections; IGN paths remain paths.",
@@ -208,6 +235,10 @@ const TEXTES = {
     "legende.osm": "OSM paths (dashed: footpaths)",
     "legende.barriere": "fences and walls known to OSM",
     "legende.bdtopo": "IGN BD TOPO paths",
+    "legende.senderos": "Spanish waymarked trails (GR red, PR yellow, SL green)",
+    "legende.suisseSentiers": "swisstopo hiking trails",
+    "legende.usgsSentiers": "trails mapped by USGS",
+    "legende.gpx": "Loaded GPX",
     "reglages.titre": "Settings",
     "reglages.cle": "IGN key for SCAN 25",
     "reglages.enregistrer": "Save",
@@ -217,6 +248,8 @@ const TEXTES = {
     "reglages.masquerCartes": "Hide the map layers panel",
     "reglages.masquerDenivele": "Hide the elevation panel",
     "reglages.transparence": "Panel transparency",
+    "reglages.ouvrirJournaux": "Open logs folder",
+    "reglages.erreurJournaux": "Unable to open the logs folder: {message}",
     "disponibilite.oui": "Routing available",
     "disponibilite.non": "Routing unavailable",
     "statut.donneesIndisponibles": "OSM data unavailable for this route. Automatic retry after download.",
@@ -240,11 +273,6 @@ const TEXTES = {
     "donnees.vide": "Local cache cleared. Background map tiles remain managed by the browser.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
     "unite.mo": "MB",
-    "journal.titre": "Calculation log",
-    "journal.note": "Errors, blockages and slowness, oldest first:",
-    "journal.vide": "The log is empty for now.",
-    "journal.illisible": "Log unreadable: {message}",
-    "journal.ouvrir": "Open log file",
     "pied": "Barriers and paths © OpenStreetMap contributors (ODbL), BD TOPO paths and maps © IGN, routing by BRouter. A barrier missing from OpenStreetMap cannot be avoided: the ground always has the last word.",
     "statut.deuxiemePoint": "Place a second point.",
     "statut.calcul": "Calculating… The first time in an area, reading the OSM barriers takes up to a minute",
@@ -265,9 +293,12 @@ const TEXTES = {
     "serveur.injoignable": "Server unreachable: {message}",
     "denivele.calcul": "Calculating elevation with gpx2elev…",
     "denivele.indisponible": "Elevation unavailable: gpx2elev, {erreur}",
-    "denivele.source": "gpx2elev, {modele}: 5 m sampling, 20 m smoothing, 2 m hysteresis; elevation from {min} to {max} m.",
+    "denivele.source": "Route elevation source: {modele} · gpx2elev calculation (5 m sampling, 20 m smoothing, 2 m threshold).",
     "calque.osm": "OSM paths",
     "calque.bdtopo": "BD TOPO paths (IGN)",
+    "calque.senderos": "Waymarked GR/PR/SL trails (Spanish IGN)",
+    "calque.suisseSentiers": "Hiking trails (swisstopo)",
+    "calque.usgsSentiers": "Trails mapped by USGS",
     "calque.chargement": "Loading the {nom}… (the first time, up to a minute)",
     "calque.avancement": "Loading the {nom}… {faites} of {total} tiles · {duree} s",
     "liaison.et": " and ",
@@ -285,7 +316,18 @@ const TEXTES = {
     "fond.scan25": "SCAN 25 (IGN)",
     "fond.plan": "Plan IGN",
     "fond.photos": "Aerial photos (IGN)",
-    "fond.osm": "OpenStreetMap",
+    "fond.osmRando": "OSM hiking",
+    "fond.osm": "OSM",
+    "fond.osmVelo": "OSM cycling",
+    "fond.satellite": "Satellite",
+    "fond.reliefLidar": "LiDAR HD terrain relief (IGN)",
+    "fond.espagne": "Topographic map (Spanish IGN)",
+    "fond.suisse": "National map (swisstopo)",
+    "fond.autriche": "Official map (basemap.at)",
+    "fond.paysBas": "Topographic map (PDOK)",
+    "fond.norvege": "Hiking map (Kartverket)",
+    "fond.luxembourg": "Topographic map (Luxembourg)",
+    "fond.etatsUnis": "Topographic map (USGS)",
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
@@ -412,6 +454,7 @@ function appliquerLangue(code) {
   langue = code === "en" ? "en" : "fr";
   document.documentElement.lang = langue;
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  afficherOptionChemins();
   $("cityQuery").placeholder = t("recherche.placeholder");
   if ($("pleinEcran")) {
     $("pleinEcran").title = t(document.body.classList.contains("plein-ecran") ? "pleinEcran.quitter" : "pleinEcran.entrer");
@@ -460,6 +503,9 @@ function lireVue() {
 }
 
 const vueInitiale = lireVue();
+let paysCarte = Object.hasOwn(window.HIKE2GPX_MAP_PROVIDERS, vueInitiale.pays)
+  ? vueInitiale.pays : (vueInitiale.hors_france === true ? "autre" : "fr");
+let horsFrance = paysCarte !== "fr";
 const carte = L.map("carte").setView([vueInitiale.lat, vueInitiale.lon], vueInitiale.zoom);
 let sequenceRecherche = 0;
 const resultatsVilles = $("cityResults");
@@ -492,7 +538,9 @@ $("citySearch").addEventListener("submit", async (e) => {
       bouton.type = "button";
       bouton.textContent = ville.detail ? `${ville.nom} · ${ville.detail}` : ville.nom;
       bouton.addEventListener("click", () => {
+        choisirPays(Object.hasOwn(window.HIKE2GPX_MAP_PROVIDERS, ville.code_pays) ? ville.code_pays : "autre");
         carte.setView([ville.lat, ville.lon], 13);
+        memoriserVue(ville.lat, ville.lon, 13);
         $("cityQuery").value = ville.nom;
         resultatsVilles.hidden = true;
       });
@@ -506,11 +554,14 @@ $("citySearch").addEventListener("submit", async (e) => {
     if (numero === sequenceRecherche) $("citySubmit").disabled = false;
   }
 });
+function memoriserVue(lat, lon, zoom) {
+  try {
+    localStorage.setItem(CLE_VUE, JSON.stringify({ lat, lon, zoom, pays: paysCarte, hors_france: horsFrance }));
+  } catch (e) { /* sans importance */ }
+}
 carte.on("moveend", () => {
   const c = carte.getCenter();
-  try {
-    localStorage.setItem(CLE_VUE, JSON.stringify({ lat: c.lat, lon: c.lng, zoom: carte.getZoom() }));
-  } catch (e) { /* sans importance */ }
+  memoriserVue(c.lat, c.lng, carte.getZoom());
   actualiserDisponibilite();
 });
 
@@ -536,15 +587,15 @@ async function actualiserDisponibilite() {
 }
 setInterval(actualiserDisponibilite, 10000);
 
-function tuileIgn(couche, format, cle) {
+function tuileIgn(couche, format, cle, matrices = "PM") {
   const base = cle ? "https://data.geopf.fr/private/wmts" : "https://data.geopf.fr/wmts";
   return `${base}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${couche}&STYLE=normal`
-    + `&TILEMATRIXSET=PM&FORMAT=${format}&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}`
+    + `&TILEMATRIXSET=${matrices}&FORMAT=${format}&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}`
     + (cle ? `&apikey=${encodeURIComponent(cle)}` : "");
 }
 
-const IGN = '© <a href="https://www.ign.fr/">IGN</a>';
 const CLE_FOND = "hike2gpx.fond";
+const FOURNISSEURS_CARTES = window.HIKE2GPX_MAP_PROVIDERS;
 let controleFonds = null;
 let fondActif = null;
 let couchesFonds = {};      // clé -> fond de carte Leaflet
@@ -558,7 +609,7 @@ carte.on("baselayerchange", (e) => {
   ajusterRecouvrementTuiles();
   const cle = Object.keys(couchesFonds).find((nom) => couchesFonds[nom] === e.layer);
   if (cle) {
-    try { localStorage.setItem(CLE_FOND, cle); } catch (erreur) { /* stockage indisponible */ }
+    try { localStorage.setItem(`${CLE_FOND}.${paysCarte}`, cle); } catch (erreur) { /* stockage indisponible */ }
   }
 });
 
@@ -567,6 +618,10 @@ carte.on("baselayerchange", (e) => {
 // Le tracé et ses franchissements passent au-dessus des chemins dessinés.
 carte.createPane("trace").style.zIndex = 450;
 carte.createPane("sensTrace").style.zIndex = 451;
+carte.createPane("gpxImporte").style.zIndex = 449;
+const traceGpxImporte = L.layerGroup();
+let nomGpxImporte = null;
+let sequenceImportGpx = 0;
 const rendu = L.canvas({ padding: 0.2 });
 const ZOOM_CALQUES = 14;
 const CLE_CALQUES = "hike2gpx.calques";
@@ -575,6 +630,38 @@ const CALQUES = {
   osm: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
   bdtopo: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
 };
+const CALQUES_PAYS = Object.fromEntries(Object.values(FOURNISSEURS_CARTES)
+  .flatMap((fournisseur) => Object.entries(fournisseur.calques || {})
+    .map(([cle, creer]) => [cle, creer(L)])));
+function calquesDuPays() {
+  return FOURNISSEURS_CARTES[paysCarte]?.overlays || [];
+}
+function coucheCalque(cle) {
+  return CALQUES[cle]?.groupe || CALQUES_PAYS[cle];
+}
+let changementPays = false;
+function cochesCalques() {
+  try {
+    const sauves = JSON.parse(localStorage.getItem(CLE_CALQUES) || "null");
+    if (Array.isArray(sauves)) {
+      // L'ancien calque NPS coché devient le calque USGS, plus complet.
+      if (sauves.includes("npsSentiers") && !sauves.includes("usgsSentiers")) sauves.push("usgsSentiers");
+      return sauves;
+    }
+  } catch (e) { /* préférence illisible */ }
+  return ["osm", ...Object.values(FOURNISSEURS_CARTES).flatMap((fournisseur) => fournisseur.overlays)];
+}
+function memoriserCalques() {
+  if (changementPays) return;
+  const applicables = ["osm", ...calquesDuPays()];
+  const coches = new Set(cochesCalques());
+  for (const cle of applicables) {
+    if (carte.hasLayer(coucheCalque(cle))) coches.add(cle);
+    else coches.delete(cle);
+  }
+  try { localStorage.setItem(CLE_CALQUES, JSON.stringify([...coches])); }
+  catch (e) { /* sans importance */ }
+}
 const STYLES_OSM = {
   sentier: { color: "#7b1fa2", weight: 3, dashArray: "6 4" },
   piste: { color: "#7b1fa2", weight: 3 },
@@ -776,6 +863,8 @@ carte.on("moveend", () => {
   minuterieCalques = setTimeout(rafraichirCalques, 400);
 });
 carte.on("overlayadd overlayremove", (e) => {
+  const officiel = Object.keys(CALQUES_PAYS).find((cle) => CALQUES_PAYS[cle] === e.layer);
+  if (officiel) { memoriserCalques(); return; }
   const cle = Object.keys(CALQUES).find((c) => CALQUES[c].groupe === e.layer);
   if (!cle) return;
   const calque = CALQUES[cle];
@@ -784,24 +873,53 @@ carte.on("overlayadd overlayremove", (e) => {
     calque.groupe.clearLayers();
     calque.charge = null;
   }
-  try {
-    localStorage.setItem(CLE_CALQUES, JSON.stringify(Object.keys(CALQUES).filter((cle) => carte.hasLayer(CALQUES[cle].groupe))));
-  } catch (erreur) { /* sans importance */ }
+  memoriserCalques();
   rafraichirCalques();
 });
 
 function restaurerCalques() {
-  let coches = Object.keys(CALQUES);
-  try {
-    const choix = localStorage.getItem(CLE_CALQUES);
-    if (choix !== null) {
-      const sauves = JSON.parse(choix);
-      if (Array.isArray(sauves)) coches = sauves;
-    }
-  } catch (e) { /* préférence illisible : conserver les deux calques par défaut */ }
-  for (const cle of coches) {
-    if (CALQUES[cle]) CALQUES[cle].groupe.addTo(carte);
+  const coches = cochesCalques();
+  for (const cle of ["osm", ...calquesDuPays()]) {
+    if (coches.includes(cle) && !carte.hasLayer(coucheCalque(cle))) coucheCalque(cle).addTo(carte);
   }
+}
+
+function choisirPays(pays) {
+  if (paysCarte === pays) return;
+  ++sequenceExtrait;
+  changementPays = true;
+  // Les retraits automatiques de calques ne changent pas leurs préférences.
+  const bdtopo = CALQUES.bdtopo;
+  bdtopo.groupe.remove();
+  if (abandonner(bdtopo)) arreterAuServeur(["bdtopo"]);
+  bdtopo.groupe.clearLayers();
+  bdtopo.charge = null;
+  for (const couche of Object.values(CALQUES_PAYS)) couche.remove();
+  paysCarte = pays;
+  horsFrance = pays !== "fr";
+  afficherOptionsIgn();
+  restaurerCalques();
+  construireFonds();
+  changementPays = false;
+}
+
+function afficherOptionsIgn() {
+  $("legendIgn").hidden = horsFrance;
+  afficherOptionChemins();
+  for (const element of document.querySelectorAll("[data-map-overlay]")) {
+    element.hidden = !calquesDuPays().includes(element.dataset.mapOverlay);
+  }
+}
+
+function afficherOptionChemins() {
+  const fournisseur = FOURNISSEURS_CARTES[paysCarte];
+  const couche = fournisseur?.routableOverlay || fournisseur?.overlays?.[0];
+  $("ignOption").hidden = !couche;
+  const routable = Boolean(fournisseur?.routableOverlay);
+  $("ign").disabled = !routable;
+  $("ign").checked = routable && choixIgn;
+  if (couche) $("ignOptionTexte").textContent = t(routable ? "option.cheminsRoutables" : "option.cheminsAffichage",
+    { nom: routable ? fournisseur.routableName[langue] : t(`calque.${couche}`) });
 }
 
 // ------------------------------------------------------------ données OSM hors ligne
@@ -813,6 +931,8 @@ function restaurerCalques() {
 // installé, il y remplace Overpass.
 const ZOOM_EXTRAIT = 10;
 let minuterieExtrait = null;
+let sequenceExtrait = 0;
+let essaisPays = 0;
 
 function dateCourte(iso) {
   return new Date(iso).toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR");
@@ -835,11 +955,27 @@ function quoiBrouter(b) {
 // forcer : lire l'état même au zoom faible (lancement de la page, calcul en attente).
 async function majExtrait(forcer = false) {
   clearTimeout(minuterieExtrait);
+  const numero = ++sequenceExtrait;
   const enCours = extraitActif(etat.extrait) || brouterActif(etat.extrait) || etat.donneesAttendues;
   if (carte.getZoom() < ZOOM_EXTRAIT && !enCours && !forcer) { afficherExtrait(null); return; }
   const parametres = new URLSearchParams(Object.entries(zoneVue()).map(([k, v]) => [k, v.toFixed(5)]));
   try {
-    afficherExtrait(await api(`extrait?${parametres}`));
+    const resultat = await api(`extrait?${parametres}`);
+    if (numero !== sequenceExtrait) return;
+    if (resultat.pays) {
+      essaisPays = 0;
+      choisirPays(resultat.pays);
+    } else if (typeof resultat.hors_france === "boolean") {
+      choisirPays(resultat.hors_france ? "autre" : "fr");
+      essaisPays = resultat.hors_france ? essaisPays + 1 : 0;
+    } else {
+      ++essaisPays;
+    }
+    afficherExtrait(resultat);
+    // L'index des contours français peut encore se préparer au premier usage.
+    if (essaisPays && essaisPays <= 30 && !minuterieExtrait) {
+      minuterieExtrait = setTimeout(() => majExtrait(true), 3000);
+    }
   } catch (e) { /* serveur momentanément injoignable : la ligne reste telle quelle */ }
 }
 
@@ -890,34 +1026,54 @@ function afficherExtrait(r) {
 }
 
 carte.on("moveend", () => {
+  ++sequenceExtrait;
+  essaisPays = 0;
   clearTimeout(minuterieExtrait);
-  minuterieExtrait = setTimeout(majExtrait, 600);
+  minuterieExtrait = setTimeout(() => majExtrait(true), 600);
 });
 
 // Fonds de carte et contrôle des calques, refaits quand la clé IGN ou la
 // langue change ; le fond affiché reste le même.
 function construireFonds() {
-  const cleActive = Object.keys(couchesFonds).find((cle) => couchesFonds[cle] === fondActif);
   let clePreferee = null;
-  try { clePreferee = localStorage.getItem(CLE_FOND); } catch (erreur) { /* fond par défaut */ }
+  try {
+    clePreferee = localStorage.getItem(`${CLE_FOND}.${paysCarte}`)
+      || (paysCarte === "fr" ? localStorage.getItem(CLE_FOND) : null);
+  } catch (erreur) { /* fond par défaut */ }
   couchesFonds = {};
-  if (etat.cleIgn) {
-    couchesFonds.scan25 = L.tileLayer(tuileIgn("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", etat.cleIgn),
-      { maxNativeZoom: 16, maxZoom: 19, attribution: IGN });
-  }
-  couchesFonds.plan = L.tileLayer(tuileIgn("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png"),
-    { maxNativeZoom: 18, maxZoom: 19, attribution: IGN });
-  couchesFonds.photos = L.tileLayer(tuileIgn("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg"),
-    { maxNativeZoom: 19, maxZoom: 19, attribution: IGN });
+  Object.assign(couchesFonds, FOURNISSEURS_CARTES[paysCarte].bases({ L, cleIgn: etat.cleIgn, tuileIgn }));
+  couchesFonds.osmRando = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    { maxNativeZoom: 17, maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM '
+        + '| © <a href="https://opentopomap.org/">OpenTopoMap</a> (CC-BY-SA)' });
   couchesFonds.osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: `© <a href="https://www.openstreetmap.org/copyright">${t("attribution.osm")}</a>` });
+  couchesFonds.osmVelo = L.tileLayer("https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
+    { maxNativeZoom: 18, maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
+        + '· <a href="https://www.cyclosm.org/">CyclOSM</a>' });
+  couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { maxNativeZoom: 19, maxZoom: 19,
+      attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
+  // presentation.js place la légende dans le contrôle Leaflet. La récupérer
+  // avant de le retirer, sinon elle disparaît du DOM au changement de pays.
+  const legende = $("mapLegend");
+  if (legende && controleFonds) document.body.append(legende);
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
-  fondActif = (couchesFonds[clePreferee] || couchesFonds[cleActive] || Object.values(couchesFonds)[0]).addTo(carte);
+  const defaut = FOURNISSEURS_CARTES[paysCarte].defaultBase;
+  const choix = (clePreferee && couchesFonds[clePreferee]) ? clePreferee : defaut;
+  fondActif = (couchesFonds[choix] || couchesFonds.plan || couchesFonds.osm).addTo(carte);
   ajusterRecouvrementTuiles();
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));
-  const calques = Object.fromEntries(Object.entries(CALQUES).map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
+  const calques = Object.fromEntries(Object.entries(CALQUES)
+    .filter(([cle]) => !horsFrance || cle === "osm")
+    .map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
+  for (const cle of calquesDuPays()) {
+    if (CALQUES_PAYS[cle]) calques[t(`calque.${cle}`)] = CALQUES_PAYS[cle];
+  }
+  if (nomGpxImporte) calques[echapper(nomGpxImporte)] = traceGpxImporte;
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
 }
 
@@ -1098,7 +1254,7 @@ async function calculer() {
     afficherStatut(etat.points.length ? () => t("statut.deuxiemePoint") : "");
     return;
   }
-  const ign = $("ign").checked;
+  const ign = Boolean(FOURNISSEURS_CARTES[paysCarte]?.routableOverlay && $("ign").checked);
   afficherStatut(() => t("statut.calcul") + (ign ? t("statut.calculIgn") : "."));
   occupe(true);
   let reponse;
@@ -1123,23 +1279,6 @@ async function calculer() {
   else {
     afficher(reponse);
     majExtrait(true);       // le calcul a pu lancer l'extrait OSM de la région
-  }
-  chargerJournal();
-}
-
-// ------------------------------------------------------------ journal
-
-// Les dernières lignes du journal des calculs (erreurs, blocages, lenteurs),
-// relues à l'ouverture de la section et après chaque calcul.
-async function chargerJournal() {
-  if ($("pane-journal").hidden) return;
-  try {
-    const j = await api("journal");
-    $("cheminJournal").textContent = j.chemin;
-    $("lignesJournal").textContent = j.lignes.length ? j.lignes.join("\n") : t("journal.vide");
-    $("lignesJournal").scrollTop = $("lignesJournal").scrollHeight;
-  } catch (e) {
-    $("lignesJournal").textContent = t("journal.illisible", { message: e.message });
   }
 }
 
@@ -1376,11 +1515,10 @@ async function calculerDenivele(r) {
   profilRoute = preparerRouteProfil(r.itineraire.geometry.coordinates);
   ecrireDenivele(d);
   if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:denivele", { detail: d }));
-  chargerJournal();
 }
 
 function ecrireDenivele(d) {
-  $("denivele").textContent = `+${d.montee_m} m, −${d.descente_m} m`;
+  $("denivele").textContent = `+ ${d.montee_m} m / − ${d.descente_m} m`;
   $("pointHaut").textContent = `${d.altitude_max_m} m`;
   $("pointBas").textContent = `${d.altitude_min_m} m`;
   const minutes = Math.ceil(d.duree_marche_s / 300) * 5;
@@ -1431,6 +1569,81 @@ function exporter() {
   setTimeout(() => URL.revokeObjectURL(lien.href), 1000);
 }
 
+function lireTracesGpx(source) {
+  const xml = new DOMParser().parseFromString(source, "application/xml");
+  if (xml.documentElement?.localName !== "gpx" || xml.getElementsByTagName("parsererror").length) {
+    throw new Error(t("gpx.invalide"));
+  }
+  const segments = [];
+  const lirePoints = (parent, nom) => Array.from(parent.getElementsByTagNameNS("*", nom), (point) => {
+    const latitude = point.getAttribute("lat");
+    const longitude = point.getAttribute("lon");
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (!latitude?.trim() || !longitude?.trim() || !Number.isFinite(lat) || !Number.isFinite(lon)
+      || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error(t("gpx.invalide"));
+    return [lat, lon];
+  });
+  for (const segment of xml.getElementsByTagNameNS("*", "trkseg")) {
+    const points = lirePoints(segment, "trkpt");
+    if (points.length) segments.push(points);
+  }
+  for (const route of xml.getElementsByTagNameNS("*", "rte")) {
+    const points = lirePoints(route, "rtept");
+    if (points.length) segments.push(points);
+  }
+  if (!segments.length) throw new Error(t("gpx.invalide"));
+  return segments;
+}
+
+async function chargerGpx(fichier) {
+  const sequence = ++sequenceImportGpx;
+  $("erreurGpx").hidden = true;
+  try {
+    if (fichier.size > 20_000_000) throw new Error(t("gpx.tropGrand"));
+    const segments = lireTracesGpx(await fichier.text());
+    if (sequence !== sequenceImportGpx) return;
+    traceGpxImporte.clearLayers();
+    let minLat = 90, minLon = 180, maxLat = -90, maxLon = -180;
+    for (const points of segments) {
+      L.polyline(points, { pane: "gpxImporte", color: "#344132", weight: 7, opacity: 0.9,
+        dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
+      L.polyline(points, { pane: "gpxImporte", color: "#ffe14a", weight: 4, opacity: 1,
+        dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
+      for (const [lat, lon] of points) {
+        minLat = Math.min(minLat, lat); minLon = Math.min(minLon, lon);
+        maxLat = Math.max(maxLat, lat); maxLon = Math.max(maxLon, lon);
+      }
+    }
+    nomGpxImporte = fichier.name.replace(/\.gpx$/i, "") || fichier.name;
+    traceGpxImporte.addTo(carte);
+    if (controleFonds) controleFonds.addOverlay(traceGpxImporte, echapper(nomGpxImporte));
+    else construireFonds();
+    $("legendGpx").hidden = false;
+    $("chargerGpx").dataset.i18n = "bouton.supprimerGpx";
+    $("chargerGpx").textContent = t("bouton.supprimerGpx");
+    carte.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [30, 30], maxZoom: 16 });
+  } catch (erreur) {
+    if (sequence === sequenceImportGpx) {
+      $("erreurGpx").textContent = t("gpx.erreur", { message: erreur.message });
+      $("erreurGpx").hidden = false;
+    }
+  }
+}
+
+function supprimerGpx() {
+  ++sequenceImportGpx;
+  if (controleFonds) controleFonds.removeLayer(traceGpxImporte);
+  traceGpxImporte.remove();
+  traceGpxImporte.clearLayers();
+  $("fichierGpx").value = "";
+  nomGpxImporte = null;
+  $("legendGpx").hidden = true;
+  $("chargerGpx").dataset.i18n = "bouton.chargerGpx";
+  $("chargerGpx").textContent = t("bouton.chargerGpx");
+  $("erreurGpx").hidden = true;
+}
+
 // ------------------------------------------------------------ démarrage
 
 carte.on("click", (e) => ajouterPoint(e.latlng));
@@ -1443,12 +1656,22 @@ $("toutEffacer").addEventListener("click", () => {
   planifierCalcul();
 });
 $("exporter").addEventListener("click", exporter);
+$("chargerGpx").addEventListener("click", () => {
+  if (!nomGpxImporte) $("fichierGpx").click();
+  else supprimerGpx();
+});
+$("fichierGpx").addEventListener("change", (event) => {
+  const fichier = event.target.files?.[0];
+  event.target.value = "";
+  if (fichier) return chargerGpx(fichier);
+});
 new PleinEcran().addTo(carte);
 // Échap quitte le plein écran du navigateur : la page revient avec lui.
 document.addEventListener("fullscreenchange", () => {
   if (!document.fullscreenElement && document.body.classList.contains("plein-ecran")) appliquerPleinEcran(false);
 });
 const CLE_OPTIONS = "hike2gpx.options";
+let choixIgn = $("ign").checked;
 function restaurerOptions() {
   try {
     const options = JSON.parse(localStorage.getItem(CLE_OPTIONS) || "null");
@@ -1456,10 +1679,11 @@ function restaurerOptions() {
     for (const id of ["strict", "ign", "comparer"]) {
       if (typeof options[id] === "boolean") $(id).checked = options[id];
     }
+    choixIgn = $("ign").checked;
   } catch (erreur) { /* conserver les valeurs par défaut */ }
 }
 function memoriserOptions() {
-  const options = Object.fromEntries(["strict", "ign", "comparer"].map((id) => [id, $(id).checked]));
+  const options = { strict: $("strict").checked, ign: choixIgn, comparer: $("comparer").checked };
   try { localStorage.setItem(CLE_OPTIONS, JSON.stringify(options)); } catch (erreur) { /* sans importance */ }
 }
 restaurerOptions();
@@ -1475,7 +1699,11 @@ function restaurerPoints() {
 }
 restaurerPoints();
 for (const id of ["strict", "ign", "comparer"]) {
-  $(id).addEventListener("change", () => { memoriserOptions(); planifierCalcul(); });
+  $(id).addEventListener("change", () => {
+    if (id === "ign") choixIgn = $("ign").checked;
+    memoriserOptions();
+    planifierCalcul();
+  });
 }
 $("enregistrerCle").addEventListener("click", async () => {
   try {
@@ -1489,6 +1717,19 @@ $("enregistrerCle").addEventListener("click", async () => {
     verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
+  }
+});
+$("ouvrirDossierJournaux").addEventListener("click", async () => {
+  const bouton = $("ouvrirDossierJournaux");
+  bouton.disabled = true;
+  $("erreurDossierJournaux").hidden = true;
+  try {
+    await api("ouvrir_journaux", {});
+  } catch (erreur) {
+    $("erreurDossierJournaux").textContent = t("reglages.erreurJournaux", { message: erreur.message });
+    $("erreurDossierJournaux").hidden = false;
+  } finally {
+    bouton.disabled = false;
   }
 });
 
@@ -1556,6 +1797,7 @@ async function verifierBrouter() {
 }
 
 async function demarrer() {
+  afficherOptionsIgn();
   try {
     const [infos, reglages] = await Promise.all([api("etat"), api("reglages")]);
     etat.version = infos.version;

@@ -9,28 +9,30 @@ const vm = require("node:vm");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-function charger(preferences = {}) {
+function charger(preferences = {}, documentGpx = null) {
   const elements = new Map();
   const stockage = new Map(Object.entries(preferences));
   const minuteurs = [];
   const element = () => {
     const classes = new Set();
-    return { disabled: true, hidden: false, checked: false, textContent: "", value: "",
+    return { disabled: true, hidden: false, checked: false, textContent: "", value: "", dataset: {},
       style: { setProperty(name, value) { this[name] = value; } },
       classList: { toggle(c, oui) { (oui ?? !classes.has(c)) ? classes.add(c) : classes.delete(c); },
         contains: (c) => classes.has(c) },
       enfants: [], ecouteurs: {},
       append(...e) { this.enfants.push(...e); }, replaceChildren(...e) { this.enfants = e; },
       setAttribute(name, value) { this[name] = value; },
-      addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() {},
+      addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() { this.removed = true; },
       click() { for (const action of this.ecouteurs.click || []) action(); } };
   };
-  const couche = () => ({ handlers: {}, layers: [], addTo(parent) { parent.layers?.push(this); return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
-    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() {}, closePopup() {} });
+  const couche = () => ({ handlers: {}, layers: [], addTo(parent) { this.addedTo = parent; parent.layers?.push(this); return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
+    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() { this.removed = true; }, closePopup() {} });
   const carte = { handlers: {}, zoom: 14, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; },
+    fitBounds(bounds, options) { this.fit = { bounds, options }; return this; },
     on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
       ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
     hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
+    getCenter() { return { lat: (this.vue.s + this.vue.n) / 2, lng: (this.vue.w + this.vue.e) / 2 }; },
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
       getEast: () => v.e }; } };
@@ -39,17 +41,34 @@ function charger(preferences = {}) {
   const corps = element();
   const contexte = vm.createContext({
     console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance,
+    DOMParser: class { parseFromString() { return documentGpx; } },
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
-      addEventListener() {}, querySelectorAll() { return []; } },
+       addEventListener() {}, querySelectorAll(selector) {
+         if (selector !== "[data-map-overlay]") return [];
+         return [["legendBdtopo", "bdtopo"], ["legendSenderos", "senderos"],
+           ["legendSuisse", "suisseSentiers"]].map(([id, cle]) => {
+           const ligne = this.getElementById(id); ligne.dataset.mapOverlay = cle; return ligne;
+         });
+       } },
     localStorage: { getItem(key) { return stockage.get(key) ?? null; }, setItem(key, value) { stockage.set(key, value); } },
     confirm: (texte) => { confirmations.push(texte); return confirmations.reponse; },
     setTimeout(callback, ms) { minuteurs.push({ callback, ms }); return minuteurs.length; },
     clearTimeout(id) { if (minuteurs[id - 1]) minuteurs[id - 1].annule = true; },
     setInterval() { return 1; }, clearInterval() {},
-    L: { map() { return carte; }, layerGroup: couche, canvas: couche, polyline: couche, circleMarker: couche,
+     L: { map() { return carte; }, layerGroup: couche, canvas: couche,
+       vectorGrid: { protobuf: (url, options) => Object.assign(couche(), { url, options }) },
+      polyline: (points, options) => Object.assign(couche(), { points, options }), circleMarker: couche,
       marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
-      tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }), control: { layers: couche },
+      tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }),
+      control: { layers: (fonds, calques) => Object.assign(couche(), { fonds, calques,
+        addOverlay(layer, name) { this.calques[name] = layer; return this; },
+        removeLayer(layer) {
+          for (const [name, value] of Object.entries(this.calques)) {
+            if (value === layer) delete this.calques[name];
+          }
+          return this;
+        } }) },
       latLng: (lat, lng) => ({ lat: Array.isArray(lat) ? lat[0] : lat,
         lng: Array.isArray(lat) ? lat[1] : lng, distanceTo() { return 1000; } }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
@@ -62,13 +81,22 @@ function charger(preferences = {}) {
       });
     },
   });
+  contexte.window = contexte;
+  const providers = path.join(__dirname, "..", "hike2gpx", "assets", "web", "providers");
+  vm.runInContext("window.HIKE2GPX_MAP_PROVIDERS = {};", contexte);
+  for (const fichier of fs.readdirSync(providers).filter((nom) => /^[a-z]{2}\.js$/.test(nom)).sort()) {
+    vm.runInContext(fs.readFileSync(path.join(providers, fichier), "utf8"), contexte);
+  }
+  vm.runInContext('window.HIKE2GPX_MAP_PROVIDERS.autre = '
+    + '{ defaultBase: "osm", overlays: [], bases: () => ({}) };', contexte);
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
-    + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
-    + " fond: () => fondActif, fonds: () => couchesFonds, restaurerCalques,"
-    + " preparerFleches, afficherFleches, fleches, setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
+     + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
+    + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
+    + " preparerFleches, afficherFleches, fleches, traceGpxImporte,"
+    + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs };
 }
@@ -80,6 +108,78 @@ function resultat(lonArrivee) {
 }
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
+
+function documentGpx(segments) {
+  const point = ([lat, lon]) => ({ hasAttribute: (nom) => nom === "lat" || nom === "lon",
+    getAttribute: (nom) => nom === "lat" ? String(lat) : String(lon) });
+  return { documentElement: { localName: "gpx" }, getElementsByTagName: () => [],
+    getElementsByTagNameNS(_ns, nom) {
+      if (nom === "trkseg") return segments.map((s) => ({ getElementsByTagNameNS: (_n, tag) =>
+        tag === "trkpt" ? s.map(point) : [] }));
+      return [];
+    } };
+}
+
+test("un GPX chargé se coche dans les couches sans perdre son tracé", async () => {
+  const { page, elements, carte, stockage } = charger({}, documentGpx([[[43.3, 6], [43.31, 6.02]]]));
+  const fichier = { name: "2026-09-20_09-03.gpx", size: 250, text: async () => "<gpx/>" };
+  await elements.get("fichierGpx").ecouteurs.change[0]({ target: { files: [fichier], value: "rando.gpx" } });
+  assert.equal(page.traceGpxImporte.layers.length, 2);
+  assert.equal(page.traceGpxImporte.layers[0].options.pane, "gpxImporte");
+  assert.equal(page.traceGpxImporte.layers[1].options.color, "#ffe14a");
+  assert.equal(JSON.stringify(carte.fit.bounds), "[[43.3,6],[43.31,6.02]]");
+  assert.deepEqual(Object.keys(page.controle().calques),
+    ["Chemins OSM", "Chemins BD TOPO (IGN)", "2026-09-20_09-03"]);
+  assert.equal(elements.get("legendGpx").hidden, false);
+  page.traceGpxImporte.remove();
+  carte.handlers["overlayadd overlayremove"]({ layer: page.traceGpxImporte, type: "overlayremove" });
+  assert.equal(page.traceGpxImporte.layers.length, 2);
+  page.traceGpxImporte.addTo(carte);
+  page.construireFonds();
+  assert.equal(page.controle().calques["2026-09-20_09-03"], page.traceGpxImporte);
+  assert.equal(elements.get("chargerGpx").textContent, "Supprimer le GPX");
+  assert.equal(page.etat.points.length, 0);
+  assert.equal(stockage.has("hike2gpx.points"), false);
+  elements.get("chargerGpx").click();
+  assert.equal(page.traceGpxImporte.layers.length, 0);
+  assert.equal(page.controle().calques["2026-09-20_09-03"], undefined);
+  assert.equal(elements.get("legendGpx").hidden, true);
+  assert.equal(elements.get("chargerGpx").textContent, "Charger un GPX");
+});
+
+test("un GPX invalide conserve le tracé précédemment chargé", async () => {
+  const document = documentGpx([[[43.3, 6], [43.31, 6.02]]]);
+  const { page, elements } = charger({}, document);
+  const importer = (name) => elements.get("fichierGpx").ecouteurs.change[0]({ target: {
+    files: [{ name, size: 250, text: async () => "<gpx/>" }], value: name } });
+  await importer("bon.gpx");
+  document.getElementsByTagNameNS = () => [{ getElementsByTagNameNS: () => [
+    { hasAttribute: () => true, getAttribute: (nom) => nom === "lat" ? "91" : "6" }] }];
+  await importer("mauvais.gpx");
+  assert.equal(page.traceGpxImporte.layers.length, 2);
+  assert.equal(page.controle().calques.bon, page.traceGpxImporte);
+  assert.equal(page.controle().calques.mauvais, undefined);
+  assert.equal(elements.get("erreurGpx").hidden, false);
+});
+
+test("le nom du fichier GPX est échappé dans le contrôle Leaflet", async () => {
+  const { page, elements } = charger({}, documentGpx([[[43.3, 6], [43.31, 6.02]]]));
+  await elements.get("fichierGpx").ecouteurs.change[0]({ target: {
+    files: [{ name: "<b>rando</b>.gpx", size: 250, text: async () => "<gpx/>" }], value: "" } });
+  assert.equal(page.controle().calques["&lt;b&gt;rando&lt;/b&gt;"], page.traceGpxImporte);
+  assert.equal(page.controle().calques["<b>rando</b>"], undefined);
+});
+
+test("le bouton Réglages demande l'ouverture du dossier des journaux", async () => {
+  const { elements, requetes } = charger();
+  const ouverture = elements.get("ouvrirDossierJournaux").ecouteurs.click[0]();
+  const requete = requetes.findLast((r) => r.url === "/api/ouvrir_journaux");
+  assert.equal(requete.options.method, "POST");
+  repondre(requete, { dossier: "C:\\journaux" });
+  await ouverture;
+  assert.equal(elements.get("ouvrirDossierJournaux").disabled, false);
+  assert.equal(elements.get("erreurDossierJournaux").hidden, true);
+});
 
 test("le parcours revient après rechargement et se recalcule", async () => {
   const avant = charger();
@@ -126,11 +226,144 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
   const recherche = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
   const requete = requetes.find((r) => r.url === "/api/communes");
   assert.equal(JSON.parse(requete.options.body).recherche, "Grenoble");
-  repondre(requete, { communes: [{ nom: "Grenoble", detail: "Isère", lat: 45.1842, lon: 5.7155 }] });
+  repondre(requete, { communes: [{ nom: "Grenoble", detail: "Isère", code_pays: "fr", lat: 45.1842, lon: 5.7155 }] });
   await recherche;
   assert.equal(JSON.stringify(carte.center), "[45.1842,5.7155]");
   assert.equal(carte.viewZoom, 13);
   assert.equal(page.etat.points.length, 0);
+});
+
+test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent en France", async () => {
+  const { page, elements, requetes, stockage, carte } = charger();
+  page.etat.cleIgn = "cle-test";
+  page.construireFonds();
+  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "reliefLidar", "osmRando", "osm", "osmVelo", "satellite"]);
+  assert.ok(page.controle().fonds["Relief LiDAR HD (IGN)"]);
+  assert.match(page.fonds().reliefLidar.url, /IGNF_LIDAR-HD_MNT_ELEVATION\.ELEVATIONGRIDCOVERAGE\.SHADOW/);
+  assert.match(page.fonds().reliefLidar.url, /TILEMATRIXSET=PM_0_18/);
+  assert.equal(page.fonds().reliefLidar.options.maxNativeZoom, 18);
+  carte.handlers.baselayerchange({ layer: page.fonds().reliefLidar });
+  assert.equal(stockage.get("hike2gpx.fond.fr"), "reliefLidar");
+
+  elements.get("cityQuery").value = "Madrid";
+  const rechercheMadrid = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  repondre(requetes.findLast((r) => r.url === "/api/communes"), { communes: [
+    { nom: "Madrid", detail: "Espagne", code_pays: "es", lat: 40.416782, lon: -3.703507 },
+  ] });
+  await rechercheMadrid;
+  assert.deepEqual(Object.keys(page.fonds()), ["espagne", "osmRando", "osm", "osmVelo", "satellite"]);
+  assert.deepEqual(Object.keys(page.controle().fonds), ["Carte topographique (IGN Espagne)", "OSM rando", "OSM", "OSM vélo", "Satellite"]);
+  assert.match(page.fonds().osmRando.url, /tile\.opentopomap\.org/);
+  assert.match(page.fonds().osmVelo.url, /tile-cyclosm\.openstreetmap\.fr\/cyclosm/);
+  assert.equal(page.fonds().osmVelo.options.maxNativeZoom, 18);
+  assert.equal(page.fonds().osmVelo.options.maxZoom, 19);
+  assert.match(page.fonds().satellite.url, /World_Imagery/);
+  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM", "Sentiers balisés GR/PR/SL (IGN Espagne)"]);
+  assert.equal(page.fonds().reliefLidar, undefined);
+  assert.match(page.fond().url, /ign\.es\/wmts\/mapa-raster/);
+  assert.equal(page.CALQUES.bdtopo.groupe.removed, true);
+  assert.equal(elements.get("ignOption").hidden, false);
+  assert.equal(elements.get("ign").disabled, true);
+  assert.match(elements.get("ignOptionTexte").textContent, /affichage seul/);
+  assert.equal(elements.get("legendBdtopo").hidden, true);
+  assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, true);
+
+  const recharge = charger(Object.fromEntries(stockage));
+  recharge.page.restaurerCalques();
+  recharge.page.construireFonds();
+  assert.deepEqual(Object.keys(recharge.page.fonds()), ["espagne", "osmRando", "osm", "osmVelo", "satellite"]);
+  assert.equal(recharge.page.CALQUES.bdtopo.groupe.addedTo, undefined);
+  assert.equal(recharge.page.fonds().reliefLidar, undefined);
+  assert.equal(recharge.elements.get("ignOption").hidden, false);
+  assert.equal(recharge.elements.get("ign").disabled, true);
+  recharge.carte.handlers.baselayerchange({ layer: recharge.page.fonds().satellite });
+  const rechargeSatellite = charger(Object.fromEntries(recharge.stockage));
+  rechargeSatellite.page.construireFonds();
+  assert.equal(rechargeSatellite.page.fond(), rechargeSatellite.page.fonds().satellite);
+
+  elements.get("cityQuery").value = "Grenoble";
+  const rechercheGrenoble = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  repondre(requetes.findLast((r) => r.url === "/api/communes"), { communes: [
+    { nom: "Grenoble", detail: "Isère", code_pays: "fr", lat: 45.1842, lon: 5.7155 },
+  ] });
+  await rechercheGrenoble;
+  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "reliefLidar", "osmRando", "osm", "osmVelo", "satellite"]);
+  assert.equal(Object.keys(page.controle().calques).length, 2);
+  assert.equal(page.fond(), page.fonds().reliefLidar);
+  assert.equal(elements.get("ignOption").hidden, false);
+  assert.equal(elements.get("ign").disabled, false);
+  assert.match(elements.get("ignOptionTexte").textContent, /chemins BD TOPO \(IGN\)/);
+  assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, false);
+  const rechargeFrance = charger(Object.fromEntries(stockage));
+  rechargeFrance.page.construireFonds();
+  assert.equal(rechargeFrance.page.fond(), rechargeFrance.page.fonds().reliefLidar);
+});
+
+test("un déplacement manuel de Madrid à Garéoult rétablit les couches IGN", async () => {
+  const { page, elements, requetes, carte, minuteurs } = charger();
+  elements.get("cityQuery").value = "Madrid";
+  const recherche = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  repondre(requetes.findLast((r) => r.url === "/api/communes"), { communes: [
+    { nom: "Madrid", code_pays: "es", lat: 40.416782, lon: -3.703507 },
+  ] });
+  await recherche;
+  assert.equal(page.fonds().plan, undefined);
+
+  carte.vue = { s: 43.30, w: 5.98, n: 43.35, e: 6.04 };
+  carte.handlers.moveend();
+  const lecture = minuteurs.findLast((m) => m.ms === 600 && !m.annule).callback();
+  repondre(requetes.findLast((r) => r.url.startsWith("/api/extrait?")),
+    { en_cours: null, brouter: null, pays: "fr", hors_france: false });
+  await lecture;
+  assert.ok(page.fonds().plan);
+  assert.equal(elements.get("ignOption").hidden, false);
+
+  carte.vue = { s: 40.40, w: -3.73, n: 40.43, e: -3.68 };
+  carte.handlers.moveend();
+  const retour = minuteurs.findLast((m) => m.ms === 600 && !m.annule).callback();
+  repondre(requetes.findLast((r) => r.url.startsWith("/api/extrait?")),
+    { en_cours: null, brouter: null, pays: "es", hors_france: true });
+  await retour;
+  assert.equal(page.fonds().plan, undefined);
+  assert.ok(page.fonds().espagne);
+  assert.ok(page.controle().calques["Sentiers balisés GR/PR/SL (IGN Espagne)"]);
+});
+
+test("la Suisse active swisstopo et conserve un fond préféré par pays", () => {
+  const { page, carte, stockage } = charger();
+  page.choisirPays("ch");
+  assert.match(page.fond().url, /ch\.swisstopo\.pixelkarte-farbe/);
+  assert.match(page.controle().calques["Sentiers de randonnée (swisstopo)"].url,
+    /ch\.swisstopo\.swisstlm3d-wanderwege/);
+  assert.equal(page.fonds().plan, undefined);
+  carte.handlers.baselayerchange({ layer: page.fonds().osm });
+  assert.equal(stockage.get("hike2gpx.fond.ch"), "osm");
+  page.choisirPays("es");
+  assert.match(page.fond().url, /ign\.es\/wmts\/mapa-raster/);
+  page.choisirPays("ch");
+  assert.match(page.fond().url, /tile\.openstreetmap\.org/);
+});
+
+test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins disponibles", () => {
+  const { page, elements } = charger();
+  page.choisirPays("at");
+  assert.match(page.fond().url, /mapsneu\.wien\.gv\.at\/basemap/);
+  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.equal(elements.get("ignOption").hidden, true);
+  page.choisirPays("nl");
+  assert.match(page.fond().url, /service\.pdok\.nl\/kadaster\/brt-achtergrondkaart/);
+  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.equal(elements.get("ignOption").hidden, true);
+});
+
+test("les États-Unis proposent le fond USGS et ses sentiers agrégés", () => {
+  const { page, elements } = charger();
+  page.choisirPays("us");
+  assert.match(page.fond().url, /basemap\.nationalmap\.gov.*USGSTopo/);
+  assert.ok(page.controle().calques["Sentiers recensés par l’USGS"]);
+  assert.equal(elements.get("ignOption").hidden, false);
+  assert.equal(elements.get("ign").disabled, true);
+  assert.match(elements.get("ignOptionTexte").textContent, /USGS.*affichage seul/);
 });
 
 test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {
@@ -144,11 +377,13 @@ test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", 
   assert.equal(elements.get("duree").textContent, "…");
   const relief = requetes.find((r) => r.url === "/api/denivele");
   repondre(relief, { montee_m: 120, descente_m: 90, altitude_min_m: 400, altitude_max_m: 700,
-    modele: "IGN LiDAR HD", duree_marche_s: 8100 });
+    modele: "Mapterhorn", duree_marche_s: 8100 });
   await new Promise(setImmediate);
   assert.equal(elements.get("duree").textContent, "2 h 15");
   assert.equal(elements.get("pointHaut").textContent, "700 m");
   assert.equal(elements.get("pointBas").textContent, "400 m");
+assert.equal(elements.get("denivele").textContent, "+ 120 m / − 90 m");
+assert.match(elements.get("sourceDenivele").textContent, /Source des altitudes du parcours : Mapterhorn/);
 });
 
 test("les flèches suivent le sens du tracé et disparaissent au zoom éloigné", () => {
@@ -206,7 +441,7 @@ test("les options de marche et le fond reviennent à l'ouverture", () => {
   elements.get("comparer").ecouteurs.change[0]();
   assert.deepEqual(JSON.parse(stockage.get("hike2gpx.options")), { strict: true, ign: false, comparer: true });
   carte.handlers.baselayerchange({ layer: page.fonds().plan });
-  assert.equal(stockage.get("hike2gpx.fond"), "plan");
+  assert.equal(stockage.get("hike2gpx.fond.fr"), "plan");
   carte.zoom = 19;
   carte.handlers.zoomend();
   assert.equal(elements.get("carte").style["--tile-overlap"], "1px");

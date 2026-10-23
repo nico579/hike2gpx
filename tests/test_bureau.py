@@ -78,6 +78,20 @@ def test_onglet_de_la_page_porte_l_icone(tmp_path):
         serveur.server_close()
 
 
+def test_la_page_charge_les_providers_depuis_leur_dossier(tmp_path):
+    from hike2gpx.application import Application
+    serveur, port = web.demarrer(Application(tmp_path), port=8840, plage=20)
+    try:
+        with urllib.request.urlopen(f"http://{web.HOST}:{port}/map-providers.js?v=3", timeout=5) as reponse:
+            script = reponse.read().decode("utf-8")
+            assert reponse.headers["Content-Type"].startswith("text/javascript")
+        for code in ("fr", "es", "ch", "at", "nl", "no", "lu", "us"):
+            assert f"HIKE2GPX_MAP_PROVIDERS.{code} =" in script
+    finally:
+        serveur.shutdown()
+        serveur.server_close()
+
+
 def test_l_archive_de_chaque_systeme_suit_la_convention_publiee():
     # Les noms que build.py publie (il les demande au commun) : la mise à jour
     # automatique cherche ces fichiers dans la release, cette racine dedans.

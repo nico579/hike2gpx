@@ -68,6 +68,27 @@ def sans_index_geofabrik(monkeypatch):
     monkeypatch.setattr(osmfr, "regions", lambda dossier, **options: [])
 
 
+def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
+    def region(identifiant, sud, ouest, nord, est):
+        anneau = [(ouest, sud), (est, sud), (est, nord), (ouest, nord), (ouest, sud)]
+        return {"id": identifiant, "bornes": (sud, ouest, nord, est), "polygones": [[anneau]]}
+
+    zones = [region("spain", 36, -10, 44, 4), region("switzerland", 45, 5, 48, 11),
+             region("austria", 46, 9, 49, 17), region("netherlands", 50, 3, 54, 8),
+             region("norway", 58, 9, 62, 12), region("luxembourg", 49, 5, 50, 7),
+             region("us", 36, -121, 38, -118)]
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: zones)
+    app = appli.Application(tmp_path)
+    assert app.extrait((40.4, -3.8, 40.5, -3.6))["pays"] == "es"
+    assert app.extrait((46.7, 7.9, 46.9, 8.1))["pays"] == "ch"
+    assert app.extrait((48.1, 16.3, 48.3, 16.5))["pays"] == "at"
+    assert app.extrait((52.0, 5.0, 52.2, 5.2))["pays"] == "nl"
+    assert app.extrait((59.9, 10.7, 60.0, 10.8))["pays"] == "no"
+    assert app.extrait((49.6, 6.1, 49.7, 6.2))["pays"] == "lu"
+    assert app.extrait((37.7, -119.7, 37.8, -119.5))["pays"] == "us"
+    assert "pays" not in app.extrait((52, 12, 52.1, 12.1))
+
+
 @pytest.fixture
 def simulee(tmp_path, monkeypatch):
     a = appli.Application(tmp_path)
@@ -258,6 +279,20 @@ REGION_PACA = {"id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d
                "pbf": "https://download.geofabrik.de/europe/france/provence-alpes-cote-d-azur-latest.osm.pbf",
                "bornes": (42.9, 4.2, 45.2, 7.8),
                "polygones": [[[(4.2, 42.9), (7.8, 42.9), (7.8, 45.2), (4.2, 45.2), (4.2, 42.9)]]]}
+
+
+def test_extrait_signale_le_pays_et_abandonne_l_ancienne_region(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(osmfr, "regions", lambda dossier: [REGION_PACA])
+    abandonnees = []
+    monkeypatch.setattr(geofabrik.Telechargements, "abandonner_hors_tuile",
+                        lambda self, i, j: abandonnees.append((i, j)))
+    france = (43.30, 6.00, 43.34, 6.08)
+    madrid = (40.40, -3.73, 40.43, -3.68)
+    assert a.extrait(france)["hors_france"] is False
+    assert a.extrait(madrid)["hors_france"] is True
+    assert abandonnees == [franchissements.tuile_du_point(43.32, 6.04),
+                           franchissements.tuile_du_point(40.415, -3.705)]
 
 
 def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypatch):
@@ -510,7 +545,8 @@ def test_routes_init_annonce_l_application(tmp_path):
     assert {"osm", "bdtopo", "extrait"} <= set(get)
     # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
     # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
-    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "communes", "langue", "arreter_calques", "donnees"}
+    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "communes", "langue",
+                         "arreter_calques", "donnees", "ouvrir_journaux"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
@@ -650,6 +686,7 @@ def test_journal_est_horodate_et_ne_reprend_pas_l_ancien(tmp_path):
         racine.info("nouvelle session")
         resultat = appli.Application(tmp_path).lire_journal()
         assert chemin.name.startswith("hike2gpx-20") and chemin.suffix == ".log"
+        assert chemin.parent == tmp_path / "logs"
         assert resultat["chemin"] == str(chemin)
         assert any("nouvelle session" in ligne for ligne in resultat["lignes"])
         assert not any("ancienne session" in ligne for ligne in resultat["lignes"])
@@ -661,15 +698,17 @@ def test_journal_est_horodate_et_ne_reprend_pas_l_ancien(tmp_path):
 
 def test_journal_ne_garde_que_les_dernieres_sessions(tmp_path):
     # Un fichier par démarrage : sans élagage, ils s'accumuleraient à jamais.
+    logs = tmp_path / "logs"
+    logs.mkdir()
     anciennes = [f"hike2gpx-202610{jour:02d}-120000-000000.log" for jour in range(1, 13)]
     for nom in anciennes:
-        (tmp_path / nom).write_text("session\n")
-    (tmp_path / (anciennes[0] + ".1")).write_text("rotation\n")
+        (logs / nom).write_text("session\n")
+    (logs / (anciennes[0] + ".1")).write_text("rotation\n")
     (tmp_path / "hike2gpx.log").write_text("journal d'avant les sessions\n")
     chemin = appli.configurer_journal(tmp_path)
     racine = logging.getLogger("hike2gpx")
     try:
-        restants = sorted(p.name for p in tmp_path.glob("hike2gpx-*"))
+        restants = sorted(p.name for p in logs.glob("hike2gpx-*"))
         assert len(restants) == appli.SESSIONS_GARDEES and restants[-1] == chemin.name
         assert restants[:-1] == anciennes[-(appli.SESSIONS_GARDEES - 1):]      # les plus récentes
         assert (tmp_path / "hike2gpx.log").exists()         # rien d'autre n'est touché

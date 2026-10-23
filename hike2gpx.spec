@@ -33,6 +33,9 @@ datas = [(str(f), "hike2gpx/assets") for f in (ASSETS / "hike2gpx.ico", ASSETS /
 datas += [(str(f), "hike2gpx/assets/web") for f in sorted((ASSETS / "web").glob("*"))
           if f.suffix in (".html", ".js", ".css")]
 datas += [(str(f), "hike2gpx/assets/web/leaflet") for f in sorted((ASSETS / "web" / "leaflet").glob("*"))]
+# Fonds et calques par pays, concaténés par web.py en /map-providers.js : sans
+# eux, même la France perd ses fonds IGN.
+datas += [(str(f), "hike2gpx/assets/web/providers") for f in sorted((ASSETS / "web" / "providers").glob("*.js"))]
 datas += [(str(SRC / "LICENSE"), ".")]
 # Le JRE Temurin tel que build.py l'a posé (sous macOS, son seul Contents/Home :
 # le bundle complet serait pris par codesign --deep pour un bundle imbriqué,

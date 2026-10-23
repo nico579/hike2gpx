@@ -58,6 +58,20 @@ def installer_carte(dossier, carte, **options):
     return geofabrik.importer(pbf, base, REGION, DATE)
 
 
+def test_sous_region_geofabrik_installee_sans_sortir_du_dossier(tmp_path):
+    sous_region = {**REGION, "id": "us/utah", "nom": "Utah"}
+    base = geofabrik._base(tmp_path, sous_region["id"])
+    assert base == geofabrik.dossier_extraits(tmp_path) / "us__utah.sqlite"
+    base.parent.mkdir(parents=True)
+    pbf = tmp_path / "utah.osm.pbf"
+    ecrire_pbf(pbf, carte_d_essai()[0])
+    geofabrik.importer(pbf, base, sous_region, DATE)
+    assert any(r["id"] == "us/utah" for r in geofabrik.installes(tmp_path))
+    for identifiant in ("../utah", "us/../utah", "us//utah", "/us/utah"):
+        with pytest.raises(ValueError):
+            geofabrik._base(tmp_path, identifiant)
+
+
 def carte_d_essai():
     carte = Carte()
     sentier = carte.chemin((-60, 30), (60, 30))
@@ -345,6 +359,29 @@ def test_le_dernier_usage_l_emporte(tmp_path, monkeypatch):
     second.join(5)
     taches._fil.join(5)
     assert abandonnes == ["centre", "centre"]
+
+
+def test_quitter_une_region_abandonne_son_import(tmp_path, monkeypatch):
+    abandonnes = []
+
+    def installer(dossier, region, continuer=None, **options):
+        while continuer():
+            time.sleep(0.01)
+        abandonnes.append(region["id"])
+        raise geofabrik.Abandon()
+
+    monkeypatch.setattr(geofabrik, "installer", installer)
+    taches = geofabrik.Telechargements(tmp_path)
+    assert taches.lancer(REGION)
+    fil = taches._fil
+    assert not taches.abandonner_hors_tuile(*fr.tuile_du_point(43.3, 6.0))
+    assert taches.abandonner_hors_tuile(*fr.tuile_du_point(40.4, -3.7))
+    fil.join(5)
+    assert abandonnes == ["essai"]
+    assert taches.etat() is None
+    assert taches.lancer(REGION)  # l'abandon ne bloque pas un usage ultérieur
+    assert taches.abandonner_hors_tuile(*fr.tuile_du_point(40.4, -3.7))
+    taches._fil.join(5)
 
 
 def test_une_erreur_en_s_arretant_n_est_pas_un_echec(tmp_path, monkeypatch):

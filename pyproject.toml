@@ -39,7 +39,7 @@ packages = ["hike2gpx", "hike2gpx.assets", "hike2gpx.assets.web"]
 
 [tool.setuptools.package-data]
 "hike2gpx.assets" = ["*.png", "*.ico"]
-"hike2gpx.assets.web" = ["*.html", "*.js", "*.css", "leaflet/*"]
+"hike2gpx.assets.web" = ["*.html", "*.js", "*.css", "leaflet/*", "providers/*.js"]
 
 [tool.setuptools.dynamic]
 version = {attr = "hike2gpx.__version__"}

@@ -5,18 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=desktop-6">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-21">
+  <link rel="stylesheet" href="/style.css?v=desktop-9">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-32">
 </head>
 <body>
 <div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
 <div id="carte" aria-label="Carte interactive">
   <div class="map-widget-toolbar">
+    <div class="map-widget-heading">
     <button type="button" class="map-widget-button layers-trigger" id="layersButton" aria-label="Choisir le fond de carte, les chemins et la légende" aria-expanded="false" aria-controls="mapLayersMenu">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 6-10 6L2 9l10-6Zm-10 12 10 6 10-6M2 12l10 6 10-6"/></svg>
       <span id="baseLabel">Plan IGN</span>
       <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg>
     </button>
+    <button type="button" class="info-tooltip map-providers-info-button" id="providersInfoButton" aria-label="Pays couverts en plus d’OSM (monde entier)" aria-expanded="false" aria-controls="providersInfoPanel" title="Pays couverts en plus d’OSM (monde entier)">i</button>
+    </div>
+    <section id="providersInfoPanel" class="map-providers-info" aria-label="Pays couverts en plus d’OSM (monde entier)" hidden></section>
   </div>
   <button type="button" class="map-widget-button map-expand-button leaflet-control" id="expandMapButton" aria-label="Mettre la carte en plein écran" aria-pressed="false" title="Mettre la carte en plein écran">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6"/></svg>
@@ -47,12 +51,16 @@
   <div class="sheet-grip"><span></span></div>
   <section id="routeSummary" class="route-summary" aria-label="Informations du parcours" hidden>
     <strong data-i18n="resume.parcours">Votre parcours</strong>
-    <dl><div><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd></div><div><dt class="elevation-label"><span data-i18n="resultat.duree">Durée estimée</span><span class="info-tooltip" tabindex="0" aria-label="Calcul de la durée">i<span role="tooltip" data-i18n="resume.dureeInfo">Modèle de Tobler sur le profil gpx2elev lissé : v = 6 × exp(−3,5 × |pente + 0,05|) km/h. La pente est calculée tous les 20 m dans le sens du parcours ; les durées sont additionnées sans pauses. Le facteur 0,6 ne s'applique qu'aux portions identifiées hors sentier ; les chemins IGN restent des chemins.</span></span></dt><dd id="duree"></dd></div><div><dt data-i18n="resultat.pointHaut">Point haut</dt><dd id="pointHaut"></dd></div><div><dt data-i18n="resultat.pointBas">Point bas</dt><dd id="pointBas"></dd></div><div class="summary-elevation"><dt class="elevation-label"><span data-i18n="resultat.denivele">Dénivelé</span><span class="info-tooltip" tabindex="0" aria-label="Calcul du dénivelé">i<span role="tooltip" data-i18n="resume.deniveleInfo">gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.</span></span></dt><dd id="denivele"></dd></div></dl>
+    <dl>
+      <div><dt data-i18n="resultat.distance">Distance</dt><dd id="distance"></dd></div>
+      <div><dt class="elevation-label"><span data-i18n="resultat.duree">Durée estimée</span><span class="info-tooltip" tabindex="0" aria-label="Calcul de la durée">i<span role="tooltip" data-i18n="resume.dureeInfo">Modèle de Tobler sur le profil gpx2elev lissé : v = 6 × exp(−3,5 × |pente + 0,05|) km/h. La pente est calculée tous les 20 m dans le sens du parcours ; les durées sont additionnées sans pauses. Le facteur 0,6 ne s'applique qu'aux portions identifiées hors sentier ; les chemins IGN restent des chemins.</span></span></dt><dd id="duree"></dd></div>
+      <div class="summary-relief"><dt data-i18n="resultat.altitudeMaxMin">Altitude max/min</dt><dd class="summary-values"><span id="pointHaut"></span><span class="altitude-separator"> / </span><span id="pointBas"></span></dd></div>
+      <div class="summary-relief"><dt class="elevation-label"><span data-i18n="resultat.denivele">Dénivelé</span><span class="info-tooltip" tabindex="0" aria-label="Calcul du dénivelé">i<span role="tooltip" data-i18n="resume.deniveleInfo">gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.</span></span></dt><dd id="denivele" class="summary-values"></dd></div>
+    </dl>
   </section>
   <nav class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
     <button type="button" role="tab" id="tab-trace" data-pane="trace" aria-controls="pane-trace" aria-selected="true">Parcours</button>
     <button type="button" role="tab" id="tab-reglages" data-pane="reglages" aria-controls="pane-reglages" aria-selected="false" tabindex="-1">Réglages</button>
-    <button type="button" role="tab" id="tab-journal" data-pane="journal" aria-controls="pane-journal" aria-selected="false" tabindex="-1">Journal</button>
   </nav>
   <div class="panel-scroll">
   <section id="pane-trace" class="pane" role="tabpanel" aria-labelledby="tab-trace">
@@ -64,10 +72,15 @@
         <span class="action-control"><button id="boucler" type="button" disabled aria-describedby="bouclerInfo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 5 11l4 4M5 11h10a5 5 0 0 1 0 10h-3"/></svg><span data-i18n="bouton.boucler">Revenir</span></button><span id="bouclerInfo" class="action-tooltip" role="tooltip" data-i18n="bouton.bouclerInfo">Ajoute le point de départ à la fin du parcours pour fermer la boucle.</span></span>
       </div>
       <button id="exporter" type="button" class="principal" disabled data-i18n="bouton.exporter">Exporter le GPX</button>
+      <div class="gpx-import">
+        <input id="fichierGpx" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden>
+        <button id="chargerGpx" type="button" data-i18n="bouton.chargerGpx">Charger un GPX</button>
+        <p id="erreurGpx" class="gpx-erreur" role="alert" hidden></p>
+      </div>
     </div>
     <h2 class="section-title">Votre façon de marcher</h2>
     <label class="option"><input type="checkbox" id="strict"> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
-    <label class="option"><input type="checkbox" id="ign" checked> <span data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
+    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte" data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
     <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
     <p id="statut" role="status"></p>
     <p id="noteCalques" class="note" hidden><span id="noteCalquesTexte"></span><span id="noteCalquesPiste" class="piste" role="progressbar" hidden><span id="noteCalquesBarre" class="barre"></span></span></p>
@@ -87,14 +100,8 @@
       <div class="setting-row renewal-row"><label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les données locales après</label><div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div></div>
       <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
       <div class="display-settings"><label class="option"><input id="hideMapToolbar" type="checkbox"> <span data-i18n="reglages.masquerCartes">Masquer le bandeau des cartes</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
+      <div class="journal-settings"><button id="ouvrirDossierJournaux" type="button" data-i18n="reglages.ouvrirJournaux">Ouvrir le dossier des journaux</button><p id="erreurDossierJournaux" class="note" role="alert" hidden></p></div>
       <div id="donnees"></div>
-    </section>
-  </section>
-  <section id="pane-journal" class="pane" role="tabpanel" aria-labelledby="tab-journal" hidden>
-    <section id="journal">
-      <div class="journal-heading"><h2 data-i18n="journal.titre">Journal des calculs</h2><a href="/journal.txt" target="_blank" rel="noopener" data-i18n="journal.ouvrir">Ouvrir le fichier de log</a></div>
-      <p class="note"><span data-i18n="journal.note">Erreurs, blocages et lenteurs, du plus ancien au plus récent :</span> <span id="cheminJournal"></span></p>
-      <pre id="lignesJournal"></pre>
     </section>
   </section>
   </div>
@@ -104,21 +111,27 @@
 </button>
 <section id="mapLegend" class="legende" aria-label="Légende de la carte" hidden>
   <h3 data-i18n="legende.titre">Légende</h3><ul>
+    <li id="legendGpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">GPX chargé</span></li>
     <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
-    <li><span class="trait ign"></span> <span data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
+    <li id="legendIgn"><span class="trait ign"></span> <span data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
     <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
     <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
     <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
     <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
     <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
-    <li><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
+    <li id="legendBdtopo" data-map-overlay="bdtopo"><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
+    <li data-map-overlay="senderos" hidden><span class="trait senderos"></span> <span data-i18n="legende.senderos">sentiers balisés espagnols (GR rouge, PR jaune, SL vert)</span></li>
+    <li data-map-overlay="suisseSentiers" hidden><span class="trait suisse-sentiers"></span> <span data-i18n="legende.suisseSentiers">sentiers de randonnée swisstopo</span></li>
+    <li data-map-overlay="usgsSentiers" hidden><span class="trait usgs-sentiers"></span> <span data-i18n="legende.usgsSentiers">sentiers recensés par l’USGS</span></li>
   </ul>
 </section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js?v=desktop-19"></script>
+<script src="/leaflet/Leaflet.VectorGrid.bundled.js"></script>
+<script src="/map-providers.js?v=3"></script>
+<script src="/app.js?v=desktop-37"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-12"></script>
+<script src="/presentation.js?v=desktop-17"></script>
 </body>
 </html>

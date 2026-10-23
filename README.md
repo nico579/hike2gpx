@@ -28,17 +28,22 @@ il se contente d'ouvrir la page de la nouvelle version.
 Tout se passe dans une page locale, ouverte dans le navigateur, et dans le
 menu d'une icône de la zone de notification.
 
-**La carte.** Quatre fonds au choix : le SCAN 25 de l'IGN (avec une clé IGN,
-voir plus bas), le Plan IGN, les photos aériennes de l'IGN et OpenStreetMap.
+**La carte.** Les fonds IGN sont le SCAN 25 (avec une clé IGN, voir plus bas),
+le Plan IGN et les photos aériennes. S'y ajoutent OpenStreetMap, OSM rando
+(OpenTopoMap), OSM vélo (CyclOSM) et une vue satellite mondiale (Esri).
+En France, le relief du terrain LiDAR HD de l'IGN est aussi disponible comme
+fond de carte dans les zones déjà publiées par l'IGN ; son choix est mémorisé.
 Par-dessus, deux calques à cocher, à partir du zoom 14, montrent les chemins
 que connaît chaque source : ceux d'OpenStreetMap (les sentiers en tirets),
 avec les clôtures et murs qu'il cartographie, et ceux de la BD TOPO de l'IGN.
 Les mettre côte à côte montre d'un coup d'œil les sentiers qu'une source
 ignore. Une recherche de ville recentre la carte : les communes françaises par
 l'API Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
-d'OpenStreetMap. Et
-un bouton la passe en plein écran. Un voyant dit si le tracé est possible tout
-de suite, grâce à un extrait OSM déjà installé ou à Overpass.
+d'OpenStreetMap. Hors de France, la carte affiche les fonds OSM ou satellite et
+les chemins OSM ; les couches IGN reviennent quand la carte est déplacée en France.
+Les téléchargements d'extraits OSM quittés par la carte s'arrêtent.
+Un bouton passe la carte en plein écran. Un voyant dit si le tracé est possible
+tout de suite, grâce à un extrait OSM déjà installé ou à Overpass.
 
 **Le tracé.** Un clic pose le départ, puis les étapes et l'arrivée ; un point
 se déplace en le faisant glisser et se retire depuis sa bulle. « Revenir »
@@ -65,10 +70,22 @@ le survoler montre le point correspondant sur l'itinéraire. Les franchissements
 vers l'objet dans OpenStreetMap. « Exporter le GPX » enregistre l'itinéraire,
 avec ces points en points de passage.
 
+« Charger un GPX » affiche un tracé existant (pistes et itinéraires GPX) en
+jaune sur la carte et centre la vue dessus. Son nom, sans extension, apparaît
+dans les couches sous « Chemins BD TOPO (IGN) » : la coche masque ou réaffiche
+le tracé sans le supprimer. La légende montre aussi son trait jaune tant que le
+GPX est chargé. Il sert de repère pendant la
+préparation du parcours : il ne modifie pas les points de passage ni l'export.
+Le bouton devient « Supprimer le GPX » après le chargement et retire ce tracé
+de la carte sans toucher au fichier sur l'ordinateur. On peut ensuite charger
+un autre fichier. Le tracé chargé
+reste affiché jusqu'à la fermeture ou au rechargement de la page.
+
 **Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
 données téléchargées (30 jours par défaut), la transparence des bandeaux et
-leur masquage, et un bouton qui vide tous les caches locaux. Le journal de la
-session (erreurs, blocages, lenteurs) s'ouvre depuis la page. La page parle
+leur masquage, et un bouton qui vide tous les caches locaux. Un bouton ouvre
+le dossier `logs`, qui contient les journaux de l'application et de BRouter.
+La page parle
 français ou anglais, et retrouve à sa réouverture la vue, le fond, les calques
 et les options de la fois précédente. Téléchargements, imports et calculs en
 cours s'affichent dans un bandeau en bas de la carte.
@@ -101,7 +118,7 @@ Le calcul passe par cinq pièces.
    [nico579-commons](https://pypi.org/project/nico579-commons/), qui partage
    avec les autres applications de nico579 l'icône, la langue et la mise à
    jour. Chaque calcul laisse sa trace dans le journal de la session
-   (`hike2gpx-<date>.log`, au dossier de données ; les dix dernières sessions
+   (`logs/hike2gpx-<date>.log`, dans le dossier de données ; les dix dernières sessions
    sont gardées), avec le temps de chaque étape, ses erreurs et ses lenteurs.
 4. **Le dénivelé.** Une fois l'itinéraire affiché, le moteur de
    [gpx2elev](https://pypi.org/project/gpx2elev/) recalcule son dénivelé :

@@ -57,7 +57,7 @@ def _communes_francaises(nom: str, ouvrir) -> list:
         point = _point(coords[1], coords[0]) if isinstance(coords, list) and len(coords) == 2 else None
         departement = ville.get("departement")
         if isinstance(ville.get("nom"), str) and point:
-            villes.append({"nom": ville["nom"],
+            villes.append({"nom": ville["nom"], "code_pays": "fr",
                            "detail": departement.get("nom", "") if isinstance(departement, dict) else "",
                            "lat": point[0], "lon": point[1]})
     return villes
@@ -75,7 +75,9 @@ def _lieux_du_monde(nom: str, ouvrir) -> list:
         region = adresse.get("state") or adresse.get("region") or adresse.get("county")
         detail = ", ".join(p for p in (region, adresse.get("country")) if isinstance(p, str) and p)
         if isinstance(lieu.get("name"), str) and lieu["name"] and point:
-            villes.append({"nom": lieu["name"], "detail": detail, "lat": point[0], "lon": point[1]})
+            villes.append({"nom": lieu["name"], "detail": detail,
+                           "code_pays": str(adresse.get("country_code") or "").lower(),
+                           "lat": point[0], "lon": point[1]})
     return villes
 
 

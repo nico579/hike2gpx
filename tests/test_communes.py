@@ -8,9 +8,9 @@ from hike2gpx import communes
 
 MADRID = [
     {"name": "Madrid", "lat": "40.4167820", "lon": "-3.7035070",
-     "address": {"city": "Madrid", "state": "Communauté de Madrid", "country": "Espagne"}},
+     "address": {"city": "Madrid", "state": "Communauté de Madrid", "country": "Espagne", "country_code": "es"}},
     {"name": "Madrid", "lat": "41.8766526", "lon": "-93.8232813",
-     "address": {"county": "Boone County", "state": "Iowa", "country": "États-Unis d'Amérique"}},
+     "address": {"county": "Boone County", "state": "Iowa", "country": "États-Unis d'Amérique", "country_code": "us"}},
     {"name": "Hors carte", "lat": "95", "lon": "0", "address": {}},
 ]
 
@@ -38,7 +38,7 @@ def test_commune_recherchee_et_coordonnees_validees():
         {"nom": "Invalide", "centre": {"coordinates": [500, 95]}},
     ]})
     assert communes.chercher({"recherche": " Grenoble "}, ouvrir) == {
-        "communes": [{"nom": "Grenoble", "detail": "Isère", "lat": 45.1842, "lon": 5.7155}]}
+        "communes": [{"nom": "Grenoble", "detail": "Isère", "code_pays": "fr", "lat": 45.1842, "lon": 5.7155}]}
     # Une commune française trouvée : Nominatim n'est pas sollicité.
     assert len(demandes) == 1
     assert parse_qs(urlparse(demandes[0]).query)["nom"] == ["Grenoble"]
@@ -47,8 +47,8 @@ def test_commune_recherchee_et_coordonnees_validees():
 def test_hors_de_france_le_reste_du_monde():
     ouvrir, demandes = repondre({"geo.api.gouv.fr": [], "nominatim.openstreetmap.org": MADRID})
     assert communes.chercher({"recherche": "madrid"}, ouvrir) == {"communes": [
-        {"nom": "Madrid", "detail": "Communauté de Madrid, Espagne", "lat": 40.416782, "lon": -3.703507},
-        {"nom": "Madrid", "detail": "Iowa, États-Unis d'Amérique", "lat": 41.8766526, "lon": -93.8232813},
+        {"nom": "Madrid", "detail": "Communauté de Madrid, Espagne", "code_pays": "es", "lat": 40.416782, "lon": -3.703507},
+        {"nom": "Madrid", "detail": "Iowa, États-Unis d'Amérique", "code_pays": "us", "lat": 41.8766526, "lon": -93.8232813},
     ]}
     parametres = parse_qs(urlparse(demandes[1]).query)
     assert parametres["q"] == ["madrid"] and parametres["featureType"] == ["settlement"]
