@@ -141,6 +141,11 @@ Le calcul passe par cinq pièces.
    qu'ils existent encore ni qu'on y passe ; un accès piéton restreint dans la
    BD TOPO les ferme. Une case permet de s'en passer, et si la fabrication
    échoue, le calcul se fait sur OpenStreetMap seul, avec un avertissement.
+   Le gain est réel : sur les tuiles les plus riches en sentiers, la BD TOPO
+   agrandit le réseau de 18 à 100 %, et de 21 à 72 % dans le Var. Hors de
+   France, les sources officielles mesurées (États-Unis, Suisse, Pays-Bas)
+   n'ajoutent que 0 à 12 % : le calcul y reste sur OSM seul. Mesure et analyse
+   dans [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
 
 Ce que hike2gpx ajoute aux règles de gpx2elev, parce qu'il examine un réseau
 entier et non une seule trace :
