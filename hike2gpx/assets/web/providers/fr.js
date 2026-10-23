@@ -1,6 +1,8 @@
 window.HIKE2GPX_MAP_PROVIDERS.fr = {
   defaultBase: "plan",
   overlays: ["bdtopo"],
+  routableOverlay: "bdtopo",
+  routableName: { fr: "chemins BD TOPO (IGN)", en: "BD TOPO paths (IGN)" },
   bases({ L, cleIgn, tuileIgn }) {
     const ign = '© <a href="https://www.ign.fr/">IGN</a>';
     const fonds = {};

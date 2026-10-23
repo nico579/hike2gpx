@@ -262,7 +262,9 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.equal(page.fonds().reliefLidar, undefined);
   assert.match(page.fond().url, /ign\.es\/wmts\/mapa-raster/);
   assert.equal(page.CALQUES.bdtopo.groupe.removed, true);
-  assert.equal(elements.get("ignOption").hidden, true);
+  assert.equal(elements.get("ignOption").hidden, false);
+  assert.equal(elements.get("ign").disabled, true);
+  assert.match(elements.get("ignOptionTexte").textContent, /affichage seul/);
   assert.equal(elements.get("legendBdtopo").hidden, true);
   assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, true);
 
@@ -272,7 +274,8 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.deepEqual(Object.keys(recharge.page.fonds()), ["espagne", "osmRando", "osm", "osmVelo", "satellite"]);
   assert.equal(recharge.page.CALQUES.bdtopo.groupe.addedTo, undefined);
   assert.equal(recharge.page.fonds().reliefLidar, undefined);
-  assert.equal(recharge.elements.get("ignOption").hidden, true);
+  assert.equal(recharge.elements.get("ignOption").hidden, false);
+  assert.equal(recharge.elements.get("ign").disabled, true);
   recharge.carte.handlers.baselayerchange({ layer: recharge.page.fonds().satellite });
   const rechargeSatellite = charger(Object.fromEntries(recharge.stockage));
   rechargeSatellite.page.construireFonds();
@@ -288,6 +291,8 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.equal(Object.keys(page.controle().calques).length, 2);
   assert.equal(page.fond(), page.fonds().reliefLidar);
   assert.equal(elements.get("ignOption").hidden, false);
+  assert.equal(elements.get("ign").disabled, false);
+  assert.match(elements.get("ignOptionTexte").textContent, /chemins BD TOPO \(IGN\)/);
   assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, false);
   const rechargeFrance = charger(Object.fromEntries(stockage));
   rechargeFrance.page.construireFonds();
@@ -340,20 +345,25 @@ test("la Suisse active swisstopo et conserve un fond préféré par pays", () =>
 });
 
 test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins disponibles", () => {
-  const { page } = charger();
+  const { page, elements } = charger();
   page.choisirPays("at");
   assert.match(page.fond().url, /mapsneu\.wien\.gv\.at\/basemap/);
   assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.equal(elements.get("ignOption").hidden, true);
   page.choisirPays("nl");
   assert.match(page.fond().url, /service\.pdok\.nl\/kadaster\/brt-achtergrondkaart/);
   assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.equal(elements.get("ignOption").hidden, true);
 });
 
 test("les États-Unis proposent le fond USGS et ses sentiers agrégés", () => {
-  const { page } = charger();
+  const { page, elements } = charger();
   page.choisirPays("us");
   assert.match(page.fond().url, /basemap\.nationalmap\.gov.*USGSTopo/);
   assert.ok(page.controle().calques["Sentiers recensés par l’USGS"]);
+  assert.equal(elements.get("ignOption").hidden, false);
+  assert.equal(elements.get("ign").disabled, true);
+  assert.match(elements.get("ignOptionTexte").textContent, /USGS.*affichage seul/);
 });
 
 test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {

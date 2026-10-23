@@ -36,6 +36,8 @@ const TEXTES = {
     "gpx.tropGrand": "fichier trop volumineux (20 Mo maximum).",
     "option.strict": "Mode strict : éviter aussi les passages à vérifier",
     "option.ign": "Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)",
+    "option.cheminsRoutables": "Emprunter aussi les {nom} absents d’OSM (à vérifier sur place)",
+    "option.cheminsAffichage": "{nom} : affichage seul, calcul sur les chemins OSM",
     "option.comparer": "Montrer le tracé qui ignore les barrières",
     "resultat.distance": "Distance",
 "resultat.duree": "Durée estimée",
@@ -202,6 +204,8 @@ const TEXTES = {
     "gpx.tropGrand": "file too large (20 MB maximum).",
     "option.strict": "Strict mode: also avoid crossings to check",
     "option.ign": "Also use IGN paths missing from OSM (to check on site)",
+    "option.cheminsRoutables": "Also use {nom} missing from OSM (check on site)",
+    "option.cheminsAffichage": "{nom}: map display only; routing uses OSM paths",
     "option.comparer": "Show the route that ignores barriers",
     "resultat.distance": "Distance",
 "resultat.duree": "Estimated time",
@@ -450,6 +454,7 @@ function appliquerLangue(code) {
   langue = code === "en" ? "en" : "fr";
   document.documentElement.lang = langue;
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  afficherOptionChemins();
   $("cityQuery").placeholder = t("recherche.placeholder");
   if ($("pleinEcran")) {
     $("pleinEcran").title = t(document.body.classList.contains("plein-ecran") ? "pleinEcran.quitter" : "pleinEcran.entrer");
@@ -899,10 +904,22 @@ function choisirPays(pays) {
 }
 
 function afficherOptionsIgn() {
-  for (const id of ["ignOption", "legendIgn"]) $(id).hidden = horsFrance;
+  $("legendIgn").hidden = horsFrance;
+  afficherOptionChemins();
   for (const element of document.querySelectorAll("[data-map-overlay]")) {
     element.hidden = !calquesDuPays().includes(element.dataset.mapOverlay);
   }
+}
+
+function afficherOptionChemins() {
+  const fournisseur = FOURNISSEURS_CARTES[paysCarte];
+  const couche = fournisseur?.routableOverlay || fournisseur?.overlays?.[0];
+  $("ignOption").hidden = !couche;
+  const routable = Boolean(fournisseur?.routableOverlay);
+  $("ign").disabled = !routable;
+  $("ign").checked = routable && choixIgn;
+  if (couche) $("ignOptionTexte").textContent = t(routable ? "option.cheminsRoutables" : "option.cheminsAffichage",
+    { nom: routable ? fournisseur.routableName[langue] : t(`calque.${couche}`) });
 }
 
 // ------------------------------------------------------------ données OSM hors ligne
@@ -1237,7 +1254,7 @@ async function calculer() {
     afficherStatut(etat.points.length ? () => t("statut.deuxiemePoint") : "");
     return;
   }
-  const ign = !horsFrance && $("ign").checked;
+  const ign = Boolean(FOURNISSEURS_CARTES[paysCarte]?.routableOverlay && $("ign").checked);
   afficherStatut(() => t("statut.calcul") + (ign ? t("statut.calculIgn") : "."));
   occupe(true);
   let reponse;
@@ -1654,6 +1671,7 @@ document.addEventListener("fullscreenchange", () => {
   if (!document.fullscreenElement && document.body.classList.contains("plein-ecran")) appliquerPleinEcran(false);
 });
 const CLE_OPTIONS = "hike2gpx.options";
+let choixIgn = $("ign").checked;
 function restaurerOptions() {
   try {
     const options = JSON.parse(localStorage.getItem(CLE_OPTIONS) || "null");
@@ -1661,10 +1679,11 @@ function restaurerOptions() {
     for (const id of ["strict", "ign", "comparer"]) {
       if (typeof options[id] === "boolean") $(id).checked = options[id];
     }
+    choixIgn = $("ign").checked;
   } catch (erreur) { /* conserver les valeurs par défaut */ }
 }
 function memoriserOptions() {
-  const options = Object.fromEntries(["strict", "ign", "comparer"].map((id) => [id, $(id).checked]));
+  const options = { strict: $("strict").checked, ign: choixIgn, comparer: $("comparer").checked };
   try { localStorage.setItem(CLE_OPTIONS, JSON.stringify(options)); } catch (erreur) { /* sans importance */ }
 }
 restaurerOptions();
@@ -1680,7 +1699,11 @@ function restaurerPoints() {
 }
 restaurerPoints();
 for (const id of ["strict", "ign", "comparer"]) {
-  $(id).addEventListener("change", () => { memoriserOptions(); planifierCalcul(); });
+  $(id).addEventListener("change", () => {
+    if (id === "ign") choixIgn = $("ign").checked;
+    memoriserOptions();
+    planifierCalcul();
+  });
 }
 $("enregistrerCle").addEventListener("click", async () => {
   try {
