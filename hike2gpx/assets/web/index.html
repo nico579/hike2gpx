@@ -6,7 +6,7 @@
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-7">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-30">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-31">
 </head>
 <body>
 <div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
@@ -18,7 +18,7 @@
       <span id="baseLabel">Plan IGN</span>
       <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg>
     </button>
-    <button type="button" class="map-providers-info-button" id="providersInfoButton" aria-label="Pays couverts par les fonds et les chemins" aria-expanded="false" aria-controls="providersInfoPanel" title="Pays couverts">i</button>
+    <button type="button" class="info-tooltip map-providers-info-button" id="providersInfoButton" aria-label="Pays couverts par les fonds et les chemins" aria-expanded="false" aria-controls="providersInfoPanel" title="Pays couverts">i</button>
     </div>
     <section id="providersInfoPanel" class="map-providers-info" aria-label="Pays couverts" hidden></section>
   </div>
