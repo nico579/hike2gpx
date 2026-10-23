@@ -1,229 +1,231 @@
+***English** | [Français](README.fr.md)*
+
 # hike2gpx
 
-hike2gpx trace un itinéraire de randonnée sur un fond IGN ou OpenStreetMap
-sans traverser les clôtures, barrières et interdictions que décrit
-OpenStreetMap, peut emprunter en plus les chemins que seule l'IGN connaît,
-calcule son dénivelé et sa durée, puis l'exporte en GPX.
+hike2gpx plans a hiking route on an IGN or OpenStreetMap base map without
+crossing the fences, barriers and prohibitions that OpenStreetMap describes.
+It can also use the paths that only IGN (the French national mapping agency)
+knows about, works out the elevation gain and the walking time, then exports
+the route as GPX.
 
-Les planificateurs courants, Visorando, Locus Map, brouter-web, ne voient pas
-une clôture dessinée en ligne qui coupe un sentier. Ce n'est pas un oubli de
-leur part : leurs moteurs de calcul ne lisent que les étiquettes posées sur les
-nœuds du chemin, et une clôture est une ligne à part. hike2gpx examine
-d'avance le réseau de la zone, repère chaque croisement entre un chemin et une
-barrière, le juge, puis interdit ou décourage son passage. À Garéoult (Var),
-le profil Randonnée standard de BRouter franchit une clôture en béton pour un
-trajet de 69 m ; hike2gpx la contourne par un détour de 435 m.
+Common planners such as Visorando, Locus Map or brouter-web do not see a fence
+drawn as a line across a footpath. This is not an oversight on their part:
+their routing engines only read the tags on the nodes of the path, and a fence
+is a separate line. hike2gpx examines the network of the area beforehand,
+finds every crossing between a path and a barrier, judges it, then forbids or
+discourages the passage. In Garéoult (Var, France), BRouter's standard hiking
+profile goes through a concrete fence on a 69 m stretch; hike2gpx goes around
+it with a 435 m detour.
 
-Version 0.2.0, pour ordinateur. Le téléphone viendra plus tard, par
-l'application BRouter pour Android.
+For desktop computers: Windows, macOS and Linux. Phones will come later,
+through the BRouter app for Android.
 
-Installé depuis une release, hike2gpx se met à jour tout seul, comme les
-autres applications de nico579 : quand une version plus récente est publiée,
-un bandeau de la page et le menu de son icône proposent de l'installer ; il
-la télécharge, la vérifie, puis redémarre dessus. Lancé depuis les sources,
-il se contente d'ouvrir la page de la nouvelle version.
+Installed from a release, hike2gpx updates itself, like the other nico579
+applications: when a newer version is published, a banner on the page and the
+menu of its tray icon offer to install it; it downloads it, checks it, then
+restarts on it. The "Check for updates" button in the Settings panel asks
+right away, without waiting for the periodic check. Run from source,
+hike2gpx simply opens the page of the new version.
 
-## Ce que fait hike2gpx
+## What hike2gpx does
 
-Tout se passe dans une page locale, ouverte dans le navigateur, et dans le
-menu d'une icône de la zone de notification.
+Everything happens in a local page, opened in the browser, and in the menu of
+a tray icon.
 
-**La carte.** Les fonds IGN sont le SCAN 25 (avec une clé IGN, voir plus bas),
-le Plan IGN et les photos aériennes. S'y ajoutent OpenStreetMap, OSM rando
-(OpenTopoMap), OSM vélo (CyclOSM) et une vue satellite mondiale (Esri).
-En France, le relief du terrain LiDAR HD de l'IGN est aussi disponible comme
-fond de carte dans les zones déjà publiées par l'IGN ; son choix est mémorisé.
-Par-dessus, deux calques à cocher, à partir du zoom 14, montrent les chemins
-que connaît chaque source : ceux d'OpenStreetMap (les sentiers en tirets),
-avec les clôtures et murs qu'il cartographie, et ceux de la BD TOPO de l'IGN.
-Les mettre côte à côte montre d'un coup d'œil les sentiers qu'une source
-ignore. Une recherche de ville recentre la carte : les communes françaises par
-l'API Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
-d'OpenStreetMap. Hors de France, la carte affiche les fonds OSM ou satellite et
-les chemins OSM ; les couches IGN reviennent quand la carte est déplacée en France.
-Les téléchargements d'extraits OSM quittés par la carte s'arrêtent.
-Un bouton passe la carte en plein écran. Un voyant dit si le tracé est possible
-tout de suite, grâce à un extrait OSM déjà installé ou à Overpass.
+**The map.** The IGN base maps are the SCAN 25 (with an IGN key, see below),
+the IGN Plan and aerial photos. On top of those come OpenStreetMap, OSM hiking
+(OpenTopoMap), OSM cycling (CyclOSM) and a worldwide satellite view (Esri).
+In France, the terrain relief from IGN's LiDAR HD is also available as a base
+map wherever IGN has already published it; the choice is remembered.
+Above them, two layers you can tick, from zoom 14, show the paths each source
+knows: OpenStreetMap's (footpaths dashed), with the fences and walls it maps,
+and those of IGN's BD TOPO. Side by side, they show at a glance the paths one
+source is missing. A town search recenters the map: French municipalities
+through the French government's Géo API, the rest of the world through
+Nominatim, OpenStreetMap's search engine. Outside France, the map shows the OSM
+or satellite base maps and the OSM paths, plus the national map of Spain,
+Switzerland, Austria, the Netherlands, Luxembourg, Norway and the United
+States; Spain, Switzerland and the United States add their official trails,
+for display only. The IGN layers come back when the map is moved into France.
+OSM extract downloads stop once the map leaves their region.
+A button switches the map to full screen. An indicator tells whether a route
+can be planned right away, thanks to an OSM extract already installed or to
+Overpass.
 
-**Le tracé.** Un clic pose le départ, puis les étapes et l'arrivée ; un point
-se déplace en le faisant glisser et se retire depuis sa bulle. « Revenir »
-referme la boucle sur le départ, « Retirer » ôte le dernier point, « Effacer »
-repart de zéro. Le calcul est celui de BRouter, en local, avec les barrières
-d'OpenStreetMap mises en travers des chemins (voir plus bas). Trois options le
-règlent :
+**The route.** A click sets the start, then the waypoints and the finish; a
+point moves by dragging it and is removed from its popup. "Return" closes
+the loop on the start, "Remove" takes off the last point, "Clear" starts over. The
+routing is BRouter's, run locally, with OpenStreetMap's barriers laid across
+the paths (see below). Three options tune it:
 
-- **Mode strict** : éviter aussi les passages « à vérifier », pas seulement
-  les bloquants ;
-- **Chemins IGN** : laisser BRouter emprunter aussi les chemins de la BD TOPO
-  absents d'OpenStreetMap. Ils s'affichent en tirets orange et rejoignent les
-  points à vérifier, car rien ne garantit qu'ils existent encore ni qu'on y
-  passe ;
-- **Comparaison** : montrer en pointillé le tracé standard, celui qui ignore
-  les barrières, avec sa longueur et les franchissements bloquants qu'il
-  traverserait.
+- **Strict mode**: also avoid the passages "to check", not only the blocking
+  ones;
+- **IGN paths**: let BRouter also use the BD TOPO paths missing from
+  OpenStreetMap. They show as orange dashes and join the points to check,
+  since nothing guarantees they still exist or that you may walk them;
+- **Comparison**: show, dotted, the standard route that ignores the barriers,
+  with its length and the blocking crossings it would go through.
 
-**Le résultat.** Un résumé donne la distance, la durée estimée (modèle de
-Tobler, appliqué à la pente du profil), le dénivelé positif et négatif, le
-point haut et le point bas. Le profil d'altitude se déplie en bas de la carte ;
-le survoler montre le point correspondant sur l'itinéraire. Les franchissements
-à vérifier sont listés, chacun avec un lien pour centrer la carte et un autre
-vers l'objet dans OpenStreetMap. « Exporter le GPX » enregistre l'itinéraire,
-avec ces points en points de passage.
+**The result.** A summary gives the distance, the estimated time (Tobler's
+model, applied to the slope of the profile), the elevation gain and loss, and
+the highest and lowest points. The elevation profile unfolds at the bottom of
+the map; hovering over it shows the matching point on the route. The crossings
+to check are listed, each with a link that centers the map on it and another
+to the object in OpenStreetMap. "Export GPX" saves the route, with those points
+as waypoints.
 
-« Charger un GPX » affiche un tracé existant (pistes et itinéraires GPX) en
-jaune sur la carte et centre la vue dessus. Son nom, sans extension, apparaît
-dans les couches sous « Chemins BD TOPO (IGN) » : la coche masque ou réaffiche
-le tracé sans le supprimer. La légende montre aussi son trait jaune tant que le
-GPX est chargé. Il sert de repère pendant la
-préparation du parcours : il ne modifie pas les points de passage ni l'export.
-Le bouton devient « Supprimer le GPX » après le chargement et retire ce tracé
-de la carte sans toucher au fichier sur l'ordinateur. On peut ensuite charger
-un autre fichier. Le tracé chargé
-reste affiché jusqu'à la fermeture ou au rechargement de la page.
+"Load a GPX" shows an existing track (GPX tracks and routes) in yellow on the
+map and centers the view on it. Its name, without the extension, appears in
+the layers under "BD TOPO paths (IGN)": the checkbox hides or shows the track
+without removing it. The legend also shows its yellow line while the GPX is
+loaded. It serves as a guide while you prepare the route: it changes neither
+the waypoints nor the export. Once loaded, the button becomes "Remove GPX"
+and takes the track off the map without touching the file on the computer.
+You can then load another file. The loaded track stays on screen until the
+page is closed or reloaded.
 
-**Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
-données téléchargées (30 jours par défaut), la transparence des bandeaux et
-leur masquage, et un bouton qui vide tous les caches locaux. Un bouton ouvre
-le dossier `logs`, qui contient les journaux de l'application et de BRouter.
-La page parle
-français ou anglais, et retrouve à sa réouverture la vue, le fond, les calques
-et les options de la fois précédente. Téléchargements, imports et calculs en
-cours s'affichent dans un bandeau en bas de la carte.
+**The settings.** The IGN key for the SCAN 25, how long downloaded data is
+kept before being renewed (30 days by default), the transparency of the panels
+and whether to hide them, and a button that empties all local caches. One
+button opens the `logs` folder, which holds the logs of the application and of
+BRouter; another shows the installed version and checks whether a newer one
+exists. The page speaks French or English, and when reopened it restores the
+view, the base map, the layers and the options of the previous session.
+Downloads, imports and computations in progress appear in a banner at the
+bottom of the map.
 
-## Comment ça marche
+## How it works
 
-Le calcul passe par cinq pièces.
+The routing relies on five pieces.
 
-1. **Les franchissements.** Pour la zone du tracé, hike2gpx lit dans
-   OpenStreetMap (par Overpass, en tuiles de 0,05° gardées sept jours) les
-   chemins praticables à pied, les barrières dessinées en ligne, les nœuds
-   barrière et les itinéraires de randonnée balisés. Chaque croisement est jugé
-   **bloquant**, **à vérifier** ou **franchissable**, avec les règles de
-   [gpx2elev](https://github.com/nico579/gpx2elev), recopiées telles quelles
-   dans `regles.py` : une clôture traversée sans ouverture cartographiée
-   bloque, un portail sans indication d'accès est à vérifier, `foot=yes` prime
-   sur `access=private`, des horaires ou des conditions laissent un doute.
-2. **Le moteur.** [BRouter](https://github.com/abrensch/brouter), celui
-   qu'utilise Locus, calcule l'itinéraire en local. Chaque franchissement lui
-   arrive comme une petite ligne d'un mètre posée en travers du chemin : sans
-   poids, elle retire le tronçon du calcul ; avec un poids, elle le rend
-   coûteux, de sorte qu'un détour de moins de 300 m environ l'évite. Le profil
-   est celui de la randonnée de BRouter, corrigé pour qu'une interdiction
-   piétonne (`foot=no` ou `foot=private`) soit respectée même là où un vélo
-   passerait ou qu'un trottoir est indiqué. Quand deux coupes tombent sur le
-   même tronçon, l'interdite l'emporte toujours sur la pondérée ; et si le
-   tracé rendu par BRouter passait malgré tout une coupe interdite, hike2gpx le
-   refuserait au lieu de l'afficher.
-3. **La page.** Une page locale, servie par la bibliothèque commune
-   [nico579-commons](https://pypi.org/project/nico579-commons/), qui partage
-   avec les autres applications de nico579 l'icône, la langue et la mise à
-   jour. Chaque calcul laisse sa trace dans le journal de la session
-   (`logs/hike2gpx-<date>.log`, dans le dossier de données ; les dix dernières sessions
-   sont gardées), avec le temps de chaque étape, ses erreurs et ses lenteurs.
-4. **Le dénivelé.** Une fois l'itinéraire affiché, le moteur de
-   [gpx2elev](https://pypi.org/project/gpx2elev/) recalcule son dénivelé :
-   tracé échantillonné tous les 5 m, meilleur modèle de terrain disponible
-   (IGN LiDAR HD d'abord), lissage gaussien de 20 m, hystérésis de 2 m. Le
-   chiffre de BRouter, tiré d'un modèle mondial plus grossier, ne sert que
-   d'estimation en attendant.
-5. **Les chemins IGN.** Un sentier que la BD TOPO connaît et qu'OpenStreetMap
-   ignore n'existe pas pour BRouter, qui ne voit que ses tuiles. hike2gpx
-   fabrique donc sa propre tuile BRouter à partir des données déjà lues : les
-   voies d'OpenStreetMap, plus les tronçons de la BD TOPO qui n'en doublent
-   aucune, raccordés au réseau. La tuile grossit au fil des zones consultées,
-   jusqu'à 25 tuiles de 0,05° avant de repartir de la zone demandée, et ne se
-   refait que pour une zone nouvelle ou des données relues, en six secondes
-   environ pour neuf tuiles. Les franchissements se cherchent
-   alors sur le réseau fusionné : un sentier OSM et un chemin IGN arrêtés de
-   part et d'autre d'une clôture, une fois raccordés, la traversent. Ces
-   chemins coûtent un peu plus que les autres, s'affichent en tirets orange
-   sur l'itinéraire et rejoignent les points à vérifier, car rien ne dit
-   qu'ils existent encore ni qu'on y passe ; un accès piéton restreint dans la
-   BD TOPO les ferme. Une case permet de s'en passer, et si la fabrication
-   échoue, le calcul se fait sur OpenStreetMap seul, avec un avertissement.
-   Le gain est réel : sur les tuiles les plus riches en sentiers, la BD TOPO
-   agrandit le réseau de 18 à 100 %, et de 21 à 72 % dans le Var. Hors de
-   France, les sources officielles mesurées (États-Unis, Suisse, Pays-Bas)
-   n'ajoutent que 0 à 12 % : le calcul y reste sur OSM seul. Mesure et analyse
-   dans [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+1. **The crossings.** For the area of the route, hike2gpx reads from
+   OpenStreetMap (through Overpass, in 0.05° tiles kept for seven days) the
+   paths you can walk, the barriers drawn as lines, the barrier nodes and the
+   waymarked hiking routes. Each crossing is judged **blocking**, **to check**
+   or **passable**, with the rules of
+   [gpx2elev](https://github.com/nico579/gpx2elev), copied as they are into
+   `regles.py`: a fence crossed with no mapped opening blocks, a gate with no
+   access information is to check, `foot=yes` wins over `access=private`,
+   opening hours or conditions leave a doubt.
+2. **The engine.** [BRouter](https://github.com/abrensch/brouter), the one
+   Locus uses, computes the route locally. Each crossing reaches it as a small
+   one-meter line laid across the path: without a weight, it removes the
+   stretch from the routing; with a weight, it makes it costly, so that a
+   detour of less than about 300 m avoids it. The profile is BRouter's hiking
+   profile, corrected so that a pedestrian ban (`foot=no` or `foot=private`)
+   is respected even where a bicycle could pass or a sidewalk is tagged. When
+   two cuts fall on the same stretch, the forbidden one always wins over the
+   weighted one; and if the route returned by BRouter still went through a
+   forbidden cut, hike2gpx would reject it instead of showing it.
+3. **The page.** A local page, served by the shared library
+   [nico579-commons](https://pypi.org/project/nico579-commons/), which the
+   other nico579 applications share for the tray icon, the language and the
+   updates. Each computation leaves its trace in the session log
+   (`logs/hike2gpx-<date>.log`, in the data folder; the last ten sessions are
+   kept), with the time of each step, its errors and its slow spots.
+4. **The elevation.** Once the route is displayed, the
+   [gpx2elev](https://pypi.org/project/gpx2elev/) engine recomputes its
+   elevation gain: track sampled every 5 m, best terrain model available
+   (IGN LiDAR HD first), 20 m Gaussian smoothing, 2 m hysteresis. BRouter's
+   figure, taken from a coarser worldwide model, is only an estimate in the
+   meantime.
+5. **The IGN paths.** A path that the BD TOPO knows and OpenStreetMap does not
+   is invisible to BRouter, which only sees its own tiles. So hike2gpx builds
+   its own BRouter tile from the data it has already read: the OpenStreetMap
+   ways, plus the BD TOPO sections that duplicate none of them, connected to
+   the network. The tile grows with the areas you visit, up to 25 tiles of
+   0.05° before starting again from the requested area, and is rebuilt only
+   for a new area or reread data, in about six seconds for nine tiles. The
+   crossings are then looked for on the merged network: an OSM path and an
+   IGN path stopping on either side of a fence, once connected, cross it.
+   These paths cost a little more than the others, show as orange dashes on
+   the route and join the points to check, since nothing says they still exist
+   or that you may walk them; a restricted pedestrian access in the BD TOPO
+   closes them. A checkbox lets you do without them, and if building the tile
+   fails, the route is computed on OpenStreetMap alone, with a warning.
+   The gain is real: on the tiles richest in paths, the BD TOPO enlarges the
+   network by 18 to 100 %, and by 21 to 72 % in the Var. Outside France, the
+   official sources measured (United States, Switzerland, the Netherlands)
+   add only 0 to 12 %, so routing there stays on OSM alone. The measurement and
+   the analysis are in
+   [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md)
+   (in French).
 
-Ce que hike2gpx ajoute aux règles de gpx2elev, parce qu'il examine un réseau
-entier et non une seule trace :
+What hike2gpx adds to the gpx2elev rules, because it examines a whole network
+rather than a single track:
 
-- une barrière qui s'arrête sur un chemin, ou qui le touche et repart du même
-  côté, ne le traverse pas ; un chemin sur un pont ou dans un tunnel non plus ;
-- une barrière qui se termine à moins de 2 m du chemin se contourne ;
-- un portail posé sur la clôture tout près du chemin, sans être porté par lui,
-  est jugé comme s'il l'était : verrouillé ou privé, il ne rend pas la clôture
-  franchissable ;
-- deux niveaux différents (`layer`) rendent le franchissement « à vérifier » ;
-- un sentier balisé passe forcément quelque part : une barrière qui le
-  bloquerait y devient « à vérifier ».
+- a barrier that stops on a path, or touches it and leaves on the same side,
+  does not cross it; nor does a path on a bridge or in a tunnel;
+- a barrier that ends less than 2 m from the path can be walked around;
+- a gate set in the fence very close to the path, without being carried by it,
+  is judged as if it were: locked or private, it does not make the fence
+  passable;
+- two different levels (`layer`) make the crossing "to check";
+- a waymarked trail has to go through somewhere: a barrier that would block it
+  becomes "to check" there.
 
-Si OpenStreetMap ne répond pas, le calcul s'arrête : une barrière inconnue ne
-prouve jamais qu'un passage est libre. Et s'il n'existe aucun itinéraire, la
-page le dit, sans relier les points en ligne droite.
+If OpenStreetMap does not answer, the computation stops: an unknown barrier
+never proves that a passage is free. And if no route exists, the page says so,
+without joining the points in a straight line.
 
-### Données OSM hors ligne
+### Offline OSM data
 
-Overpass, le service qui répond aux questions sur OpenStreetMap, sature par
-moments et tombe parfois. Pour ne plus en dépendre, hike2gpx télécharge de
-lui-même un extrait d'OpenStreetMap autour de l'endroit où l'on travaille, et
-en France il procède en deux temps. D'abord le département, tiré des [extraits
-d'OSM France](https://download.openstreetmap.fr/extracts/europe/france/) : à
-Garéoult, le Var pèse 83 Mo et se trouve prêt en une quarantaine de secondes,
-import compris ; on travaille aussitôt. Pendant ce temps, la région de
-[Geofabrik](https://download.geofabrik.de/) se prépare : la PACA pèse 391 Mo
-et demande plus de trois minutes. Dès qu'elle est là, c'est elle qui sert, car
-OSM France coupe net les chemins à la limite du département, là où Geofabrik
-les garde entiers. Ailleurs sur la planète, c'est directement la région de
-Geofabrik, parmi quelque 550 : le Liechtenstein à Vaduz (3 Mo). Le
-téléchargement part dès que la région sert vraiment, par un calcul ou le
-calque des chemins OSM, mais pas quand la carte ne fait que la survoler. Il
-se fait en tâche de fond, vérifié par son MD5, pendant qu'Overpass continue
-de servir ; le panneau en suit l'avancement, et un calcul qui l'attendait
-reprend de lui-même dès que le département est là, sans attendre la région.
-Un extrait de plus de 2 Go, ou que le disque ne
-pourrait pas loger, n'est pas téléchargé : Overpass reste alors la source.
-L'extrait est lu une fois et rangé dans une base SQLite par tuile, au dossier
-de données (`geofabrik/`), puis le fichier téléchargé est effacé.
+Overpass, the service that answers questions about OpenStreetMap, saturates at
+times and sometimes goes down. To stop depending on it, hike2gpx downloads by
+itself an OpenStreetMap extract around the place where you are working, and in
+France it does so in two steps. First the département, taken from the
+[OSM France extracts](https://download.openstreetmap.fr/extracts/europe/france/):
+for Garéoult, the Var weighs 83 MB and is ready in about forty seconds,
+import included; you can work right away. Meanwhile, the
+[Geofabrik](https://download.geofabrik.de/) region gets ready: Provence-Alpes-
+Côte d'Azur weighs 391 MB and takes more than three minutes. As soon as it is
+there, it takes over, because OSM France cuts the paths sharply at the edge of
+the département, where Geofabrik keeps them whole. Anywhere else on the
+planet, it is the Geofabrik region directly, among some 550: Liechtenstein for
+Vaduz (3 MB). The download starts once the region is really in use, by a
+computation or the OSM paths layer, but not when the map merely flies over
+it. It runs in the background, checked against its MD5, while Overpass keeps
+serving; the panel follows its progress, and a computation that was waiting
+for it resumes by itself as soon as the département is there, without waiting
+for the region. An extract over 2 GB, or one the disk could not hold, is not
+downloaded: Overpass then remains the source. The extract is read once and
+stored in a SQLite database per tile, in the data folder (`geofabrik/`), then
+the downloaded file is deleted.
 
-Une fois installé, l'extrait est la source des tuiles qu'il contient :
-lecture instantanée, sans quota ni panne, hors connexion comprise. Une tuile en
-sort sous la forme exacte d'une réponse d'Overpass, si bien que les
-franchissements se jugent de la même façon. Overpass ne sert plus qu'ailleurs :
-hors des extraits installés, ou sur une tuile à cheval sur leur limite ; et
-une tuile qui attendait Overpass au moment où un extrait s'installe bascule
-aussitôt sur lui. OSM
-France et Geofabrik refont leurs extraits chaque jour ; plus vieux que le délai
-choisi dans les réglages (30 jours par défaut, de 1 à 365), l'extrait se
-renouvelle de lui-même en tâche de fond, l'ancien servant jusqu'à la bascule.
-Les tuiles BRouter suivent le même délai.
+Once installed, the extract is the source of the tiles it contains: instant
+reading, no quota, no outage, offline included. A tile comes out of it in the
+exact form of an Overpass answer, so the crossings are judged the same way.
+Overpass only serves elsewhere: outside the installed extracts, or on a tile
+straddling their edge; and a tile that was waiting for Overpass when an
+extract gets installed switches to it at once. OSM France and Geofabrik
+rebuild their extracts every day; once older than the delay chosen in the
+settings (30 days by default, from 1 to 365), the extract renews itself in the
+background, the old one serving until the switch. The BRouter tiles follow the
+same delay.
 
-## Limites
+## Limits
 
-hike2gpx ne peut éviter que ce qui est cartographié. Autour de Garéoult, sur
-250 km², OpenStreetMap ne recense que 18 clôtures, et la BD TOPO de l'IGN
-aucune (voir [ESSAI.md](ESSAI.md)). Une clôture rencontrée sur le terrain et
-ajoutée à OpenStreetMap est respectée par hike2gpx dès que son cache de la
-zone se renouvelle ; les moteurs des autres planificateurs, eux, continuent de
-l'ignorer.
+hike2gpx can only avoid what is mapped. Around Garéoult, over 250 km²,
+OpenStreetMap records only 18 fences, and IGN's BD TOPO none (see
+[ESSAI.md](ESSAI.md), in French). A fence found in the field and added to
+OpenStreetMap is respected by hike2gpx as soon as its cache of the area is
+renewed; the engines of the other planners keep ignoring it.
 
-Un calcul examine au plus 100 tuiles de 0,05°, soit environ 55 × 40 km : la
-première lecture d'une zone plus grande prendrait des dizaines de minutes. Un
-long parcours se découpe en étapes.
+A computation examines at most 100 tiles of 0.05°, about 55 × 40 km: the first
+reading of a larger area would take tens of minutes. A long route is split
+into stages.
 
 ## Installation
 
-Le plus simple : télécharger le programme de son système dans les
+The simplest way: download the program for your system from the
 [releases](https://github.com/nico579/hike2gpx/releases) (Windows, Linux,
-macOS), le décompresser, par exemple sous Windows dans
-`%LOCALAPPDATA%\Programs\hike2gpx`, et lancer `hike2gpx`. Il embarque son
-Java et se met à jour tout seul ; « Créer un raccourci sur le Bureau », dans
-le menu de son icône, pose le raccourci.
+macOS), unzip it, for instance on Windows into
+`%LOCALAPPDATA%\Programs\hike2gpx`, and run `hike2gpx`. It ships its own Java
+and updates itself; "Create a Desktop shortcut", in the menu of its tray icon,
+adds the shortcut.
 
-Depuis les sources, il faut Python 3.12, [uv](https://docs.astral.sh/uv/) et
-Java 11 ou plus pour BRouter.
+From source, you need Python 3.12, [uv](https://docs.astral.sh/uv/) and
+Java 11 or later for BRouter.
 
 ```
 uv venv --python 3.12 .venv
@@ -232,18 +234,18 @@ uv pip install --python .venv\Scripts\python.exe -e ".[test]"
 .venv\Scripts\hike2gpx serve
 ```
 
-`installer` télécharge BRouter 1.7.10 (archive vérifiée par son empreinte
-SHA256) et la tuile de données qui couvre la zone : E5_N40 pour la Provence,
-de 5° à 10° E et de 40° à 45° N. Depuis la page, rien à faire : le moteur
-s'installe de lui-même au premier lancement, et chaque tuile de données se
-télécharge en tâche de fond dès qu'un calcul en a besoin, le calcul reprenant
-à son arrivée. Les données vont dans le dossier d'état standard
-(`%LOCALAPPDATA%\hike2gpx-data` sous Windows), ou dans celui que désigne la
-variable `HIKE2GPX_HOME`.
+`installer` downloads BRouter 1.7.10 (archive checked against its SHA256
+digest) and the data tile that covers the area: E5_N40 for Provence, from 5°
+to 10° E and from 40° to 45° N. From the page, there is nothing to do: the
+engine installs itself on first launch, and each data tile downloads in the
+background as soon as a computation needs it, the computation resuming when it
+arrives. The data goes into the standard state folder
+(`%LOCALAPPDATA%\hike2gpx-data` on Windows), or the one named by the
+`HIKE2GPX_HOME` variable.
 
-Le SCAN 25 n'est pas une donnée libre : il demande une clé IGN, à saisir dans
-les réglages de la page. Sans clé, la carte utilise le Plan IGN, sous Licence
-Ouverte.
+The SCAN 25 is not open data: it needs an IGN key, entered in the page
+settings. Without a key, the map uses the IGN Plan, under the Licence Ouverte
+(the French open licence).
 
 ## Tests
 
@@ -251,52 +253,50 @@ Ouverte.
 .venv\Scripts\python.exe -m pytest
 ```
 
-Les tests unitaires tournent sans réseau ni BRouter. `test_regles.py` compare
-`regles.py` à sa source dans gpx2elev quand ce dépôt est présent sur la
-machine. `test_integration.py` rejoue un cas réel de Garéoult avec le vrai
-BRouter : il est sauté tant que BRouter et sa tuile E5_N40 manquent dans le
-dossier de données, et tourne en quelques secondes avec
-`$env:HIKE2GPX_HOME = 'D:\hike2gpx'`. `test_integration_maison.py` fabrique
-une tuile maison avec le vrai créateur de tuiles, sur un petit réseau inventé
-où deux sentiers OSM ne se rejoignent que par des chemins IGN ; il demande en
-plus les profils de création de BRouter, que la première fabrication depuis
-la page télécharge dans le dossier de données. `test_integration_securite.py`
-vérifie de la même façon, sur six cas inventés, que le profil et l'ordre des
-coupes respectent les interdictions. `test_page.py` fait tourner la page sous
-Node, quand Node est installé. Les outils de `tools/` rejouent l'essai décrit
-dans [ESSAI.md](ESSAI.md).
+The unit tests run without network or BRouter. `test_regles.py` compares
+`regles.py` with its source in gpx2elev when that repository is on the
+machine. `test_integration.py` replays a real case from Garéoult with the
+actual BRouter: it is skipped as long as BRouter and its E5_N40 tile are
+missing from the data folder, and runs in a few seconds with
+`$env:HIKE2GPX_HOME = 'D:\hike2gpx'`. `test_integration_maison.py` builds a
+home-made tile with the actual tile builder, on a small invented network where
+two OSM paths only meet through IGN paths; it also needs BRouter's build
+profiles, which the first build from the page downloads into the data folder.
+`test_integration_securite.py` checks in the same way, on six invented cases,
+that the profile and the order of the cuts respect the prohibitions.
+`test_page.py` runs the page under Node, when Node is installed. The tools in
+`tools/` replay the trial described in [ESSAI.md](ESSAI.md) (in French).
 
-## Construire le programme
+## Building the program
 
 ```
 python build.py --archive
 ```
 
-`build.py` crée un environnement isolé, l'emplit du verrou
-`requirements-build.txt` (versions et empreintes exactes, PyInstaller
-compris), télécharge le JRE Temurin 21 de ce système en vérifiant l'empreinte
-que publie Adoptium, construit le programme avec `hike2gpx.spec`, puis lance
-son auto-test (`--self-test-version`) : Java embarqué, pyosmium, rasterio,
-page. Avec `--archive`, il emballe l'archive publiée et son `.sha256`, sous le
-nom qu'attend la mise à jour automatique du commun. Le programme figé n'emploie
-que son Java ; depuis les sources, hike2gpx prend celui du système. Sur
-GitHub, `release.yml` fait la même chose sur les quatre systèmes à chaque tag,
-et sur chaque pull request qui touche au programme. Sous macOS, il faut
-macOS 15 ou plus, comme pour les roues de rasterio.
+`build.py` creates an isolated environment, fills it from the
+`requirements-build.txt` lock file (exact versions and digests, PyInstaller
+included), downloads the Temurin 21 JRE for this system while checking the
+digest Adoptium publishes, builds the program with `hike2gpx.spec`, then runs
+its self-test (`--self-test-version`): embedded Java, pyosmium, rasterio, page.
+With `--archive`, it packs the published archive and its `.sha256`, under the
+name the shared library's automatic update expects. The frozen program only
+uses its own Java; from source, hike2gpx uses the system's. On GitHub,
+`release.yml` does the same on the four systems for every tag, and on every
+pull request that touches the program. On macOS, it needs macOS 15 or later,
+as do the rasterio wheels.
 
-Les verrous se régénèrent avec uv :
+The lock files are regenerated with uv:
 
 ```
 uv pip compile pyproject.toml --universal --python-version 3.12 --generate-hashes -o requirements.txt
 uv pip compile requirements-build.in --universal --python-version 3.12 --generate-hashes -o requirements-build.txt
 ```
 
-## Licence
+## License
 
-GPL-3.0-or-later. BRouter (MIT) est téléchargé à l'installation ; Leaflet 1.9.4
-(BSD-2-Clause) est fourni dans `hike2gpx/assets/web/leaflet`. Le programme
-publié embarque le JRE Temurin 21 d'Eclipse Adoptium (GPL-2.0 avec exception
-Classpath, textes dans `_internal/jre/legal`). Données ©
-contributeurs OpenStreetMap (ODbL), y compris l'extrait de test
-`tests/donnees/gareoult_cloture.json` ; BD TOPO © IGN (Licence Ouverte) ;
-cartes © IGN.
+GPL-3.0-or-later. BRouter (MIT) is downloaded at installation; Leaflet 1.9.4
+(BSD-2-Clause) is shipped in `hike2gpx/assets/web/leaflet`. The published
+program embeds Eclipse Adoptium's Temurin 21 JRE (GPL-2.0 with the Classpath
+exception, texts in `_internal/jre/legal`). Data © OpenStreetMap contributors
+(ODbL), including the test extract `tests/donnees/gareoult_cloture.json`;
+BD TOPO © IGN (Licence Ouverte); maps © IGN.

@@ -101,6 +101,7 @@
       <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
       <div class="display-settings"><label class="option"><input id="hideMapToolbar" type="checkbox"> <span data-i18n="reglages.masquerCartes">Masquer le bandeau des cartes</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
       <div class="journal-settings"><button id="ouvrirDossierJournaux" type="button" data-i18n="reglages.ouvrirJournaux">Ouvrir le dossier des journaux</button><p id="erreurDossierJournaux" class="note" role="alert" hidden></p></div>
+      <div class="journal-settings"><p id="versionApplication" class="note" hidden></p><button id="verifierMaj" type="button" data-i18n="reglages.verifierMaj">Vérifier les mises à jour</button><p id="statutMaj" class="note" role="status" hidden></p></div>
       <div id="donnees"></div>
     </section>
   </section>
@@ -128,7 +129,7 @@
 <script src="/leaflet/leaflet.js"></script>
 <script src="/leaflet/Leaflet.VectorGrid.bundled.js"></script>
 <script src="/map-providers.js?v=3"></script>
-<script src="/app.js?v=desktop-37"></script>
+<script src="/app.js?v=desktop-38"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>

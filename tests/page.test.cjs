@@ -95,7 +95,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
-    + " preparerFleches, afficherFleches, fleches, traceGpxImporte,"
+    + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs };
@@ -179,6 +179,57 @@ test("le bouton Réglages demande l'ouverture du dossier des journaux", async ()
   await ouverture;
   assert.equal(elements.get("ouvrirDossierJournaux").disabled, false);
   assert.equal(elements.get("erreurDossierJournaux").hidden, true);
+});
+
+// Un pays s'ajoute en trois endroits : son provider, ses libellés ici, et
+// PAYS_CARTES (test_application.py). Un libellé oublié affiche sa clé brute :
+// ce test rend l'oubli visible.
+test("chaque fond et chaque calque des providers a son libellé FR et EN", () => {
+  const { page } = charger();
+  for (const [code, provider] of Object.entries(page.providers)) {
+    if (code === "autre") continue;
+    const fonds = Object.keys(provider.bases({ L: globalThis.L ?? {
+      tileLayer: () => ({}) }, cleIgn: "cle", tuileIgn: () => "" }));
+    assert.ok(fonds.includes(provider.defaultBase), `${code} : fond par défaut ${provider.defaultBase} absent`);
+    for (const langue of ["fr", "en"]) {
+      for (const cle of [...fonds.map((f) => `fond.${f}`), ...provider.overlays.map((c) => `calque.${c}`)]) {
+        assert.ok(page.TEXTES[langue][cle], `${code} : libellé ${langue} « ${cle} » manquant`);
+      }
+    }
+  }
+});
+
+test("le panneau Réglages montre la version et vérifie les mises à jour", async () => {
+  const { elements, requetes } = charger();
+  repondre(requetes.findLast((r) => r.url === "/api/maj"), { version: "0.3.0", version_locale: "0.3.0" });
+  await new Promise((fin) => setImmediate(fin));
+  assert.equal(elements.get("versionApplication").textContent, "hike2gpx 0.3.0");
+  assert.equal(elements.get("versionApplication").hidden, false);
+
+  const verification = elements.get("verifierMaj").ecouteurs.click[0]();
+  const requete = requetes.findLast((r) => r.url === "/api/maj-verifier");
+  assert.equal(requete.options.method, "POST");
+  assert.equal(elements.get("statutMaj").textContent, "Vérification…");
+  repondre(requete, { ok: true, version: "0.3.10", version_locale: "0.3.9" });
+  await verification;
+  assert.equal(elements.get("statutMaj").textContent,
+    "Version 0.3.10 disponible : le bandeau propose de l'installer.");
+  assert.equal(elements.get("versionApplication").textContent, "hike2gpx 0.3.9");
+  assert.equal(elements.get("verifierMaj").disabled, false);
+});
+
+test("la vérification des mises à jour dit « à jour » ou son échec", async () => {
+  const { elements, requetes } = charger();
+  let clic = elements.get("verifierMaj").ecouteurs.click[0]();
+  repondre(requetes.findLast((r) => r.url === "/api/maj-verifier"), { ok: true, version: "0.3.1", version_locale: "0.3.1" });
+  await clic;
+  assert.equal(elements.get("statutMaj").textContent, "Vous avez la dernière version.");
+
+  clic = elements.get("verifierMaj").ecouteurs.click[0]();
+  repondre(requetes.findLast((r) => r.url === "/api/maj-verifier"), { ok: false, version: null, version_locale: "0.3.1" });
+  await clic;
+  assert.equal(elements.get("statutMaj").textContent, "Vérification impossible (réseau ?).");
+  assert.equal(elements.get("verifierMaj").disabled, false);
 });
 
 test("le parcours revient après rechargement et se recalcule", async () => {
