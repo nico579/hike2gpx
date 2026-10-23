@@ -378,7 +378,12 @@
       .filter(pays => pays.fond || pays.chemins)
       .sort((a, b) => a.nom.localeCompare(b.nom, langue));
     const titre = document.createElement("h3");
-    titre.textContent = langue === "en" ? "Covered countries" : "Pays couverts";
+    const intitulé = langue === "en" ? "Countries covered in addition to OSM (worldwide)"
+      : "Pays couverts en plus d’OSM (monde entier)";
+    titre.textContent = intitulé;
+    providersInfoButton.setAttribute("aria-label", intitulé);
+    providersInfoButton.title = intitulé;
+    providersInfoPanel.setAttribute("aria-label", intitulé);
     const liste = document.createElement("ul");
     for (const paysCouvert of pays) {
       const ligne = document.createElement("li");
