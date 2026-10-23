@@ -349,6 +349,13 @@ test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins
   assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
 });
 
+test("les États-Unis proposent le fond USGS et ses sentiers agrégés", () => {
+  const { page } = charger();
+  page.choisirPays("us");
+  assert.match(page.fond().url, /basemap\.nationalmap\.gov.*USGSTopo/);
+  assert.ok(page.controle().calques["Sentiers recensés par l’USGS"]);
+});
+
 test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {
   const { page, elements, derniere, requetes } = charger();
   page.etat.points = [{ lat: 43.3, lon: 6 }, { lat: 43.3, lon: 6.01 }];
@@ -360,12 +367,13 @@ test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", 
   assert.equal(elements.get("duree").textContent, "…");
   const relief = requetes.find((r) => r.url === "/api/denivele");
   repondre(relief, { montee_m: 120, descente_m: 90, altitude_min_m: 400, altitude_max_m: 700,
-    modele: "IGN LiDAR HD", duree_marche_s: 8100 });
+    modele: "Mapterhorn", duree_marche_s: 8100 });
   await new Promise(setImmediate);
   assert.equal(elements.get("duree").textContent, "2 h 15");
   assert.equal(elements.get("pointHaut").textContent, "700 m");
   assert.equal(elements.get("pointBas").textContent, "400 m");
 assert.equal(elements.get("denivele").textContent, "+ 120 m / − 90 m");
+assert.match(elements.get("sourceDenivele").textContent, /Source des altitudes du parcours : Mapterhorn/);
 });
 
 test("les flèches suivent le sens du tracé et disparaissent au zoom éloigné", () => {

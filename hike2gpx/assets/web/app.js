@@ -67,7 +67,7 @@ const TEXTES = {
     "legende.bdtopo": "chemins BD TOPO de l'IGN",
     "legende.senderos": "sentiers balisés espagnols (GR rouge, PR jaune, SL vert)",
     "legende.suisseSentiers": "sentiers de randonnée swisstopo",
-    "legende.npsSentiers": "sentiers des parcs nationaux américains",
+    "legende.usgsSentiers": "sentiers recensés par l’USGS",
     "legende.gpx": "GPX chargé",
     "reglages.titre": "Réglages",
     "reglages.cle": "Clé IGN pour le SCAN 25",
@@ -123,12 +123,12 @@ const TEXTES = {
     "serveur.injoignable": "Serveur injoignable : {message}",
     "denivele.calcul": "Calcul du dénivelé par gpx2elev en cours…",
     "denivele.indisponible": "Dénivelé indisponible : gpx2elev, {erreur}",
-    "denivele.source": "gpx2elev, {modele} : échantillonnage 5 m, lissage 20 m, hystérésis 2 m ; altitude de {min} à {max} m.",
+    "denivele.source": "Source des altitudes du parcours : {modele} · calcul gpx2elev (pas 5 m, lissage 20 m, seuil 2 m).",
     "calque.osm": "Chemins OSM",
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
     "calque.senderos": "Sentiers balisés GR/PR/SL (IGN Espagne)",
     "calque.suisseSentiers": "Sentiers de randonnée (swisstopo)",
-    "calque.npsSentiers": "Sentiers des parcs nationaux (NPS)",
+    "calque.usgsSentiers": "Sentiers recensés par l’USGS",
     "calque.chargement": "Chargement des {nom}… (la première fois, jusqu'à une minute)",
     "calque.avancement": "Chargement des {nom}… {faites} sur {total} tuiles · {duree} s",
     "liaison.et": " et ",
@@ -233,7 +233,7 @@ const TEXTES = {
     "legende.bdtopo": "IGN BD TOPO paths",
     "legende.senderos": "Spanish waymarked trails (GR red, PR yellow, SL green)",
     "legende.suisseSentiers": "swisstopo hiking trails",
-    "legende.npsSentiers": "U.S. national park trails",
+    "legende.usgsSentiers": "trails mapped by USGS",
     "legende.gpx": "Loaded GPX",
     "reglages.titre": "Settings",
     "reglages.cle": "IGN key for SCAN 25",
@@ -289,12 +289,12 @@ const TEXTES = {
     "serveur.injoignable": "Server unreachable: {message}",
     "denivele.calcul": "Calculating elevation with gpx2elev…",
     "denivele.indisponible": "Elevation unavailable: gpx2elev, {erreur}",
-    "denivele.source": "gpx2elev, {modele}: 5 m sampling, 20 m smoothing, 2 m hysteresis; elevation from {min} to {max} m.",
+    "denivele.source": "Route elevation source: {modele} · gpx2elev calculation (5 m sampling, 20 m smoothing, 2 m threshold).",
     "calque.osm": "OSM paths",
     "calque.bdtopo": "BD TOPO paths (IGN)",
     "calque.senderos": "Waymarked GR/PR/SL trails (Spanish IGN)",
     "calque.suisseSentiers": "Hiking trails (swisstopo)",
-    "calque.npsSentiers": "National park trails (NPS)",
+    "calque.usgsSentiers": "Trails mapped by USGS",
     "calque.chargement": "Loading the {nom}… (the first time, up to a minute)",
     "calque.avancement": "Loading the {nom}… {faites} of {total} tiles · {duree} s",
     "liaison.et": " and ",
@@ -638,7 +638,11 @@ let changementPays = false;
 function cochesCalques() {
   try {
     const sauves = JSON.parse(localStorage.getItem(CLE_CALQUES) || "null");
-    if (Array.isArray(sauves)) return sauves;
+    if (Array.isArray(sauves)) {
+      // L'ancien calque NPS coché devient le calque USGS, plus complet.
+      if (sauves.includes("npsSentiers") && !sauves.includes("usgsSentiers")) sauves.push("usgsSentiers");
+      return sauves;
+    }
   } catch (e) { /* préférence illisible */ }
   return ["osm", ...Object.values(FOURNISSEURS_CARTES).flatMap((fournisseur) => fournisseur.overlays)];
 }
