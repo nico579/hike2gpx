@@ -791,3 +791,10 @@ def test_renouvellement_brouter_en_echec_attend_une_heure(tmp_path, monkeypatch)
     assert ancienne.read_bytes() == b"ancienne"
     assert a.installer_moteur() == {"brouter_en_cours": None}
     assert essais == ["E5_N40"]
+
+
+def test_chaque_provider_a_son_pays_dans_l_index_geofabrik():
+    """Un provider absent de PAYS_CARTES n'est jamais choisi quand on déplace la
+    carte à la main : un oubli silencieux, qu'un test rend visible."""
+    providers = Path(appli.__file__).parent / "assets" / "web" / "providers"
+    assert set(appli.PAYS_CARTES.values()) == {p.stem for p in providers.glob("[a-z][a-z].js")}

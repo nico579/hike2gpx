@@ -188,9 +188,9 @@ Voici, par exemple, le fichier de l'Espagne. Il reprend exactement ce que font a
 
 ### Garde-fous et migration
 
-Un test lit chaque fichier de `providers/` et vérifie que les champs obligatoires sont présents, que chaque libellé existe dans les deux langues, que `fond_defaut` désigne un fond déclaré, que chaque `type` est connu de la page et que chaque `chemins.protocole` est connu du serveur. Les oublis silencieux décrits plus haut deviennent ainsi des tests en échec.
+**Ce qui est fait.** Sans attendre la refonte, deux tests gardent déjà contre les oublis silencieux. Dans `tests/page.test.cjs`, chaque fond et chaque calque de chaque provider doit avoir son libellé en français et en anglais, et le fond par défaut doit exister. Dans `tests/test_application.py`, `PAYS_CARTES` doit couvrir exactement les providers présents. On a vérifié qu'ils échouent bien sur un oubli : un libellé anglais retiré au fond suisse, une entrée retirée de `PAYS_CARTES`.
 
-La migration est mécanique : huit fichiers à convertir, `PAYS_CARTES` et les libellés à retirer d'`application.py` et d'`app.js`, une fabrique de couches à écrire dans `app.js`. Elle se fait en une PR, sans changement visible pour l'utilisateur. Rien ne presse : elle s'impose au prochain pays ajouté, pour qu'il ne s'ajoute qu'en un endroit.
+**La refonte elle-même attendra un vrai besoin.** Depuis la mesure, elle a perdu sa raison principale : sans source de calcul hors de France, le bloc `chemins` n'existerait que pour la France, où la coche est déjà juste. Il reste l'intérêt de déclarer un pays en un seul endroit au lieu de trois. Pour un pays ajouté de temps en temps, sous la garde des deux tests, ce n'est pas un problème. La migration ne paierait qu'avec un flux d'ajouts (plusieurs pays d'un coup) : elle est mécanique, huit fichiers à convertir, `PAYS_CARTES` et les libellés à retirer d'`application.py` et d'`app.js`, une fabrique de couches à écrire, en une PR sans changement visible. Elle se ferait alors avec un test sur les fichiers JSON, qui vérifierait en plus que chaque `type` est connu de la page et chaque `chemins.protocole` du serveur.
 
 ## Sources candidates, pays par pays
 
@@ -240,7 +240,7 @@ Tous gardent leurs fonds d'affichage. On ne reviendra sur leur cas que si un uti
 1. **Ne pas écrire de connecteur de chemins étranger.** La mesure ne justifie aucun des trois pays testés. Le câblage IGN de la fusion reste en l'état : le généraliser serait une abstraction sans second cas.
 2. **Investir dans la BD TOPO**, qui porte la valeur : dans le Var, en Ariège et dans les Vosges, elle agrandit le réseau de 21 % à 100 %. Les pistes sont dans le code existant : règles d'accès, raccordements, signalement des chemins « non vérifiés ».
 3. **Mesurer avant de rouvrir le chantier.** L'Espagne (une feuille BTN pyrénéenne, une en Espagne intérieure) et la Bavière (WFS du Basis-DLM) se mesurent en ajoutant une fonction de lecture à `tools/essai_sources_chemins.py`. Un connecteur ne se discute qu'au-delà d'environ 20 % de gain, le bas de la fourchette française.
-4. **Passer aux fichiers JSON par pays au prochain pays ajouté**, pour que l'affichage d'un pays ne se déclare qu'en un endroit et que la coche de calcul soit annoncée par le serveur.
+4. **Garder les providers en JavaScript, sous la garde des deux tests de cohérence** (fait). Ne passer aux fichiers JSON par pays que si plusieurs pays doivent s'ajouter d'un coup.
 5. ~~Vérifier le proxy FEDME dans le navigateur, puis le supprimer s'il ne sert à rien.~~ Fait : vérifié dans Chrome et retiré.
 
 **État : analyse et mesure. Seul le proxy FEDME, inutile, a été retiré du code.** Hors de France, les calques de sentiers sont marqués « affichage seul », et le calcul utilise OSM seul.
