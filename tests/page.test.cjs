@@ -44,13 +44,20 @@ function charger(preferences = {}, documentGpx = null) {
     DOMParser: class { parseFromString() { return documentGpx; } },
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
-      addEventListener() {}, querySelectorAll() { return []; } },
+       addEventListener() {}, querySelectorAll(selector) {
+         if (selector !== "[data-map-overlay]") return [];
+         return [["legendBdtopo", "bdtopo"], ["legendSenderos", "senderos"],
+           ["legendSuisse", "suisseSentiers"]].map(([id, cle]) => {
+           const ligne = this.getElementById(id); ligne.dataset.mapOverlay = cle; return ligne;
+         });
+       } },
     localStorage: { getItem(key) { return stockage.get(key) ?? null; }, setItem(key, value) { stockage.set(key, value); } },
     confirm: (texte) => { confirmations.push(texte); return confirmations.reponse; },
     setTimeout(callback, ms) { minuteurs.push({ callback, ms }); return minuteurs.length; },
     clearTimeout(id) { if (minuteurs[id - 1]) minuteurs[id - 1].annule = true; },
     setInterval() { return 1; }, clearInterval() {},
-    L: { map() { return carte; }, layerGroup: couche, canvas: couche,
+     L: { map() { return carte; }, layerGroup: couche, canvas: couche,
+       vectorGrid: { protobuf: (url, options) => Object.assign(couche(), { url, options }) },
       polyline: (points, options) => Object.assign(couche(), { points, options }), circleMarker: couche,
       marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
       tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }),
@@ -74,11 +81,19 @@ function charger(preferences = {}, documentGpx = null) {
       });
     },
   });
+  contexte.window = contexte;
+  const providers = path.join(__dirname, "..", "hike2gpx", "assets", "web", "providers");
+  vm.runInContext("window.HIKE2GPX_MAP_PROVIDERS = {};", contexte);
+  for (const fichier of fs.readdirSync(providers).filter((nom) => /^[a-z]{2}\.js$/.test(nom)).sort()) {
+    vm.runInContext(fs.readFileSync(path.join(providers, fichier), "utf8"), contexte);
+  }
+  vm.runInContext('window.HIKE2GPX_MAP_PROVIDERS.autre = '
+    + '{ defaultBase: "osm", overlays: [], bases: () => ({}) };', contexte);
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
-    + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds,"
+     + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
@@ -218,7 +233,7 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
   assert.equal(page.etat.points.length, 0);
 });
 
-test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent en France", async () => {
+test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent en France", async () => {
   const { page, elements, requetes, stockage, carte } = charger();
   page.etat.cleIgn = "cle-test";
   page.construireFonds();
@@ -228,7 +243,7 @@ test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent 
   assert.match(page.fonds().reliefLidar.url, /TILEMATRIXSET=PM_0_18/);
   assert.equal(page.fonds().reliefLidar.options.maxNativeZoom, 18);
   carte.handlers.baselayerchange({ layer: page.fonds().reliefLidar });
-  assert.equal(stockage.get("hike2gpx.fond"), "reliefLidar");
+  assert.equal(stockage.get("hike2gpx.fond.fr"), "reliefLidar");
 
   elements.get("cityQuery").value = "Madrid";
   const rechercheMadrid = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
@@ -236,16 +251,16 @@ test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent 
     { nom: "Madrid", detail: "Espagne", code_pays: "es", lat: 40.416782, lon: -3.703507 },
   ] });
   await rechercheMadrid;
-  assert.deepEqual(Object.keys(page.fonds()), ["osmRando", "osm", "osmVelo", "satellite"]);
-  assert.deepEqual(Object.keys(page.controle().fonds), ["OSM rando", "OSM", "OSM vélo", "Satellite"]);
+  assert.deepEqual(Object.keys(page.fonds()), ["espagne", "osmRando", "osm", "osmVelo", "satellite"]);
+  assert.deepEqual(Object.keys(page.controle().fonds), ["Carte topographique (IGN Espagne)", "OSM rando", "OSM", "OSM vélo", "Satellite"]);
   assert.match(page.fonds().osmRando.url, /tile\.opentopomap\.org/);
   assert.match(page.fonds().osmVelo.url, /tile-cyclosm\.openstreetmap\.fr\/cyclosm/);
   assert.equal(page.fonds().osmVelo.options.maxNativeZoom, 18);
   assert.equal(page.fonds().osmVelo.options.maxZoom, 19);
   assert.match(page.fonds().satellite.url, /World_Imagery/);
-  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM", "Sentiers balisés GR/PR/SL (IGN Espagne)"]);
   assert.equal(page.fonds().reliefLidar, undefined);
-  assert.match(page.fond().url, /tile\.openstreetmap\.org/);
+  assert.match(page.fond().url, /ign\.es\/wmts\/mapa-raster/);
   assert.equal(page.CALQUES.bdtopo.groupe.removed, true);
   assert.equal(elements.get("ignOption").hidden, true);
   assert.equal(elements.get("legendBdtopo").hidden, true);
@@ -254,7 +269,7 @@ test("Madrid propose les fonds OSM et satellite puis les couches IGN reviennent 
   const recharge = charger(Object.fromEntries(stockage));
   recharge.page.restaurerCalques();
   recharge.page.construireFonds();
-  assert.deepEqual(Object.keys(recharge.page.fonds()), ["osmRando", "osm", "osmVelo", "satellite"]);
+  assert.deepEqual(Object.keys(recharge.page.fonds()), ["espagne", "osmRando", "osm", "osmVelo", "satellite"]);
   assert.equal(recharge.page.CALQUES.bdtopo.groupe.addedTo, undefined);
   assert.equal(recharge.page.fonds().reliefLidar, undefined);
   assert.equal(recharge.elements.get("ignOption").hidden, true);
@@ -293,7 +308,7 @@ test("un déplacement manuel de Madrid à Garéoult rétablit les couches IGN", 
   carte.handlers.moveend();
   const lecture = minuteurs.findLast((m) => m.ms === 600 && !m.annule).callback();
   repondre(requetes.findLast((r) => r.url.startsWith("/api/extrait?")),
-    { en_cours: null, brouter: null, hors_france: false });
+    { en_cours: null, brouter: null, pays: "fr", hors_france: false });
   await lecture;
   assert.ok(page.fonds().plan);
   assert.equal(elements.get("ignOption").hidden, false);
@@ -302,9 +317,36 @@ test("un déplacement manuel de Madrid à Garéoult rétablit les couches IGN", 
   carte.handlers.moveend();
   const retour = minuteurs.findLast((m) => m.ms === 600 && !m.annule).callback();
   repondre(requetes.findLast((r) => r.url.startsWith("/api/extrait?")),
-    { en_cours: null, brouter: null, hors_france: true });
+    { en_cours: null, brouter: null, pays: "es", hors_france: true });
   await retour;
   assert.equal(page.fonds().plan, undefined);
+  assert.ok(page.fonds().espagne);
+  assert.ok(page.controle().calques["Sentiers balisés GR/PR/SL (IGN Espagne)"]);
+});
+
+test("la Suisse active swisstopo et conserve un fond préféré par pays", () => {
+  const { page, carte, stockage } = charger();
+  page.choisirPays("ch");
+  assert.match(page.fond().url, /ch\.swisstopo\.pixelkarte-farbe/);
+  assert.match(page.controle().calques["Sentiers de randonnée (swisstopo)"].url,
+    /ch\.swisstopo\.swisstlm3d-wanderwege/);
+  assert.equal(page.fonds().plan, undefined);
+  carte.handlers.baselayerchange({ layer: page.fonds().osm });
+  assert.equal(stockage.get("hike2gpx.fond.ch"), "osm");
+  page.choisirPays("es");
+  assert.match(page.fond().url, /ign\.es\/wmts\/mapa-raster/);
+  page.choisirPays("ch");
+  assert.match(page.fond().url, /tile\.openstreetmap\.org/);
+});
+
+test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins disponibles", () => {
+  const { page } = charger();
+  page.choisirPays("at");
+  assert.match(page.fond().url, /mapsneu\.wien\.gv\.at\/basemap/);
+  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  page.choisirPays("nl");
+  assert.match(page.fond().url, /service\.pdok\.nl\/kadaster\/brt-achtergrondkaart/);
+  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
 });
 
 test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {
@@ -381,7 +423,7 @@ test("les options de marche et le fond reviennent à l'ouverture", () => {
   elements.get("comparer").ecouteurs.change[0]();
   assert.deepEqual(JSON.parse(stockage.get("hike2gpx.options")), { strict: true, ign: false, comparer: true });
   carte.handlers.baselayerchange({ layer: page.fonds().plan });
-  assert.equal(stockage.get("hike2gpx.fond"), "plan");
+  assert.equal(stockage.get("hike2gpx.fond.fr"), "plan");
   carte.zoom = 19;
   carte.handlers.zoomend();
   assert.equal(elements.get("carte").style["--tile-overlap"], "1px");

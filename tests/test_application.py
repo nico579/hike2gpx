@@ -68,6 +68,22 @@ def sans_index_geofabrik(monkeypatch):
     monkeypatch.setattr(osmfr, "regions", lambda dossier, **options: [])
 
 
+def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
+    def region(identifiant, sud, ouest, nord, est):
+        anneau = [(ouest, sud), (est, sud), (est, nord), (ouest, nord), (ouest, sud)]
+        return {"id": identifiant, "bornes": (sud, ouest, nord, est), "polygones": [[anneau]]}
+
+    zones = [region("spain", 36, -10, 44, 4), region("switzerland", 45, 5, 48, 11),
+             region("austria", 46, 9, 49, 17), region("netherlands", 50, 3, 54, 8)]
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: zones)
+    app = appli.Application(tmp_path)
+    assert app.extrait((40.4, -3.8, 40.5, -3.6))["pays"] == "es"
+    assert app.extrait((46.7, 7.9, 46.9, 8.1))["pays"] == "ch"
+    assert app.extrait((48.1, 16.3, 48.3, 16.5))["pays"] == "at"
+    assert app.extrait((52.0, 5.0, 52.2, 5.2))["pays"] == "nl"
+    assert "pays" not in app.extrait((52, 12, 52.1, 12.1))
+
+
 @pytest.fixture
 def simulee(tmp_path, monkeypatch):
     a = appli.Application(tmp_path)

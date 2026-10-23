@@ -309,6 +309,8 @@
   });
   syncMapToolbarVisibility();
   const layersButton = document.getElementById("layersButton");
+  const providersInfoButton = document.getElementById("providersInfoButton");
+  const providersInfoPanel = document.getElementById("providersInfoPanel");
   const layersPreference = "hike2gpx.layersOpen";
   try {
     const open = localStorage.getItem(layersPreference) === "true";
@@ -363,6 +365,49 @@
       try { localStorage.setItem(layersPreference, "false"); } catch (error) {}
     }
   }
+  function remplirPaysCouverts() {
+    const langue = document.documentElement.lang === "en" ? "en" : "fr";
+    const noms = new Intl.DisplayNames([langue], { type: "region" });
+    const pays = Object.entries(window.HIKE2GPX_MAP_PROVIDERS || {})
+      .filter(([code]) => code !== "autre")
+      .map(([code, provider]) => ({
+        nom: noms.of(code.toUpperCase()),
+        fond: provider.defaultBase !== "osm",
+        chemins: (provider.overlays || []).length > 0,
+      }))
+      .filter(pays => pays.fond || pays.chemins)
+      .sort((a, b) => a.nom.localeCompare(b.nom, langue));
+    const titre = document.createElement("h3");
+    titre.textContent = langue === "en" ? "Covered countries" : "Pays couverts";
+    const liste = document.createElement("ul");
+    for (const paysCouvert of pays) {
+      const ligne = document.createElement("li");
+      const nom = document.createElement("span");
+      nom.textContent = paysCouvert.nom;
+      const couverture = document.createElement("span");
+      couverture.textContent = langue === "en"
+        ? (paysCouvert.fond && paysCouvert.chemins ? "Map and paths" : paysCouvert.fond ? "Map" : "Paths")
+        : (paysCouvert.fond && paysCouvert.chemins ? "Fond et chemins" : paysCouvert.fond ? "Fond" : "Chemins");
+      ligne.append(nom, couverture);
+      liste.append(ligne);
+    }
+    providersInfoPanel.replaceChildren(titre, liste);
+  }
+  function closeProvidersInfo() {
+    providersInfoPanel.hidden = true;
+    providersInfoButton.setAttribute("aria-expanded", "false");
+  }
+  providersInfoButton.addEventListener("click", () => {
+    const ouvrir = providersInfoPanel.hidden;
+    if (ouvrir) {
+      closeLayers(false);
+      remplirPaysCouverts();
+    }
+    providersInfoPanel.hidden = !ouvrir;
+    providersInfoButton.setAttribute("aria-expanded", String(ouvrir));
+  });
+  document.addEventListener("nico579-langue", remplirPaysCouverts);
+  remplirPaysCouverts();
   function syncLayers() {
     const control = leafletControls.querySelector(".leaflet-control-layers") || toolbar.querySelector(".leaflet-control-layers");
     if (!control) return;
@@ -393,13 +438,17 @@
   // avant lui pour actualiser le nom du fond choisi.
   toolbar.addEventListener("change", () => setTimeout(syncLayers, 0), true);
   layersButton.addEventListener("click", () => {
+    closeProvidersInfo();
     const open = toolbar.classList.toggle("layers-open");
     layersButton.setAttribute("aria-expanded", String(open));
     try { localStorage.setItem(layersPreference, String(open)); } catch (error) {}
     requestAnimationFrame(syncProfileWidth);
   });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape") closeLayers();
+    if (event.key === "Escape") {
+      closeLayers();
+      closeProvidersInfo();
+    }
   });
   window.addEventListener("resize", () => requestAnimationFrame(syncProfileWidth));
   function syncFullscreen() {

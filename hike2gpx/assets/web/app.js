@@ -65,6 +65,8 @@ const TEXTES = {
     "legende.osm": "chemins OSM (tirets : sentiers)",
     "legende.barriere": "clôtures et murs connus d'OSM",
     "legende.bdtopo": "chemins BD TOPO de l'IGN",
+    "legende.senderos": "sentiers balisés espagnols (GR rouge, PR jaune, SL vert)",
+    "legende.suisseSentiers": "sentiers de randonnée swisstopo",
     "legende.gpx": "GPX chargé",
     "reglages.titre": "Réglages",
     "reglages.cle": "Clé IGN pour le SCAN 25",
@@ -123,6 +125,8 @@ const TEXTES = {
     "denivele.source": "gpx2elev, {modele} : échantillonnage 5 m, lissage 20 m, hystérésis 2 m ; altitude de {min} à {max} m.",
     "calque.osm": "Chemins OSM",
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
+    "calque.senderos": "Sentiers balisés GR/PR/SL (IGN Espagne)",
+    "calque.suisseSentiers": "Sentiers de randonnée (swisstopo)",
     "calque.chargement": "Chargement des {nom}… (la première fois, jusqu'à une minute)",
     "calque.avancement": "Chargement des {nom}… {faites} sur {total} tuiles · {duree} s",
     "liaison.et": " et ",
@@ -145,6 +149,10 @@ const TEXTES = {
     "fond.osmVelo": "OSM vélo",
     "fond.satellite": "Satellite",
     "fond.reliefLidar": "Relief LiDAR HD (IGN)",
+    "fond.espagne": "Carte topographique (IGN Espagne)",
+    "fond.suisse": "Carte nationale (swisstopo)",
+    "fond.autriche": "Carte officielle (basemap.at)",
+    "fond.paysBas": "Carte topographique (PDOK)",
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
@@ -218,6 +226,8 @@ const TEXTES = {
     "legende.osm": "OSM paths (dashed: footpaths)",
     "legende.barriere": "fences and walls known to OSM",
     "legende.bdtopo": "IGN BD TOPO paths",
+    "legende.senderos": "Spanish waymarked trails (GR red, PR yellow, SL green)",
+    "legende.suisseSentiers": "swisstopo hiking trails",
     "legende.gpx": "Loaded GPX",
     "reglages.titre": "Settings",
     "reglages.cle": "IGN key for SCAN 25",
@@ -276,6 +286,8 @@ const TEXTES = {
     "denivele.source": "gpx2elev, {modele}: 5 m sampling, 20 m smoothing, 2 m hysteresis; elevation from {min} to {max} m.",
     "calque.osm": "OSM paths",
     "calque.bdtopo": "BD TOPO paths (IGN)",
+    "calque.senderos": "Waymarked GR/PR/SL trails (Spanish IGN)",
+    "calque.suisseSentiers": "Hiking trails (swisstopo)",
     "calque.chargement": "Loading the {nom}… (the first time, up to a minute)",
     "calque.avancement": "Loading the {nom}… {faites} of {total} tiles · {duree} s",
     "liaison.et": " and ",
@@ -298,6 +310,10 @@ const TEXTES = {
     "fond.osmVelo": "OSM cycling",
     "fond.satellite": "Satellite",
     "fond.reliefLidar": "LiDAR HD terrain relief (IGN)",
+    "fond.espagne": "Topographic map (Spanish IGN)",
+    "fond.suisse": "National map (swisstopo)",
+    "fond.autriche": "Official map (basemap.at)",
+    "fond.paysBas": "Topographic map (PDOK)",
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
@@ -472,7 +488,9 @@ function lireVue() {
 }
 
 const vueInitiale = lireVue();
-let horsFrance = vueInitiale.hors_france === true;
+let paysCarte = Object.hasOwn(window.HIKE2GPX_MAP_PROVIDERS, vueInitiale.pays)
+  ? vueInitiale.pays : (vueInitiale.hors_france === true ? "autre" : "fr");
+let horsFrance = paysCarte !== "fr";
 const carte = L.map("carte").setView([vueInitiale.lat, vueInitiale.lon], vueInitiale.zoom);
 let sequenceRecherche = 0;
 const resultatsVilles = $("cityResults");
@@ -505,7 +523,7 @@ $("citySearch").addEventListener("submit", async (e) => {
       bouton.type = "button";
       bouton.textContent = ville.detail ? `${ville.nom} · ${ville.detail}` : ville.nom;
       bouton.addEventListener("click", () => {
-        choisirZone(ville.code_pays !== "fr");
+        choisirPays(Object.hasOwn(window.HIKE2GPX_MAP_PROVIDERS, ville.code_pays) ? ville.code_pays : "autre");
         carte.setView([ville.lat, ville.lon], 13);
         memoriserVue(ville.lat, ville.lon, 13);
         $("cityQuery").value = ville.nom;
@@ -523,7 +541,7 @@ $("citySearch").addEventListener("submit", async (e) => {
 });
 function memoriserVue(lat, lon, zoom) {
   try {
-    localStorage.setItem(CLE_VUE, JSON.stringify({ lat, lon, zoom, hors_france: horsFrance }));
+    localStorage.setItem(CLE_VUE, JSON.stringify({ lat, lon, zoom, pays: paysCarte, hors_france: horsFrance }));
   } catch (e) { /* sans importance */ }
 }
 carte.on("moveend", () => {
@@ -561,8 +579,8 @@ function tuileIgn(couche, format, cle, matrices = "PM") {
     + (cle ? `&apikey=${encodeURIComponent(cle)}` : "");
 }
 
-const IGN = '© <a href="https://www.ign.fr/">IGN</a>';
 const CLE_FOND = "hike2gpx.fond";
+const FOURNISSEURS_CARTES = window.HIKE2GPX_MAP_PROVIDERS;
 let controleFonds = null;
 let fondActif = null;
 let couchesFonds = {};      // clé -> fond de carte Leaflet
@@ -576,7 +594,7 @@ carte.on("baselayerchange", (e) => {
   ajusterRecouvrementTuiles();
   const cle = Object.keys(couchesFonds).find((nom) => couchesFonds[nom] === e.layer);
   if (cle) {
-    try { localStorage.setItem(CLE_FOND, cle); } catch (erreur) { /* stockage indisponible */ }
+    try { localStorage.setItem(`${CLE_FOND}.${paysCarte}`, cle); } catch (erreur) { /* stockage indisponible */ }
   }
 });
 
@@ -597,6 +615,34 @@ const CALQUES = {
   osm: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
   bdtopo: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
 };
+const CALQUES_PAYS = Object.fromEntries(Object.values(FOURNISSEURS_CARTES)
+  .flatMap((fournisseur) => Object.entries(fournisseur.calques || {})
+    .map(([cle, creer]) => [cle, creer(L)])));
+function calquesDuPays() {
+  return FOURNISSEURS_CARTES[paysCarte]?.overlays || [];
+}
+function coucheCalque(cle) {
+  return CALQUES[cle]?.groupe || CALQUES_PAYS[cle];
+}
+let changementPays = false;
+function cochesCalques() {
+  try {
+    const sauves = JSON.parse(localStorage.getItem(CLE_CALQUES) || "null");
+    if (Array.isArray(sauves)) return sauves;
+  } catch (e) { /* préférence illisible */ }
+  return ["osm", ...Object.values(FOURNISSEURS_CARTES).flatMap((fournisseur) => fournisseur.overlays)];
+}
+function memoriserCalques() {
+  if (changementPays) return;
+  const applicables = ["osm", ...calquesDuPays()];
+  const coches = new Set(cochesCalques());
+  for (const cle of applicables) {
+    if (carte.hasLayer(coucheCalque(cle))) coches.add(cle);
+    else coches.delete(cle);
+  }
+  try { localStorage.setItem(CLE_CALQUES, JSON.stringify([...coches])); }
+  catch (e) { /* sans importance */ }
+}
 const STYLES_OSM = {
   sentier: { color: "#7b1fa2", weight: 3, dashArray: "6 4" },
   piste: { color: "#7b1fa2", weight: 3 },
@@ -798,6 +844,8 @@ carte.on("moveend", () => {
   minuterieCalques = setTimeout(rafraichirCalques, 400);
 });
 carte.on("overlayadd overlayremove", (e) => {
+  const officiel = Object.keys(CALQUES_PAYS).find((cle) => CALQUES_PAYS[cle] === e.layer);
+  if (officiel) { memoriserCalques(); return; }
   const cle = Object.keys(CALQUES).find((c) => CALQUES[c].groupe === e.layer);
   if (!cle) return;
   const calque = CALQUES[cle];
@@ -806,51 +854,41 @@ carte.on("overlayadd overlayremove", (e) => {
     calque.groupe.clearLayers();
     calque.charge = null;
   }
-  try {
-    localStorage.setItem(CLE_CALQUES, JSON.stringify(Object.keys(CALQUES).filter((cle) => carte.hasLayer(CALQUES[cle].groupe))));
-  } catch (erreur) { /* sans importance */ }
+  memoriserCalques();
   rafraichirCalques();
 });
 
 function restaurerCalques() {
-  let coches = Object.keys(CALQUES);
-  try {
-    const choix = localStorage.getItem(CLE_CALQUES);
-    if (choix !== null) {
-      const sauves = JSON.parse(choix);
-      if (Array.isArray(sauves)) coches = sauves;
-    }
-  } catch (e) { /* préférence illisible : conserver les deux calques par défaut */ }
-  for (const cle of coches) {
-    if (CALQUES[cle] && (!horsFrance || cle === "osm")) CALQUES[cle].groupe.addTo(carte);
+  const coches = cochesCalques();
+  for (const cle of ["osm", ...calquesDuPays()]) {
+    if (coches.includes(cle) && !carte.hasLayer(coucheCalque(cle))) coucheCalque(cle).addTo(carte);
   }
 }
 
-function choisirZone(estHorsFrance) {
-  if (horsFrance === estHorsFrance) return;
+function choisirPays(pays) {
+  if (paysCarte === pays) return;
   ++sequenceExtrait;
-  horsFrance = estHorsFrance;
+  changementPays = true;
+  // Les retraits automatiques de calques ne changent pas leurs préférences.
+  const bdtopo = CALQUES.bdtopo;
+  bdtopo.groupe.remove();
+  if (abandonner(bdtopo)) arreterAuServeur(["bdtopo"]);
+  bdtopo.groupe.clearLayers();
+  bdtopo.charge = null;
+  for (const couche of Object.values(CALQUES_PAYS)) couche.remove();
+  paysCarte = pays;
+  horsFrance = pays !== "fr";
   afficherOptionsIgn();
-  // Retirer le contrôle avant BD TOPO : Leaflet interpréterait sinon ce retrait
-  // automatique comme un choix de l'utilisateur et écraserait sa préférence.
-  if (controleFonds) {
-    controleFonds.remove();
-    controleFonds = null;
-  }
-  if (horsFrance) {
-    const bdtopo = CALQUES.bdtopo;
-    bdtopo.groupe.remove();
-    if (abandonner(bdtopo)) arreterAuServeur(["bdtopo"]);
-    bdtopo.groupe.clearLayers();
-    bdtopo.charge = null;
-  } else {
-    restaurerCalques();
-  }
+  restaurerCalques();
   construireFonds();
+  changementPays = false;
 }
 
 function afficherOptionsIgn() {
-  for (const id of ["ignOption", "legendIgn", "legendBdtopo"]) $(id).hidden = horsFrance;
+  for (const id of ["ignOption", "legendIgn"]) $(id).hidden = horsFrance;
+  for (const element of document.querySelectorAll("[data-map-overlay]")) {
+    element.hidden = !calquesDuPays().includes(element.dataset.mapOverlay);
+  }
 }
 
 // ------------------------------------------------------------ données OSM hors ligne
@@ -893,9 +931,12 @@ async function majExtrait(forcer = false) {
   try {
     const resultat = await api(`extrait?${parametres}`);
     if (numero !== sequenceExtrait) return;
-    if (typeof resultat.hors_france === "boolean") {
+    if (resultat.pays) {
       essaisPays = 0;
-      choisirZone(resultat.hors_france);
+      choisirPays(resultat.pays);
+    } else if (typeof resultat.hors_france === "boolean") {
+      choisirPays(resultat.hors_france ? "autre" : "fr");
+      essaisPays = resultat.hors_france ? essaisPays + 1 : 0;
     } else {
       ++essaisPays;
     }
@@ -963,24 +1004,13 @@ carte.on("moveend", () => {
 // Fonds de carte et contrôle des calques, refaits quand la clé IGN ou la
 // langue change ; le fond affiché reste le même.
 function construireFonds() {
-  const cleActive = Object.keys(couchesFonds).find((cle) => couchesFonds[cle] === fondActif);
   let clePreferee = null;
-  try { clePreferee = localStorage.getItem(CLE_FOND); } catch (erreur) { /* fond par défaut */ }
+  try {
+    clePreferee = localStorage.getItem(`${CLE_FOND}.${paysCarte}`)
+      || (paysCarte === "fr" ? localStorage.getItem(CLE_FOND) : null);
+  } catch (erreur) { /* fond par défaut */ }
   couchesFonds = {};
-  if (!horsFrance && etat.cleIgn) {
-    couchesFonds.scan25 = L.tileLayer(tuileIgn("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", etat.cleIgn),
-      { maxNativeZoom: 16, maxZoom: 19, attribution: IGN });
-  }
-  if (!horsFrance) {
-    couchesFonds.plan = L.tileLayer(tuileIgn("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png"),
-      { maxNativeZoom: 18, maxZoom: 19, attribution: IGN });
-    couchesFonds.photos = L.tileLayer(tuileIgn("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg"),
-      { maxNativeZoom: 19, maxZoom: 19, attribution: IGN });
-    couchesFonds.reliefLidar = L.tileLayer(
-      tuileIgn("IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png", null, "PM_0_18"),
-      { maxNativeZoom: 18, maxZoom: 19, attribution: IGN },
-    );
-  }
+  Object.assign(couchesFonds, FOURNISSEURS_CARTES[paysCarte].bases({ L, cleIgn: etat.cleIgn, tuileIgn }));
   couchesFonds.osmRando = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 17, maxZoom: 19,
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM '
@@ -995,17 +1025,23 @@ function construireFonds() {
   couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
+  // presentation.js place la légende dans le contrôle Leaflet. La récupérer
+  // avant de le retirer, sinon elle disparaît du DOM au changement de pays.
+  const legende = $("mapLegend");
+  if (legende && controleFonds) document.body.append(legende);
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
-  const choix = horsFrance
-    ? ((clePreferee && couchesFonds[clePreferee]) ? clePreferee : "osm")
-    : (clePreferee || (cleActive === "osm" ? "plan" : cleActive));
+  const defaut = FOURNISSEURS_CARTES[paysCarte].defaultBase;
+  const choix = (clePreferee && couchesFonds[clePreferee]) ? clePreferee : defaut;
   fondActif = (couchesFonds[choix] || couchesFonds.plan || couchesFonds.osm).addTo(carte);
   ajusterRecouvrementTuiles();
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES)
     .filter(([cle]) => !horsFrance || cle === "osm")
     .map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
+  for (const cle of calquesDuPays()) {
+    if (CALQUES_PAYS[cle]) calques[t(`calque.${cle}`)] = CALQUES_PAYS[cle];
+  }
   if (nomGpxImporte) calques[echapper(nomGpxImporte)] = traceGpxImporte;
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
 }

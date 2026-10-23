@@ -36,6 +36,10 @@ NOMS_ETAPES = {"debut": "préparation", "donnees": "lecture des données", "fusi
                "tuiles": "tuile BRouter", "analyse": "franchissements", "itineraire": "calcul BRouter",
                "comparaison": "tracé standard"}
 ZONE_CALQUE_MAX_DEG2 = 0.03  # un grand écran au zoom 14 ; au-delà, trop de tuiles à lire
+# Un fournisseur cartographique peut être ajouté côté page sans modifier le
+# choix du pays : seul son identifiant dans l'index Geofabrik est déclaré ici.
+PAYS_CARTES = {"france": "fr", "spain": "es", "switzerland": "ch",
+               "austria": "at", "netherlands": "nl"}
 MARGE_DEG = 0.01            # environ 1 km autour des points
 MARGE_RELATIVE = 0.25
 POINTS_MAX = 50
@@ -725,9 +729,18 @@ class Application:
         if zone is None:
             return reponse
         lat, lon = (zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2
+        # Le pays de la carte suit son centre, y compris après un déplacement
+        # manuel. Les contours de Geofabrik sont déjà lus pour les extraits OSM.
+        pays = next((r["id"] for r in geofabrik.regions(self.dossier)
+                     if r["id"] in PAYS_CARTES
+                     and geofabrik.contient_point(r, lat, lon)), None)
+        if pays:
+            reponse["pays"] = PAYS_CARTES[pays]
         regions_france = osmfr.regions(self.dossier)
         if regions_france:
             reponse["hors_france"] = not any(geofabrik.contient_point(r, lat, lon) for r in regions_france)
+            if not reponse["hors_france"]:
+                reponse["pays"] = "fr"
         installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
         if installe:
             return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}

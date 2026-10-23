@@ -4,7 +4,10 @@ des autres applications de nico579."""
 from __future__ import annotations
 
 import logging
+import re
 import threading
+import urllib.error
+import urllib.request
 import webbrowser
 from pathlib import Path
 
@@ -19,6 +22,11 @@ HOST = "127.0.0.1"
 PORT = 8795
 PLAGE = 10
 GUI = Path(__file__).parent / "assets" / "web"
+PROVIDERS = GUI / "providers"
+_TUILE_VECTORIELLE = re.compile(r"^/tuiles/([a-z]+)/(?P<z>\d{1,2})/(?P<x>\d{1,8})/(?P<y>\d{1,8})\.pbf$")
+TUILES_VECTORIELLES = {
+    "sentiers": "https://vt-fedme.idee.es/vt.senderogr,vt.senderopr,vt.senderosl/{z}/{x}/{y}.pbf",
+}
 
 
 class Handler(serveweb.Handler):
@@ -26,13 +34,65 @@ class Handler(serveweb.Handler):
                           "/presentation.js": ("presentation.js", "text/javascript; charset=utf-8"),
                           "/presentation.css": ("presentation.css", "text/css; charset=utf-8"),
                           "/leaflet/leaflet.js": ("leaflet/leaflet.js", "text/javascript; charset=utf-8"),
-                          "/leaflet/leaflet.css": ("leaflet/leaflet.css", "text/css; charset=utf-8")}
+                           "/leaflet/leaflet.css": ("leaflet/leaflet.css", "text/css; charset=utf-8"),
+                           "/leaflet/Leaflet.VectorGrid.bundled.js":
+                           ("leaflet/Leaflet.VectorGrid.bundled.js", "text/javascript; charset=utf-8")}
     # Les calques et l'extrait hors ligne lisent la zone de la vue :
     # ?s=&w=&n=&e= (None si invalide) ; les calques aussi sa date, &vue=.
     arguments_get = {"osm": lambda q: (lire_zone(q), lire_vue(q)), "bdtopo": lambda q: (lire_zone(q), lire_vue(q)),
                      "extrait": lambda q: (lire_zone(q),), "disponibilite": lambda q: (lire_zone(q),)}
 
     def do_GET(self):
+        chemin = self.path.split("?", 1)[0]
+        if chemin == "/map-providers.js":
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            # Les providers sont des modules autonomes. Leur dossier est la
+            # source unique du registre et de la liste de couverture de la page.
+            morceaux = ["window.HIKE2GPX_MAP_PROVIDERS = {};\n"]
+            morceaux.extend(p.read_text(encoding="utf-8") + "\n" for p in sorted(PROVIDERS.glob("[a-z][a-z].js")))
+            morceaux.append('window.HIKE2GPX_MAP_PROVIDERS.autre = '
+                            '{ defaultBase: "osm", overlays: [], bases: () => ({}) };\n')
+            corps = "".join(morceaux).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Content-Length", str(len(corps)))
+            self.end_headers()
+            self.wfile.write(corps)
+            return
+        tuile = _TUILE_VECTORIELLE.fullmatch(chemin)
+        if tuile:
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            fournisseur = TUILES_VECTORIELLES.get(tuile.group(1))
+            if fournisseur is None:
+                self.send_error(404)
+                return
+            z, x, y = (int(tuile.group(nom)) for nom in ("z", "x", "y"))
+            if z > 19 or x >= 2 ** z or y >= 2 ** z:
+                self.send_error(404)
+                return
+            url = fournisseur.format(z=z, x=x, y=y)
+            try:
+                demande = urllib.request.Request(url, headers={"User-Agent": f"hike2gpx/{__version__}"})
+                with urllib.request.urlopen(demande, timeout=15) as reponse:
+                    corps = reponse.read(2_000_001)
+                if len(corps) > 2_000_000:
+                    self.send_error(502)
+                    return
+            except (OSError, urllib.error.URLError):
+                self.send_error(502)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/vnd.mapbox-vector-tile")
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.send_header("Content-Length", str(len(corps)))
+            self.end_headers()
+            self.wfile.write(corps)
+            return
         if self.path.split("?", 1)[0] == "/journal.txt":
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)
