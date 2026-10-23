@@ -104,12 +104,12 @@ Cette partie vaut indépendamment du verdict. Les providers servent d'abord à l
 
 ### Ce qu'il faut toucher aujourd'hui pour ajouter un pays
 
-Le provider JavaScript donne l'impression qu'un pays tient dans un fichier. En réalité, il est éparpillé en quatre endroits :
+Le provider JavaScript donne l'impression qu'un pays tient dans un fichier. En réalité, il était éparpillé en quatre endroits, et l'est encore en trois :
 
 - `providers/<code>.js` : les fonds et les calques, sous forme de code Leaflet ;
 - `app.js` : les libellés FR/EN de ces fonds et calques (`fond.espagne`, `calque.senderos`, `calque.usgsSentiers`…), dans les tables de traduction de la page ;
 - `application.py` : `PAYS_CARTES`, qui fait correspondre l'identifiant Geofabrik au code pays (`"spain": "es"`), pour suivre le pays du centre de la carte ;
-- `web.py` : `TUILES_VECTORIELLES`, l'adresse amont des tuiles relayées par le serveur, aujourd'hui pour les seuls sentiers FEDME.
+- jusqu'au retrait du proxy FEDME (voir plus bas), `web.py` portait aussi `TUILES_VECTORIELLES`, l'adresse amont des tuiles relayées par le serveur.
 
 Oublier l'un de ces endroits ne casse rien de visible. Un libellé manquant affiche sa clé brute, et un pays absent de `PAYS_CARTES` n'est jamais choisi quand on déplace la carte à la main. Ce sont des oublis silencieux, du même genre que le dossier `providers/` oublié dans le spec PyInstaller avant la 0.3.0.
 
@@ -183,7 +183,7 @@ Voici, par exemple, le fichier de l'Espagne. Il reprend exactement ce que font a
 ### Trois cas particuliers vérifiés le 23 octobre 2026
 
 - **L'export ArcGIS des sentiers USGS est justifié.** L'USGS publie bien un WMS de ses sentiers (`USGSTrails/MapServer/WMSServer`, WMS 1.3.0), qui serait la voie standard avec `L.tileLayer.wms`. Mais ce WMS ne propose que CRS:84, EPSG:4269 et EPSG:4326, pas le Web Mercator (EPSG:3857) de la carte. L'`export` ArcGIS, lui, reprojette à la demande (`imageSR=3857`) : c'est le bon choix. Il devient le type générique `arcgis_export` dans `app.js`, au lieu d'un `getTileUrl` écrit dans le fichier du pays.
-- **Le proxy des sentiers FEDME n'a pas de raison démontrée.** Le serveur `vt-fedme.idee.es` répond `Access-Control-Allow-Origin: *`, si bien que le navigateur peut lire ses tuiles directement. Ni hike2gpx ni le serveur commun `nico579_commons` n'imposent de politique CSP qui l'interdirait, et le commit d'origine ne donne aucune raison. Il faut vérifier dans le navigateur que le calque se charge sans le proxy, puis supprimer `TUILES_VECTORIELLES` et sa route. L'exemple espagnol ci-dessus suppose cette vérification faite.
+- **Le proxy des sentiers FEDME ne servait à rien, et il est retiré.** Le serveur `vt-fedme.idee.es` répond `Access-Control-Allow-Origin: *`. Ni hike2gpx ni le serveur commun `nico579_commons` n'imposent de politique CSP, et le commit d'origine ne donnait aucune raison. L'essai dans Chrome, sur une page servie par `127.0.0.1`, l'a confirmé le 23 octobre 2026 : sur le Val d'Aran, le calque a chargé 46 tuiles directement depuis le serveur FEDME, toutes en statut 200, dont 28 avec des sentiers dessinés, sans erreur dans la console. `es.js` lit donc les tuiles en direct, et `web.py` a perdu `TUILES_VECTORIELLES` et la route `/tuiles/`.
 - **Leaflet.VectorGrid n'est plus maintenu depuis 2017.** Il fonctionne et il est figé dans le dépôt, donc sans risque immédiat. Si les tuiles vectorielles se multipliaient, il faudrait regarder du côté de MapLibre, aujourd'hui la référence du vectoriel. Pour un seul calque, la question ne se pose pas.
 
 ### Garde-fous et migration
@@ -241,6 +241,6 @@ Tous gardent leurs fonds d'affichage. On ne reviendra sur leur cas que si un uti
 2. **Investir dans la BD TOPO**, qui porte la valeur : dans le Var, en Ariège et dans les Vosges, elle agrandit le réseau de 21 % à 100 %. Les pistes sont dans le code existant : règles d'accès, raccordements, signalement des chemins « non vérifiés ».
 3. **Mesurer avant de rouvrir le chantier.** L'Espagne (une feuille BTN pyrénéenne, une en Espagne intérieure) et la Bavière (WFS du Basis-DLM) se mesurent en ajoutant une fonction de lecture à `tools/essai_sources_chemins.py`. Un connecteur ne se discute qu'au-delà d'environ 20 % de gain, le bas de la fourchette française.
 4. **Passer aux fichiers JSON par pays au prochain pays ajouté**, pour que l'affichage d'un pays ne se déclare qu'en un endroit et que la coche de calcul soit annoncée par le serveur.
-5. **Vérifier le proxy FEDME dans le navigateur**, puis le supprimer s'il ne sert à rien.
+5. ~~Vérifier le proxy FEDME dans le navigateur, puis le supprimer s'il ne sert à rien.~~ Fait : vérifié dans Chrome et retiré.
 
-**État : analyse et mesure, aucun code de production modifié.** Hors de France, les calques de sentiers sont marqués « affichage seul », et le calcul utilise OSM seul.
+**État : analyse et mesure. Seul le proxy FEDME, inutile, a été retiré du code.** Hors de France, les calques de sentiers sont marqués « affichage seul », et le calcul utilise OSM seul.
