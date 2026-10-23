@@ -36,8 +36,9 @@ menu d'une icône de la zone de notification.
 à la main, et propose les fonds de ce pays ; chaque pays garde son dernier
 fond choisi.
 
-- **Partout** : OpenStreetMap, OSM rando (OpenTopoMap), OSM vélo (CyclOSM) et
-  une vue satellite (Esri). Un calque à cocher, à partir du zoom 14, montre les
+- **Partout** : OpenStreetMap, OSM rando (OpenTopoMap), OSM vélo (CyclOSM),
+  Thunderforest Outdoors avec une clé API, et une vue satellite (Esri).
+  Un calque à cocher, à partir du zoom 14, montre les
   chemins d'OpenStreetMap (les sentiers en tirets), avec les clôtures et murs
   qu'il cartographie.
 - **En France** : les fonds de l'IGN, SCAN 25 (avec une clé IGN, voir plus
@@ -45,8 +46,9 @@ fond choisi.
   publié. Un second calque montre les chemins de la BD TOPO de l'IGN ; mis à
   côté de celui d'OpenStreetMap, il montre d'un coup d'œil les sentiers qu'une
   source ignore.
-- **Dans sept autres pays** : la carte nationale de l'Espagne, de la Suisse, de
-  l'Autriche, des Pays-Bas, du Luxembourg, de la Norvège et des États-Unis.
+- **Dans huit autres pays** : la carte nationale de l'Espagne, de la Suisse, de
+  l'Allemagne (BKG TopPlusOpen), de l'Autriche, des Pays-Bas, du Luxembourg,
+  de la Norvège et des États-Unis.
   L'Espagne, la Suisse et les États-Unis y ajoutent leurs sentiers officiels,
   pour l'affichage seulement. Le bouton ⓘ, à côté du choix des fonds, liste ces
   pays.
@@ -94,7 +96,8 @@ ni l'export. Le bouton devient « Supprimer le GPX » après le chargement et
 retire ce tracé de la carte sans toucher au fichier sur l'ordinateur. Le tracé
 chargé reste affiché jusqu'à la fermeture ou au rechargement de la page.
 
-**Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
+**Les réglages.** Les clés de carte IGN pour le SCAN 25 et Thunderforest pour
+Outdoors, le délai de renouvellement des
 données téléchargées (30 jours par défaut), la transparence des bandeaux et
 leur masquage, et un bouton qui vide tous les caches locaux. Un bouton ouvre
 le dossier `logs`, qui contient les journaux de l'application et de BRouter ;
@@ -268,7 +271,11 @@ désigne la variable `HIKE2GPX_HOME`.
 
 Le SCAN 25 n'est pas une donnée libre : il demande une clé IGN, à saisir dans
 les réglages de la page. Sans clé, la carte utilise le Plan IGN, sous Licence
-Ouverte. Les autres fonds ne demandent aucune clé.
+Ouverte. Thunderforest Outdoors demande également une clé, à obtenir sur
+[thunderforest.com](https://www.thunderforest.com/pricing/) puis à saisir dans
+les mêmes réglages. Les clés restent dans les préférences locales de
+l'application et les anciennes clés IGN y sont reprises automatiquement.
+TopPlusOpen et les autres fonds ne demandent aucune clé.
 
 ## Tests
 

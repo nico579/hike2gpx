@@ -189,7 +189,7 @@ test("chaque fond et chaque calque des providers a son libellé FR et EN", () =>
   for (const [code, provider] of Object.entries(page.providers)) {
     if (code === "autre") continue;
     const fonds = Object.keys(provider.bases({ L: globalThis.L ?? {
-      tileLayer: () => ({}) }, cleIgn: "cle", tuileIgn: () => "" }));
+      tileLayer: () => ({}) }, clesFonds: { ign: "cle" }, tuileIgn: () => "" }));
     assert.ok(fonds.includes(provider.defaultBase), `${code} : fond par défaut ${provider.defaultBase} absent`);
     for (const langue of ["fr", "en"]) {
       for (const cle of [...fonds.map((f) => `fond.${f}`), ...provider.overlays.map((c) => `calque.${c}`)]) {
@@ -286,7 +286,7 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
 
 test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent en France", async () => {
   const { page, elements, requetes, stockage, carte } = charger();
-  page.etat.cleIgn = "cle-test";
+  page.etat.clesFonds.ign = "cle-test";
   page.construireFonds();
   assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "reliefLidar", "osmRando", "osm", "osmVelo", "satellite"]);
   assert.ok(page.controle().fonds["Relief LiDAR HD (IGN)"]);
@@ -395,6 +395,41 @@ test("la Suisse active swisstopo et conserve un fond préféré par pays", () =>
   assert.match(page.fond().url, /tile\.openstreetmap\.org/);
 });
 
+test("Thunderforest apparaît après enregistrement de sa clé, dans chaque pays", async () => {
+  const { page, elements, requetes } = charger();
+  repondre(requetes.find((r) => r.url === "/api/etat"),
+    { version: "0.3.2", brouter: "1.7.10", moteur_installe: true });
+  repondre(requetes.find((r) => r.url === "/api/reglages"),
+    { cles_fonds: { ign: "", thunderforest: "" }, renouvellement_jours: 30 });
+  await new Promise(setImmediate);
+  page.construireFonds();
+  assert.equal(page.fonds().osmOutdoors, undefined);
+  elements.get("cleIgn").value = "cle-ign";
+  elements.get("cleThunderforest").value = "cle-thunderforest";
+  elements.get("renouvellementJours").value = "30";
+  const enregistrement = elements.get("enregistrerCle").ecouteurs.click[0]();
+  const requete = requetes.findLast((r) => r.url === "/api/reglages");
+  assert.deepEqual(JSON.parse(requete.options.body).cles_fonds,
+    { ign: "cle-ign", thunderforest: "cle-thunderforest" });
+  repondre(requete, { cles_fonds: { ign: "cle-ign", thunderforest: "cle-thunderforest" },
+    renouvellement_jours: 30 });
+  await enregistrement;
+  assert.match(page.fonds().osmOutdoors.url, /api\.thunderforest\.com\/outdoors\/\{z\}\/\{x\}\/\{y\}\.png\?apikey=cle-thunderforest/);
+  assert.match(page.fonds().osmOutdoors.options.attribution, /Thunderforest.*OpenStreetMap/);
+  assert.ok(page.fonds().scan25);
+  page.choisirPays("de");
+  assert.ok(page.fonds().osmOutdoors);
+  page.choisirPays("es");
+  assert.ok(page.fonds().osmOutdoors);
+
+  elements.get("cleThunderforest").value = "";
+  const retrait = elements.get("enregistrerCle").ecouteurs.click[0]();
+  repondre(requetes.findLast((r) => r.url === "/api/reglages"),
+    { cles_fonds: { ign: "cle-ign", thunderforest: "" }, renouvellement_jours: 30 });
+  await retrait;
+  assert.equal(page.fonds().osmOutdoors, undefined);
+});
+
 test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins disponibles", () => {
   const { page, elements } = charger();
   page.choisirPays("at");
@@ -403,6 +438,16 @@ test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins
   assert.equal(elements.get("ignOption").hidden, true);
   page.choisirPays("nl");
   assert.match(page.fond().url, /service\.pdok\.nl\/kadaster\/brt-achtergrondkaart/);
+  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.equal(elements.get("ignOption").hidden, true);
+});
+
+test("l'Allemagne propose le fond officiel BKG TopPlusOpen", () => {
+  const { page, elements } = charger();
+  page.choisirPays("de");
+  assert.match(page.fond().url, /sgx\.geodatenzentrum\.de\/wmts_topplus_open\/tile\/1\.0\.0\/web\/default\/WEBMERCATOR\/\{z\}\/\{y\}\/\{x\}\.png/);
+  assert.equal(page.fond().options.maxNativeZoom, 18);
+  assert.match(page.fond().options.attribution, /BKG.*dl-de\/by-2-0.*Datenquellen/);
   assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
   assert.equal(elements.get("ignOption").hidden, true);
 });
@@ -458,7 +503,7 @@ test("une ouverture vérifie les tuiles BRouter même si le moteur est déjà in
   repondre(requetes.find((r) => r.url === "/api/etat"),
     { version: "0.1.0", brouter: "1.7.10", moteur_installe: true });
   repondre(requetes.find((r) => r.url === "/api/reglages"),
-    { cle_ign: "", renouvellement_jours: 30 });
+    { cles_fonds: { ign: "", thunderforest: "" }, renouvellement_jours: 30 });
   await new Promise(setImmediate);
   assert.ok(requetes.some((r) => r.url === "/api/moteur"));
 });

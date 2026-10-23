@@ -96,7 +96,14 @@
   </section>
   <section id="pane-reglages" class="pane" role="tabpanel" aria-labelledby="tab-reglages" hidden>
     <section id="reglages">
-      <div class="setting-row ign-key-row"><div class="ign-key-label"><label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé IGN">i<span role="tooltip" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</span></span></div><div class="ligne"><input id="cleIgn" type="password" autocomplete="off" spellcheck="false" aria-label="Clé IGN SCAN 25"><button id="afficherCle" type="button" aria-label="Afficher la clé IGN" aria-pressed="false" title="Afficher la clé IGN"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="eye-strike" d="M3 21 21 3"/></svg></button></div></div>
+      <div class="setting-row map-api-key-row">
+        <div class="map-api-key-label"><label for="cleIgn" data-i18n="reglages.cleIgn">Clé IGN pour le SCAN 25</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé IGN">i<span role="tooltip" data-i18n="reglages.noteIgn">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</span></span></div>
+        <div class="ligne"><input id="cleIgn" type="password" maxlength="100" autocomplete="off" spellcheck="false"><button class="show-map-key" data-key-input="cleIgn" data-provider-name="IGN" type="button" aria-label="Afficher la clé IGN" aria-pressed="false" title="Afficher la clé IGN"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="eye-strike" d="M3 21 21 3"/></svg></button></div>
+      </div>
+      <div class="setting-row map-api-key-row">
+        <div class="map-api-key-label"><label for="cleThunderforest" data-i18n="reglages.cleThunderforest">Clé Thunderforest pour Outdoors</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé Thunderforest">i<span role="tooltip" data-i18n="reglages.noteThunderforest">Obtenez une clé sur thunderforest.com. Le fond Outdoors apparaît dans tous les pays après enregistrement.</span></span></div>
+        <div class="ligne"><input id="cleThunderforest" type="password" maxlength="100" autocomplete="off" spellcheck="false"><button class="show-map-key" data-key-input="cleThunderforest" data-provider-name="Thunderforest" type="button" aria-label="Afficher la clé Thunderforest" aria-pressed="false" title="Afficher la clé Thunderforest"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="eye-strike" d="M3 21 21 3"/></svg></button></div>
+      </div>
       <div class="setting-row renewal-row"><label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les données locales après</label><div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div></div>
       <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
       <div class="display-settings"><label class="option"><input id="hideMapToolbar" type="checkbox"> <span data-i18n="reglages.masquerCartes">Masquer le bandeau des cartes</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
@@ -128,11 +135,11 @@
 </section>
 <script src="/leaflet/leaflet.js"></script>
 <script src="/leaflet/Leaflet.VectorGrid.bundled.js"></script>
-<script src="/map-providers.js?v=3"></script>
-<script src="/app.js?v=desktop-38"></script>
+<script src="/map-providers.js?v=4"></script>
+<script src="/app.js?v=desktop-39"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-17"></script>
+<script src="/presentation.js?v=desktop-18"></script>
 </body>
 </html>

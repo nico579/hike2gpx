@@ -268,21 +268,26 @@
   });
   syncRoute();
   const grip = document.querySelector(".sheet-grip");
-  const showKey = document.getElementById("afficherCle");
-  const keyInput = document.getElementById("cleIgn");
   function updateShowKey() {
-    const visible = keyInput.type === "text";
     const english = document.documentElement.lang === "en";
-    const label = english ? (visible ? "Hide IGN key" : "Show IGN key")
-      : (visible ? "Masquer la clé IGN" : "Afficher la clé IGN");
-    showKey.setAttribute("aria-pressed", String(visible));
-    showKey.setAttribute("aria-label", label);
-    showKey.title = label;
+    for (const showKey of document.querySelectorAll(".show-map-key")) {
+      const keyInput = document.getElementById(showKey.dataset.keyInput);
+      const visible = keyInput.type === "text";
+      const fournisseur = showKey.dataset.providerName;
+      const label = english ? `${visible ? "Hide" : "Show"} ${fournisseur} key`
+        : `${visible ? "Masquer" : "Afficher"} la clé ${fournisseur}`;
+      showKey.setAttribute("aria-pressed", String(visible));
+      showKey.setAttribute("aria-label", label);
+      showKey.title = label;
+    }
   }
-  showKey.addEventListener("click", () => {
-    keyInput.type = keyInput.type === "password" ? "text" : "password";
-    updateShowKey();
-  });
+  for (const showKey of document.querySelectorAll(".show-map-key")) {
+    showKey.addEventListener("click", () => {
+      const keyInput = document.getElementById(showKey.dataset.keyInput);
+      keyInput.type = keyInput.type === "password" ? "text" : "password";
+      updateShowKey();
+    });
+  }
   document.addEventListener("nico579-langue", updateShowKey);
   updateShowKey();
   grip.addEventListener("click", () => {

@@ -8,8 +8,10 @@ const DELAI_CALCUL_MS = 250;
 const CLE_VUE = "hike2gpx.vue";
 const CLE_POINTS = "hike2gpx.points";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
+const CHAMPS_CLES_FONDS = { ign: "cleIgn", thunderforest: "cleThunderforest" };
 
-const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0,
+const etat = { points: [], sequence: 0, minuterie: null, dernier: null,
+  clesFonds: { ign: "", thunderforest: "" }, version: "", sequenceDenivele: 0,
   suivi: null, statut: ["", false], extrait: null, donneesAttendues: false };
 const $ = (id) => document.getElementById(id);
 
@@ -72,9 +74,12 @@ const TEXTES = {
     "legende.usgsSentiers": "sentiers recensés par l’USGS",
     "legende.gpx": "GPX chargé",
     "reglages.titre": "Réglages",
-    "reglages.cle": "Clé IGN pour le SCAN 25",
+    "reglages.cleIgn": "Clé IGN pour le SCAN 25",
+    "reglages.cleThunderforest": "Clé Thunderforest pour Outdoors",
     "reglages.enregistrer": "Enregistrer",
-    "reglages.note": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
+    "reglages.noteIgn": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
+    "reglages.noteThunderforest": "Obtenez une clé sur thunderforest.com. Le fond Outdoors apparaît dans tous les pays après enregistrement.",
+    "reglages.enregistres": "Réglages enregistrés.",
     "reglages.renouvellement": "Renouveler les données locales après",
     "reglages.jours": "jours",
     "reglages.masquerCartes": "Masquer le bandeau des cartes",
@@ -154,11 +159,13 @@ const TEXTES = {
     "fond.plan": "Plan IGN",
     "fond.photos": "Photos aériennes (IGN)",
     "fond.osmRando": "OSM rando",
+    "fond.osmOutdoors": "Thunderforest Outdoors",
     "fond.osm": "OSM",
     "fond.osmVelo": "OSM vélo",
     "fond.satellite": "Satellite",
     "fond.reliefLidar": "Relief LiDAR HD (IGN)",
     "fond.espagne": "Carte topographique (IGN Espagne)",
+    "fond.allemagne": "Carte officielle (BKG TopPlusOpen)",
     "fond.suisse": "Carte nationale (swisstopo)",
     "fond.autriche": "Carte officielle (basemap.at)",
     "fond.paysBas": "Carte topographique (PDOK)",
@@ -166,8 +173,6 @@ const TEXTES = {
     "fond.luxembourg": "Carte topographique (Luxembourg)",
     "fond.etatsUnis": "Carte topographique (USGS)",
     "attribution.osm": "contributeurs OpenStreetMap",
-    "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
-    "cle.retiree": "Clé retirée : Plan IGN par défaut.",
     "pleinEcran.entrer": "Plein écran",
     "pleinEcran.quitter": "Quitter le plein écran",
     "etape.debut": "Préparation du calcul",
@@ -245,9 +250,12 @@ const TEXTES = {
     "legende.usgsSentiers": "trails mapped by USGS",
     "legende.gpx": "Loaded GPX",
     "reglages.titre": "Settings",
-    "reglages.cle": "IGN key for SCAN 25",
+    "reglages.cleIgn": "IGN key for SCAN 25",
+    "reglages.cleThunderforest": "Thunderforest key for Outdoors",
     "reglages.enregistrer": "Save",
-    "reglages.note": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
+    "reglages.noteIgn": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
+    "reglages.noteThunderforest": "Get a key from thunderforest.com. Outdoors appears in every country after saving.",
+    "reglages.enregistres": "Settings saved.",
     "reglages.renouvellement": "Refresh local data after",
     "reglages.jours": "days",
     "reglages.masquerCartes": "Hide the map layers panel",
@@ -327,11 +335,13 @@ const TEXTES = {
     "fond.plan": "Plan IGN",
     "fond.photos": "Aerial photos (IGN)",
     "fond.osmRando": "OSM hiking",
+    "fond.osmOutdoors": "Thunderforest Outdoors",
     "fond.osm": "OSM",
     "fond.osmVelo": "OSM cycling",
     "fond.satellite": "Satellite",
     "fond.reliefLidar": "LiDAR HD terrain relief (IGN)",
     "fond.espagne": "Topographic map (Spanish IGN)",
+    "fond.allemagne": "Official map (BKG TopPlusOpen)",
     "fond.suisse": "National map (swisstopo)",
     "fond.autriche": "Official map (basemap.at)",
     "fond.paysBas": "Topographic map (PDOK)",
@@ -339,8 +349,6 @@ const TEXTES = {
     "fond.luxembourg": "Topographic map (Luxembourg)",
     "fond.etatsUnis": "Topographic map (USGS)",
     "attribution.osm": "OpenStreetMap contributors",
-    "cle.enregistree": "Key saved: SCAN 25 available.",
-    "cle.retiree": "Key removed: Plan IGN by default.",
     "pleinEcran.entrer": "Full screen",
     "pleinEcran.quitter": "Exit full screen",
     "etape.debut": "Preparing the calculation",
@@ -407,7 +415,8 @@ const SERVEUR_EN = {
   "Point invalide.": "Invalid point.",
   "Il faut entre 2 et 50 points.": "Between 2 and 50 points are needed.",
   "Nom de tuile invalide.": "Invalid tile name.",
-  "Clé IGN invalide : lettres, chiffres, _ et - seulement.": "Invalid IGN key: letters, digits, _ and - only.",
+  "Clé de fond de carte invalide : lettres, chiffres, _ et - seulement.": "Invalid map key: letters, digits, _ and - only.",
+  "Fournisseur de carte inconnu.": "Unknown map provider.",
   "Données OSM ou BD TOPO de la zone indisponibles.": "OSM or BD TOPO data for this area unavailable.",
   "Hors connexion : les barrières de cette zone n'ont jamais été chargées.": "Offline: the barriers of this area were never loaded.",
   "Hors connexion : chemins BD TOPO de cette zone jamais chargés.": "Offline: the BD TOPO paths of this area were never loaded.",
@@ -1042,7 +1051,7 @@ carte.on("moveend", () => {
   minuterieExtrait = setTimeout(() => majExtrait(true), 600);
 });
 
-// Fonds de carte et contrôle des calques, refaits quand la clé IGN ou la
+// Fonds de carte et contrôle des calques, refaits quand les clés ou la
 // langue change ; le fond affiché reste le même.
 function construireFonds() {
   let clePreferee = null;
@@ -1051,11 +1060,18 @@ function construireFonds() {
       || (paysCarte === "fr" ? localStorage.getItem(CLE_FOND) : null);
   } catch (erreur) { /* fond par défaut */ }
   couchesFonds = {};
-  Object.assign(couchesFonds, FOURNISSEURS_CARTES[paysCarte].bases({ L, cleIgn: etat.cleIgn, tuileIgn }));
+  Object.assign(couchesFonds, FOURNISSEURS_CARTES[paysCarte].bases({ L, clesFonds: etat.clesFonds, tuileIgn }));
   couchesFonds.osmRando = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 17, maxZoom: 19,
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM '
         + '| © <a href="https://opentopomap.org/">OpenTopoMap</a> (CC-BY-SA)' });
+  if (etat.clesFonds.thunderforest) {
+    couchesFonds.osmOutdoors = L.tileLayer(
+      `https://api.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=${encodeURIComponent(etat.clesFonds.thunderforest)}`,
+      { maxNativeZoom: 19, maxZoom: 19,
+        attribution: '© <a href="https://www.thunderforest.com/">Thunderforest</a> '
+          + '| © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' });
+  }
   couchesFonds.osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: `© <a href="https://www.openstreetmap.org/copyright">${t("attribution.osm")}</a>` });
@@ -1717,13 +1733,17 @@ for (const id of ["strict", "ign", "comparer"]) {
 }
 $("enregistrerCle").addEventListener("click", async () => {
   try {
-    const r = await api("reglages", { cle_ign: $("cleIgn").value, renouvellement_jours: Number($("renouvellementJours").value) });
+    const clesFonds = Object.fromEntries(Object.entries(CHAMPS_CLES_FONDS)
+      .map(([nom, id]) => [nom, $(id).value]));
+    const r = await api("reglages", { cles_fonds: clesFonds,
+      renouvellement_jours: Number($("renouvellementJours").value) });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
-    etat.cleIgn = r.cle_ign;
+    etat.clesFonds = r.cles_fonds;
+    for (const [nom, id] of Object.entries(CHAMPS_CLES_FONDS)) $(id).value = etat.clesFonds[nom];
     etat.renouvellementJours = r.renouvellement_jours;
     afficherExtrait(etat.extrait);
     construireFonds();
-    afficherStatut(() => t(etat.cleIgn ? "cle.enregistree" : "cle.retiree"));
+    afficherStatut(() => t("reglages.enregistres"));
     verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
@@ -1853,8 +1873,8 @@ async function demarrer() {
     const [infos, reglages] = await Promise.all([api("etat"), api("reglages")]);
     etat.version = infos.version;
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
-    etat.cleIgn = reglages.cle_ign || "";
-    $("cleIgn").value = etat.cleIgn;
+    etat.clesFonds = { ...etat.clesFonds, ...(reglages.cles_fonds || {}) };
+    for (const [nom, id] of Object.entries(CHAMPS_CLES_FONDS)) $(id).value = etat.clesFonds[nom];
     etat.renouvellementJours = reglages.renouvellement_jours ?? 30;
     $("renouvellementJours").value = etat.renouvellementJours;
     await verifierBrouter();

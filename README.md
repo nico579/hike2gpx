@@ -37,15 +37,17 @@ by hand, and offers that country's base maps; each country remembers the last
 base map you chose.
 
 - **Everywhere**: OpenStreetMap, OSM hiking (OpenTopoMap), OSM cycling
-  (CyclOSM) and a satellite view (Esri). A layer you can tick, from zoom 14,
+  (CyclOSM), Thunderforest Outdoors with an API key, and a satellite view
+  (Esri). A layer you can tick, from zoom 14,
   shows OpenStreetMap's paths (footpaths dashed), with the fences and walls it
   maps.
 - **In France**: IGN's base maps, SCAN 25 (with an IGN key, see below), IGN
   Plan, aerial photos, and the LiDAR HD relief wherever IGN has published it.
   A second layer shows the paths of IGN's BD TOPO; next to OpenStreetMap's, it
   shows at a glance the paths one source is missing.
-- **In seven other countries**: the national map of Spain, Switzerland,
-  Austria, the Netherlands, Luxembourg, Norway and the United States. Spain,
+- **In eight other countries**: the national map of Spain, Switzerland,
+  Germany (BKG TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway and
+  the United States. Spain,
   Switzerland and the United States add their official trails, for display
   only. The ⓘ button, next to the base map selector, lists these countries.
 
@@ -89,7 +91,8 @@ loaded, the button becomes "Remove GPX" and takes the track off the map
 without touching the file on the computer. The loaded track stays on screen
 until the page is closed or reloaded.
 
-**The settings.** The IGN key for the SCAN 25, how long downloaded data is
+**The settings.** The IGN key for SCAN 25 and the Thunderforest key for
+Outdoors, how long downloaded data is
 kept before being renewed (30 days by default), the transparency of the panels
 and whether to hide them, and a button that empties all local caches. One
 button opens the `logs` folder, which holds the logs of the application and of
@@ -260,7 +263,11 @@ folder (`%LOCALAPPDATA%\hike2gpx-data` on Windows), or the one named by the
 
 The SCAN 25 is not open data: it needs an IGN key, entered in the page
 settings. Without a key, the map uses the IGN Plan, under the Licence Ouverte
-(the French open licence). The other base maps need no key.
+(the French open licence). Thunderforest Outdoors also requires a key, available
+from [thunderforest.com](https://www.thunderforest.com/pricing/) and entered in
+the same settings. Keys remain in the application's local preferences, where
+existing IGN keys are picked up automatically. TopPlusOpen and the other base
+maps need no key.
 
 ## Tests
 

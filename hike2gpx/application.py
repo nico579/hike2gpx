@@ -38,7 +38,7 @@ NOMS_ETAPES = {"debut": "préparation", "donnees": "lecture des données", "fusi
 ZONE_CALQUE_MAX_DEG2 = 0.03  # un grand écran au zoom 14 ; au-delà, trop de tuiles à lire
 # Un fournisseur cartographique peut être ajouté côté page sans modifier le
 # choix du pays : seul son identifiant dans l'index Geofabrik est déclaré ici.
-PAYS_CARTES = {"france": "fr", "spain": "es", "switzerland": "ch",
+PAYS_CARTES = {"france": "fr", "spain": "es", "switzerland": "ch", "germany": "de",
                "austria": "at", "netherlands": "nl", "norway": "no",
                "luxembourg": "lu", "us": "us"}
 MARGE_DEG = 0.01            # environ 1 km autour des points
@@ -49,7 +49,8 @@ ELARGISSEMENTS = 3
 # environ 55 × 40 km. Au-delà, la première lecture prendrait des dizaines de
 # minutes ; mieux vaut découper le parcours en étapes.
 TUILES_MAX = 100
-_CLE_IGN = re.compile(r"^[A-Za-z0-9_\-]{0,100}$")
+CLES_FONDS = ("ign", "thunderforest")
+_CLE_FOND = re.compile(r"^[A-Za-z0-9_-]{0,100}$")
 
 
 def configurer_journal(dossier) -> Path:
@@ -250,21 +251,39 @@ class Application:
 
     def reglages(self) -> dict:
         prefs = atomique.lire_json(self.preferences, {})
-        cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
-        return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
+        prefs = prefs if isinstance(prefs, dict) else {}
+        sauvegardees = prefs.get("cles_fonds")
+        sauvegardees = sauvegardees if isinstance(sauvegardees, dict) else {}
+        # Les versions précédentes rangeaient la clé SCAN 25 à la racine.
+        if "ign" not in sauvegardees:
+            sauvegardees = {**sauvegardees, "ign": prefs.get("cle_ign")}
+        cles = {}
+        for nom in CLES_FONDS:
+            valeur = sauvegardees.get(nom)
+            cles[nom] = valeur if isinstance(valeur, str) and _CLE_FOND.fullmatch(valeur) else ""
+        return {"cles_fonds": cles,
                 "renouvellement_jours": geofabrik.jours_renouvellement(self.dossier)}
 
     def enregistrer_reglages(self, payload) -> dict:
         payload = payload or {}
-        cle = payload.get("cle_ign", "")
-        if not isinstance(cle, str) or not _CLE_IGN.match(cle.strip()):
-            return {"erreur": "Clé IGN invalide : lettres, chiffres, _ et - seulement."}
+        cles = self.reglages()["cles_fonds"]
+        nouvelles = payload.get("cles_fonds", {})
+        if not isinstance(nouvelles, dict) or any(nom not in CLES_FONDS for nom in nouvelles):
+            return {"erreur": "Fournisseur de carte inconnu."}
+        # Compatibilité avec les anciens clients de l'API locale.
+        if "cle_ign" in payload and "ign" not in nouvelles:
+            nouvelles = {**nouvelles, "ign": payload["cle_ign"]}
+        for nom, valeur in nouvelles.items():
+            if not isinstance(valeur, str) or not _CLE_FOND.fullmatch(valeur.strip()):
+                return {"erreur": "Clé de fond de carte invalide : lettres, chiffres, _ et - seulement."}
+            cles[nom] = valeur.strip()
         jours = payload.get("renouvellement_jours", self.reglages()["renouvellement_jours"])
         if type(jours) is not int or not 1 <= jours <= 365:
             return {"erreur": "Le délai de renouvellement doit être compris entre 1 et 365 jours."}
         prefs = atomique.lire_json(self.preferences, {})
         prefs = prefs if isinstance(prefs, dict) else {}
-        prefs["cle_ign"] = cle.strip()
+        prefs["cles_fonds"] = cles
+        prefs.pop("cle_ign", None)
         prefs["renouvellement_jours"] = jours
         atomique.ecrire_json(self.preferences, prefs)
         return self.reglages()

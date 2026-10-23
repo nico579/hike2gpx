@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -49,14 +50,33 @@ def test_sur_le_trace_seulement_si_le_trace_coupe_la_coupe():
     assert f["cle"] == "a" and f["distance_m"] == pytest.approx(406, abs=2)
 
 
-def test_reglages_cle_ign(tmp_path):
+def test_reglages_cles_de_fonds(tmp_path):
     a = appli.Application(tmp_path)
-    assert a.reglages() == {"cle_ign": "", "renouvellement_jours": 30}
-    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30}
-    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30}
-    assert a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 45})["renouvellement_jours"] == 45
-    assert "erreur" in a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 0})
-    assert "erreur" in a.enregistrer_reglages({"cle_ign": "<script>"})
+    assert a.reglages() == {"cles_fonds": {"ign": "", "thunderforest": ""}, "renouvellement_jours": 30}
+    cles = {"ign": "cle_essai-1", "thunderforest": "cle_thunderforest-2"}
+    assert a.enregistrer_reglages({"cles_fonds": {"ign": " cle_essai-1 ",
+                                                   "thunderforest": " cle_thunderforest-2 "}})["cles_fonds"] == cles
+    assert appli.Application(tmp_path).reglages()["cles_fonds"] == cles
+    assert a.enregistrer_reglages({"cles_fonds": {"thunderforest": ""},
+                                  "renouvellement_jours": 45}) == {
+                                      "cles_fonds": {"ign": "cle_essai-1", "thunderforest": ""},
+                                      "renouvellement_jours": 45}
+    for payload in ({"cles_fonds": {"ign": "<script>"}}, {"cles_fonds": {"thunderforest": 42}},
+                    {"cles_fonds": {"inconnu": "cle"}}, {"cles_fonds": []},
+                    {"renouvellement_jours": 0}):
+        assert "erreur" in a.enregistrer_reglages(payload)
+    assert a.reglages()["cles_fonds"] == {"ign": "cle_essai-1", "thunderforest": ""}
+
+
+def test_ancienne_cle_ign_migree_sans_perdre_les_autres_preferences(tmp_path):
+    a = appli.Application(tmp_path)
+    a.preferences.write_text(json.dumps({"cle_ign": "ancienne-cle", "langue": "en"}), encoding="utf-8")
+    assert a.reglages()["cles_fonds"] == {"ign": "ancienne-cle", "thunderforest": ""}
+    assert a.enregistrer_reglages({"cles_fonds": {"thunderforest": "nouvelle-cle"}})["cles_fonds"] == {
+        "ign": "ancienne-cle", "thunderforest": "nouvelle-cle"}
+    prefs = json.loads(a.preferences.read_text(encoding="utf-8"))
+    assert prefs["cles_fonds"] == {"ign": "ancienne-cle", "thunderforest": "nouvelle-cle"}
+    assert "cle_ign" not in prefs and prefs["langue"] == "en"
 
 
 @pytest.fixture(autouse=True)
@@ -74,7 +94,8 @@ def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
         return {"id": identifiant, "bornes": (sud, ouest, nord, est), "polygones": [[anneau]]}
 
     zones = [region("spain", 36, -10, 44, 4), region("switzerland", 45, 5, 48, 11),
-             region("austria", 46, 9, 49, 17), region("netherlands", 50, 3, 54, 8),
+            region("austria", 46, 9, 49, 17), region("germany", 50, 10, 54, 14),
+            region("netherlands", 50, 3, 54, 8),
              region("norway", 58, 9, 62, 12), region("luxembourg", 49, 5, 50, 7),
              region("us", 36, -121, 38, -118)]
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: zones)
@@ -82,11 +103,12 @@ def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
     assert app.extrait((40.4, -3.8, 40.5, -3.6))["pays"] == "es"
     assert app.extrait((46.7, 7.9, 46.9, 8.1))["pays"] == "ch"
     assert app.extrait((48.1, 16.3, 48.3, 16.5))["pays"] == "at"
+    assert app.extrait((52.0, 11.0, 52.2, 11.2))["pays"] == "de"
     assert app.extrait((52.0, 5.0, 52.2, 5.2))["pays"] == "nl"
     assert app.extrait((59.9, 10.7, 60.0, 10.8))["pays"] == "no"
     assert app.extrait((49.6, 6.1, 49.7, 6.2))["pays"] == "lu"
     assert app.extrait((37.7, -119.7, 37.8, -119.5))["pays"] == "us"
-    assert "pays" not in app.extrait((52, 12, 52.1, 12.1))
+    assert "pays" not in app.extrait((52, 20, 52.1, 20.1))
 
 
 @pytest.fixture
@@ -557,7 +579,8 @@ def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
     assert get["langue"]()["code"] is None
     assert post["langue"]({"code": "en"})["enregistre"]
     autre = appli.Application(tmp_path)
-    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test", "renouvellement_jours": 30}
+    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {
+        "cles_fonds": {"ign": "cle_test", "thunderforest": ""}, "renouvellement_jours": 30}
 
 
 def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch):
