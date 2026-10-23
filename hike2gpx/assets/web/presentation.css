@@ -49,11 +49,11 @@ body.plein-ecran .panel-toggle{display:none}
 .langues{align-self:center;gap:4px}
 .bouton-langue{padding:4px 7px;font-size:11px;color:#728093;background:#f7f9fc;border-radius:6px}
 .bouton-langue.active{background:#eaf2ff;color:#1854b1;border-color:#cddff7}
-.panel-tabs{display:flex;gap:4px;padding:0 17px;border-bottom:1px solid var(--bordure);flex-shrink:0}
-.panel-tabs button{position:relative;flex:1;border:0;background:transparent;border-radius:0;color:#64768a;padding:12px 7px;font-size:12px}
-.panel-tabs button:hover{background:#f5f8fc}
-.panel-tabs button[aria-selected=true]{color:var(--accent);font-weight:700}
-.panel-tabs button[aria-selected=true]:after{content:"";position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent)}
+.panel-tabs{display:flex;gap:7px;padding:7px 17px;border-bottom:1px solid #cfdaea;background:#fff;flex-shrink:0}
+.panel-tabs button{flex:1;border:1px solid #cbd9e8;background:#edf3fa;border-radius:7px;color:#304963;padding:8px 7px;font-size:12px;font-weight:650}
+.panel-tabs button:hover{background:#dfeaf8}
+.panel-tabs button[aria-selected=true]{border-color:#2367d1;background:#2367d1;color:#fff;font-weight:700}
+.panel-tabs button[aria-selected=true]:hover{background:#1854b1}
 .panel-scroll{overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:#ced8e5 transparent}
 .pane{padding:19px 23px 25px}
 .pane-title{font-size:19px;line-height:1.25;margin:0 0 6px}
