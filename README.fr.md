@@ -30,7 +30,9 @@ contente d'ouvrir la page de la nouvelle version.
 ## Ce que fait hike2gpx
 
 Tout se passe dans une page locale, ouverte dans le navigateur, et dans le
-menu d'une icône de la zone de notification.
+menu d'une icône de la zone de notification. Le bouton « ? », à côté de
+FR/EN, ouvre ce mode d'emploi dans la langue de la page, pour la version
+installée.
 
 **La carte.** Elle suit le pays de son centre, y compris quand on la déplace
 à la main, et propose les fonds de ce pays ; chaque pays garde son dernier

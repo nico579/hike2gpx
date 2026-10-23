@@ -168,6 +168,7 @@ const TEXTES = {
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
+    "aide.titre": "Aide : le mode d'emploi (README)",
     "pleinEcran.entrer": "Plein écran",
     "pleinEcran.quitter": "Quitter le plein écran",
     "etape.debut": "Préparation du calcul",
@@ -341,6 +342,7 @@ const TEXTES = {
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
+    "aide.titre": "Help: the user guide (README)",
     "pleinEcran.entrer": "Full screen",
     "pleinEcran.quitter": "Exit full screen",
     "etape.debut": "Preparing the calculation",
@@ -464,6 +466,7 @@ function appliquerLangue(code) {
   langue = code === "en" ? "en" : "fr";
   document.documentElement.lang = langue;
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  lienAide();
   afficherOptionChemins();
   $("cityQuery").placeholder = t("recherche.placeholder");
   if ($("pleinEcran")) {
@@ -480,6 +483,15 @@ function appliquerLangue(code) {
 }
 
 document.addEventListener("nico579-langue", (e) => appliquerLangue(e.detail.code));
+
+// L'aide est le README de la version installée, dans la langue de la page :
+// celui de main peut avoir pris de l'avance sur le programme.
+function lienAide() {
+  const fichier = langue === "en" ? "README.md" : "README.fr.md";
+  $("aide").href = `https://github.com/nico579/hike2gpx/blob/${etat.version ? `v${etat.version}` : "main"}/${fichier}`;
+  $("aide").title = t("aide.titre");
+  $("aide").setAttribute("aria-label", t("aide.titre"));
+}
 
 async function api(route, corps, signal) {
   const options = corps === undefined ? { signal } : {
@@ -1853,6 +1865,7 @@ async function demarrer() {
     const [infos, reglages] = await Promise.all([api("etat"), api("reglages")]);
     etat.version = infos.version;
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
+    lienAide();
     etat.cleIgn = reglages.cle_ign || "";
     $("cleIgn").value = etat.cleIgn;
     etat.renouvellementJours = reglages.renouvellement_jours ?? 30;

@@ -199,6 +199,17 @@ test("chaque fond et chaque calque des providers a son libellé FR et EN", () =>
   }
 });
 
+test("l'aide ouvre le README de la version installée, dans la langue de la page", () => {
+  const { page, elements } = charger();
+  page.etat.version = "0.3.3";
+  page.appliquerLangue("fr");
+  assert.equal(elements.get("aide").href, "https://github.com/nico579/hike2gpx/blob/v0.3.3/README.fr.md");
+  assert.equal(elements.get("aide").title, "Aide : le mode d'emploi (README)");
+  page.appliquerLangue("en");
+  assert.equal(elements.get("aide").href, "https://github.com/nico579/hike2gpx/blob/v0.3.3/README.md");
+  assert.equal(elements.get("aide")["aria-label"], "Help: the user guide (README)");
+});
+
 test("le panneau Réglages montre la version et vérifie les mises à jour", async () => {
   const { elements, requetes } = charger();
   repondre(requetes.findLast((r) => r.url === "/api/maj"), { version: "0.3.0", version_locale: "0.3.0" });
