@@ -181,6 +181,39 @@ test("le bouton Réglages demande l'ouverture du dossier des journaux", async ()
   assert.equal(elements.get("erreurDossierJournaux").hidden, true);
 });
 
+test("le panneau Réglages montre la version et vérifie les mises à jour", async () => {
+  const { elements, requetes } = charger();
+  repondre(requetes.findLast((r) => r.url === "/api/maj"), { version: "0.3.0", version_locale: "0.3.0" });
+  await new Promise((fin) => setImmediate(fin));
+  assert.equal(elements.get("versionApplication").textContent, "hike2gpx 0.3.0");
+  assert.equal(elements.get("versionApplication").hidden, false);
+
+  const verification = elements.get("verifierMaj").ecouteurs.click[0]();
+  const requete = requetes.findLast((r) => r.url === "/api/maj-verifier");
+  assert.equal(requete.options.method, "POST");
+  assert.equal(elements.get("statutMaj").textContent, "Vérification…");
+  repondre(requete, { ok: true, version: "0.3.10", version_locale: "0.3.9" });
+  await verification;
+  assert.equal(elements.get("statutMaj").textContent,
+    "Version 0.3.10 disponible : le bandeau propose de l'installer.");
+  assert.equal(elements.get("versionApplication").textContent, "hike2gpx 0.3.9");
+  assert.equal(elements.get("verifierMaj").disabled, false);
+});
+
+test("la vérification des mises à jour dit « à jour » ou son échec", async () => {
+  const { elements, requetes } = charger();
+  let clic = elements.get("verifierMaj").ecouteurs.click[0]();
+  repondre(requetes.findLast((r) => r.url === "/api/maj-verifier"), { ok: true, version: "0.3.1", version_locale: "0.3.1" });
+  await clic;
+  assert.equal(elements.get("statutMaj").textContent, "Vous avez la dernière version.");
+
+  clic = elements.get("verifierMaj").ecouteurs.click[0]();
+  repondre(requetes.findLast((r) => r.url === "/api/maj-verifier"), { ok: false, version: null, version_locale: "0.3.1" });
+  await clic;
+  assert.equal(elements.get("statutMaj").textContent, "Vérification impossible (réseau ?).");
+  assert.equal(elements.get("verifierMaj").disabled, false);
+});
+
 test("le parcours revient après rechargement et se recalcule", async () => {
   const avant = charger();
   avant.page.ajouterPoint({ lat: 43.3, lng: 6 });

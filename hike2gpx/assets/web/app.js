@@ -82,6 +82,11 @@ const TEXTES = {
     "reglages.transparence": "Transparence des bandeaux",
     "reglages.ouvrirJournaux": "Ouvrir le dossier des journaux",
     "reglages.erreurJournaux": "Impossible d'ouvrir le dossier des journaux : {message}",
+    "reglages.verifierMaj": "Vérifier les mises à jour",
+    "reglages.verification": "Vérification…",
+    "reglages.aJour": "Vous avez la dernière version.",
+    "reglages.majDisponible": "Version {version} disponible : le bandeau propose de l'installer.",
+    "reglages.majImpossible": "Vérification impossible (réseau ?).",
     "disponibilite.oui": "Tracé disponible",
     "disponibilite.non": "Tracé indisponible",
     "statut.donneesIndisponibles": "Données OSM indisponibles pour ce tracé. Nouvelle tentative automatique après téléchargement.",
@@ -250,6 +255,11 @@ const TEXTES = {
     "reglages.transparence": "Panel transparency",
     "reglages.ouvrirJournaux": "Open logs folder",
     "reglages.erreurJournaux": "Unable to open the logs folder: {message}",
+    "reglages.verifierMaj": "Check for updates",
+    "reglages.verification": "Checking…",
+    "reglages.aJour": "You have the latest version.",
+    "reglages.majDisponible": "Version {version} available: the banner offers to install it.",
+    "reglages.majImpossible": "Could not check (network?).",
     "disponibilite.oui": "Routing available",
     "disponibilite.non": "Routing unavailable",
     "statut.donneesIndisponibles": "OSM data unavailable for this route. Automatic retry after download.",
@@ -1728,6 +1738,47 @@ $("ouvrirDossierJournaux").addEventListener("click", async () => {
   } catch (erreur) {
     $("erreurDossierJournaux").textContent = t("reglages.erreurJournaux", { message: erreur.message });
     $("erreurDossierJournaux").hidden = false;
+  } finally {
+    bouton.disabled = false;
+  }
+});
+
+// ------------------------------------------------------------ mises à jour
+
+// /api/maj et /api/maj-verifier sont les routes du commun (absentes depuis les
+// sources). Le panneau ne fait que demander une vérification : c'est le bandeau
+// commun (nico579-maj.js) qui propose « Installer » et suit l'installation.
+function plusRecente(publiee, locale) {
+  const a = String(publiee || "").split(".").map(Number);
+  const b = String(locale || "").split(".").map(Number);
+  for (let k = 0; k < Math.max(a.length, b.length); k++) {
+    if ((a[k] || 0) !== (b[k] || 0)) return (a[k] || 0) > (b[k] || 0);
+  }
+  return false;
+}
+
+function afficherVersion(d) {
+  if (!d?.version_locale) return;
+  $("versionApplication").textContent = `hike2gpx ${d.version_locale}`;
+  $("versionApplication").hidden = false;
+}
+
+api("maj").then(afficherVersion).catch(() => {});
+
+$("verifierMaj").addEventListener("click", async () => {
+  const bouton = $("verifierMaj");
+  bouton.disabled = true;
+  $("statutMaj").textContent = t("reglages.verification");
+  $("statutMaj").hidden = false;
+  try {
+    const d = await api("maj-verifier", {});
+    afficherVersion(d);
+    if (!d.ok) throw new Error("vérification impossible");
+    $("statutMaj").textContent = plusRecente(d.version, d.version_locale)
+      ? t("reglages.majDisponible", { version: d.version }) : t("reglages.aJour");
+    window.nico579Maj?.suivre();
+  } catch {
+    $("statutMaj").textContent = t("reglages.majImpossible");
   } finally {
     bouton.disabled = false;
   }
