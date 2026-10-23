@@ -365,7 +365,7 @@ test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", 
   assert.equal(elements.get("duree").textContent, "2 h 15");
   assert.equal(elements.get("pointHaut").textContent, "700 m");
   assert.equal(elements.get("pointBas").textContent, "400 m");
-  assert.equal(elements.get("denivele").textContent, "D+ 120 m\nD− 90 m");
+assert.equal(elements.get("denivele").textContent, "+ 120 m / − 90 m");
 });
 
 test("les flèches suivent le sens du tracé et disparaissent au zoom éloigné", () => {

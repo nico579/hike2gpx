@@ -39,7 +39,8 @@ ZONE_CALQUE_MAX_DEG2 = 0.03  # un grand écran au zoom 14 ; au-delà, trop de tu
 # Un fournisseur cartographique peut être ajouté côté page sans modifier le
 # choix du pays : seul son identifiant dans l'index Geofabrik est déclaré ici.
 PAYS_CARTES = {"france": "fr", "spain": "es", "switzerland": "ch",
-               "austria": "at", "netherlands": "nl"}
+               "austria": "at", "netherlands": "nl", "norway": "no",
+               "luxembourg": "lu"}
 MARGE_DEG = 0.01            # environ 1 km autour des points
 MARGE_RELATIVE = 0.25
 POINTS_MAX = 50

@@ -153,6 +153,8 @@ const TEXTES = {
     "fond.suisse": "Carte nationale (swisstopo)",
     "fond.autriche": "Carte officielle (basemap.at)",
     "fond.paysBas": "Carte topographique (PDOK)",
+    "fond.norvege": "Carte de randonnée (Kartverket)",
+    "fond.luxembourg": "Carte topographique (Luxembourg)",
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
@@ -314,6 +316,8 @@ const TEXTES = {
     "fond.suisse": "National map (swisstopo)",
     "fond.autriche": "Official map (basemap.at)",
     "fond.paysBas": "Topographic map (PDOK)",
+    "fond.norvege": "Hiking map (Kartverket)",
+    "fond.luxembourg": "Topographic map (Luxembourg)",
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
@@ -1487,7 +1491,7 @@ async function calculerDenivele(r) {
 }
 
 function ecrireDenivele(d) {
-  $("denivele").textContent = `D+ ${d.montee_m} m\nD− ${d.descente_m} m`;
+  $("denivele").textContent = `+ ${d.montee_m} m / − ${d.descente_m} m`;
   $("pointHaut").textContent = `${d.altitude_max_m} m`;
   $("pointBas").textContent = `${d.altitude_min_m} m`;
   const minutes = Math.ceil(d.duree_marche_s / 300) * 5;

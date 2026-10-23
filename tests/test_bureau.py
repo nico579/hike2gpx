@@ -85,7 +85,7 @@ def test_la_page_charge_les_providers_depuis_leur_dossier(tmp_path):
         with urllib.request.urlopen(f"http://{web.HOST}:{port}/map-providers.js?v=3", timeout=5) as reponse:
             script = reponse.read().decode("utf-8")
             assert reponse.headers["Content-Type"].startswith("text/javascript")
-        for code in ("fr", "es", "ch", "at", "nl"):
+        for code in ("fr", "es", "ch", "at", "nl", "no", "lu"):
             assert f"HIKE2GPX_MAP_PROVIDERS.{code} =" in script
     finally:
         serveur.shutdown()
