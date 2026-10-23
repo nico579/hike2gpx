@@ -241,9 +241,11 @@ def regions(dossier, **options) -> list:
 # ------------------------------------------------------------------ extraits installés
 
 def _base(dossier, identifiant: str) -> Path:
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", identifiant):
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*", identifiant):
         raise ValueError(f"Identifiant d'extrait invalide : {identifiant}")
-    return dossier_extraits(dossier) / f"{identifiant}.sqlite"
+    # L'index Geofabrik contient des sous-régions comme us/utah. Le nom du
+    # fichier reste plat pour que installes() et le nettoyage les retrouvent.
+    return dossier_extraits(dossier) / f"{identifiant.replace('/', '__')}.sqlite"
 
 
 def _lire(base: Path):

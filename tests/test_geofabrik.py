@@ -58,6 +58,20 @@ def installer_carte(dossier, carte, **options):
     return geofabrik.importer(pbf, base, REGION, DATE)
 
 
+def test_sous_region_geofabrik_installee_sans_sortir_du_dossier(tmp_path):
+    sous_region = {**REGION, "id": "us/utah", "nom": "Utah"}
+    base = geofabrik._base(tmp_path, sous_region["id"])
+    assert base == geofabrik.dossier_extraits(tmp_path) / "us__utah.sqlite"
+    base.parent.mkdir(parents=True)
+    pbf = tmp_path / "utah.osm.pbf"
+    ecrire_pbf(pbf, carte_d_essai()[0])
+    geofabrik.importer(pbf, base, sous_region, DATE)
+    assert any(r["id"] == "us/utah" for r in geofabrik.installes(tmp_path))
+    for identifiant in ("../utah", "us/../utah", "us//utah", "/us/utah"):
+        with pytest.raises(ValueError):
+            geofabrik._base(tmp_path, identifiant)
+
+
 def carte_d_essai():
     carte = Carte()
     sentier = carte.chemin((-60, 30), (60, 30))
