@@ -2,11 +2,11 @@
 
 # hike2gpx
 
-hike2gpx plans a hiking route on an IGN or OpenStreetMap base map without
-crossing the fences, barriers and prohibitions that OpenStreetMap describes.
-It can also use the paths that only IGN (the French national mapping agency)
-knows about, works out the elevation gain and the walking time, then exports
-the route as GPX.
+hike2gpx plans a hiking route, anywhere in the world, without crossing the
+fences, barriers and prohibitions that OpenStreetMap describes. It works out
+the elevation gain and the walking time, then exports the route as GPX. In
+France, it can also use the paths that only IGN (the French national mapping
+agency) knows about.
 
 Common planners such as Visorando, Locus Map or brouter-web do not see a fence
 drawn as a line across a footpath. This is not an oversight on their part:
@@ -32,57 +32,62 @@ hike2gpx simply opens the page of the new version.
 Everything happens in a local page, opened in the browser, and in the menu of
 a tray icon.
 
-**The map.** The IGN base maps are the SCAN 25 (with an IGN key, see below),
-the IGN Plan and aerial photos. On top of those come OpenStreetMap, OSM hiking
-(OpenTopoMap), OSM cycling (CyclOSM) and a worldwide satellite view (Esri).
-In France, the terrain relief from IGN's LiDAR HD is also available as a base
-map wherever IGN has already published it; the choice is remembered.
-Above them, two layers you can tick, from zoom 14, show the paths each source
-knows: OpenStreetMap's (footpaths dashed), with the fences and walls it maps,
-and those of IGN's BD TOPO. Side by side, they show at a glance the paths one
-source is missing. A town search recenters the map: French municipalities
-through the French government's Géo API, the rest of the world through
-Nominatim, OpenStreetMap's search engine. Outside France, the map shows the OSM
-or satellite base maps and the OSM paths, plus the national map of Spain,
-Switzerland, Austria, the Netherlands, Luxembourg, Norway and the United
-States; Spain, Switzerland and the United States add their official trails,
-for display only. The IGN layers come back when the map is moved into France.
-OSM extract downloads stop once the map leaves their region.
-A button switches the map to full screen. An indicator tells whether a route
-can be planned right away, thanks to an OSM extract already installed or to
-Overpass.
+**The map.** It follows the country at its center, including when you move it
+by hand, and offers that country's base maps; each country remembers the last
+base map you chose.
+
+- **Everywhere**: OpenStreetMap, OSM hiking (OpenTopoMap), OSM cycling
+  (CyclOSM) and a satellite view (Esri). A layer you can tick, from zoom 14,
+  shows OpenStreetMap's paths (footpaths dashed), with the fences and walls it
+  maps.
+- **In France**: IGN's base maps, SCAN 25 (with an IGN key, see below), IGN
+  Plan, aerial photos, and the LiDAR HD relief wherever IGN has published it.
+  A second layer shows the paths of IGN's BD TOPO; next to OpenStreetMap's, it
+  shows at a glance the paths one source is missing.
+- **In seven other countries**: the national map of Spain, Switzerland,
+  Austria, the Netherlands, Luxembourg, Norway and the United States. Spain,
+  Switzerland and the United States add their official trails, for display
+  only. The ⓘ button, next to the base map selector, lists these countries.
+
+A town search recenters the map: French municipalities through the French
+government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
+search engine. A button switches the map to full screen. An indicator tells
+whether a route can be planned right away, thanks to an OSM extract already
+installed or to Overpass.
 
 **The route.** A click sets the start, then the waypoints and the finish; a
-point moves by dragging it and is removed from its popup. "Return" closes
-the loop on the start, "Remove" takes off the last point, "Clear" starts over. The
+point moves by dragging it and is removed from its popup. "Return" closes the
+loop on the start, "Remove" takes off the last point, "Clear" starts over. The
 routing is BRouter's, run locally, with OpenStreetMap's barriers laid across
 the paths (see below). Three options tune it:
 
 - **Strict mode**: also avoid the passages "to check", not only the blocking
   ones;
-- **IGN paths**: let BRouter also use the BD TOPO paths missing from
-  OpenStreetMap. They show as orange dashes and join the points to check,
-  since nothing guarantees they still exist or that you may walk them;
+- **IGN paths** (in France): let BRouter also use the BD TOPO paths missing
+  from OpenStreetMap. They show as orange dashes and join the points to check,
+  since nothing guarantees they still exist or that you may walk them. Outside
+  France, the checkbox is inactive and routing uses OpenStreetMap; in Spain,
+  Switzerland and the United States, it names the country's official trails
+  and states that they are for display only;
 - **Comparison**: show, dotted, the standard route that ignores the barriers,
   with its length and the blocking crossings it would go through.
 
 **The result.** A summary gives the distance, the estimated time (Tobler's
 model, applied to the slope of the profile), the elevation gain and loss, and
 the highest and lowest points. The elevation profile unfolds at the bottom of
-the map; hovering over it shows the matching point on the route. The crossings
-to check are listed, each with a link that centers the map on it and another
-to the object in OpenStreetMap. "Export GPX" saves the route, with those points
-as waypoints.
+the map, with the name of the terrain model used; hovering over it shows the
+matching point on the route. The crossings to check are listed, each with a
+link that centers the map on it and another to the object in OpenStreetMap.
+"Export GPX" saves the route, with those points as waypoints.
 
 "Load a GPX" shows an existing track (GPX tracks and routes) in yellow on the
 map and centers the view on it. Its name, without the extension, appears in
-the layers under "BD TOPO paths (IGN)": the checkbox hides or shows the track
-without removing it. The legend also shows its yellow line while the GPX is
-loaded. It serves as a guide while you prepare the route: it changes neither
-the waypoints nor the export. Once loaded, the button becomes "Remove GPX"
-and takes the track off the map without touching the file on the computer.
-You can then load another file. The loaded track stays on screen until the
-page is closed or reloaded.
+the layers: the checkbox hides or shows the track without removing it, and the
+legend shows its yellow line while it is loaded. It serves as a guide while
+you prepare the route: it changes neither the waypoints nor the export. Once
+loaded, the button becomes "Remove GPX" and takes the track off the map
+without touching the file on the computer. The loaded track stays on screen
+until the page is closed or reloaded.
 
 **The settings.** The IGN key for the SCAN 25, how long downloaded data is
 kept before being renewed (30 days by default), the transparency of the panels
@@ -99,10 +104,10 @@ bottom of the map.
 The routing relies on five pieces.
 
 1. **The crossings.** For the area of the route, hike2gpx reads from
-   OpenStreetMap (through Overpass, in 0.05° tiles kept for seven days) the
-   paths you can walk, the barriers drawn as lines, the barrier nodes and the
-   waymarked hiking routes. Each crossing is judged **blocking**, **to check**
-   or **passable**, with the rules of
+   OpenStreetMap (from an installed extract, or through Overpass, in 0.05°
+   tiles kept for seven days) the paths you can walk, the barriers drawn as
+   lines, the barrier nodes and the waymarked hiking routes. Each crossing is
+   judged **blocking**, **to check** or **passable**, with the rules of
    [gpx2elev](https://github.com/nico579/gpx2elev), copied as they are into
    `regles.py`: a fence crossed with no mapped opening blocks, a gate with no
    access information is to check, `foot=yes` wins over `access=private`,
@@ -125,29 +130,31 @@ The routing relies on five pieces.
    kept), with the time of each step, its errors and its slow spots.
 4. **The elevation.** Once the route is displayed, the
    [gpx2elev](https://pypi.org/project/gpx2elev/) engine recomputes its
-   elevation gain: track sampled every 5 m, best terrain model available
-   (IGN LiDAR HD first), 20 m Gaussian smoothing, 2 m hysteresis. BRouter's
-   figure, taken from a coarser worldwide model, is only an estimate in the
-   meantime.
-5. **The IGN paths.** A path that the BD TOPO knows and OpenStreetMap does not
-   is invisible to BRouter, which only sees its own tiles. So hike2gpx builds
-   its own BRouter tile from the data it has already read: the OpenStreetMap
-   ways, plus the BD TOPO sections that duplicate none of them, connected to
-   the network. The tile grows with the areas you visit, up to 25 tiles of
-   0.05° before starting again from the requested area, and is rebuilt only
-   for a new area or reread data, in about six seconds for nine tiles. The
-   crossings are then looked for on the merged network: an OSM path and an
-   IGN path stopping on either side of a fence, once connected, cross it.
-   These paths cost a little more than the others, show as orange dashes on
-   the route and join the points to check, since nothing says they still exist
-   or that you may walk them; a restricted pedestrian access in the BD TOPO
-   closes them. A checkbox lets you do without them, and if building the tile
-   fails, the route is computed on OpenStreetMap alone, with a warning.
-   The gain is real: on the tiles richest in paths, the BD TOPO enlarges the
-   network by 18 to 100 %, and by 21 to 72 % in the Var. Outside France, the
-   official sources measured (United States, Switzerland, the Netherlands)
-   add only 0 to 12 %, so routing there stays on OSM alone. The measurement and
-   the analysis are in
+   elevation gain: track sampled every 5 m, 20 m Gaussian smoothing, 2 m
+   hysteresis. It takes the best terrain model covering the whole route: IGN
+   LiDAR HD in France, otherwise Mapterhorn, FABDEM, Copernicus GLO-30 or SRTM.
+   BRouter's figure, taken from a coarser worldwide model, is only an estimate
+   in the meantime; if no model covers the route, the elevation is reported as
+   unavailable rather than replaced by that figure.
+5. **The IGN paths, in France.** A path that the BD TOPO knows and
+   OpenStreetMap does not is invisible to BRouter, which only sees its own
+   tiles. So hike2gpx builds its own BRouter tile from the data it has already
+   read: the OpenStreetMap ways, plus the BD TOPO sections that duplicate none
+   of them, connected to the network. The tile grows with the areas you visit,
+   up to 25 tiles of 0.05° before starting again from the requested area, and
+   is rebuilt only for a new area or reread data, in about six seconds for nine
+   tiles. The crossings are then looked for on the merged network: an OSM path
+   and an IGN path stopping on either side of a fence, once connected, cross
+   it. These paths cost a little more than the others, show as orange dashes
+   on the route and join the points to check, since nothing says they still
+   exist or that you may walk them; a restricted pedestrian access in the
+   BD TOPO closes them. A checkbox lets you do without them, and if building
+   the tile fails, the route is computed on OpenStreetMap alone, with a
+   warning. The gain is real: on the tiles richest in paths, the BD TOPO
+   enlarges the network by 18 to 100 %, and by 21 to 72 % in the Var. Outside
+   France, the official sources measured (United States, Switzerland, the
+   Netherlands) add only 0 to 12 %, so routing there stays on OSM alone. The
+   measurement and the analysis are in
    [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md)
    (in French).
 
@@ -172,22 +179,27 @@ without joining the points in a straight line.
 
 Overpass, the service that answers questions about OpenStreetMap, saturates at
 times and sometimes goes down. To stop depending on it, hike2gpx downloads by
-itself an OpenStreetMap extract around the place where you are working, and in
-France it does so in two steps. First the département, taken from the
+itself an OpenStreetMap extract around the place where you are working.
+
+Anywhere in the world, it is the smallest
+[Geofabrik](https://download.geofabrik.de/) extract that contains the whole
+area, among some 550: Liechtenstein for Vaduz (3 MB), a US state such as Utah
+rather than the whole United States. In France, hike2gpx works in two steps.
+First the département, taken from the
 [OSM France extracts](https://download.openstreetmap.fr/extracts/europe/france/):
 for Garéoult, the Var weighs 83 MB and is ready in about forty seconds,
-import included; you can work right away. Meanwhile, the
-[Geofabrik](https://download.geofabrik.de/) region gets ready: Provence-Alpes-
-Côte d'Azur weighs 391 MB and takes more than three minutes. As soon as it is
-there, it takes over, because OSM France cuts the paths sharply at the edge of
-the département, where Geofabrik keeps them whole. Anywhere else on the
-planet, it is the Geofabrik region directly, among some 550: Liechtenstein for
-Vaduz (3 MB). The download starts once the region is really in use, by a
-computation or the OSM paths layer, but not when the map merely flies over
-it. It runs in the background, checked against its MD5, while Overpass keeps
-serving; the panel follows its progress, and a computation that was waiting
-for it resumes by itself as soon as the département is there, without waiting
-for the region. An extract over 2 GB, or one the disk could not hold, is not
+import included; you can work right away. Meanwhile, the Geofabrik region gets
+ready: Provence-Alpes-Côte d'Azur weighs 391 MB and takes more than three
+minutes. As soon as it is there, it takes over, because OSM France cuts the
+paths sharply at the edge of the département, where Geofabrik keeps them
+whole.
+
+The download starts once the region is really in use, by a computation or the
+OSM paths layer, but not when the map merely flies over it; it stops if the
+map leaves the region. It runs in the background, checked against its MD5,
+while Overpass keeps serving; the panel follows its progress, and a
+computation that was waiting for it resumes by itself as soon as the extract
+is there. An extract over 2 GB, or one the disk could not hold, is not
 downloaded: Overpass then remains the source. The extract is read once and
 stored in a SQLite database per tile, in the data folder (`geofabrik/`), then
 the downloaded file is deleted.
@@ -210,6 +222,9 @@ OpenStreetMap records only 18 fences, and IGN's BD TOPO none (see
 [ESSAI.md](ESSAI.md), in French). A fence found in the field and added to
 OpenStreetMap is respected by hike2gpx as soon as its cache of the area is
 renewed; the engines of the other planners keep ignoring it.
+
+Outside France, routing only knows OpenStreetMap's paths: a trail missing from
+OSM does not exist for it, even if the national map draws it.
 
 A computation examines at most 100 tiles of 0.05°, about 55 × 40 km: the first
 reading of a larger area would take tens of minutes. A long route is split
@@ -235,17 +250,17 @@ uv pip install --python .venv\Scripts\python.exe -e ".[test]"
 ```
 
 `installer` downloads BRouter 1.7.10 (archive checked against its SHA256
-digest) and the data tile that covers the area: E5_N40 for Provence, from 5°
-to 10° E and from 40° to 45° N. From the page, there is nothing to do: the
-engine installs itself on first launch, and each data tile downloads in the
-background as soon as a computation needs it, the computation resuming when it
-arrives. The data goes into the standard state folder
-(`%LOCALAPPDATA%\hike2gpx-data` on Windows), or the one named by the
+digest) and a data tile, here E5_N40, which covers Provence, from 5° to 10° E
+and from 40° to 45° N. From the page, there is nothing to do: the engine
+installs itself on first launch, and each data tile downloads in the
+background as soon as a computation needs it, anywhere in the world, the
+computation resuming when it arrives. The data goes into the standard state
+folder (`%LOCALAPPDATA%\hike2gpx-data` on Windows), or the one named by the
 `HIKE2GPX_HOME` variable.
 
 The SCAN 25 is not open data: it needs an IGN key, entered in the page
 settings. Without a key, the map uses the IGN Plan, under the Licence Ouverte
-(the French open licence).
+(the French open licence). The other base maps need no key.
 
 ## Tests
 
@@ -264,8 +279,10 @@ two OSM paths only meet through IGN paths; it also needs BRouter's build
 profiles, which the first build from the page downloads into the data folder.
 `test_integration_securite.py` checks in the same way, on six invented cases,
 that the profile and the order of the cuts respect the prohibitions.
-`test_page.py` runs the page under Node, when Node is installed. The tools in
-`tools/` replay the trial described in [ESSAI.md](ESSAI.md) (in French).
+`test_page.py` runs the page under Node, when Node is installed; it also
+checks that every country in `providers/` has its labels in French and
+English. The tools in `tools/` replay the trial described in
+[ESSAI.md](ESSAI.md) (in French) and the measurement of the path sources.
 
 ## Building the program
 
@@ -299,4 +316,5 @@ GPL-3.0-or-later. BRouter (MIT) is downloaded at installation; Leaflet 1.9.4
 program embeds Eclipse Adoptium's Temurin 21 JRE (GPL-2.0 with the Classpath
 exception, texts in `_internal/jre/legal`). Data © OpenStreetMap contributors
 (ODbL), including the test extract `tests/donnees/gareoult_cloture.json`;
-BD TOPO © IGN (Licence Ouverte); maps © IGN.
+BD TOPO © IGN (Licence Ouverte); maps © IGN, and for the national base maps,
+© each agency, as credited on the map.

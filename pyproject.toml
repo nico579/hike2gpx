@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hike2gpx"
-description = "Tracé de randonnée sur fond IGN qui respecte les clôtures, barrières et interdictions d'OpenStreetMap"
+description = "Hiking route planner that respects the fences, barriers and prohibitions mapped in OpenStreetMap"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.12,<3.13"
