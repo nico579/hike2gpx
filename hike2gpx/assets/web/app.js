@@ -75,6 +75,8 @@ const TEXTES = {
     "reglages.masquerCartes": "Masquer le bandeau des cartes",
     "reglages.masquerDenivele": "Masquer le bandeau du dénivelé",
     "reglages.transparence": "Transparence des bandeaux",
+    "reglages.ouvrirJournaux": "Ouvrir le dossier des journaux",
+    "reglages.erreurJournaux": "Impossible d'ouvrir le dossier des journaux : {message}",
     "disponibilite.oui": "Tracé disponible",
     "disponibilite.non": "Tracé indisponible",
     "statut.donneesIndisponibles": "Données OSM indisponibles pour ce tracé. Nouvelle tentative automatique après téléchargement.",
@@ -98,11 +100,6 @@ const TEXTES = {
     "donnees.vide": "Cache local vidé. Les tuiles du fond de carte restent gérées par le navigateur.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
     "unite.mo": "Mo",
-    "journal.titre": "Journal des calculs",
-    "journal.note": "Erreurs, blocages et lenteurs, du plus ancien au plus récent :",
-    "journal.vide": "Journal vide pour l'instant.",
-    "journal.illisible": "Journal illisible : {message}",
-    "journal.ouvrir": "Ouvrir le fichier de log",
     "pied": "Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins BD TOPO et cartes © IGN, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.",
     "statut.deuxiemePoint": "Posez un deuxième point.",
     "statut.calcul": "Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute",
@@ -231,6 +228,8 @@ const TEXTES = {
     "reglages.masquerCartes": "Hide the map layers panel",
     "reglages.masquerDenivele": "Hide the elevation panel",
     "reglages.transparence": "Panel transparency",
+    "reglages.ouvrirJournaux": "Open logs folder",
+    "reglages.erreurJournaux": "Unable to open the logs folder: {message}",
     "disponibilite.oui": "Routing available",
     "disponibilite.non": "Routing unavailable",
     "statut.donneesIndisponibles": "OSM data unavailable for this route. Automatic retry after download.",
@@ -254,11 +253,6 @@ const TEXTES = {
     "donnees.vide": "Local cache cleared. Background map tiles remain managed by the browser.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
     "unite.mo": "MB",
-    "journal.titre": "Calculation log",
-    "journal.note": "Errors, blockages and slowness, oldest first:",
-    "journal.vide": "The log is empty for now.",
-    "journal.illisible": "Log unreadable: {message}",
-    "journal.ouvrir": "Open log file",
     "pied": "Barriers and paths © OpenStreetMap contributors (ODbL), BD TOPO paths and maps © IGN, routing by BRouter. A barrier missing from OpenStreetMap cannot be avoided: the ground always has the last word.",
     "statut.deuxiemePoint": "Place a second point.",
     "statut.calcul": "Calculating… The first time in an area, reading the OSM barriers takes up to a minute",
@@ -1219,23 +1213,6 @@ async function calculer() {
     afficher(reponse);
     majExtrait(true);       // le calcul a pu lancer l'extrait OSM de la région
   }
-  chargerJournal();
-}
-
-// ------------------------------------------------------------ journal
-
-// Les dernières lignes du journal des calculs (erreurs, blocages, lenteurs),
-// relues à l'ouverture de la section et après chaque calcul.
-async function chargerJournal() {
-  if ($("pane-journal").hidden) return;
-  try {
-    const j = await api("journal");
-    $("cheminJournal").textContent = j.chemin;
-    $("lignesJournal").textContent = j.lignes.length ? j.lignes.join("\n") : t("journal.vide");
-    $("lignesJournal").scrollTop = $("lignesJournal").scrollHeight;
-  } catch (e) {
-    $("lignesJournal").textContent = t("journal.illisible", { message: e.message });
-  }
 }
 
 // ------------------------------------------------------------ plein écran
@@ -1471,7 +1448,6 @@ async function calculerDenivele(r) {
   profilRoute = preparerRouteProfil(r.itineraire.geometry.coordinates);
   ecrireDenivele(d);
   if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:denivele", { detail: d }));
-  chargerJournal();
 }
 
 function ecrireDenivele(d) {
@@ -1668,6 +1644,19 @@ $("enregistrerCle").addEventListener("click", async () => {
     verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
+  }
+});
+$("ouvrirDossierJournaux").addEventListener("click", async () => {
+  const bouton = $("ouvrirDossierJournaux");
+  bouton.disabled = true;
+  $("erreurDossierJournaux").hidden = true;
+  try {
+    await api("ouvrir_journaux", {});
+  } catch (erreur) {
+    $("erreurDossierJournaux").textContent = t("reglages.erreurJournaux", { message: erreur.message });
+    $("erreurDossierJournaux").hidden = false;
+  } finally {
+    bouton.disabled = false;
   }
 });
 

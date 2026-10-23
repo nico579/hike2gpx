@@ -524,7 +524,8 @@ def test_routes_init_annonce_l_application(tmp_path):
     assert {"osm", "bdtopo", "extrait"} <= set(get)
     # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
     # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
-    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "communes", "langue", "arreter_calques", "donnees"}
+    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "communes", "langue",
+                         "arreter_calques", "donnees", "ouvrir_journaux"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
@@ -664,6 +665,7 @@ def test_journal_est_horodate_et_ne_reprend_pas_l_ancien(tmp_path):
         racine.info("nouvelle session")
         resultat = appli.Application(tmp_path).lire_journal()
         assert chemin.name.startswith("hike2gpx-20") and chemin.suffix == ".log"
+        assert chemin.parent == tmp_path / "logs"
         assert resultat["chemin"] == str(chemin)
         assert any("nouvelle session" in ligne for ligne in resultat["lignes"])
         assert not any("ancienne session" in ligne for ligne in resultat["lignes"])
@@ -675,15 +677,17 @@ def test_journal_est_horodate_et_ne_reprend_pas_l_ancien(tmp_path):
 
 def test_journal_ne_garde_que_les_dernieres_sessions(tmp_path):
     # Un fichier par démarrage : sans élagage, ils s'accumuleraient à jamais.
+    logs = tmp_path / "logs"
+    logs.mkdir()
     anciennes = [f"hike2gpx-202610{jour:02d}-120000-000000.log" for jour in range(1, 13)]
     for nom in anciennes:
-        (tmp_path / nom).write_text("session\n")
-    (tmp_path / (anciennes[0] + ".1")).write_text("rotation\n")
+        (logs / nom).write_text("session\n")
+    (logs / (anciennes[0] + ".1")).write_text("rotation\n")
     (tmp_path / "hike2gpx.log").write_text("journal d'avant les sessions\n")
     chemin = appli.configurer_journal(tmp_path)
     racine = logging.getLogger("hike2gpx")
     try:
-        restants = sorted(p.name for p in tmp_path.glob("hike2gpx-*"))
+        restants = sorted(p.name for p in logs.glob("hike2gpx-*"))
         assert len(restants) == appli.SESSIONS_GARDEES and restants[-1] == chemin.name
         assert restants[:-1] == anciennes[-(appli.SESSIONS_GARDEES - 1):]      # les plus récentes
         assert (tmp_path / "hike2gpx.log").exists()         # rien d'autre n'est touché

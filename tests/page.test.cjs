@@ -155,6 +155,17 @@ test("le nom du fichier GPX est échappé dans le contrôle Leaflet", async () =
   assert.equal(page.controle().calques["<b>rando</b>"], undefined);
 });
 
+test("le bouton Réglages demande l'ouverture du dossier des journaux", async () => {
+  const { elements, requetes } = charger();
+  const ouverture = elements.get("ouvrirDossierJournaux").ecouteurs.click[0]();
+  const requete = requetes.findLast((r) => r.url === "/api/ouvrir_journaux");
+  assert.equal(requete.options.method, "POST");
+  repondre(requete, { dossier: "C:\\journaux" });
+  await ouverture;
+  assert.equal(elements.get("ouvrirDossierJournaux").disabled, false);
+  assert.equal(elements.get("erreurDossierJournaux").hidden, true);
+});
+
 test("le parcours revient après rechargement et se recalcule", async () => {
   const avant = charger();
   avant.page.ajouterPoint({ lat: 43.3, lng: 6 });

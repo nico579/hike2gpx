@@ -107,7 +107,8 @@ body.plein-ecran .panel-toggle{display:none}
 .map-activity-row .piste.indeterminee .barre{position:absolute;width:30%;animation:va-et-vient 1.2s ease-in-out infinite alternate}
 body.profile-open .map-activity{bottom:264px}
 body.profile-collapsed .map-activity{bottom:81px}
-.elevation-panel{position:absolute;left:calc(var(--panneau) + 18px);right:18px;bottom:25px;z-index:1050;max-height:40vh;border:1px solid #d9e5f18c;border-radius:12px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 10px 34px #1b354538;overflow:hidden;transition:left .24s ease}
+.elevation-panel{position:absolute;left:calc(var(--panneau) + 18px);right:18px;bottom:25px;z-index:1050;max-height:40vh;border:1px solid #d9e5f18c;border-radius:12px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 10px 34px #1b354538;overflow:hidden;transition:left .24s ease,right .18s ease}
+#carte.profile-beside-layers .elevation-panel{right:var(--layers-profile-right)}
 .elevation-panel button{border:0;background:none;cursor:pointer}
 #elevationToggle{display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;color:#305574;text-align:left;font-size:12px;font-weight:700}
 #elevationToggle:hover{background:#f5f9ff50}
@@ -161,13 +162,14 @@ body.profile-collapsed .map-activity{bottom:81px}
 .transparency-setting>div{display:flex;align-items:center;gap:12px;margin-top:5px}
 .transparency-setting input{flex:1;min-width:0;accent-color:var(--accent);cursor:pointer}
 .transparency-setting output{min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
+.journal-settings{margin-top:18px;padding-top:16px;border-top:1px solid var(--bordure)}
+.journal-settings button{padding:9px 12px;border:1px solid #d5e5fa;border-radius:8px;background:#eef5ff;color:#1959b5;font-size:12px;cursor:pointer}
+.journal-settings button:hover:not(:disabled){background:#e1efff}
+.journal-settings .note{margin:8px 0 0;color:#bc3944}
 body.hide-elevation .elevation-panel,body.hide-map-toolbar .map-widget-toolbar{display:none!important}
 #noteCalques,#extraitOsm,#brouterEnCours{display:none!important}
 #resultat #sourceDenivele,#resultat #comparaison,#resultat #aucunAVerifier{display:none!important}
 #resultat.empty{display:none!important}
-.journal-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.journal-heading h2{font-size:14px;margin:0}
-.journal-heading a{font-size:11px;color:var(--accent);white-space:nowrap}
 #reglages>label{font-size:12px;color:#546a80;margin-top:16px}
 .ligne{margin-top:7px}.ligne input{min-height:37px;font-size:12px}.ligne button{font-size:12px;padding:7px 10px;background:#eef5ff;color:#1959b5;border-color:#d5e5fa}
 #reglages h3{font-size:13px;border-top:1px solid var(--bordure);padding-top:16px;margin-top:18px}

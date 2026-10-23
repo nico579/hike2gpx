@@ -6,7 +6,7 @@
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-6">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-27">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-28">
 </head>
 <body>
 <div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
@@ -57,7 +57,6 @@
   <nav class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
     <button type="button" role="tab" id="tab-trace" data-pane="trace" aria-controls="pane-trace" aria-selected="true">Parcours</button>
     <button type="button" role="tab" id="tab-reglages" data-pane="reglages" aria-controls="pane-reglages" aria-selected="false" tabindex="-1">Réglages</button>
-    <button type="button" role="tab" id="tab-journal" data-pane="journal" aria-controls="pane-journal" aria-selected="false" tabindex="-1">Journal</button>
   </nav>
   <div class="panel-scroll">
   <section id="pane-trace" class="pane" role="tabpanel" aria-labelledby="tab-trace">
@@ -97,14 +96,8 @@
       <div class="setting-row renewal-row"><label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les données locales après</label><div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div></div>
       <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
       <div class="display-settings"><label class="option"><input id="hideMapToolbar" type="checkbox"> <span data-i18n="reglages.masquerCartes">Masquer le bandeau des cartes</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
+      <div class="journal-settings"><button id="ouvrirDossierJournaux" type="button" data-i18n="reglages.ouvrirJournaux">Ouvrir le dossier des journaux</button><p id="erreurDossierJournaux" class="note" role="alert" hidden></p></div>
       <div id="donnees"></div>
-    </section>
-  </section>
-  <section id="pane-journal" class="pane" role="tabpanel" aria-labelledby="tab-journal" hidden>
-    <section id="journal">
-      <div class="journal-heading"><h2 data-i18n="journal.titre">Journal des calculs</h2><a href="/journal.txt" target="_blank" rel="noopener" data-i18n="journal.ouvrir">Ouvrir le fichier de log</a></div>
-      <p class="note"><span data-i18n="journal.note">Erreurs, blocages et lenteurs, du plus ancien au plus récent :</span> <span id="cheminJournal"></span></p>
-      <pre id="lignesJournal"></pre>
     </section>
   </section>
   </div>
@@ -126,10 +119,10 @@
   </ul>
 </section>
 <script src="/leaflet/leaflet.js"></script>
-<script src="/app.js?v=desktop-30"></script>
+<script src="/app.js?v=desktop-31"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-14"></script>
+<script src="/presentation.js?v=desktop-15"></script>
 </body>
 </html>

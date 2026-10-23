@@ -83,8 +83,9 @@ reste affiché jusqu'à la fermeture ou au rechargement de la page.
 
 **Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
 données téléchargées (30 jours par défaut), la transparence des bandeaux et
-leur masquage, et un bouton qui vide tous les caches locaux. Le journal de la
-session (erreurs, blocages, lenteurs) s'ouvre depuis la page. La page parle
+leur masquage, et un bouton qui vide tous les caches locaux. Un bouton ouvre
+le dossier `logs`, qui contient les journaux de l'application et de BRouter.
+La page parle
 français ou anglais, et retrouve à sa réouverture la vue, le fond, les calques
 et les options de la fois précédente. Téléchargements, imports et calculs en
 cours s'affichent dans un bandeau en bas de la carte.
@@ -117,7 +118,7 @@ Le calcul passe par cinq pièces.
    [nico579-commons](https://pypi.org/project/nico579-commons/), qui partage
    avec les autres applications de nico579 l'icône, la langue et la mise à
    jour. Chaque calcul laisse sa trace dans le journal de la session
-   (`hike2gpx-<date>.log`, au dossier de données ; les dix dernières sessions
+   (`logs/hike2gpx-<date>.log`, dans le dossier de données ; les dix dernières sessions
    sont gardées), avec le temps de chaque étape, ses erreurs et ses lenteurs.
 4. **Le dénivelé.** Une fois l'itinéraire affiché, le moteur de
    [gpx2elev](https://pypi.org/project/gpx2elev/) recalcule son dénivelé :

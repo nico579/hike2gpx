@@ -21,7 +21,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, bdtopo, brouter, communes, franchissements, geofabrik, maison, osmfr
+from . import __version__, bdtopo, brouter, communes, franchissements, geofabrik, journaux, maison, osmfr
 
 journal = logging.getLogger(__name__)
 
@@ -52,17 +52,18 @@ def configurer_journal(dossier) -> Path:
     SESSIONS_GARDEES dernières sessions restent, rotations comprises, sans
     quoi un fichier de plus s'ajouterait à chaque démarrage, à jamais."""
     racine_donnees = Path(dossier).resolve()
+    dossier_logs = journaux.dossier(racine_donnees)
     chemin = _JOURNAUX.get(racine_donnees)
     racine = logging.getLogger("hike2gpx")
     if chemin is not None and any(isinstance(h, RotatingFileHandler) and Path(h.baseFilename) == chemin
                                   for h in racine.handlers):
         return chemin
     # Le nom horodaté se trie dans l'ordre chronologique.
-    for ancienne in sorted(racine_donnees.glob("hike2gpx-*.log"))[:-(SESSIONS_GARDEES - 1)]:
-        for fichier in racine_donnees.glob(ancienne.name + "*"):
+    dossier_logs.mkdir(parents=True, exist_ok=True)
+    for ancienne in sorted(dossier_logs.glob("hike2gpx-*.log"))[:-(SESSIONS_GARDEES - 1)]:
+        for fichier in dossier_logs.glob(ancienne.name + "*"):
             fichier.unlink(missing_ok=True)
-    chemin = racine_donnees / f"hike2gpx-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.log"
-    chemin.parent.mkdir(parents=True, exist_ok=True)
+    chemin = dossier_logs / f"hike2gpx-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.log"
     fichier = RotatingFileHandler(chemin, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
     fichier.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     racine.addHandler(fichier)
@@ -407,7 +408,7 @@ class Application:
 
     def lire_journal(self) -> dict:
         """Les dernières lignes du journal des calculs, pour la page."""
-        chemin = _JOURNAUX.get(self.dossier.resolve(), self.dossier / FICHIER_JOURNAL)
+        chemin = _JOURNAUX.get(self.dossier.resolve(), journaux.dossier(self.dossier) / FICHIER_JOURNAL)
         try:
             lignes = chemin.read_text(encoding="utf-8", errors="replace").splitlines()[-LIGNES_JOURNAL:]
         except OSError:
@@ -926,5 +927,9 @@ class Application:
         post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
-                "donnees": self.agir_donnees, **post_langue}
+                "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux, **post_langue}
         return get, post
+
+    def ouvrir_journaux(self, corps=None) -> dict:
+        """Ouvre uniquement le dossier des journaux de cette installation."""
+        return {"dossier": str(journaux.ouvrir(self.dossier))}
