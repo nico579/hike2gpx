@@ -9,7 +9,8 @@ window.HIKE2GPX_MAP_PROVIDERS.es = {
   },
   calques: {
     senderos(L) {
-      return L.vectorGrid.protobuf("/tuiles/sentiers/{z}/{x}/{y}.pbf", {
+      // Le serveur FEDME autorise le CORS : la page lit ses tuiles directement.
+      return L.vectorGrid.protobuf("https://vt-fedme.idee.es/vt.senderogr,vt.senderopr,vt.senderosl/{z}/{x}/{y}.pbf", {
         rendererFactory: L.canvas.tile,
         interactive: false,
         minZoom: 8,
