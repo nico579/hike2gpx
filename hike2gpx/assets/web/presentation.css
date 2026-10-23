@@ -50,6 +50,7 @@ body.plein-ecran .panel-toggle{display:none}
 .langues{align-self:center;gap:4px}
 .bouton-langue{padding:4px 7px;font-size:11px;color:#728093;background:#f7f9fc;border-radius:6px}
 .bouton-langue.active{background:#eaf2ff;color:#1854b1;border-color:#cddff7}
+.bouton-aide{margin-right:-12px;border:1px solid #d7e3f0;font-weight:700;text-decoration:none}
 .panel-tabs{display:flex;gap:7px;padding:7px 17px;border-bottom:1px solid #cfdaea;background:#fff;flex-shrink:0}
 .panel-tabs button{flex:1;border:1px solid #cbd9e8;background:#edf3fa;border-radius:7px;color:#304963;padding:8px 7px;font-size:12px;font-weight:650}
 .panel-tabs button:hover{background:#dfeaf8}
