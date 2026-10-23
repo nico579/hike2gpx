@@ -1,3 +1,5 @@
+*[English](README.md) | **Français***
+
 # hike2gpx
 
 hike2gpx trace un itinéraire de randonnée sur un fond IGN ou OpenStreetMap
@@ -14,14 +16,16 @@ barrière, le juge, puis interdit ou décourage son passage. À Garéoult (Var),
 le profil Randonnée standard de BRouter franchit une clôture en béton pour un
 trajet de 69 m ; hike2gpx la contourne par un détour de 435 m.
 
-Version 0.2.0, pour ordinateur. Le téléphone viendra plus tard, par
-l'application BRouter pour Android.
+Pour ordinateur : Windows, macOS et Linux. Le téléphone viendra plus tard,
+par l'application BRouter pour Android.
 
 Installé depuis une release, hike2gpx se met à jour tout seul, comme les
 autres applications de nico579 : quand une version plus récente est publiée,
 un bandeau de la page et le menu de son icône proposent de l'installer ; il
-la télécharge, la vérifie, puis redémarre dessus. Lancé depuis les sources,
-il se contente d'ouvrir la page de la nouvelle version.
+la télécharge, la vérifie, puis redémarre dessus. Le bouton « Vérifier les
+mises à jour » du panneau Réglages pose la question tout de suite, sans
+attendre la vérification périodique. Lancé depuis les sources, hike2gpx se
+contente d'ouvrir la page de la nouvelle version.
 
 ## Ce que fait hike2gpx
 
@@ -40,7 +44,11 @@ Les mettre côte à côte montre d'un coup d'œil les sentiers qu'une source
 ignore. Une recherche de ville recentre la carte : les communes françaises par
 l'API Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
 d'OpenStreetMap. Hors de France, la carte affiche les fonds OSM ou satellite et
-les chemins OSM ; les couches IGN reviennent quand la carte est déplacée en France.
+les chemins OSM, plus la carte nationale de l'Espagne, de la Suisse, de
+l'Autriche, des Pays-Bas, du Luxembourg, de la Norvège et des États-Unis ;
+l'Espagne, la Suisse et les États-Unis y ajoutent leurs sentiers officiels,
+pour l'affichage seulement. Les couches IGN reviennent quand la carte est
+déplacée en France.
 Les téléchargements d'extraits OSM quittés par la carte s'arrêtent.
 Un bouton passe la carte en plein écran. Un voyant dit si le tracé est possible
 tout de suite, grâce à un extrait OSM déjà installé ou à Overpass.
@@ -84,7 +92,9 @@ reste affiché jusqu'à la fermeture ou au rechargement de la page.
 **Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
 données téléchargées (30 jours par défaut), la transparence des bandeaux et
 leur masquage, et un bouton qui vide tous les caches locaux. Un bouton ouvre
-le dossier `logs`, qui contient les journaux de l'application et de BRouter.
+le dossier `logs`, qui contient les journaux de l'application et de BRouter ;
+un autre affiche la version installée et vérifie s'il en existe une plus
+récente.
 La page parle
 français ou anglais, et retrouve à sa réouverture la vue, le fond, les calques
 et les options de la fois précédente. Téléchargements, imports et calculs en
