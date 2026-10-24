@@ -77,8 +77,10 @@ PY
 
 caddy validate --config /etc/caddy/Caddyfile
 systemctl daemon-reload
-systemctl enable --now hike2gpx
+systemctl enable hike2gpx
+systemctl restart hike2gpx
 systemctl enable --now hike2gpx-refresh.timer
+systemctl enable --now caddy
 systemctl reload caddy
 systemctl is-active --quiet hike2gpx
 systemctl is-active --quiet caddy
