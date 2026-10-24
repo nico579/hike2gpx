@@ -5,6 +5,9 @@
     <string name="finish">Finish (latitude, longitude)</string>
     <string name="strict">Strict mode</string>
     <string name="download">Download zone</string>
+    <string name="cached_zones">Downloaded zones</string>
+    <string name="no_cached_zones">No downloaded zones.</string>
+    <string name="zone_displayed">Zone displayed offline.</string>
     <string name="visible_zone">Use visible map area</string>
     <string name="center">Center map on start</string>
     <string name="calculate">Calculate on device</string>

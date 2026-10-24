@@ -2,6 +2,7 @@ package org.hike2gpx.android;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
@@ -78,6 +79,7 @@ public final class MainActivity extends Activity {
         strict.setChecked(true);
         column.addView(strict);
         Button download = button(column, R.string.download);
+        Button cachedZones = button(column, R.string.cached_zones);
         Button visibleZone = button(column, R.string.visible_zone);
         Button center = button(column, R.string.center);
         Button calculate = button(column, R.string.calculate);
@@ -130,6 +132,27 @@ public final class MainActivity extends Activity {
                 return getString(R.string.zone_ready, zone.manifest.getJSONArray("segments").length());
             });
         });
+        cachedZones.setOnClickListener(v -> runTask(() -> {
+            List<PackageStore.Zone> available = packages.installed();
+            if (available.isEmpty()) return getString(R.string.no_cached_zones);
+            String[] labels = new String[available.size()];
+            for (int i = 0; i < available.size(); i++) {
+                JSONObject manifest = available.get(i).manifest;
+                JSONArray area = manifest.getJSONArray("couverture");
+                labels[i] = String.format(Locale.US, "%s · %.3f, %.3f – %.3f, %.3f",
+                        manifest.getString("source"), area.getDouble(0), area.getDouble(1),
+                        area.getDouble(2), area.getDouble(3));
+            }
+            runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle(R.string.cached_zones)
+                    .setItems(labels, (dialog, index) -> runTask(() -> {
+                        PackageStore.Zone zone = available.get(index);
+                        OfficialPathsOverlay paths = OfficialPathsOverlay.load(zone.directory);
+                        runOnUiThread(() -> displayCachedZone(zone.manifest, paths));
+                        return getString(R.string.zone_displayed);
+                    })).show());
+            return getString(R.string.cached_zones);
+        }));
         calculate.setOnClickListener(v -> {
             String startText = start.getText().toString(), finishText = finish.getText().toString();
             String selected = selectedSource();
@@ -204,6 +227,22 @@ public final class MainActivity extends Activity {
             map.invalidate();
         }
         catch (Exception error) { status.setText(error.getMessage()); }
+    }
+
+    private void displayCachedZone(JSONObject manifest, OfficialPathsOverlay paths) {
+        try {
+            String provider = manifest.getString("source");
+            for (int i = 0; i < SOURCES.length; i++) {
+                if (SOURCES[i].equals(provider)) { source.setSelection(i); break; }
+            }
+            strict.setChecked(manifest.getBoolean("strict"));
+            JSONArray area = manifest.getJSONArray("zone");
+            double south = area.getDouble(0), west = area.getDouble(1);
+            double north = area.getDouble(2), east = area.getDouble(3);
+            bounds.setText(String.format(Locale.US, "%.7f, %.7f, %.7f, %.7f", south, west, north, east));
+            showZone(manifest, paths);
+            map.zoomToBoundingBox(new BoundingBox(north, east, south, west), true, 40);
+        } catch (Exception error) { status.setText(error.getMessage()); }
     }
 
     private void showRoute(JSONArray coordinates) {

@@ -5,6 +5,9 @@
     <string name="finish">Arrivée (latitude, longitude)</string>
     <string name="strict">Mode strict</string>
     <string name="download">Télécharger la zone</string>
+    <string name="cached_zones">Zones téléchargées</string>
+    <string name="no_cached_zones">Aucune zone téléchargée.</string>
+    <string name="zone_displayed">Zone affichée hors ligne.</string>
     <string name="visible_zone">Utiliser la zone visible sur la carte</string>
     <string name="center">Centrer la carte sur le départ</string>
     <string name="calculate">Calculer sur le téléphone</string>
