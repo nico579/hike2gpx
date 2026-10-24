@@ -22,8 +22,8 @@ from pathlib import Path
 
 from nico579_commons import atomique
 
-from . import __version__
-from .franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
+from .. import __version__
+from ..franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
 
 journal = logging.getLogger(__name__)
 

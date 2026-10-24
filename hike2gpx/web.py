@@ -10,7 +10,7 @@ from pathlib import Path
 
 from nico579_commons import maj, serveweb
 
-from . import __version__, bureau, geofabrik, osmfr
+from . import __version__, bureau, geofabrik, osmfr, providers
 from .application import Application, configurer_journal, lire_vue, lire_zone
 
 journal = logging.getLogger(__name__)
@@ -32,8 +32,8 @@ class Handler(serveweb.Handler):
                            ("leaflet/Leaflet.VectorGrid.bundled.js", "text/javascript; charset=utf-8")}
     # Les calques et l'extrait hors ligne lisent la zone de la vue :
     # ?s=&w=&n=&e= (None si invalide) ; les calques aussi sa date, &vue=.
-    arguments_get = {"osm": lambda q: (lire_zone(q), lire_vue(q)), "bdtopo": lambda q: (lire_zone(q), lire_vue(q)),
-                     "atkis": lambda q: (lire_zone(q), lire_vue(q)),
+    arguments_get = {"osm": lambda q: (lire_zone(q), lire_vue(q)),
+                     **{p.calque: (lambda q: (lire_zone(q), lire_vue(q))) for p in providers.SOURCES.values()},
                      "extrait": lambda q: (lire_zone(q),), "disponibilite": lambda q: (lire_zone(q),)}
 
     def do_GET(self):

@@ -39,7 +39,7 @@ Source = "https://github.com/nico579/hike2gpx"
 hike2gpx = "hike2gpx.__main__:main"
 
 [tool.setuptools]
-packages = ["hike2gpx", "hike2gpx.assets", "hike2gpx.assets.web"]
+packages = ["hike2gpx", "hike2gpx.providers", "hike2gpx.assets", "hike2gpx.assets.web"]
 
 [tool.setuptools.package-data]
 "hike2gpx.assets" = ["*.png", "*.ico"]

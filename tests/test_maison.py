@@ -4,7 +4,8 @@ import time
 import pytest
 from nico579_commons import atomique
 
-from hike2gpx import atkis, bdtopo, brouter, franchissements as fr, maison
+from hike2gpx import brouter, franchissements as fr, maison
+from hike2gpx.providers import atkis, bdtopo
 
 I, J = 866, 120             # tuile 43,30-43,35 N, 6,00-6,05 E
 LAT0, LON0 = 43.32, 6.02

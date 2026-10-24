@@ -14,8 +14,8 @@ import urllib.request
 import mapbox_vector_tile
 from shapely.geometry import LineString, box
 
-from . import __version__
-from .franchissements import ErreurDonnees
+from .. import __version__
+from ..franchissements import ErreurDonnees
 
 URL = "https://sgx.geodatenzentrum.de/gdz_basemapde_vektor/tiles/v2/bm_web_de_3857/{z}/{x}/{y}.pbf"
 ZOOM = 15

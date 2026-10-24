@@ -18,8 +18,9 @@ from pathlib import Path
 
 from nico579_commons import atomique
 
-from . import __version__, basemap_atkis
-from .franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
+from .. import __version__
+from ..franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
+from . import basemap_atkis
 
 journal = logging.getLogger(__name__)
 WFS_NS = "{http://www.opengis.net/wfs/2.0}"

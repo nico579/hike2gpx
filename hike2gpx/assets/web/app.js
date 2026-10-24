@@ -45,8 +45,8 @@ const TEXTES = {
     "resultat.denivele": "Dénivelé",
     "resume.parcours": "Votre parcours",
 "resume.dureeInfo": "Modèle de Tobler sur le profil gpx2elev lissé : v = 6 × exp(−3,5 × |pente + 0,05|) km/h. La pente est calculée tous les 20 m dans le sens du parcours ; les durées sont additionnées sans pauses. Le facteur 0,6 ne s'applique qu'aux portions identifiées hors sentier ; les chemins IGN restent des chemins.",
-"recherche.label": "Rechercher une ville",
-"recherche.placeholder": "Rechercher une ville…",
+"recherche.label": "Rechercher une ville ou des coordonnées GPS",
+"recherche.placeholder": "Ville ou coordonnées (lat, lon)…",
 "recherche.bouton": "Chercher",
 "recherche.attente": "Recherche en cours…",
 "recherche.aucun": "Aucune ville trouvée.",
@@ -121,6 +121,8 @@ const TEXTES = {
     "statut.calcul": "Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute",
     "statut.calculIgn": ", puis la fusion avec les chemins IGN quelques secondes.",
     "statut.calculAtkis": ", puis la fusion avec les chemins ATKIS quelques secondes.",
+    "statut.calculOfficiel": ", puis la fusion avec les chemins {nom} quelques secondes.",
+    "avertissement.officiel": "Chemins {nom} indisponibles, calcul sur OSM seul : {detail}",
     "statut.erreur": "Erreur : {message}",
     "statut.bilan": "Calculé en {duree} s ; franchissements connus dans la zone examinée : {total}.",
     "comparaison.traverse": "Le tracé standard (profil Randonnée de BRouter, sans les barrières) mesure {km} ; franchissements bloquants traversés : {n}.",
@@ -230,8 +232,8 @@ const TEXTES = {
     "resultat.denivele": "Elevation",
     "resume.parcours": "Your route",
 "resume.dureeInfo": "Tobler's model on the smoothed gpx2elev profile: v = 6 × exp(−3.5 × |slope + 0.05|) km/h. Slope is measured every 20 m in travel direction; segment times are added without breaks. The 0.6 factor applies only to identified off-path sections; IGN paths remain paths.",
-"recherche.label": "Search for a town",
-"recherche.placeholder": "Search for a town…",
+"recherche.label": "Search for a town or GPS coordinates",
+"recherche.placeholder": "Town or coordinates (lat, lon)…",
 "recherche.bouton": "Search",
 "recherche.attente": "Searching…",
 "recherche.aucun": "No town found.",
@@ -306,6 +308,8 @@ const TEXTES = {
     "statut.calcul": "Calculating… The first time in an area, reading the OSM barriers takes up to a minute",
     "statut.calculIgn": ", then merging the IGN paths a few seconds.",
     "statut.calculAtkis": ", then merging ATKIS paths takes a few seconds.",
+    "statut.calculOfficiel": ", then merging {nom} paths takes a few seconds.",
+    "avertissement.officiel": "{nom} paths unavailable, routing on OSM only: {detail}",
     "statut.erreur": "Error: {message}",
     "statut.bilan": "Calculated in {duree} s; known crossings in the examined area: {total}.",
     "comparaison.traverse": "The standard route (BRouter hiking profile, without the barriers) is {km} long; blocking crossings passed: {n}.",
@@ -485,8 +489,11 @@ function texteErreur(r) {
 
 function natureDe(f) {
   const cle = String(f.cle || "");
-  if (cle.startsWith("ign-") || cle.startsWith("atkis-")) {
-    return t(cle.startsWith("atkis-") ? "atkis.nature" : "ign.nature", { m: f.longueur_m });
+  const fournisseur = Object.values(FOURNISSEURS_CARTES).find((p) =>
+    p.paths?.source && cle.startsWith(`${p.paths.source}-`));
+  if (fournisseur) {
+    return langue === "en" ? `${fournisseur.paths.label} path, ${f.longueur_m} m`
+      : `Chemin ${fournisseur.paths.label} de ${f.longueur_m} m`;
   }
   return ts(f.nature);
 }
@@ -588,6 +595,18 @@ carte.on("contextmenu", (evenement) => {
 });
 let sequenceRecherche = 0;
 const resultatsVilles = $("cityResults");
+function lireCoordonnees(recherche) {
+  // Deux décimaux séparés par un point-virgule, une virgule ou un espace.
+  // Le point-virgule permet aussi la virgule décimale française.
+  const points = recherche.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)\s*$/);
+  const parties = points ? [points[1], points[2]] : recherche.includes(";") ? recherche.split(";")
+    : recherche.trim().split(/\s+/);
+  if (parties.length !== 2) return null;
+  if (!parties.every((p) => /^[+-]?\d+(?:[.,]\d+)?$/.test(p.trim()))) return null;
+  const nombres = parties.map((p) => Number(p.trim().replace(",", ".")));
+  return nombres.every(Number.isFinite) && Math.abs(nombres[0]) <= 90 && Math.abs(nombres[1]) <= 180
+    ? nombres : null;
+}
 $("cityQuery").addEventListener("input", () => {
   sequenceRecherche++;
   resultatsVilles.hidden = true;
@@ -600,6 +619,15 @@ $("citySearch").addEventListener("submit", async (e) => {
   e.preventDefault();
   const recherche = $("cityQuery").value.trim();
   if (recherche.length < 2) return;
+  const coordonnees = lireCoordonnees(recherche);
+  if (coordonnees) {
+    ++sequenceRecherche;
+    const [lat, lon] = coordonnees;
+    carte.setView([lat, lon], 14);
+    memoriserVue(lat, lon, 14);
+    resultatsVilles.hidden = true;
+    return;
+  }
   const numero = ++sequenceRecherche;
   resultatsVilles.replaceChildren();
   resultatsVilles.textContent = t("recherche.attente");
@@ -675,6 +703,37 @@ function tuileIgn(couche, format, cle, matrices = "PM") {
 
 const CLE_FOND = "hike2gpx.fond";
 const FOURNISSEURS_CARTES = window.HIKE2GPX_MAP_PROVIDERS;
+const CHEMINS_OFFICIELS = Object.fromEntries(Object.values(FOURNISSEURS_CARTES)
+  .filter((fournisseur) => fournisseur.paths?.overlay)
+  .map((fournisseur) => [fournisseur.paths.overlay, fournisseur.paths]));
+function nomCalque(cle) {
+  return CHEMINS_OFFICIELS[cle]?.name?.[langue] || t(`calque.${cle}`);
+}
+function nomFond(cle) {
+  return FOURNISSEURS_CARTES[paysCarte]?.baseNames?.[cle]?.[langue] || t(`fond.${cle}`);
+}
+for (const [cle, chemins] of Object.entries(CHEMINS_OFFICIELS)) {
+  if (chemins.legendStatic) continue;
+  const ligne = document.createElement("li");
+  ligne.dataset.mapOverlay = cle;
+  ligne.hidden = true;
+  const trait = document.createElement("span");
+  trait.className = "trait";
+  trait.style.borderTop = `3px dashed ${chemins.color || "#8650ac"}`;
+  const libelle = document.createElement("span");
+  libelle.textContent = ` ${chemins.name.fr}`;
+  ligne.append(trait, libelle);
+  $("legendOfficialProviders").append(ligne);
+  chemins.legendElement = ligne;
+  chemins.legendLabel = libelle;
+}
+function cheminsDisponibles(chemins, points = []) {
+  if (!chemins?.bounds) return Boolean(chemins);
+  const [s, w, n, e] = chemins.bounds;
+  const positions = points.length ? points : [carte.getCenter()];
+  return positions.every((p) => (p.lat ?? p[0]) >= s && (p.lat ?? p[0]) <= n
+    && (p.lng ?? p.lon ?? p[1]) >= w && (p.lng ?? p.lon ?? p[1]) <= e);
+}
 let controleFonds = null;
 let fondActif = null;
 let couchesFonds = {};      // clé -> fond de carte Leaflet
@@ -705,22 +764,18 @@ const rendu = L.canvas({ padding: 0.2 });
 const ZOOM_CALQUES = 14;
 const CLE_CALQUES = "hike2gpx.calques";
 // charge : bornes des tuiles déjà dessinées ; annulation : la requête en cours.
-const CALQUES = {
-  osm: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
-  bdtopo: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
-  atkis: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
-};
-CALQUES.atkis.groupe.getAttribution = () =>
-  '© <a href="https://basemap.de/open-data/">GeoBasis-DE / BKG</a> '
-  + '(<a href="https://basemap.de/open-data/">licences des Länder</a>), '
-  + '<a href="https://geoportal.thueringen.de/">GDI-Th</a> / '
-  + '<a href="https://geodatenonline.bayern.de/geodatenonline/seiten/wfs_atkis">BVV</a> '
-  + '(<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>)';
+const CALQUES = Object.fromEntries(["osm", ...Object.keys(CHEMINS_OFFICIELS)]
+  .map((cle) => [cle, { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null }]));
+for (const [cle, chemins] of Object.entries(CHEMINS_OFFICIELS)) {
+  if (chemins.attribution) CALQUES[cle].groupe.getAttribution = () => chemins.attribution;
+}
 const CALQUES_PAYS = Object.fromEntries(Object.values(FOURNISSEURS_CARTES)
   .flatMap((fournisseur) => Object.entries(fournisseur.calques || {})
     .map(([cle, creer]) => [cle, creer(L)])));
 function calquesDuPays() {
-  return FOURNISSEURS_CARTES[paysCarte]?.overlays || [];
+  const fournisseur = FOURNISSEURS_CARTES[paysCarte];
+  return [...(fournisseur?.overlays || []), ...(cheminsDisponibles(fournisseur?.paths)
+    ? [fournisseur.paths.overlay] : [])];
 }
 function coucheCalque(cle) {
   return CALQUES[cle]?.groupe || CALQUES_PAYS[cle];
@@ -735,7 +790,8 @@ function cochesCalques() {
       return sauves;
     }
   } catch (e) { /* préférence illisible */ }
-  return ["osm", ...Object.values(FOURNISSEURS_CARTES).flatMap((fournisseur) => fournisseur.overlays)];
+  return ["osm", ...Object.values(FOURNISSEURS_CARTES).flatMap((fournisseur) =>
+    [...(fournisseur.overlays || []), ...(fournisseur.paths?.overlay ? [fournisseur.paths.overlay] : [])])];
 }
 function memoriserCalques() {
   if (changementPays) return;
@@ -774,26 +830,10 @@ const DESSINS = {
         .bindTooltip(texte(`${ts(b.nature)} (OSM)`), { sticky: true }).addTo(groupe);
     }
   },
-  bdtopo(groupe, donnees) {
-    for (const t2 of donnees.troncons) {
-      const details = [t2.nature || t("bdtopo.troncon")];
-      if (t2.acces_pieton) details.push(t("bdtopo.acces", { valeur: t2.acces_pieton }));
-      if (t2.prive) details.push(t("bdtopo.prive"));
-      L.polyline(t2.pts, { ...styleBdtopo(t2.nature), renderer: rendu })
-        .bindTooltip(texte(`${details.join(", ")} (BD TOPO)`), { sticky: true }).addTo(groupe);
-    }
-  },
-  atkis(groupe, donnees) {
-    for (const troncon of donnees.troncons) {
-      const style = troncon.nature === "Weg/Pfad/Steig"
-        ? { color: "#c85508", weight: 3, dashArray: "5 4" }
-        : { color: "#c85508", weight: 3, opacity: 0.8 };
-      L.polyline(troncon.pts, { ...style, renderer: rendu })
-        .bindTooltip(texte(`${troncon.nature || t("atkis.troncon")} (ATKIS ${troncon.land})`),
-          { sticky: true }).addTo(groupe);
-    }
-  },
 };
+for (const [cle, chemins] of Object.entries(CHEMINS_OFFICIELS)) {
+  DESSINS[cle] = (groupe, donnees) => chemins.draw({ L, groupe, donnees, rendu, texte, t, styleBdtopo });
+}
 
 // Barre d'une note du panneau (préfixe de ses identifiants : noteCalques,
 // extrait, brouter) : fraction de 0 à 1, null sans fraction connue (un
@@ -898,7 +938,7 @@ async function chargerCalque(cle, zone) {
   abandonner(calque);
   const numero = calque.sequence;
   const annulation = calque.annulation = new AbortController();
-  const nom = t(`calque.${cle}`);
+  const nom = nomCalque(cle);
   const parametres = new URLSearchParams([...Object.entries(zone).map(([k, v]) => [k, v.toFixed(5)]),
     ["vue", dateDeVue().toFixed(3)]]);
   debutLecture(cle, numero, `${nom.charAt(0).toLowerCase()}${nom.slice(1)}`);
@@ -954,7 +994,25 @@ async function rafraichirCalques() {
 }
 
 let minuterieCalques = null;
+let cheminRegionalVisible = null;
 carte.on("moveend", () => {
+  const chemins = FOURNISSEURS_CARTES[paysCarte]?.paths;
+  if (chemins?.bounds) {
+    const visible = cheminsDisponibles(chemins);
+    if (cheminRegionalVisible !== visible) {
+      cheminRegionalVisible = visible;
+      if (!visible) {
+        const calque = CALQUES[chemins.overlay];
+        calque.groupe.remove();
+        if (abandonner(calque)) arreterAuServeur([chemins.overlay]);
+        calque.groupe.clearLayers();
+        calque.charge = null;
+      } else restaurerCalques();
+      construireFonds();
+      afficherOptionsIgn();
+    }
+  }
+  afficherOptionChemins();
   clearTimeout(minuterieCalques);
   minuterieCalques = setTimeout(rafraichirCalques, 400);
 });
@@ -985,7 +1043,7 @@ function choisirPays(pays) {
   ++sequenceExtrait;
   changementPays = true;
   // Les retraits automatiques de calques ne changent pas leurs préférences.
-  for (const cle of ["bdtopo", "atkis"]) {
+  for (const cle of Object.keys(CHEMINS_OFFICIELS)) {
     const calque = CALQUES[cle];
     calque.groupe.remove();
     if (abandonner(calque)) arreterAuServeur([cle]);
@@ -994,6 +1052,7 @@ function choisirPays(pays) {
   }
   for (const couche of Object.values(CALQUES_PAYS)) couche.remove();
   paysCarte = pays;
+  cheminRegionalVisible = cheminsDisponibles(FOURNISSEURS_CARTES[paysCarte]?.paths);
   horsFrance = pays !== "fr";
   afficherOptionsIgn();
   restaurerCalques();
@@ -1002,23 +1061,31 @@ function choisirPays(pays) {
 }
 
 function afficherOptionsIgn() {
-  $("legendIgn").hidden = !FOURNISSEURS_CARTES[paysCarte]?.routableOverlay;
-  $("legendOfficielTexte").textContent = t(paysCarte === "de" ? "legende.atkisPortion" : "legende.ign");
+  const chemins = FOURNISSEURS_CARTES[paysCarte]?.paths;
+  $("legendIgn").hidden = !chemins?.source;
+  if (chemins?.legend) $("legendOfficielTexte").textContent = chemins.legend[langue];
   afficherOptionChemins();
   for (const element of document.querySelectorAll("[data-map-overlay]")) {
     element.hidden = !calquesDuPays().includes(element.dataset.mapOverlay);
+  }
+  const dynamiques = Object.values(CHEMINS_OFFICIELS).filter((p) => p.legendElement);
+  $("legendOfficialProviders").hidden = !dynamiques.some((p) => calquesDuPays().includes(p.overlay));
+  for (const chemins of dynamiques) {
+    chemins.legendElement.hidden = !calquesDuPays().includes(chemins.overlay);
+    chemins.legendLabel.textContent = ` ${chemins.name[langue]}`;
   }
 }
 
 function afficherOptionChemins() {
   const fournisseur = FOURNISSEURS_CARTES[paysCarte];
-  const couche = fournisseur?.routableOverlay || fournisseur?.overlays?.[0];
+  const disponible = cheminsDisponibles(fournisseur?.paths);
+  const couche = (disponible && fournisseur?.paths?.overlay) || fournisseur?.overlays?.[0];
   $("ignOption").hidden = !couche;
-  const routable = Boolean(fournisseur?.routableOverlay);
+  const routable = Boolean(disponible && fournisseur?.paths?.source);
   $("ign").disabled = !routable;
   $("ign").checked = routable && choixIgn;
   if (couche) $("ignOptionTexte").textContent = t(routable ? "option.cheminsRoutables" : "option.cheminsAffichage",
-    { nom: routable ? fournisseur.routableName[langue] : t(`calque.${couche}`) });
+    { nom: routable ? (fournisseur.paths.routeName || fournisseur.paths.name)[langue] : nomCalque(couche) });
 }
 
 // ------------------------------------------------------------ données OSM hors ligne
@@ -1161,12 +1228,12 @@ function construireFonds() {
   const choix = (clePreferee && couchesFonds[clePreferee]) ? clePreferee : defaut;
   fondActif = (couchesFonds[choix] || couchesFonds.plan || couchesFonds.osm).addTo(carte);
   ajusterRecouvrementTuiles();
-  const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));
+  const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [nomFond(cle), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES)
     .filter(([cle]) => cle === "osm" || calquesDuPays().includes(cle))
-    .map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
+    .map(([cle, c]) => [nomCalque(cle), c.groupe]));
   for (const cle of calquesDuPays()) {
-    if (CALQUES_PAYS[cle]) calques[t(`calque.${cle}`)] = CALQUES_PAYS[cle];
+    if (CALQUES_PAYS[cle]) calques[nomCalque(cle)] = CALQUES_PAYS[cle];
   }
   if (nomGpxImporte) calques[echapper(nomGpxImporte)] = traceGpxImporte;
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
@@ -1349,9 +1416,10 @@ async function calculer() {
     afficherStatut(etat.points.length ? () => t("statut.deuxiemePoint") : "");
     return;
   }
-  const source = FOURNISSEURS_CARTES[paysCarte]?.routableOverlay;
+  const fournisseur = FOURNISSEURS_CARTES[paysCarte]?.paths;
+  const source = cheminsDisponibles(fournisseur, etat.points) ? fournisseur?.source : null;
   const ign = Boolean(source && $("ign").checked);
-  afficherStatut(() => t("statut.calcul") + (ign ? t(source === "atkis" ? "statut.calculAtkis" : "statut.calculIgn") : "."));
+  afficherStatut(() => t("statut.calcul") + (ign ? t("statut.calculOfficiel", { nom: fournisseur.label }) : "."));
   occupe(true);
   let reponse;
   try {
@@ -1359,7 +1427,7 @@ async function calculer() {
       points: etat.points.map((p) => [p.lat, p.lon]),
       strict: $("strict").checked,
       ign,
-      source: source === "atkis" ? "atkis" : "ign",
+      source: source || "ign",
       comparer: $("comparer").checked,
     });
   } catch (e) {
@@ -1552,8 +1620,10 @@ function afficher(r) {
   afficherStatut(() => {
     const bilan = t("statut.bilan", { duree: decimal(r.duree_s, 2), total: r.franchissements.length });
     if (!r.avertissement) return bilan;
-    const source = r.source_officielle === "atkis" ? "atkis" : "ign";
-    const avertissement = langue === "en" ? t(`avertissement.${source}`, { detail: r.avertissement_detail }) : r.avertissement;
+    const nom = Object.values(FOURNISSEURS_CARTES).find((p) => p.paths?.source === r.source_officielle)?.paths.label
+      || r.source_officielle;
+    const avertissement = langue === "en"
+      ? t("avertissement.officiel", { nom, detail: r.avertissement_detail }) : r.avertissement;
     return `${avertissement} ${bilan}`;
   }, Boolean(r.avertissement));
 }
@@ -1639,7 +1709,8 @@ function descriptionGpx(r) {
     : t("gpx.deniveleIndisponible");
   return t("gpx.description", { km: km(r.longueur_m), denivele, n: r.sur_le_trace.length })
     + t("gpx.barrieres") + ((r.portions_ign || []).length
-      ? t(r.source_officielle === "atkis" ? "gpx.atkis" : "gpx.bdtopo") : "") + t("gpx.trace");
+      ? Object.values(FOURNISSEURS_CARTES).find((f) => f.paths?.source === r.source_officielle)?.paths.gpx?.[langue] || "" : "")
+    + t("gpx.trace");
 }
 
 function gpx(r) {

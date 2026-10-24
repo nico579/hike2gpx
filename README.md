@@ -44,16 +44,17 @@ base map you chose.
   Plan, aerial photos, and the LiDAR HD relief wherever IGN has published it.
   A second layer shows the paths of IGN's BD TOPO; next to OpenStreetMap's, it
   shows at a glance the paths one source is missing.
-- **In eight other countries**: the national map of Spain, Switzerland,
-  Germany (BKG TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway
-  and the United States. Spain,
-  Switzerland and the United States add their official trails, for display
-  only. Germany adds an ATKIS path layer in all sixteen states. The ⓘ
-  button, next to the base map selector, lists these countries.
+- **In ten other countries**: maps of Spain, Switzerland, Germany (BKG
+  TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway, the United
+  States, Czechia and Poland. Germany has an ATKIS path layer in all sixteen
+  states; Czechia has ZABAGED, Switzerland swissTLM3D and Lower Silesia in
+  Poland BDOT10k. Spain and the United States have display-only trail layers.
+  The ⓘ button lists the countries next to the base map selector.
 
 A town search recenters the map: French municipalities through the French
 government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
-search engine. A button switches the map to full screen. An indicator tells
+search engine. The same field accepts GPS coordinates such as `50.725, 10.275`
+or `50,725 ; 10,275` (latitude first). A button switches the map to full screen. An indicator tells
 whether a route can be planned right away, thanks to an OSM extract already
 installed or to Overpass.
 Right-click the map to show and copy the clicked point's GPS coordinates.
@@ -66,11 +67,12 @@ the paths (see below). Three options tune it:
 
 - **Strict mode**: also avoid the passages "to check", not only the blocking
   ones;
-- **Official paths** (France and Germany): let BRouter use BD TOPO
-  or ATKIS paths missing from OpenStreetMap. They show as orange dashes and
-  join the points to check, since nothing guarantees they still exist or that
-  you may walk them. In Spain, Switzerland and the United States, the checkbox
-  names the country's official trails and states they are for display only;
+- **Official paths** (France, Germany, Czechia, Switzerland and Lower Silesia):
+  let BRouter use official paths missing from OpenStreetMap in the selected
+  area. They show as dashes and join the points to check, since their presence
+  and access must be verified on site. The Polish source is regional; outside
+  its coverage routing uses OSM alone. Spain and the United States offer
+  display-only trail layers;
 - **Comparison**: show, dotted, the standard route that ignores the barriers,
   with its length and the blocking crossings it would go through.
 
@@ -138,7 +140,7 @@ The routing relies on five pieces.
    BRouter's figure, taken from a coarser worldwide model, is only an estimate
    in the meantime; if no model covers the route, the elevation is reported as
    unavailable rather than replaced by that figure.
-5. **Official paths in France and Germany.** A path that the BD TOPO knows and
+5. **Official paths by provider and area.** A path that the BD TOPO knows and
    OpenStreetMap does not is invisible to BRouter, which only sees its own
    tiles. So hike2gpx builds its own BRouter tile from the data it has already
    read: the OpenStreetMap ways, plus the BD TOPO sections that duplicate none
@@ -160,9 +162,12 @@ The routing relies on five pieces.
    penalty and are marked for checking. In the tile containing Rosa, 76.6 km of the examined
    ATKIS ways pass the missing-from-OSM test, compared with 96.8 km of OSM
    ways; this potential gain does not prove pedestrian access. BD TOPO adds
-   18 to 100 % in the French areas measured. The official sources examined in
-   the United States, Switzerland and the Netherlands add only 0 to 12 %, so
-   routing there stays on OSM alone. The
+   18 to 100 % in the French areas measured. ZABAGED adds 40 to 66 % on four
+   Czech test areas; BDOT10k adds 26 to 44 % in two Lower Silesian areas, and
+   swissTLM3D adds 35 % in Val Onsernone, though most Swiss areas tested are
+   below 20 %. The provider declares its base map, path layer and BRouter
+   source separately; each official source loads only the small areas requested.
+   The
    measurement and the analysis are in
    [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md)
    (in French).

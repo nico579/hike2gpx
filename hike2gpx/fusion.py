@@ -165,8 +165,8 @@ class Reseau:
 
     def ajouter_ign(self, troncons, source="ign") -> int:
         """Ajoute les tronçons officiels absents d'OSM ; rend leur nombre."""
-        if source not in ("ign", "atkis"):
-            raise ValueError("Source de chemins officiels inconnue.")
+        from .providers import source as fournisseur
+        fournisseur(source)
         index = self.index()
         self._liens = []
         bouts = {}                  # point (arrondi au 1e-7) -> nœud commun des tronçons IGN
@@ -181,12 +181,11 @@ class Reseau:
             for k, (lat, lon) in enumerate(t["pts"]):
                 if k in (0, len(t["pts"]) - 1):
                     cle = (round(lat, 7), round(lon, 7))
-                    if source == "atkis" and t["id"].startswith("BM:"):
+                    if t.get("bords") and t.get("land"):
                         cle += (t["land"], t.get("niveau", 0))
                     if cle not in bouts:
                         nid = None
-                        bord = (source == "atkis" and t["id"].startswith("BM:")
-                                and t.get("bords", [False, False])[0 if k == 0 else 1])
+                        bord = bool(t.get("land") and t.get("bords", [False, False])[0 if k == 0 else 1])
                         if bord:
                             case = (math.floor(lat / 0.00002), math.floor(lon / 0.00002))
                             voisins = (entree for dx in (-1, 0, 1) for dy in (-1, 0, 1)

@@ -15,7 +15,8 @@ import time
 import pytest
 from nico579_commons import atomique
 
-from hike2gpx import application, atkis, bdtopo, brouter, franchissements as fr, maison
+from hike2gpx import application, brouter, franchissements as fr, maison, providers
+from hike2gpx.providers import atkis, bdtopo
 from hike2gpx.__main__ import DOSSIERS
 
 REELLE = brouter.Installation(DOSSIERS.dossier_etat())
@@ -56,7 +57,7 @@ IGN = [{"id": "OUEST-0", "nature": "Chemin", "acces_pieton": None, "pts": [list(
        {"id": "EST-0", "nature": "Sentier", "acces_pieton": None, "pts": [list(geo(600, 0)), list(geo(600, 150))]}]
 
 
-@pytest.fixture(scope="module", params=["ign", "atkis", "basemap"])
+@pytest.fixture(scope="module", params=["ign", "atkis", "basemap", "zabaged", "swisstlm3d", "bdot10k_ds"])
 def maison_essai(tmp_path_factory, request):
     source = "atkis" if request.param == "basemap" else request.param
     dossier = tmp_path_factory.mktemp("maison")
@@ -71,7 +72,7 @@ def maison_essai(tmp_path_factory, request):
     if source == "ign":
         atomique.ecrire_json(dossier / "bdtopo" / f"v{bdtopo.VERSION_CACHE}_{I}_{J}.json",
                              {"version": bdtopo.VERSION_CACHE, "fetched_at": date, "troncons": IGN})
-    else:
+    elif source == "atkis":
         chemins = [{**t, "id": f"TH:{t['id']}", "land": "TH", "nature": "Wirtschaftsweg"} for t in IGN]
         if request.param == "basemap":
             chemins = [
@@ -84,6 +85,9 @@ def maison_essai(tmp_path_factory, request):
             ]
         atomique.ecrire_json(dossier / "atkis" / f"v{atkis.VERSION_CACHE}_{I}_{J}.json",
                              {"version": atkis.VERSION_CACHE, "fetched_at": date, "troncons": chemins})
+    else:
+        atomique.ecrire_json(dossier / source / f"v1_{I}_{J}.json",
+                             {"fetched_at": date, "troncons": [{**t, "nature": providers.source(source).nom} for t in IGN]})
     segments, liste = maison.TuilesMaison(inst, dossier).preparer([(I, J)], en_ligne=False, source=source)
     serveur = brouter.Serveur(inst, segments=segments, profils=inst.profils_maison)
     serveur.demarrer()

@@ -21,7 +21,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, atkis, bdtopo, brouter, communes, franchissements, geofabrik, journaux, maison, osmfr
+from . import __version__, brouter, communes, franchissements, geofabrik, journaux, maison, osmfr, providers
 
 journal = logging.getLogger(__name__)
 
@@ -38,9 +38,7 @@ NOMS_ETAPES = {"debut": "préparation", "donnees": "lecture des données", "fusi
 ZONE_CALQUE_MAX_DEG2 = 0.03  # un grand écran au zoom 14 ; au-delà, trop de tuiles à lire
 # Un fournisseur cartographique peut être ajouté côté page sans modifier le
 # choix du pays : seul son identifiant dans l'index Geofabrik est déclaré ici.
-PAYS_CARTES = {"france": "fr", "spain": "es", "switzerland": "ch", "germany": "de",
-               "austria": "at", "netherlands": "nl", "norway": "no",
-               "luxembourg": "lu", "us": "us"}
+PAYS_CARTES = providers.PAYS_CARTES
 MARGE_DEG = 0.01            # environ 1 km autour des points
 MARGE_RELATIVE = 0.25
 POINTS_MAX = 50
@@ -188,7 +186,7 @@ def portions_ign(trace) -> list:
     for ligne in messages[1:]:
         longueur = float(ligne[i_dist])
         fin_rang = rang((int(ligne[i_lon]), int(ligne[i_lat])), debut_rang)
-        source = next((nom for nom in ("ign", "atkis") if f"hike2gpx={nom}" in ligne[i_tags]), None)
+        source = next((nom for nom in providers.SOURCES if f"hike2gpx={nom}" in ligne[i_tags]), None)
         if source:
             if portions and portions[-1]["fin_rang"] == debut_rang and portions[-1]["source"] == source:
                 portions[-1].update(fin_rang=fin_rang, longueur_m=portions[-1]["longueur_m"] + longueur)
@@ -199,14 +197,14 @@ def portions_ign(trace) -> list:
         debut_rang = fin_rang
     return [{"debut_m": p["debut_m"], "longueur_m": round(p["longueur_m"]),
              "coords": [[c[1], c[0]] for c in coords[p["debut_rang"]:p["fin_rang"] + 1]],
-             **({"source": "atkis"} if p["source"] == "atkis" else {})} for p in portions]
+             **({"source": p["source"]} if p["source"] != "ign" else {})} for p in portions]
 
 
 def entrees_ign(portions) -> list:
     """Les portions officielles comme points à vérifier sur le tracé."""
     return [{"cle": f"{p.get('source', 'ign')}-{k}", "statut": "uncertain",
-             "raison": RAISON_ATKIS if p.get("source") == "atkis" else RAISON_IGN,
-             "nature": f"Chemin {'ATKIS' if p.get('source') == 'atkis' else 'IGN'} de {p['longueur_m']} m",
+             "raison": f"Chemin {providers.source(p.get('source', 'ign')).nom} absent d'OpenStreetMap : existence et accès à vérifier",
+             "nature": f"Chemin {providers.source(p.get('source', 'ign')).nom} de {p['longueur_m']} m",
              "longueur_m": p["longueur_m"],
              "lat": p["coords"][0][0], "lon": p["coords"][0][1],
              "osm": None, "distance_m": p["debut_m"]} for k, p in enumerate(portions) if p["coords"]]
@@ -237,7 +235,7 @@ class Application:
         self._verrou_denivele = threading.Lock()
         # Numéro de la vue en cours de chaque calque : une vue plus récente
         # arrête la lecture des tuiles de la précédente.
-        self._vues = {"osm": 0, "bdtopo": 0, "atkis": 0}
+        self._vues = {"osm": 0, **{p.calque: 0 for p in providers.SOURCES.values()}}
         self._verrou_vues = threading.Lock()
         # Avancement de la vue en cours de chaque calque, pour la barre de la
         # page : {"faites", "total", "debut"} (tuiles), absent hors lecture.
@@ -466,10 +464,13 @@ class Application:
         strict, comparer = bool(payload.get("strict")), bool(payload.get("comparer", True))
         ign = bool(payload.get("ign", True))
         source = payload.get("source", "ign")
-        if source not in ("ign", "atkis"):
+        if source not in providers.SOURCES:
             return {"erreur": "Source de chemins officiels inconnue."}
         debut = time.monotonic()
         zone = zone_autour(points)
+        if ign and not providers.source(source).disponible(zone):
+            return {"erreur": f"Chemins {providers.source(source).nom} indisponibles dans cette zone.",
+                    "code": "source_hors_zone"}
         # Un calcul est un usage réel de la région : son extrait OSM part en
         # tâche de fond s'il manque, Overpass servant en attendant ; de même le
         # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
@@ -510,7 +511,7 @@ class Application:
                         port = self.moteur_maison(segments)
                     except (franchissements.ErreurDonnees, brouter.ErreurBRouter, OSError, ImportError,
                             ValueError) as exc:
-                        nom_source = "ATKIS" if source == "atkis" else "IGN"
+                        nom_source = providers.source(source).nom
                         avertissement = f"Chemins {nom_source} indisponibles, calcul sur OSM seul : {exc}"
                         detail_avertissement = str(exc)
                         journal.warning("Chemins %s indisponibles : %s", nom_source, exc)
@@ -650,15 +651,14 @@ class Application:
         resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
 
-    def calque_bdtopo(self, zone, vue=None) -> dict:
+    def calque_officiel(self, source, zone, vue=None) -> dict:
+        fournisseur = providers.source(source)
         def lire(*bornes, **options):
-            return {"troncons": bdtopo.troncons_zone(*bornes, **options)}
-        return self._calque("bdtopo", zone, lire, self._prendre_vue("bdtopo", vue))
-
-    def calque_atkis(self, zone, vue=None) -> dict:
-        def lire(*bornes, **options):
-            return {"troncons": atkis.troncons_zone(*bornes, **options)}
-        return self._calque("atkis", zone, lire, self._prendre_vue("atkis", vue))
+            if not fournisseur.disponible(bornes):
+                return {"troncons": []}
+            return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
+        return self._calque(fournisseur.calque, zone, lire,
+                           self._prendre_vue(fournisseur.calque, vue))
 
     def arreter_calques(self, corps=None) -> dict:
         """La page n'affiche plus ces calques (zoom trop faible, calque masqué) :
@@ -781,7 +781,7 @@ class Application:
         """Les dossiers des caches de tuiles : ce que Vider efface, et qui se
         relit de lui-même au besoin."""
         return {"osm": [self.dossier / "overpass", self.dossier / "franchissements"],
-                "bdtopo": [self.dossier / "bdtopo"], "atkis": [self.dossier / "atkis"]}
+                **{p.calque: [self.dossier / p.calque] for p in providers.SOURCES.values()}}
 
     def _restes(self) -> list:
         """Ce qui traîne au dossier des extraits : l'ancien index de Geofabrik
@@ -852,7 +852,7 @@ class Application:
                     self._verrou_denivele.release()
             finally:
                 self._verrou_calcul.release()
-        elif action in ("vider_osm", "vider_bdtopo", "vider_atkis"):
+        elif action.startswith("vider_") and action[6:] in self._caches():
             for dossier in self._caches()[action[6:]]:
                 for p in dossier.glob("*.json") if dossier.is_dir() else []:
                     p.unlink(missing_ok=True)
@@ -950,7 +950,9 @@ class Application:
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
         get_langue, post_langue = langue_commune.routes(self.lire_langue, self.ecrire_langue)
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
-               "osm": self.calque_osm, "bdtopo": self.calque_bdtopo, "atkis": self.calque_atkis,
+               "osm": self.calque_osm,
+               **{p.calque: (lambda zone, vue=None, cle=cle: self.calque_officiel(cle, zone, vue))
+                  for cle, p in providers.SOURCES.items()},
                "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
                "disponibilite": self.disponibilite,

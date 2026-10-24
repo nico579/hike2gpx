@@ -22,7 +22,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from hike2gpx import __version__, bdtopo, fusion     # noqa: E402
+from hike2gpx import __version__, fusion     # noqa: E402
+from hike2gpx.providers import bdtopo  # noqa: E402
 from hike2gpx import franchissements as fr           # noqa: E402
 
 CACHE = Path(tempfile.gettempdir()) / "hike2gpx-essai-sources"
@@ -66,6 +67,9 @@ ZONES = [
     ("CZ", "Krkonoše", 50.72, 15.72),
     ("CZ", "České Švýcarsko", 50.87, 14.36),
     ("CZ", "Moravský kras", 49.37, 16.73),
+    ("PL-DS", "Karkonosze, versant polonais", 50.80, 15.62),
+    ("PL-DS", "Góry Stołowe", 50.45, 16.25),
+    ("PL-DS", "Góry Sowie", 50.65, 16.48),
 ]
 VOISINES = {"FR": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "US": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
@@ -75,7 +79,8 @@ VOISINES = {"FR": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "DE-TH": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "CA": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "NZ": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
-            "CZ": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)]}
+            "CZ": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "PL-DS": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)]}
 CHEMINS_FR = {"Sentier", "Chemin", "Escalier"}
 
 
@@ -331,13 +336,21 @@ def source_cz(s, w, n, e, i, j):
     return [(pts, c) for pts, c in en_cache(f"cz_{i}_{j}", lire)]
 
 
+def source_pl_ds(s, w, n, e, i, j):
+    """Voies piétonnes et cyclables BDOT10k de Basse-Silésie."""
+    url = "https://geoportal.dolnyslask.pl/gisserver1/rest/services/BDOT10k/FeatureServer/18"
+    return [(pts, "SKRP") for pts, _ in en_cache(f"pl_ds_{i}_{j}",
+        lambda: _arcgis_trails(url, s, w, n, e, geojson=False))]
+
+
 def fr_lignes(geometrie):
     return bdtopo._lignes(geometrie)
 
 
 SOURCES = {"FR": source_fr, "US": source_us, "CH": source_ch, "NL": source_nl,
            "DE": source_de, "DE-TH": source_de_th,
-           "CA": source_ca, "NZ": source_nz, "CZ": source_cz}
+           "CA": source_ca, "NZ": source_nz, "CZ": source_cz,
+           "PL-DS": source_pl_ds}
 
 
 # ------------------------------------------------------------------ mesure

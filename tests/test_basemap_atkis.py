@@ -3,7 +3,7 @@ from io import BytesIO
 
 import mapbox_vector_tile
 
-from hike2gpx import basemap_atkis
+from hike2gpx.providers import basemap_atkis
 
 
 def test_tuile_vectorielle_est_decoupee_et_filtree_par_land():

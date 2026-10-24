@@ -2,7 +2,7 @@
 
 Rapport du 23 octobre 2026, écrit après la release 0.3.0. En France, hike2gpx ajoute à OpenStreetMap les chemins de la BD TOPO que BRouter ne connaîtrait pas sans elle. La question posée ici est simple : d'autres pays ont-ils une source officielle qui rendrait le même service ? Le rapport y répond par une mesure, puis examine les providers d'affichage par pays et la façon de les organiser.
 
-Mise à jour du 24 octobre 2026 : comparaison avec deux autres sources officielles.
+Mise à jour du 24 octobre 2026 : comparaison avec d'autres sources officielles et intégration des sources qui dépassent 20 % sur au moins une zone mesurée.
 
 ## Verdict
 
@@ -102,9 +102,50 @@ La [base topographique nationale ZABAGED](https://ags.cuzk.gov.cz/opendata/) est
 | České Švýcarsko | 50,875 N 14,425 E | 140,0 km | 96,8 km | 63,4 km | **+65,5 %** | 27,8 km |
 | Moravský kras | 49,425 N 16,775 E | 135,7 km | 114,1 km | 50,8 km | **+44,6 %** | 0,0 km |
 
-Un contrôle de sensibilité avec une tolérance de **20 m** au lieu de 12 m retient encore 34,1 km à Šumava, 35,3 km à Krkonoše, 60,8 km en Suisse bohémienne et 49,1 km dans le Karst morave. Un simple écart de quelques mètres entre les deux jeux ne suffit donc pas à expliquer l'essentiel des différences. Ce contrôle n'établit toutefois ni le droit de passage, ni la continuité des tracés ; `Cesta` comprend aussi des chemins non entretenus et des voies de parc ou de cimetière. Aucune intégration au calcul ou au calque n'est faite sur la seule base de ces ratios.
+Un contrôle de sensibilité avec une tolérance de **20 m** au lieu de 12 m retient encore 34,1 km à Šumava, 35,3 km à Krkonoše, 60,8 km en Suisse bohémienne et 49,1 km dans le Karst morave. Un simple écart de quelques mètres entre les deux jeux ne suffit donc pas à expliquer l'essentiel des différences. Ce contrôle n'établit toutefois ni le droit de passage, ni la continuité des tracés ; `Cesta` comprend aussi des chemins non entretenus et des voies de parc ou de cimetière. La PR rend désormais ces deux couches consultables et utilisables par BRouter **sur les zones demandées**, avec les portions supplémentaires indiquées « à vérifier ».
 
-Deux autres bases nationales méritent un essai, sans ratio à ce stade : la [BDOT10k polonaise](https://www.geoportal.gov.pl/en/data/topographic-objects-database-bdot10k/), disponible gratuitement en vecteur mais principalement distribuée par paquets ou classes, et le [DLM Verkehr autrichien](https://www.bev.gv.at/Services/Produkte/Digitales-Landschaftsmodell/Verkehr.html), disponible en téléchargement sans accès en ligne par emprise. Leur mode de diffusion demande une extraction préalable pour un essai comparable.
+### Pologne : BDOT10k de Basse-Silésie, essais du 24 octobre 2026
+
+Le [service officiel régional BDOT10k](https://geoportal.dolnyslask.pl/gisserver1/rest/services/BDOT10k/FeatureServer/18) expose la couche `OT_SKRP_L` par emprise. Les mesures ci-dessous ne portent **que sur la Basse-Silésie** : la [BDOT10k nationale](https://www.geoportal.gov.pl/en/data/topographic-objects-database-bdot10k/) est téléchargeable, mais aucun service équivalent par zone n'a été établi pour toute la Pologne.
+
+| Zone | Source | Réseau OSM | Nouveaux chemins | Gain du réseau | Nouveaux à 20 m |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Karkonosze, versant polonais | 70,3 km | 95,5 km | 42,1 km | **+44,1 %** | 40,5 km |
+| Góry Sowie | 37,8 km | 120,2 km | 30,9 km | **+25,7 %** | 29,1 km |
+| Góry Stołowe | 34,1 km | 190,6 km | 10,3 km | +5,4 % | 7,3 km |
+
+Les tronçons ajoutés dans les deux premières zones portent le type `ścieżka` ; le service fournit également `kategoriaistnienia`. L'intégration garde les chemins de ce type encore exploités, et limite la sélection du calque et du calcul à une emprise de Basse-Silésie. La frontière administrative exacte n'est pas modélisée : aux marges de cette emprise, le service ne renvoie simplement aucun objet hors de son territoire. Ces mesures locales ne démontrent pas un gain de 20 % sur toute la Pologne.
+
+### Autriche : échantillon BEV, insuffisant pour activer le routage
+
+Le [DLM Verkehr du BEV](https://www.bev.gv.at/Services/Produkte/Digitales-Landschaftsmodell/Verkehr.html) est distribué en fichiers, sans service de lecture par petite emprise identifié. L'échantillon officiel mis à disposition couvre un morceau de Carinthie, et non le pays. En gardant les classes de voies 1121, 1122 et 1141 à 1143, deux tuiles complètes de cet échantillon donnent **+4,0 %** (7,0 km nouveaux pour 176,2 km OSM) et **+3,6 %** (6,9 km pour 191,3 km OSM). L'échantillon contient des objets anciens et ne permet aucune conclusion nationale ; aucune source autrichienne n'est activée pour BRouter.
+
+### Intégration par capacités
+
+Chaque provider cartographique déclare séparément son **fond de carte**, son **calque de chemins** et sa **source utilisable par BRouter**. Le registre serveur `hike2gpx/providers/__init__.py` associe la source à sa lecture par tuile de 0,05°, son cache partagé entre le calque et la fusion, son nom et, pour la Basse-Silésie, son emprise. La page lit ces déclarations, construit les calques et leurs styles sans branchement propre à un pays dans `app.js`. Les nouvelles sources sont ZABAGED (Tchéquie), swissTLM3D (Suisse) et BDOT10k (Basse-Silésie). La Suisse est activée à la demande pour les zones consultées : **seul le Val Onsernone** dépasse 20 % parmi les huit zones suisses mesurées. Les classes 15 à 18 de swissTLM3D et les objets sans restriction (`verkehrsbeschraenkung=100`) sont seuls transmis au calcul ; le profil BRouter pénalise chaque chemin officiel absent d'OSM et le tracé marque ses portions à vérifier.
+
+#### Villes repères pour essayer le calque et l'itinéraire
+
+Dans la page, rechercher la ville ou saisir directement les coordonnées de la colonne « zone » sous la forme `latitude ; longitude` (la virgule décimale française est acceptée). Zoomer à **14 ou plus**, cocher le calque de chemins puis poser deux points sur les voies visibles. Refaire le calcul avec et sans la case « chemins officiels » permet de voir si BRouter emprunte une portion ajoutée ; le seul affichage du calque ne garantit pas qu'un trajet précis la prendra. Les coordonnées sont les **centres des tuiles étudiées**, pas les centres des villes.
+
+| Pays | Ville à rechercher | Zone à centrer (lat., lon.) | Calque | Calcul BRouter |
+| --- | --- | --- | --- | --- |
+| France | [Garéoult](https://www.insee.fr/fr/metadonnees/geographie/commune/83064-gareoult) | 43,325 ; 6,025 | BD TOPO | BD TOPO + OSM |
+| Allemagne | Rosa (Thuringe) | 50,725 ; 10,275 | ATKIS | ATKIS + OSM |
+| Tchéquie | [Srní](https://www.sumava.cz/rozcestnik/mesta-a-obce/mesta-a-obce/srni/) (Šumava) | 49,125 ; 13,475 | ZABAGED | ZABAGED + OSM |
+| Suisse | [Vergeletto](https://mapcarta.com/17662002) (Val Onsernone) | 46,225 ; 8,625 | swissTLM3D ; sentiers balisés séparés | swissTLM3D + OSM |
+| Pologne | [Jugów](https://gory-sowie.pl/miejscowosci/jugow/) (Góry Sowie) | 50,650 ; 16,480 | BDOT10k de Basse-Silésie | BDOT10k + OSM dans la région |
+
+Les autres pays du sélecteur ont aussi un repère de test. Leur itinéraire reste **OSM seul** : le calque officiel, quand il existe, n'est pas une source de chemins physiques validée pour la fusion BRouter.
+
+| Pays | Ville repère | Calque de chemins |
+| --- | --- | --- |
+| Espagne | [Cercedilla](https://cercedilla.es/senderismo-y-rutas/) | Sentiers balisés FEDME, affichage |
+| États-Unis | Springdale (Zion) | Sentiers USGS, affichage |
+| Pays-Bas | Arnhem (Veluwe) | OSM |
+| Autriche | Innsbruck | OSM |
+| Norvège | Bergen | OSM |
+| Luxembourg | Echternach | OSM |
 
 ### Canada et Nouvelle-Zélande : essais du 24 octobre 2026
 
@@ -163,7 +204,7 @@ Le gain géométrique manque dans plusieurs jeux de sentiers officiels testés, 
 
 La mesure allemande donne maintenant un second cas réel. La chaîne conserve ses interfaces historiques (`ajouter_ign()`, `portions_ign()`), mais accepte une source `atkis` en plus de `ign` :
 
-- `atkis.py` interroge les WFS de Bavière et de Thuringe par tuiles de 0,05°, avec pagination, et `basemap_atkis.py` lit uniquement les tuiles vectorielles qui touchent la zone sélectionnée dans les quatorze autres Länder. Le cache dure trente jours ;
+- `hike2gpx/providers/atkis.py` interroge les WFS de Bavière et de Thuringe par tuiles de 0,05°, avec pagination, et `hike2gpx/providers/basemap_atkis.py` lit uniquement les tuiles vectorielles qui touchent la zone sélectionnée dans les quatorze autres Länder. Le cache dure trente jours ;
 - `maison.py` choisit le cache officiel selon la source demandée et ne mélange jamais des tuiles françaises et allemandes dans une fabrication ;
 - `fusion.py` applique le même seuil de recouvrement et les mêmes raccordements, avec l'étiquette `hike2gpx=atkis` ; les extrémités coupées par les tuiles vectorielles se rejoignent à moins de 1,5 m, seulement dans le même Land et au même niveau ;
 - `brouter.py` pénalise également `ign` et `atkis` ; `application.py` lit la source dans les messages de BRouter et nomme correctement les portions à vérifier ;

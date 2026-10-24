@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 
-from hike2gpx import atkis
+from hike2gpx.providers import atkis
 
 
 def _reponse(positions, identifiant="chemin-1"):

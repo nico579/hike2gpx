@@ -23,7 +23,7 @@ from pathlib import Path
 
 from nico579_commons import atomique
 
-from . import atkis, bdtopo, brouter, franchissements as fr, fusion
+from . import brouter, franchissements as fr, fusion, providers
 
 journal = logging.getLogger(__name__)
 
@@ -31,11 +31,7 @@ VERSION = 6     # format de l'état, règles de fusion ou d'analyse : l'augmente
 
 
 def _source(source):
-    if source == "ign":
-        return bdtopo
-    if source == "atkis":
-        return atkis
-    raise ValueError("Source de chemins officiels inconnue.")
+    return providers.source(source).module
 
 
 class TuilesMaison:

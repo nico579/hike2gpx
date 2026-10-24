@@ -197,20 +197,24 @@ test("le bouton Réglages demande l'ouverture du dossier des journaux", async ()
   assert.equal(elements.get("erreurDossierJournaux").hidden, true);
 });
 
-// Un pays s'ajoute en trois endroits : son provider, ses libellés ici, et
-// PAYS_CARTES (test_application.py). Un libellé oublié affiche sa clé brute :
-// ce test rend l'oubli visible.
+// Chaque pays déclare ses capacités et leurs libellés dans son provider.
 test("chaque fond et chaque calque des providers a son libellé FR et EN", () => {
   const { page } = charger();
   for (const [code, provider] of Object.entries(page.providers)) {
     if (code === "autre") continue;
     const fonds = Object.keys(provider.bases({ L: globalThis.L ?? {
       tileLayer: () => ({}) }, cleIgn: "cle", tuileIgn: () => "" }));
-    assert.ok(fonds.includes(provider.defaultBase), `${code} : fond par défaut ${provider.defaultBase} absent`);
+    assert.ok([...fonds, "osmRando", "osm", "satellite"].includes(provider.defaultBase),
+      `${code} : fond par défaut ${provider.defaultBase} absent`);
     for (const langue of ["fr", "en"]) {
-      for (const cle of [...fonds.map((f) => `fond.${f}`), ...provider.overlays.map((c) => `calque.${c}`)]) {
-        assert.ok(page.TEXTES[langue][cle], `${code} : libellé ${langue} « ${cle} » manquant`);
+      for (const fond of fonds) {
+        assert.ok(provider.baseNames?.[fond]?.[langue] || page.TEXTES[langue][`fond.${fond}`],
+          `${code} : libellé ${langue} « fond.${fond} » manquant`);
       }
+      for (const calque of provider.overlays || []) {
+        assert.ok(page.TEXTES[langue][`calque.${calque}`], `${code} : libellé ${langue} « calque.${calque} » manquant`);
+      }
+      if (provider.paths) assert.ok(provider.paths.name[langue] && provider.paths.legend[langue]);
     }
   }
 });
@@ -297,6 +301,18 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
   await recherche;
   assert.equal(JSON.stringify(carte.center), "[45.1842,5.7155]");
   assert.equal(carte.viewZoom, 13);
+  assert.equal(page.etat.points.length, 0);
+});
+
+test("la recherche accepte des coordonnées GPS sans appeler la recherche de ville", () => {
+  const { elements, requetes, carte, page } = charger();
+  for (const entree of ["50.725, 10.275", "50.725,10.275", "50,725 ; 10,275", "50.725 10.275"]) {
+    elements.get("cityQuery").value = entree;
+    elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+    assert.equal(JSON.stringify(carte.center), "[50.725,10.275]");
+    assert.equal(carte.viewZoom, 14);
+  }
+  assert.equal(requetes.filter((r) => r.url === "/api/communes").length, 0);
   assert.equal(page.etat.points.length, 0);
 });
 
@@ -440,6 +456,33 @@ test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => 
     pts: [[50.717, 10.25], [50.718, 10.251]] }], bornes: [50.7, 10.2, 50.75, 10.3] });
   await lecture;
   assert.equal(page.CALQUES.atkis.groupe.layers.length, 1);
+});
+
+test("les nouveaux providers transmettent leur source au calcul, avec limite régionale polonaise", async () => {
+  for (const [pays, source, centre] of [
+    ["cz", "zabaged", [49.125, 13.475]],
+    ["ch", "swisstlm3d", [46.225, 8.625]],
+    ["pl", "bdot10k_ds", [50.65, 16.48]],
+  ]) {
+    const { page, carte, elements, derniere } = charger();
+    carte.vue = { s: centre[0] - 0.005, w: centre[1] - 0.005,
+      n: centre[0] + 0.005, e: centre[1] + 0.005 };
+    page.choisirPays(pays);
+    assert.ok(page.controle().calques[page.providers[pays].paths.name.fr]);
+    assert.equal(elements.get("ign").disabled, false);
+    page.etat.points = [{ lat: centre[0], lon: centre[1] },
+      { lat: centre[0] + 0.001, lon: centre[1] + 0.001 }];
+    const calcul = page.calculer();
+    const requete = derniere();
+    assert.equal(JSON.parse(requete.options.body).source, source);
+    repondre(requete, { erreur: "fin de l'essai" });
+    await calcul;
+    if (pays === "pl") {
+      carte.vue = { s: 52.0, w: 16.0, n: 52.01, e: 16.01 };
+      carte.handlers.moveend();
+      assert.equal(elements.get("ign").disabled, true);
+    }
+  }
 });
 
 test("les États-Unis proposent le fond USGS et ses sentiers agrégés", () => {
@@ -626,7 +669,7 @@ test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tu
   // Journal du 2026-10-19 : chaque déplacement ajoutait ses lectures à celles
   // des vues quittées, et la vue demandée était élargie de 15 %.
   const { page, requetes, carte } = charger();
-  carte.hasLayer = (layer) => layer !== page.CALQUES.atkis.groupe;
+  carte.hasLayer = (layer) => layer === page.CALQUES.osm.groupe || layer === page.CALQUES.bdtopo.groupe;
   const calques = () => requetes.filter((r) => /^\/api\/(osm|bdtopo)\?/.test(r.url));
   const premiere = page.rafraichirCalques();
   const [osmA, bdtopoA] = calques();

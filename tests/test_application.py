@@ -476,18 +476,18 @@ def test_calques_refusent_une_zone_trop_grande_ou_invalide(tmp_path, monkeypatch
 
 
 def test_calque_bdtopo_et_panne(tmp_path, monkeypatch):
-    from hike2gpx import bdtopo
+    from hike2gpx.providers import bdtopo
     a = appli.Application(tmp_path)
     monkeypatch.setattr(bdtopo, "troncons_zone", lambda *z, **o: [{"id": "A-0"}])
     # Les bornes des tuiles lues, que la page n'a pas à redemander.
-    assert a.calque_bdtopo((43.31, 6.01, 43.34, 6.04)) == {"troncons": [{"id": "A-0"}],
+    assert a.calque_officiel("ign", (43.31, 6.01, 43.34, 6.04)) == {"troncons": [{"id": "A-0"}],
                                                           "bornes": (43.3, 6.0, 43.35, 6.05)}
 
     def panne(*z, **o):
         raise franchissements.ErreurDonnees("BD TOPO indisponible (hors ligne).")
 
     monkeypatch.setattr(bdtopo, "troncons_zone", panne)
-    assert a.calque_bdtopo((43.3, 6.0, 43.35, 6.05)) == {"erreur": "BD TOPO indisponible (hors ligne)."}
+    assert a.calque_officiel("ign", (43.3, 6.0, 43.35, 6.05)) == {"erreur": "BD TOPO indisponible (hors ligne)."}
 
 
 def test_une_nouvelle_vue_arrete_la_lecture_de_la_precedente(tmp_path, monkeypatch):
@@ -539,8 +539,8 @@ def test_une_vue_plus_ancienne_arrivee_apres_est_refusee_d_emblee(tmp_path, monk
 def test_arreter_calques_ne_touche_que_ceux_que_la_page_masque(tmp_path):
     a = appli.Application(tmp_path)
     assert a.arreter_calques({"calques": ["bdtopo"]}) == {"arretes": ["bdtopo"]}
-    assert a._vues == {"osm": 0, "bdtopo": 1, "atkis": 0}
-    assert a.arreter_calques({}) == {"arretes": ["osm", "bdtopo", "atkis"]}
+    assert a._vues["bdtopo"] == 1 and all(v == 0 for k, v in a._vues.items() if k != "bdtopo")
+    assert set(a.arreter_calques({})["arretes"]) == set(a._vues)
 
 
 def test_route_denivele(tmp_path, monkeypatch):
