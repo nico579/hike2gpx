@@ -6,6 +6,7 @@
     <string name="strict">Strict mode</string>
     <string name="download">Download zone</string>
     <string name="visible_zone">Use visible map area</string>
+    <string name="center">Center map on start</string>
     <string name="calculate">Calculate on device</string>
     <string name="server_fallback">Calculate on server (fallback)</string>
     <string name="export">Export GPX</string>

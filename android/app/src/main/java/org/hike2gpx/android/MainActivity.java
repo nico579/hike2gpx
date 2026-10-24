@@ -76,6 +76,7 @@ public final class MainActivity extends Activity {
         column.addView(strict);
         Button download = button(column, R.string.download);
         Button visibleZone = button(column, R.string.visible_zone);
+        Button center = button(column, R.string.center);
         Button calculate = button(column, R.string.calculate);
         Button serverFallback = button(column, R.string.server_fallback);
         Button export = button(column, R.string.export);
@@ -103,6 +104,12 @@ public final class MainActivity extends Activity {
             BoundingBox box = map.getBoundingBox();
             bounds.setText(String.format(Locale.US, "%.6f, %.6f, %.6f, %.6f",
                     box.getLatSouth(), box.getLonWest(), box.getLatNorth(), box.getLonEast()));
+        });
+        center.setOnClickListener(v -> {
+            try {
+                double[] point = numbers(start.getText().toString(), 2);
+                map.getController().animateTo(new GeoPoint(point[0], point[1]));
+            } catch (Exception error) { status.setText(error.getMessage()); }
         });
         download.setOnClickListener(v -> {
             String areaText = bounds.getText().toString();
