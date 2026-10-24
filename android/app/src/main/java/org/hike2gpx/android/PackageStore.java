@@ -85,7 +85,7 @@ final class PackageStore {
             for (int i = 0; i < files.length(); i++) {
                 JSONObject file = files.getJSONObject(i);
                 String name = file.getString("nom"), path = file.getString("url");
-                if (!name.matches("(?:[EW][0-9]+_[NS][0-9]+\\.rd5|lookups\\.dat|hike2gpx\\.brf)")
+                if (!name.matches("(?:[EW][0-9]+_[NS][0-9]+\\.rd5|lookups\\.dat|hike2gpx\\.brf|chemins-officiels\\.json)")
                         || !path.matches("/api/paquets/[a-f0-9]{32}/" + java.util.regex.Pattern.quote(name))) {
                     throw new IllegalStateException("Invalid package file");
                 }

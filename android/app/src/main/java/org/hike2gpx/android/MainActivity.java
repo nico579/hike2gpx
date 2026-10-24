@@ -44,6 +44,7 @@ public final class MainActivity extends Activity {
     private MapView map;
     private Polyline routeOverlay;
     private CrossingOverlay crossingOverlay;
+    private OfficialPathsOverlay officialPathsOverlay;
     private boolean nextTapIsStart = true;
     private JSONObject lastRoute;
     private PackageStore packages;
@@ -124,7 +125,8 @@ public final class MainActivity extends Activity {
             runTask(() -> {
                 double[] area = numbers(areaText, 4);
                 PackageStore.Zone zone = packages.download(address, area, selected, useStrict);
-                runOnUiThread(() -> showCrossings(zone.manifest));
+                OfficialPathsOverlay paths = OfficialPathsOverlay.load(zone.directory);
+                runOnUiThread(() -> showZone(zone.manifest, paths));
                 return getString(R.string.zone_ready, zone.manifest.getJSONArray("segments").length());
             });
         });
@@ -139,7 +141,8 @@ public final class MainActivity extends Activity {
                     Math.max(a[0], b[0]), Math.max(a[1], b[1])};
             PackageStore.Zone zone = packages.covering(area, selected, useStrict);
             if (zone == null) throw new IllegalStateException(getString(R.string.zone_missing));
-            runOnUiThread(() -> showCrossings(zone.manifest));
+            OfficialPathsOverlay paths = OfficialPathsOverlay.load(zone.directory);
+            runOnUiThread(() -> showZone(zone.manifest, paths));
             String lonlats = String.format(Locale.US, "%.7f,%.7f|%.7f,%.7f", a[1], a[0], b[1], b[0]);
             String result = localRouter.calculate(zone.directory, lonlats,
                     zone.manifest.getString("polylines"),
@@ -192,8 +195,14 @@ public final class MainActivity extends Activity {
 
     private String selectedSource() { return SOURCES[source.getSelectedItemPosition()]; }
 
-    private void showCrossings(JSONObject manifest) {
-        try { crossingOverlay.setManifest(manifest); map.invalidate(); }
+    private void showZone(JSONObject manifest, OfficialPathsOverlay paths) {
+        try {
+            if (officialPathsOverlay != null) map.getOverlays().remove(officialPathsOverlay);
+            officialPathsOverlay = paths;
+            map.getOverlays().add(1, paths);
+            crossingOverlay.setManifest(manifest);
+            map.invalidate();
+        }
         catch (Exception error) { status.setText(error.getMessage()); }
     }
 
