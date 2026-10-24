@@ -36,6 +36,7 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final String[] SOURCES = {"ign", "atkis", "swisstlm3d", "zabaged", "bdot10k_ds"};
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final LocalRouter localRouter = new LocalRouter();
     private EditText server, bounds, start, finish;
     private Spinner source;
     private Switch strict;
@@ -79,6 +80,7 @@ public final class MainActivity extends Activity {
         Button visibleZone = button(column, R.string.visible_zone);
         Button center = button(column, R.string.center);
         Button calculate = button(column, R.string.calculate);
+        Button cancel = button(column, R.string.cancel);
         Button serverFallback = button(column, R.string.server_fallback);
         serverFallback.setVisibility(View.GONE);
         Button export = button(column, R.string.export);
@@ -139,7 +141,7 @@ public final class MainActivity extends Activity {
             if (zone == null) throw new IllegalStateException(getString(R.string.zone_missing));
             runOnUiThread(() -> showCrossings(zone.manifest));
             String lonlats = String.format(Locale.US, "%.7f,%.7f|%.7f,%.7f", a[1], a[0], b[1], b[0]);
-            String result = new LocalRouter().calculate(zone.directory, lonlats,
+            String result = localRouter.calculate(zone.directory, lonlats,
                     zone.manifest.getString("polylines"),
                     ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryClass());
             JSONObject geojson = new JSONObject(result);
@@ -154,6 +156,7 @@ public final class MainActivity extends Activity {
             return getString(R.string.route_ready, coordinates.length());
             }, serverFallback);
         });
+        cancel.setOnClickListener(v -> localRouter.cancel());
         serverFallback.setOnClickListener(v -> {
             String address = server.getText().toString().trim().replaceAll("/+$", "");
             String startText = start.getText().toString(), finishText = finish.getText().toString();
@@ -303,5 +306,10 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() { super.onResume(); map.onResume(); }
     @Override protected void onPause() { map.onPause(); super.onPause(); }
-    @Override protected void onDestroy() { worker.shutdownNow(); map.onDetach(); super.onDestroy(); }
+    @Override protected void onDestroy() {
+        localRouter.cancel();
+        worker.shutdownNow();
+        map.onDetach();
+        super.onDestroy();
+    }
 }

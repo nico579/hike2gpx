@@ -14,6 +14,13 @@ import btools.router.RoutingParamCollector;
 
 /** BRouter 1.7.10 runs directly in this process against the downloaded RD5 files. */
 final class LocalRouter {
+    private volatile RoutingEngine current;
+
+    void cancel() {
+        RoutingEngine engine = current;
+        if (engine != null) engine.terminate();
+    }
+
     String calculate(File packageDir, String lonlats, String polylines, int memoryClassMb) {
         RoutingParamCollector collector = new RoutingParamCollector();
         List<OsmNodeNamed> waypoints = collector.getWayPointList(lonlats);
@@ -28,7 +35,9 @@ final class LocalRouter {
         collector.setParams(context, waypoints, params);
         RoutingEngine engine = new RoutingEngine(null, null, packageDir, waypoints, context);
         engine.quite = true;
-        engine.doRun(60_000L);
+        current = engine;
+        try { engine.doRun(60_000L); }
+        finally { current = null; }
         if (engine.getErrorMessage() != null) throw new IllegalStateException(engine.getErrorMessage());
         OsmTrack track = engine.getFoundTrack();
         if (track == null) throw new IllegalStateException("No route found");

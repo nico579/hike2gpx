@@ -8,6 +8,7 @@
     <string name="visible_zone">Utiliser la zone visible sur la carte</string>
     <string name="center">Centrer la carte sur le départ</string>
     <string name="calculate">Calculer sur le téléphone</string>
+    <string name="cancel">Annuler le calcul</string>
     <string name="server_fallback">Calculer sur le serveur (secours)</string>
     <string name="export">Exporter le GPX</string>
     <string name="status_ready">Choisissez une zone et deux points.</string>
