@@ -293,12 +293,14 @@ settings. Without a key, the map uses the IGN Plan, under the Licence Ouverte
 ### Server mode
 
 `hike2gpx serve --mode-serveur --nom-hote rando.example.org --port 8795`
-keeps the routing engine and national path readers on the server. The existing
-API serves web and app clients. The process listens **only on 127.0.0.1**:
-remote access requires an authenticated HTTPS reverse proxy configured for
-that DNS name. Server mode does not open a browser or tray icon, and disables
-updates from the page. It is intended for one owner and their devices with a
-shared data cache, not as a multi-user hosting service.
+prepares the national path data on the server and serves zone packages to the
+desktop and Android clients. Each package contains enriched BRouter RD5 files,
+the routing profile, and final crossing cuts. Clients can calculate routes
+locally after downloading a zone. The process listens **only on 127.0.0.1**:
+remote access requires an HTTPS reverse proxy configured for that DNS name.
+The public proxy exposes only read-only data endpoints and the route fallback;
+maintenance and zone generation run separately over SSH. No password is needed
+for the read-only API. Server mode does not open a browser or tray icon.
 
 ## Tests
 

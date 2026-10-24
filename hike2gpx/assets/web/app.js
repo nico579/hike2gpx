@@ -78,6 +78,11 @@ const TEXTES = {
     "reglages.enregistrer": "Enregistrer",
     "reglages.note": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
     "reglages.renouvellement": "Renouveler les données locales après",
+    "reglages.serveur": "Adresse du serveur personnel",
+    "reglages.serveurEnregistrer": "Utiliser",
+    "reglages.serveurLocal": "Mode local",
+    "reglages.serveurCloud": "Mode cloud : serveur disponible",
+    "reglages.serveurRepli": "Mode local : serveur indisponible ({raison})",
     "reglages.jours": "jours",
     "reglages.masquerCartes": "Masquer le bandeau des cartes",
     "reglages.masquerDenivele": "Masquer le bandeau du dénivelé",
@@ -252,6 +257,11 @@ const TEXTES = {
     "reglages.enregistrer": "Save",
     "reglages.note": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
     "reglages.renouvellement": "Refresh local data after",
+    "reglages.serveur": "Personal server address",
+    "reglages.serveurEnregistrer": "Use",
+    "reglages.serveurLocal": "Local mode",
+    "reglages.serveurCloud": "Cloud mode: server available",
+    "reglages.serveurRepli": "Local mode: server unavailable ({raison})",
     "reglages.jours": "days",
     "reglages.masquerCartes": "Hide the map layers panel",
     "reglages.masquerDenivele": "Hide the elevation panel",
@@ -478,6 +488,7 @@ function appliquerLangue(code) {
   document.title = t("page.titre");
   $("panelTabs").setAttribute("aria-label", t("onglets.titre"));
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  afficherEtatServeur(dernierEtatServeur);
   afficherOptionsIgn();
   $("cityQuery").placeholder = t("recherche.placeholder");
   if ($("pleinEcran")) {
@@ -493,6 +504,36 @@ function appliquerLangue(code) {
   afficherDisponibilite(derniereDisponibilite);
   actualiserDisponibilite();
 }
+
+let dernierEtatServeur = null;
+function afficherEtatServeur(etatServeur) {
+  dernierEtatServeur = etatServeur;
+  if (!etatServeur) return;
+  $("serverUrl").value = etatServeur.adresse || "";
+  $("serverModeStatus").textContent = !etatServeur.adresse ? t("reglages.serveurLocal")
+    : etatServeur.actif ? t("reglages.serveurCloud")
+      : t("reglages.serveurRepli", { raison: etatServeur.raison || "?" });
+}
+
+async function actualiserServeur() {
+  if ($("serverSettings").hidden) return;
+  try { afficherEtatServeur(await api("serveur")); }
+  catch (_) { /* le calcul local reste utilisable */ }
+}
+
+$("saveServerUrl").addEventListener("click", async () => {
+  const bouton = $("saveServerUrl");
+  bouton.disabled = true;
+  try {
+    const resultat = await api("serveur", { adresse: $("serverUrl").value.trim() });
+    if (resultat.erreur) throw new Error(resultat.erreur);
+    afficherEtatServeur(resultat);
+  } catch (e) {
+    $("serverModeStatus").textContent = e.message;
+  } finally {
+    bouton.disabled = false;
+  }
+});
 
 document.addEventListener("nico579-langue", (e) => appliquerLangue(e.detail.code));
 
@@ -2023,12 +2064,14 @@ async function demarrer() {
     etat.version = infos.version;
     $("ouvrirDossierJournaux").hidden = Boolean(infos.mode_serveur);
     $("verifierMaj").hidden = Boolean(infos.mode_serveur);
+    $("serverSettings").hidden = Boolean(infos.mode_serveur);
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
     etat.cleIgn = reglages.cle_ign || "";
     $("cleIgn").value = etat.cleIgn;
     etat.renouvellementJours = reglages.renouvellement_jours ?? 30;
     $("renouvellementJours").value = etat.renouvellementJours;
     await verifierBrouter();
+    await actualiserServeur();
   } catch (e) {
     afficherStatut(() => t("serveur.injoignable", { message: e.message }), true);
   }
@@ -2039,3 +2082,4 @@ async function demarrer() {
 
 demarrer();
 setInterval(verifierBrouter, 60 * 60 * 1000);
+setInterval(actualiserServeur, 30 * 1000);

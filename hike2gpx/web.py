@@ -46,6 +46,7 @@ def url_couverture_pays(langue: str = "fr") -> str:
 
 class Handler(serveweb.Handler):
     mode_serveur = False
+    application = None
     fichiers_statiques = {**serveweb.FICHIERS_STATIQUES,
                           "/presentation.js": ("presentation.js", "text/javascript; charset=utf-8"),
                           "/presentation.css": ("presentation.css", "text/css; charset=utf-8"),
@@ -57,10 +58,57 @@ class Handler(serveweb.Handler):
     # ?s=&w=&n=&e= (None si invalide) ; les calques aussi sa date, &vue=.
     arguments_get = {"osm": lambda q: (lire_zone(q), lire_vue(q)),
                      **{p.calque: (lambda q: (lire_zone(q), lire_vue(q))) for p in providers.SOURCES.values()},
-                     "extrait": lambda q: (lire_zone(q),), "disponibilite": lambda q: (lire_zone(q),)}
+                     "extrait": lambda q: (lire_zone(q),), "disponibilite": lambda q: (lire_zone(q),),
+                     "paquet-zone": lambda q: (lire_zone(q), q.get("source", ["ign"])[0],
+                                              q.get("strict", ["1"])[0], q.get("officiel", ["1"])[0])}
 
     def do_GET(self):
         chemin = self.path.split("?", 1)[0]
+        paquet = re.fullmatch(r"/api/paquets/([0-9a-f]{32})/"
+                              r"([EW]\d+_[NS]\d+\.rd5|lookups\.dat|hike2gpx\.brf)", chemin)
+        if paquet and self.mode_serveur:
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            fichier = self.application.fichier_paquet(*paquet.groups())
+            if fichier is None:
+                self.send_error(404)
+                return
+            taille = fichier.stat().st_size
+            debut, fin = 0, taille - 1
+            plage = self.headers.get("Range")
+            if plage:
+                demande = re.fullmatch(r"bytes=(\d+)-(\d*)", plage)
+                if not demande or int(demande[1]) >= taille:
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{taille}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                debut = int(demande[1])
+                fin = min(int(demande[2]), fin) if demande[2] else fin
+                if fin < debut:
+                    self.send_error(416)
+                    return
+            self.send_response(206 if plage else 200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Cache-Control", "private, no-store")
+            self.send_header("Content-Disposition", f'attachment; filename="{fichier.name}"')
+            if plage:
+                self.send_header("Content-Range", f"bytes {debut}-{fin}/{taille}")
+            self.send_header("Content-Length", str(fin - debut + 1))
+            self.end_headers()
+            with fichier.open("rb") as entree:
+                entree.seek(debut)
+                reste = fin - debut + 1
+                while reste:
+                    bloc = entree.read(min(reste, 1024 * 1024))
+                    if not bloc:
+                        break
+                    self.wfile.write(bloc)
+                    reste -= len(bloc)
+            return
         if chemin == "/nico579-maj.js" and self.mode_serveur:
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)
@@ -120,6 +168,7 @@ def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, ins
         get, post = {**get, **get_maj}, {**post, **post_maj}
     handler = type("Hike2gpxHandler", (Handler,), {})   # chaque serveur garde ses routes
     handler.mode_serveur = application.mode_serveur
+    handler.application = application
     handler.journal_path = configurer_journal(application.dossier)
     if nom_hote and not NOM_HOTE.fullmatch(nom_hote):
         raise ValueError("Nom d'hôte serveur invalide : indiquez un nom DNS, sans schéma ni port.")

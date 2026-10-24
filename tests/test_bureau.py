@@ -147,6 +147,8 @@ def test_mode_serveur_ecarte_les_actions_du_bureau(tmp_path):
     seconde = application._prendre_vue("osm", 100)
     assert premiere != seconde
     assert application.arreter_calques({"calques": ["osm"]}) == {"arretes": []}
+    assert "reglages" not in get and "donnees" not in get
+    assert "donnees" not in post and "paquet-zone" in get and "paquet-zone" not in post
 
 
 def test_mode_serveur_exige_un_nom_dns(tmp_path):
@@ -155,6 +157,48 @@ def test_mode_serveur_exige_un_nom_dns(tmp_path):
     for nom in ("http://rando.example.org", "localhost", "rando.example.org:443"):
         with pytest.raises(ValueError):
             web.demarrer(Application(tmp_path), port=8840, plage=1, nom_hote=nom)
+
+
+def test_paquet_de_zone_fournit_tuiles_et_coupes_finales(tmp_path, monkeypatch):
+    from hike2gpx import brouter, franchissements
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    application.installation.segments.mkdir(parents=True)
+    (application.installation.segments / "E5_N40.rd5").write_bytes(b"tuile")
+    application.installation.profils.mkdir(parents=True)
+    (application.installation.profils / f"{brouter.PROFIL}.brf").write_text("profil", encoding="utf-8")
+    (application.installation.profils / "lookups.dat").write_text("tags", encoding="utf-8")
+    monkeypatch.setattr(application.installation, "installee", lambda: True)
+    monkeypatch.setattr(application.installation, "segment_present", lambda _: True)
+    monkeypatch.setattr(application, "_extrait_automatique", lambda *_: None)
+    monkeypatch.setattr(brouter, "segments_zone", lambda *_: ["E5_N40"])
+    franchissement = {"cle": "porte", "statut": "uncertain", "raison": "à vérifier",
+                      "nature": "Portail", "lat": 43.4, "lon": 6.0, "osm": "node/1",
+                      "coupes": [[[6.0, 43.4], [6.00001, 43.4]]]}
+    monkeypatch.setattr(franchissements, "franchissements_zone", lambda *a, **k: [franchissement])
+    paquet = application.preparer_paquet({"points": [[43.4, 6.0], [43.401, 6.001]],
+                                         "officiel": False, "strict": True})
+    assert paquet["pret"] and paquet["source"] == "osm" and paquet["profil"] == "profil"
+    assert paquet["polylines"] == "6.0000000,43.4000000,6.0000100,43.4000000"
+    assert paquet["segments"][0]["sha256"] and paquet["segments"][0]["octets"] == 5
+    assert {a["nom"] for a in paquet["assets"]} == {"hike2gpx.brf", "lookups.dat"}
+    assert paquet["franchissements"][0]["nature"] == "Portail"
+    assert application.lire_paquet((43.4, 6.0, 43.401, 6.001), "ign", "1", "0")["pret"]
+
+    serveur, port = web.demarrer(application, port=8840, plage=20, nom_hote="rando.example.org")
+    try:
+        connexion = http.client.HTTPConnection(web.HOST, port, timeout=5)
+        try:
+            connexion.request("GET", paquet["segments"][0]["url"],
+                              headers={"Host": "rando.example.org", "Range": "bytes=1-3"})
+            reponse = connexion.getresponse()
+            assert reponse.status == 206 and reponse.read() == b"uil"
+        finally:
+            connexion.close()
+    finally:
+        serveur.shutdown()
+        serveur.server_close()
 
 
 def test_l_archive_de_chaque_systeme_suit_la_convention_publiee():
