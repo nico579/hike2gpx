@@ -4,6 +4,7 @@ des autres applications de nico579."""
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 import threading
 import webbrowser
@@ -20,6 +21,7 @@ journal = logging.getLogger(__name__)
 HOST = "127.0.0.1"
 PORT = 8795
 PLAGE = 10
+NOM_HOTE = re.compile(r"(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+")
 GUI = Path(__file__).parent / "assets" / "web"
 PROVIDERS = GUI / "providers"
 RAPPORT_GITHUB = "https://github.com/nico579/hike2gpx/blob/{ref}/{document}"
@@ -43,6 +45,7 @@ def url_couverture_pays(langue: str = "fr") -> str:
 
 
 class Handler(serveweb.Handler):
+    mode_serveur = False
     fichiers_statiques = {**serveweb.FICHIERS_STATIQUES,
                           "/presentation.js": ("presentation.js", "text/javascript; charset=utf-8"),
                           "/presentation.css": ("presentation.css", "text/css; charset=utf-8"),
@@ -58,6 +61,15 @@ class Handler(serveweb.Handler):
 
     def do_GET(self):
         chemin = self.path.split("?", 1)[0]
+        if chemin == "/nico579-maj.js" and self.mode_serveur:
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript; charset=utf-8")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if chemin == "/documentation/pays":
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)
@@ -96,7 +108,8 @@ class Handler(serveweb.Handler):
         super().do_GET()
 
 
-def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, installateur=None):
+def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, installateur=None,
+             nom_hote: str | None = None):
     """installateur : celui de bureau.installateur(), dont les routes du
     commun (/api/maj, /api/maj-installer, /api/maj-verifier) font vivre le
     bandeau de mise à jour de la page."""
@@ -106,8 +119,11 @@ def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, ins
         get_maj, post_maj = maj_install.routes(installateur, lambda: application.lire_langue() or "fr")
         get, post = {**get, **get_maj}, {**post, **post_maj}
     handler = type("Hike2gpxHandler", (Handler,), {})   # chaque serveur garde ses routes
+    handler.mode_serveur = application.mode_serveur
     handler.journal_path = configurer_journal(application.dossier)
-    serveur, port = serveweb.premier_port_libre(HOST, port, plage, trusted_host="", gui_dir=GUI,
+    if nom_hote and not NOM_HOTE.fullmatch(nom_hote):
+        raise ValueError("Nom d'hôte serveur invalide : indiquez un nom DNS, sans schéma ni port.")
+    serveur, port = serveweb.premier_port_libre(HOST, port, plage, trusted_host=nom_hote or "", gui_dir=GUI,
                                                 api_routes=get, post_routes=post, handler=handler,
                                                 favicon=bureau.ICONE)
     if serveur is None:
@@ -122,9 +138,16 @@ def instance_en_place(port: int = PORT, plage: int = PLAGE):
                  if serveweb.instance_existante("hike2gpx", HOST, p, timeout=0.5)), None)
 
 
-def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = True) -> None:
+def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = True,
+           *, mode_serveur: bool = False, nom_hote: str | None = None) -> None:
+    if mode_serveur:
+        if not nom_hote or not NOM_HOTE.fullmatch(nom_hote):
+            raise ValueError("Le mode serveur exige un nom DNS valide avec --nom-hote.")
+        ouvrir = icone = False
+    elif nom_hote:
+        raise ValueError("--nom-hote n'est utilisable qu'en mode serveur.")
     # Une seule instance : relancé, hike2gpx rouvre la page du serveur déjà là.
-    existant = instance_en_place(port)
+    existant = None if mode_serveur else instance_en_place(port)
     if existant is not None:
         url = f"http://{HOST}:{existant}/"
         print(f"hike2gpx tourne déjà : {url}", flush=True)
@@ -132,16 +155,19 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
             webbrowser.open(url)
         return
     chemin_journal = configurer_journal(dossier)
-    application = Application(dossier)
+    application = Application(dossier, mode_serveur=mode_serveur)
     arret, verrou, fini = threading.Event(), threading.Lock(), []
-    verificateur = maj.Verificateur(bureau.DEPOT, __version__, cache=Path(dossier) / "maj.json")
+    verificateur = None if mode_serveur else maj.Verificateur(
+        bureau.DEPOT, __version__, cache=Path(dossier) / "maj.json")
     # La nouvelle version prête, l'assistant du commun attend notre fin :
     # lever arret referme l'icône, puis finally arrête serveur et BRouter.
-    installateur = bureau.installateur(verificateur, quitter=arret.set)
+    installateur = None if mode_serveur else bureau.installateur(verificateur, quitter=arret.set)
     # Restes d'une mise à jour interrompue (assistant tué, coupure), à côté de
     # l'installation : effacés en tâche de fond, sans retarder le démarrage.
-    threading.Thread(target=installateur.nettoyer_restes, name="menage-maj", daemon=True).start()
-    serveur, port = demarrer(application, port, installateur=installateur)
+    if installateur:
+        threading.Thread(target=installateur.nettoyer_restes, name="menage-maj", daemon=True).start()
+    serveur, port = demarrer(application, port, plage=1 if mode_serveur else PLAGE,
+                            installateur=installateur, nom_hote=nom_hote)
     url = f"http://{HOST}:{port}/"
     print(f"hike2gpx {__version__} : {url} (données : {dossier}, journal : {chemin_journal})", flush=True)
     journal.info("hike2gpx %s démarré : %s, données %s", __version__, url, dossier)
@@ -151,7 +177,8 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
     osmfr.regions(dossier)
     geofabrik.regions(dossier)
     # Bundle publié, premier lancement : l'icône sur le Bureau, une fois.
-    bureau.raccourci_au_premier_lancement(application.lire_langue, Path(dossier))
+    if not mode_serveur:
+        bureau.raccourci_au_premier_lancement(application.lire_langue, Path(dossier))
 
     def arreter():
         """Arrête le serveur et BRouter, une seule fois, depuis l'icône (sur
@@ -166,7 +193,8 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
         arret.set()
         journal.info("hike2gpx arrêté")
 
-    verificateur.veiller(arret)
+    if verificateur:
+        verificateur.veiller(arret)
     if ouvrir:
         webbrowser.open(url)
     zone = bureau.icone_de_notification(url, arreter, verificateur, application.lire_langue, Path(dossier), arret,

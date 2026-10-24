@@ -219,8 +219,9 @@ def km_texte(metres) -> str:
 
 
 class Application:
-    def __init__(self, dossier: Path):
+    def __init__(self, dossier: Path, *, mode_serveur: bool = False):
         self.dossier = Path(dossier)
+        self.mode_serveur = mode_serveur
         self.installation = brouter.Installation(self.dossier)
         self.maison = maison.TuilesMaison(self.installation, self.dossier)
         self.preferences = self.dossier / "preferences.json"
@@ -283,7 +284,8 @@ class Application:
     def etat(self) -> dict:
         segments = sorted(p.stem for p in self.installation.segments.glob("*.rd5")) \
             if self.installation.segments.is_dir() else []
-        return {"app": "hike2gpx", "version": __version__, "dossier": str(self.dossier),
+        return {"app": "hike2gpx", "version": __version__, "mode_serveur": self.mode_serveur,
+                **({} if self.mode_serveur else {"dossier": str(self.dossier)}),
                 "moteur_installe": self.installation.installee(), "segments": segments,
                 "brouter": brouter.VERSION, "poids_a_verifier": brouter.POIDS_A_VERIFIER}
 
@@ -406,8 +408,13 @@ class Application:
         """L'étape du calcul en cours, et l'avancement des calques en lecture :
         tuiles lues sur tant, depuis tant de secondes."""
         maintenant = time.monotonic()
-        calques = {cle: {"faites": l["faites"], "total": l["total"], "duree_s": round(maintenant - l["debut"], 1)}
-                   for cle, l in list(self._lectures.items())}
+        calques = {}
+        for identifiant, lecture in list(self._lectures.items()):
+            cle = identifiant.split(":", 1)[0] if self.mode_serveur else identifiant
+            if cle not in calques or lecture["debut"] > calques[cle]["debut"]:
+                calques[cle] = lecture
+        calques = {cle: {"faites": l["faites"], "total": l["total"],
+                         "duree_s": round(maintenant - l["debut"], 1)} for cle, l in calques.items()}
         return {**self._progression, "calques": calques}
 
     def lire_journal(self) -> dict:
@@ -599,6 +606,11 @@ class Application:
         ce qui laissait la page sans réponse (calque figé, 2026-10-20). Sans
         date (essais), la vue suit la précédente."""
         with self._verrou_vues:
+            if self.mode_serveur:
+                # Identifiant unique seulement ; aucun client n'interrompt
+                # la lecture d'un autre dans _calque().
+                self._vues[cle] += 1
+                return self._vues[cle]
             if vue is None:
                 vue = self._vues[cle] + 1
             elif vue <= self._vues[cle]:
@@ -620,20 +632,24 @@ class Application:
             return {"erreur": "Zone trop grande : zoomez davantage."}
         debut = time.monotonic()
 
+        cle_lecture = f"{cle}:{numero}" if self.mode_serveur else cle
+
         def suivre(faites, total):
-            if self._vues[cle] == numero:
-                self._lectures[cle] = {"numero": numero, "faites": faites, "total": total, "debut": debut}
+            if self.mode_serveur or self._vues[cle] == numero:
+                self._lectures[cle_lecture] = {"numero": numero, "faites": faites,
+                                               "total": total, "debut": debut}
 
         try:
-            resultat = lire(*zone, self.dossier, continuer=lambda: self._vues[cle] == numero, suivi=suivre)
+            continuer = (lambda: True) if self.mode_serveur else lambda: self._vues[cle] == numero
+            resultat = lire(*zone, self.dossier, continuer=continuer, suivi=suivre)
         except franchissements.VueRemplacee:
             return {"erreur": "Vue remplacée par une autre.", "code": "vue_remplacee"}
         except franchissements.ErreurDonnees as exc:
             return {"erreur": str(exc)}
         finally:
             # Seulement la sienne : une vue plus récente a peut-être déjà la place.
-            if self._lectures.get(cle, {}).get("numero") == numero:
-                self._lectures.pop(cle, None)
+            if self._lectures.get(cle_lecture, {}).get("numero") == numero:
+                self._lectures.pop(cle_lecture, None)
         return {**resultat, "bornes": franchissements.bornes_zone(*zone)}
 
     def calque_osm(self, zone, vue=None) -> dict:
@@ -661,6 +677,8 @@ class Application:
         leurs lectures en cours s'arrêtent avant la tuile suivante. vue : la
         date de cette demande, qui remplace toute vue plus ancienne."""
         corps = corps or {}
+        if self.mode_serveur:
+            return {"arretes": []}
         demandes, vue = corps.get("calques"), corps.get("vue")
         cles = [c for c in self._vues if not isinstance(demandes, list) or c in demandes]
         with self._verrou_vues:
@@ -998,14 +1016,15 @@ class Application:
                **{p.calque: (lambda zone, vue=None, cle=cle: self.calque_officiel(cle, zone, vue))
                   for cle, p in providers.SOURCES.items()},
                "extrait": self.extrait,
-               "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
+               "progression": self.progression, "donnees": self.donnees,
                "disponibilite": self.disponibilite,
-               **get_langue}
+               **get_langue, **({} if self.mode_serveur else {"journal": self.lire_journal})}
         post = {"itineraire": self.itineraire, "disponibilite": self.disponibilite_parcours,
                 "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
-                "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux, **post_langue}
+                "donnees": self.agir_donnees, **post_langue,
+                **({} if self.mode_serveur else {"ouvrir_journaux": self.ouvrir_journaux})}
         return get, post
 
     def ouvrir_journaux(self, corps=None) -> dict:

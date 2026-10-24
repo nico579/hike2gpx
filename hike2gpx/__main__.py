@@ -26,6 +26,9 @@ def main(argv=None) -> int:
     serve.add_argument("--port", type=int, default=None)
     serve.add_argument("--sans-navigateur", action="store_true", help="ne pas ouvrir le navigateur")
     serve.add_argument("--sans-icone", action="store_true", help="pas d'icône dans la zone de notification")
+    serve.add_argument("--mode-serveur", action="store_true",
+                       help="serveur mono-utilisateur derrière un proxy HTTPS authentifié")
+    serve.add_argument("--nom-hote", help="nom DNS public attendu par le proxy en mode serveur")
     installer = sous.add_parser("installer", help="installe BRouter et des tuiles de données (E5_N40...)")
     installer.add_argument("segments", nargs="*", help="tuiles BRouter à télécharger")
     analyser = sous.add_parser("analyser", help="compte les franchissements d'une zone")
@@ -35,6 +38,11 @@ def main(argv=None) -> int:
     # processus à part (PBF, base, région en JSON, date des données).
     parser.add_argument("--importer-extrait", nargs=4, metavar="X", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.commande == "serve":
+        if args.mode_serveur and not args.nom_hote:
+            parser.error("--mode-serveur exige --nom-hote")
+        if args.nom_hote and not args.mode_serveur:
+            parser.error("--nom-hote exige --mode-serveur")
     if args.self_test_version:      # avant tout dossier : ne touche pas aux données
         from . import autotest
         return autotest.verifier(args.self_test_version)
@@ -66,7 +74,8 @@ def main(argv=None) -> int:
         return 0
     from . import web
     web.servir(dossier, getattr(args, "port", None) or web.PORT, not getattr(args, "sans_navigateur", False),
-               icone=not getattr(args, "sans_icone", False))
+               icone=not getattr(args, "sans_icone", False),
+               mode_serveur=getattr(args, "mode_serveur", False), nom_hote=getattr(args, "nom_hote", None))
     return 0
 
 

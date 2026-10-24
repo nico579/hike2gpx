@@ -110,6 +110,53 @@ def test_la_page_charge_les_providers_depuis_leur_dossier(tmp_path):
         serveur.server_close()
 
 
+def test_mode_serveur_accepte_uniquement_le_domaine_du_proxy(tmp_path):
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    serveur, port = web.demarrer(application, port=8840, plage=20, nom_hote="rando.example.org")
+    try:
+        connexion = http.client.HTTPConnection(web.HOST, port, timeout=5)
+        try:
+            for hote, origine, attendu in [
+                ("rando.example.org", "https://rando.example.org", 200),
+                ("autre.example.org", "https://autre.example.org", 403),
+                ("rando.example.org", "https://autre.example.org", 403),
+            ]:
+                connexion.request("GET", "/api/etat", headers={"Host": hote, "Origin": origine})
+                reponse = connexion.getresponse()
+                assert reponse.status == attendu
+                reponse.read()
+        finally:
+            connexion.close()
+        assert serveur.server_address[0] == "127.0.0.1"
+    finally:
+        serveur.shutdown()
+        serveur.server_close()
+
+
+def test_mode_serveur_ecarte_les_actions_du_bureau(tmp_path):
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    get, post = application.routes()
+    assert "journal" not in get and "ouvrir_journaux" not in post
+    assert application.etat()["mode_serveur"] is True
+    assert "dossier" not in application.etat()
+    premiere = application._prendre_vue("osm", 100)
+    seconde = application._prendre_vue("osm", 100)
+    assert premiere != seconde
+    assert application.arreter_calques({"calques": ["osm"]}) == {"arretes": []}
+
+
+def test_mode_serveur_exige_un_nom_dns(tmp_path):
+    from hike2gpx.application import Application
+
+    for nom in ("http://rando.example.org", "localhost", "rando.example.org:443"):
+        with pytest.raises(ValueError):
+            web.demarrer(Application(tmp_path), port=8840, plage=1, nom_hote=nom)
+
+
 def test_l_archive_de_chaque_systeme_suit_la_convention_publiee():
     # Les noms que build.py publie (il les demande au commun) : la mise à jour
     # automatique cherche ces fichiers dans la release, cette racine dedans.

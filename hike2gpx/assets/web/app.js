@@ -2021,6 +2021,8 @@ async function demarrer() {
   try {
     const [infos, reglages] = await Promise.all([api("etat"), api("reglages")]);
     etat.version = infos.version;
+    $("ouvrirDossierJournaux").hidden = Boolean(infos.mode_serveur);
+    $("verifierMaj").hidden = Boolean(infos.mode_serveur);
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
     etat.cleIgn = reglages.cle_ign || "";
     $("cleIgn").value = etat.cleIgn;

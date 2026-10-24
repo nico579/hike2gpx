@@ -294,6 +294,17 @@ Le SCAN 25 n'est pas une donnée libre : il demande une clé IGN, à saisir dans
 les réglages de la page. Sans clé, la carte utilise le Plan IGN, sous Licence
 Ouverte. Les autres fonds ne demandent aucune clé.
 
+### Mode serveur
+
+`hike2gpx serve --mode-serveur --nom-hote rando.example.org --port 8795`
+garde le moteur et les lecteurs de chemins nationaux sur le serveur. L'API
+existante sert les pages et les applications clientes. Le processus écoute
+**uniquement sur 127.0.0.1** : un proxy HTTPS authentifié, configuré pour ce
+nom DNS, est indispensable pour y accéder depuis un autre appareil. Le mode
+serveur ne lance ni navigateur, ni icône, ni mise à jour depuis la page. Il
+est prévu pour un propriétaire et ses appareils, avec un cache partagé ; ce
+n'est pas un hébergement multi-utilisateur.
+
 ## Tests
 
 ```
