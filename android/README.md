@@ -6,7 +6,7 @@ Cette PR ajoute un client natif Android. BRouter 1.7.10 est épinglé comme sous
 git submodule update --init android/brouter
 ```
 
-Ouvrir `android/` dans Android Studio et construire `:app:assembleDebug`. Sous Windows, `powershell -File android/build-local.ps1` utilise le JDK et le SDK d'Android Studio. L'APK de développement est généré sous `android/app/build/outputs/apk/debug/`.
+Ouvrir `android/` dans Android Studio et construire `:app:assembleDebug`. Sous Windows, `powershell -File android/build-local.ps1` utilise le JDK et le SDK d'Android Studio. Le wrapper Gradle se trouve à la racine du projet Android. L'APK de développement est généré sous `android/app/build/outputs/apk/debug/`.
 
 Dans l'application : saisir l'adresse HTTPS du serveur, sélectionner le provider, cadrer la carte puis toucher « Utiliser la zone visible », ou saisir l'emprise `[sud, ouest, nord, est]`, puis télécharger la zone. Les fichiers et le manifeste sont vérifiés par taille et SHA-256. Deux touches sur la carte définissent le départ et l'arrivée. Après téléchargement, le calcul et l'export GPX fonctionnent sans connexion. Les tuiles de fond OSM déjà affichées peuvent rester en cache, sans téléchargement massif anticipé.
 

@@ -5,5 +5,5 @@ if (-not $env:JAVA_HOME -and (Test-Path (Join-Path $env:ProgramFiles 'Android\An
 if (-not $env:ANDROID_HOME) {
     $env:ANDROID_HOME = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
 }
-& (Join-Path $PSScriptRoot 'brouter\gradlew.bat') -p $PSScriptRoot :app:assembleDebug
+& (Join-Path $PSScriptRoot 'gradlew.bat') -p $PSScriptRoot :app:assembleDebug
 exit $LASTEXITCODE
