@@ -894,6 +894,12 @@ class Application:
         à la frontière. Rend {"id", "nom"} de l'extrait que la zone attend, ou
         None quand un extrait installé la couvre déjà, relais en préparation
         compris."""
+        # Les paquets serveur sont calculés par zone. Leur préparation ne doit
+        # pas télécharger et importer toute une région Geofabrik en arrière-plan
+        # pour quelques tuiles. Les franchissements utilisent le cache OSM de
+        # la zone ou Overpass ; un extrait préinstallé reste utilisable.
+        if self.mode_serveur:
+            return None
         i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
         installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
         if installe is not None and not installe.get("voies_coupees"):
