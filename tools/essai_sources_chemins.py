@@ -45,6 +45,12 @@ ZONES = [
     ("US", "Gila National Forest", 33.20, -108.25),
     ("CH", "Zermatt", 46.01, 7.74),
     ("CH", "Emmental, Napf", 47.00, 7.94),
+    ("CH", "Jura, Franches-Montagnes", 47.23, 7.02),
+    ("CH", "Tessin, Vallemaggia", 46.30, 8.62),
+    ("CH", "Grisons, Surselva", 46.77, 9.08),
+    ("CH", "Tessin, Val Bavona", 46.38, 8.49),
+    ("CH", "Tessin, Val Onsernone", 46.20, 8.58),
+    ("CH", "Uri, Schächental", 46.88, 8.76),
     ("NL", "Veluwe", 52.07, 5.85),
     ("DE", "Bavière, Allgäu", 47.55, 10.25),
     ("DE", "Bavière, Berchtesgaden", 47.62, 12.98),
@@ -148,9 +154,12 @@ def source_ch(s, w, n, e, i, j):
     def lire():
         vus, lignes, decalage = set(), [], 0
         while True:
+            # Le service choisit les géométries selon l'échelle : sans ces
+            # paramètres, certains chemins détaillés manquent au résultat.
             q = {"geometry": f"{w},{s},{e},{n}", "geometryType": "esriGeometryEnvelope", "sr": 4326,
                  "layers": "all:ch.swisstopo.swisstlm3d-strassen", "tolerance": 0, "returnGeometry": "true",
-                 "geometryFormat": "geojson", "limit": 200, "offset": decalage}
+                 "geometryFormat": "geojson", "limit": 200, "offset": decalage,
+                 "mapExtent": f"{w},{s},{e},{n}", "imageDisplay": "1024,1024,96"}
             d = lire_json("https://api3.geo.admin.ch/rest/services/api/MapServer/identify?" + urllib.parse.urlencode(q))
             nouveaux = 0
             for f in d.get("results", []):
@@ -164,7 +173,7 @@ def source_ch(s, w, n, e, i, j):
             if not nouveaux:
                 return lignes
             decalage += 200
-    return [(pts, c) for pts, c in en_cache(f"ch_{i}_{j}", lire)]
+    return [(pts, c) for pts, c in en_cache(f"ch_v2_{i}_{j}", lire)]
 
 
 def source_nl(s, w, n, e, i, j):
