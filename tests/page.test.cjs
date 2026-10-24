@@ -8,6 +8,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { couvertureCartographique } = require("../hike2gpx/assets/web/presentation.js");
 
 function charger(preferences = {}, documentGpx = null) {
   const elements = new Map();
@@ -207,16 +208,36 @@ test("chaque fond et chaque calque des providers a son libellé FR et EN", () =>
     assert.ok([...fonds, "osmRando", "osm", "satellite"].includes(provider.defaultBase),
       `${code} : fond par défaut ${provider.defaultBase} absent`);
     for (const langue of ["fr", "en"]) {
+      assert.ok(provider.infoBase?.[langue], `${code} : fond du panneau ⓘ sans libellé ${langue}`);
       for (const fond of fonds) {
         assert.ok(provider.baseNames?.[fond]?.[langue] || page.TEXTES[langue][`fond.${fond}`],
           `${code} : libellé ${langue} « fond.${fond} » manquant`);
       }
       for (const calque of provider.overlays || []) {
         assert.ok(page.TEXTES[langue][`calque.${calque}`], `${code} : libellé ${langue} « calque.${calque} » manquant`);
+        assert.ok(provider.overlayNames?.[calque]?.[langue],
+          `${code} : calque du panneau ⓘ sans libellé ${langue}`);
       }
       if (provider.paths) assert.ok(provider.paths.name[langue] && provider.paths.legend[langue]);
     }
   }
+});
+
+test("le bouton d'information présente fond, chemins et itinéraire pour tous les pays", () => {
+  const { page } = charger();
+  const fr = couvertureCartographique(page.providers, "fr");
+  assert.equal(fr.length, 11);
+  assert.deepEqual(fr.map((p) => p.code).sort(),
+    ["at", "ch", "cz", "de", "es", "fr", "lu", "nl", "no", "pl", "us"]);
+  assert.match(fr.find((p) => p.code === "cz").chemins, /ZABAGED/);
+  assert.equal(fr.find((p) => p.code === "cz").itineraire, "OSM + ZABAGED");
+  assert.match(fr.find((p) => p.code === "ch").chemins, /swissTLM3D.*swisstopo/);
+  assert.equal(fr.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k (Basse-Silésie)");
+  assert.equal(fr.find((p) => p.code === "at").chemins, "OSM");
+  assert.equal(fr.find((p) => p.code === "es").itineraire, "OSM");
+  const en = couvertureCartographique(page.providers, "en");
+  assert.equal(en.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k (Lower Silesia)");
+  assert.equal(en.find((p) => p.code === "us").fond, "USGS topographic map");
 });
 
 test("le panneau Réglages montre la version et vérifie les mises à jour", async () => {

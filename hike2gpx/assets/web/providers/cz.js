@@ -1,5 +1,6 @@
 window.HIKE2GPX_MAP_PROVIDERS.cz = {
   defaultBase: "tchequie",
+  infoBase: { fr: "Carte ZTM (ČÚZK)", en: "ZTM map (ČÚZK)" },
   baseNames: { tchequie: { fr: "Carte topographique (ČÚZK)", en: "Topographic map (ČÚZK)" } },
   paths: {
     overlay: "zabaged", source: "zabaged", label: "ZABAGED",

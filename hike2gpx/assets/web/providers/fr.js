@@ -1,5 +1,6 @@
 window.HIKE2GPX_MAP_PROVIDERS.fr = {
   defaultBase: "plan",
+  infoBase: { fr: "Plan IGN (SCAN 25 avec clé)", en: "IGN map (SCAN 25 with a key)" },
   paths: {
     overlay: "bdtopo", source: "ign", label: "IGN",
     legendStatic: true,

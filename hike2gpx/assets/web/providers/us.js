@@ -1,6 +1,8 @@
 window.HIKE2GPX_MAP_PROVIDERS.us = {
   defaultBase: "etatsUnis",
+  infoBase: { fr: "Carte topographique USGS", en: "USGS topographic map" },
   overlays: ["usgsSentiers"],
+  overlayNames: { usgsSentiers: { fr: "Sentiers USGS", en: "USGS trails" } },
   bases({ L }) {
     return { etatsUnis: L.tileLayer(
       "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}",

@@ -1,5 +1,6 @@
 window.HIKE2GPX_MAP_PROVIDERS.at = {
   defaultBase: "autriche",
+  infoBase: { fr: "basemap.at", en: "basemap.at" },
   overlays: [],
   bases({ L }) {
     return { autriche: L.tileLayer(

@@ -1,5 +1,6 @@
 window.HIKE2GPX_MAP_PROVIDERS.de = {
   defaultBase: "allemagne",
+  infoBase: { fr: "BKG TopPlusOpen", en: "BKG TopPlusOpen" },
   paths: {
     overlay: "atkis", source: "atkis", label: "ATKIS",
     legendStatic: true,

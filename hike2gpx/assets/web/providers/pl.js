@@ -1,7 +1,9 @@
 window.HIKE2GPX_MAP_PROVIDERS.pl = {
   defaultBase: "osmRando",
+  infoBase: { fr: "OSM randonnée", en: "OSM hiking" },
   paths: {
     overlay: "bdot10k_ds", source: "bdot10k_ds", label: "BDOT10k",
+    scope: { fr: "Basse-Silésie", en: "Lower Silesia" },
     name: { fr: "chemins BDOT10k (Basse Silésie)", en: "BDOT10k paths (Lower Silesia)" },
     legend: { fr: "portion sur un chemin BDOT10k absent d'OSM, à vérifier",
               en: "section on a BDOT10k path missing from OSM, to check" },

@@ -1,5 +1,6 @@
 window.HIKE2GPX_MAP_PROVIDERS.nl = {
   defaultBase: "paysBas",
+  infoBase: { fr: "Carte topographique PDOK", en: "PDOK topographic map" },
   overlays: [],
   bases({ L }) {
     return { paysBas: L.tileLayer(

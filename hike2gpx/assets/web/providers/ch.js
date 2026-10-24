@@ -1,6 +1,8 @@
 window.HIKE2GPX_MAP_PROVIDERS.ch = {
   defaultBase: "suisse",
+  infoBase: { fr: "Carte nationale swisstopo", en: "swisstopo national map" },
   overlays: ["suisseSentiers"],
+  overlayNames: { suisseSentiers: { fr: "Sentiers balisés swisstopo", en: "swisstopo hiking trails" } },
   paths: {
     overlay: "swisstlm3d", source: "swisstlm3d", label: "swissTLM3D",
     name: { fr: "chemins swissTLM3D (Suisse)", en: "swissTLM3D paths (Switzerland)" },

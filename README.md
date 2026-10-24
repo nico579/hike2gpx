@@ -49,7 +49,8 @@ base map you chose.
   States, Czechia and Poland. Germany has an ATKIS path layer in all sixteen
   states; Czechia has ZABAGED, Switzerland swissTLM3D and Lower Silesia in
   Poland BDOT10k. Spain and the United States have display-only trail layers.
-  The ⓘ button lists the countries next to the base map selector.
+  The ⓘ button next to the base map selector lists every country with its
+  base map, path layer and routing source separately.
 
 A town search recenters the map: French municipalities through the French
 government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
