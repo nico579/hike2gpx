@@ -28,6 +28,10 @@ Le planificateur prend un verrou exclusif, prépare les zones l'une après l'aut
 
 ## Essai dans la VM VirtualBox locale
 
-La VM disponible est Ubuntu 26.04.1, avec Python 3.14 par défaut, alors que l'installateur ci-dessus cible Ubuntu 24.04 et Python 3.12. Le serveur applicatif y a été installé avec un Python 3.12 géré dans le répertoire utilisateur, sans modifier le système. Pour répéter l'essai : démarrer `serve --mode-serveur --nom-hote rando.example.org` sur le port 8795, puis lancer `python3 deploy/linux/vm_smoke.py` dans la VM. Le script vérifie l'état, l'absence de paquet non préparé et le refus des routes de gestion.
+La VM disponible est Ubuntu 26.04.1, avec Python 3.14 par défaut, alors que l'installateur ci-dessus cible Ubuntu 24.04 et Python 3.12. Le serveur applicatif y a été installé avec un Python 3.12 géré dans le répertoire utilisateur, sans modifier le système. Pour répéter l'essai : démarrer `serve --mode-serveur --nom-hote rando.example.org` sur le port 8795, puis lancer `python3 deploy/linux/vm_smoke.py` dans la VM. Le script vérifie l'état, l'absence de paquet non préparé et le refus des routes de gestion. L'option `--prepared` vérifie un paquet OSM déjà calculé et le téléchargement partiel de sa RD5 ; `--route` ajoute le calcul distant de secours.
+
+Sur une zone française de 0,05° préparée dans un dossier vierge, la VM a produit une RD5 de 69 Mo et 34 franchissements. Le dossier complet occupe 80 Mo et n'a pas lancé d'import régional Geofabrik. Ce résultat valide le mécanisme par zone ; il ne mesure pas encore les durées ni la place nécessaires pour toutes les zones nationales.
+
+Le même paquet a été relu par l'API : manifeste, réponse HTTP `206` sur une plage de la RD5 et calcul de secours de 419 m avec BRouter local au serveur. Ce calcul n'a utilisé que le paquet déjà préparé.
 
 Cet essai ne remplace pas l'installation complète `install.sh` sur Ubuntu 24.04 : apt, Caddy, systemd et la préparation BRouter réelle restent à valider sur un système avec accès sudo.
