@@ -6,12 +6,14 @@
     <string name="strict">Strict mode</string>
     <string name="download">Download zone</string>
     <string name="calculate">Calculate on device</string>
+    <string name="server_fallback">Calculate on server (fallback)</string>
     <string name="export">Export GPX</string>
     <string name="status_ready">Choose a zone and two points.</string>
     <string name="status_working">Calculating…</string>
     <string name="zone_ready">Zone ready: %1$d BRouter tile(s)</string>
     <string name="zone_missing">Download a zone covering the points first.</string>
     <string name="route_ready">Local route: %1$d points</string>
+    <string name="route_remote">Server route: %1$d points</string>
     <string name="no_route">No route to export.</string>
     <string name="export_done">GPX saved.</string>
 </resources>

@@ -40,10 +40,11 @@ final class PackageStore {
         for (File dir : directories) {
             File manifest = new File(dir, "manifest.json");
             if (!dir.isDirectory() || !manifest.isFile()) continue;
-            JSONObject json = new JSONObject(new String(readAll(manifest), StandardCharsets.UTF_8));
-            if (json.optInt("format") == 1 && json.optBoolean("pret") && filesValid(dir, json)) {
-                found.add(new Zone(dir, json));
-            }
+            try {
+                JSONObject json = new JSONObject(new String(readAll(manifest), StandardCharsets.UTF_8));
+                if (json.optInt("format") == 1 && json.optBoolean("pret") && filesValid(dir, json))
+                    found.add(new Zone(dir, json));
+            } catch (Exception ignored) { /* paquet incomplet : les autres zones restent disponibles */ }
         }
         return found;
     }
@@ -120,7 +121,7 @@ final class PackageStore {
 
     private static void downloadFile(String url, File part, long expected) throws Exception {
         long offset = part.isFile() ? part.length() : 0;
-        if (offset > expected) { if (!part.delete()) throw new IllegalStateException("Invalid partial file"); offset = 0; }
+        if (offset >= expected) { if (!part.delete()) throw new IllegalStateException("Invalid partial file"); offset = 0; }
         HttpsURLConnection connection = (HttpsURLConnection) new URL(url).openConnection();
         connection.setConnectTimeout(15_000);
         connection.setReadTimeout(120_000);

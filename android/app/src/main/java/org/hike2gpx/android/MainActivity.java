@@ -59,6 +59,7 @@ public final class MainActivity extends Activity {
         column.addView(strict);
         Button download = button(column, R.string.download);
         Button calculate = button(column, R.string.calculate);
+        Button serverFallback = button(column, R.string.server_fallback);
         Button export = button(column, R.string.export);
         status = new TextView(this);
         status.setText(R.string.status_ready);
@@ -97,6 +98,19 @@ public final class MainActivity extends Activity {
             verifyRoute(coordinates, zone.manifest, useStrict);
             runOnUiThread(() -> { lastRoute = feature; map.setRoute(coordinates); });
             return getString(R.string.route_ready, coordinates.length());
+            });
+        });
+        serverFallback.setOnClickListener(v -> {
+            String address = server.getText().toString().trim().replaceAll("/+$", "");
+            String startText = start.getText().toString(), finishText = finish.getText().toString();
+            String selected = selectedSource();
+            boolean useStrict = strict.isChecked();
+            runTask(() -> {
+                JSONObject feature = new RemoteRouter().calculate(address, numbers(startText, 2),
+                        numbers(finishText, 2), selected, useStrict);
+                JSONArray coordinates = feature.getJSONObject("geometry").getJSONArray("coordinates");
+                runOnUiThread(() -> { lastRoute = feature; map.setRoute(coordinates); });
+                return getString(R.string.route_remote, coordinates.length());
             });
         });
         export.setOnClickListener(v -> {
@@ -170,7 +184,17 @@ public final class MainActivity extends Activity {
         return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
     }
     private static boolean intersects(double[] a, double[] b, double[] c, double[] d) {
-        return cross(a, b, c) * cross(a, b, d) < 0 && cross(c, d, a) * cross(c, d, b) < 0;
+        double abC = cross(a, b, c), abD = cross(a, b, d);
+        double cdA = cross(c, d, a), cdB = cross(c, d, b);
+        if (abC * abD < 0 && cdA * cdB < 0) return true;
+        return touches(a, b, c, abC) || touches(a, b, d, abD)
+                || touches(c, d, a, cdA) || touches(c, d, b, cdB);
+    }
+    private static boolean touches(double[] a, double[] b, double[] p, double side) {
+        return Math.abs(side) < 1e-13 && p[0] >= Math.min(a[0], b[0]) - 1e-9
+                && p[0] <= Math.max(a[0], b[0]) + 1e-9
+                && p[1] >= Math.min(a[1], b[1]) - 1e-9
+                && p[1] <= Math.max(a[1], b[1]) + 1e-9;
     }
 
     @Override protected void onActivityResult(int request, int result, Intent data) {

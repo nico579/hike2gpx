@@ -6,12 +6,14 @@
     <string name="strict">Mode strict</string>
     <string name="download">Télécharger la zone</string>
     <string name="calculate">Calculer sur le téléphone</string>
+    <string name="server_fallback">Calculer sur le serveur (secours)</string>
     <string name="export">Exporter le GPX</string>
     <string name="status_ready">Choisissez une zone et deux points.</string>
     <string name="status_working">Calcul en cours…</string>
     <string name="zone_ready">Zone prête : %1$d tuile(s) BRouter</string>
     <string name="zone_missing">Téléchargez d’abord une zone couvrant les points.</string>
     <string name="route_ready">Itinéraire local : %1$d points</string>
+    <string name="route_remote">Itinéraire serveur : %1$d points</string>
     <string name="no_route">Aucun itinéraire à exporter.</string>
     <string name="export_done">GPX enregistré.</string>
 </resources>
