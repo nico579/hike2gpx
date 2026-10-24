@@ -49,6 +49,13 @@ if [[ ! -x /opt/hike2gpx/venv/bin/python ]]; then
 fi
 /opt/hike2gpx/venv/bin/python -m pip install --upgrade pip
 /opt/hike2gpx/venv/bin/python -m pip install --upgrade "$repo_dir"
+install -m 0755 "$repo_dir/deploy/linux/refresh.py" /opt/hike2gpx/refresh.py
+install -d -m 0755 /etc/hike2gpx
+if [[ ! -f /etc/hike2gpx/zones.json ]]; then
+  install -m 0644 "$repo_dir/deploy/linux/zones.example.json" /etc/hike2gpx/zones.json
+fi
+install -m 0644 "$repo_dir/deploy/linux/hike2gpx-refresh.service" /etc/systemd/system/hike2gpx-refresh.service
+install -m 0644 "$repo_dir/deploy/linux/hike2gpx-refresh.timer" /etc/systemd/system/hike2gpx-refresh.timer
 
 export H2G_DOMAIN=$domain
 export H2G_DEPLOY_DIR=$repo_dir/deploy/linux
@@ -71,6 +78,7 @@ PY
 caddy validate --config /etc/caddy/Caddyfile
 systemctl daemon-reload
 systemctl enable --now hike2gpx
+systemctl enable --now hike2gpx-refresh.timer
 systemctl reload caddy
 systemctl is-active --quiet hike2gpx
 systemctl is-active --quiet caddy
