@@ -50,12 +50,20 @@ final class PackageStore {
     }
 
     Zone covering(double[] bounds, String source, boolean strict) throws Exception {
-        for (Zone zone : installed()) {
-            JSONObject json = zone.manifest;
-            if (!source.equals(json.optString("source")) || json.optBoolean("strict") != strict) continue;
-            JSONArray area = json.getJSONArray("couverture");
-            if (area.getDouble(0) <= bounds[0] && area.getDouble(1) <= bounds[1]
-                    && area.getDouble(2) >= bounds[2] && area.getDouble(3) >= bounds[3]) return zone;
+        File[] directories = root.listFiles();
+        if (directories == null) return null;
+        for (File dir : directories) {
+            File file = new File(dir, "manifest.json");
+            if (!dir.isDirectory() || !file.isFile()) continue;
+            try {
+                JSONObject json = new JSONObject(new String(readAll(file), StandardCharsets.UTF_8));
+                if (json.optInt("format") != 1 || !json.optBoolean("pret")
+                        || !source.equals(json.optString("source")) || json.optBoolean("strict") != strict) continue;
+                JSONArray area = json.getJSONArray("couverture");
+                if (area.getDouble(0) <= bounds[0] && area.getDouble(1) <= bounds[1]
+                        && area.getDouble(2) >= bounds[2] && area.getDouble(3) >= bounds[3]
+                        && filesValid(dir, json)) return new Zone(dir, json);
+            } catch (Exception ignored) { /* autre paquet endommagé : poursuivre la recherche */ }
         }
         return null;
     }

@@ -80,6 +80,7 @@ public final class MainActivity extends Activity {
         Button center = button(column, R.string.center);
         Button calculate = button(column, R.string.calculate);
         Button serverFallback = button(column, R.string.server_fallback);
+        serverFallback.setVisibility(View.GONE);
         Button export = button(column, R.string.export);
         status = new TextView(this);
         status.setText(R.string.status_ready);
@@ -145,9 +146,13 @@ public final class MainActivity extends Activity {
             JSONObject feature = geojson.has("features") ? geojson.getJSONArray("features").getJSONObject(0) : geojson;
             JSONArray coordinates = feature.getJSONObject("geometry").getJSONArray("coordinates");
             verifyRoute(coordinates, zone.manifest, useStrict);
-            runOnUiThread(() -> { lastRoute = feature; showRoute(coordinates); });
-            return getString(R.string.route_ready, coordinates.length());
+            runOnUiThread(() -> {
+                lastRoute = feature;
+                showRoute(coordinates);
+                serverFallback.setVisibility(View.GONE);
             });
+            return getString(R.string.route_ready, coordinates.length());
+            }, serverFallback);
         });
         serverFallback.setOnClickListener(v -> {
             String address = server.getText().toString().trim().replaceAll("/+$", "");
@@ -220,11 +225,17 @@ public final class MainActivity extends Activity {
     }
 
     private interface Work { String execute() throws Exception; }
-    private void runTask(Work work) {
+    private void runTask(Work work) { runTask(work, null); }
+    private void runTask(Work work, Button fallback) {
         status.setText(R.string.status_working);
         worker.execute(() -> {
             try { String message = work.execute(); runOnUiThread(() -> status.setText(message)); }
-            catch (Exception error) { runOnUiThread(() -> status.setText(error.getMessage())); }
+            catch (Exception error) {
+                runOnUiThread(() -> {
+                    status.setText(error.getMessage());
+                    if (fallback != null) fallback.setVisibility(View.VISIBLE);
+                });
+            }
         });
     }
 
@@ -233,8 +244,8 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < coords.length(); i++) {
             JSONArray point = coords.getJSONArray(i);
             double lon = point.getDouble(0), lat = point.getDouble(1);
-            if (lat < coverage.getDouble(0) - .002 || lon < coverage.getDouble(1) - .002
-                    || lat > coverage.getDouble(2) + .002 || lon > coverage.getDouble(3) + .002)
+            if (lat < coverage.getDouble(0) + .002 || lon < coverage.getDouble(1) + .002
+                    || lat > coverage.getDouble(2) - .002 || lon > coverage.getDouble(3) - .002)
                 throw new IllegalStateException("Route leaves the downloaded zone");
         }
         JSONArray crossings = manifest.getJSONArray("franchissements");
