@@ -25,3 +25,9 @@ sudo cat /var/lib/hike2gpx/refresh.json
 ```
 
 Le planificateur prend un verrou exclusif, prépare les zones l'une après l'autre et n'avance la prochaine échéance qu'après succès. Un échec garde le dernier paquet publié et sera retenté au prochain passage. Les durées sont consignées dans `refresh.json` et dans le journal systemd. Le stockage des anciens paquets doit être surveillé tant que la politique de rétention n'est pas en place.
+
+## Essai dans la VM VirtualBox locale
+
+La VM disponible est Ubuntu 26.04.1, avec Python 3.14 par défaut, alors que l'installateur ci-dessus cible Ubuntu 24.04 et Python 3.12. Le serveur applicatif y a été installé avec un Python 3.12 géré dans le répertoire utilisateur, sans modifier le système. Pour répéter l'essai : démarrer `serve --mode-serveur --nom-hote rando.example.org` sur le port 8795, puis lancer `python3 deploy/linux/vm_smoke.py` dans la VM. Le script vérifie l'état, l'absence de paquet non préparé et le refus des routes de gestion.
+
+Cet essai ne remplace pas l'installation complète `install.sh` sur Ubuntu 24.04 : apt, Caddy, systemd et la préparation BRouter réelle restent à valider sur un système avec accès sudo.
