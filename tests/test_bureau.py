@@ -218,6 +218,34 @@ def test_paquet_de_zone_fournit_tuiles_et_coupes_finales(tmp_path, monkeypatch):
         serveur.server_close()
 
 
+def test_paquet_officiel_contient_le_calque_hors_ligne(tmp_path, monkeypatch):
+    from hike2gpx import brouter, providers
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    installation = application.installation
+    installation.profils_maison.mkdir(parents=True)
+    (installation.profils_maison / f"{brouter.PROFIL}.brf").write_text("profil")
+    (installation.profils_maison / "lookups.dat").write_text("tags")
+    segments = tmp_path / "segments-prepares"
+    segments.mkdir()
+    (segments / "E5_N40.rd5").write_bytes(b"tuile")
+    monkeypatch.setattr(installation, "installee", lambda: True)
+    monkeypatch.setattr(application, "_extrait_automatique", lambda *_: None)
+    monkeypatch.setattr(application.maison, "preparer", lambda *a, **k: (segments, []))
+    monkeypatch.setattr(brouter, "segments_zone", lambda *_: ["E5_N40"])
+    fournisseur = providers.source("ign")
+    chemin = {"id": "test", "nature": "Sentier", "pts": [[43.4, 6.0], [43.401, 6.001]]}
+    monkeypatch.setattr(fournisseur.module, "troncons_zone", lambda *a, **k: [chemin])
+    paquet = application.preparer_paquet({"zone": [43.4, 6.0, 43.401, 6.001], "source": "ign"})
+
+    assert paquet["pret"]
+    asset = next(a for a in paquet["assets"] if a["nom"] == "chemins-officiels.json")
+    fichier = application.fichier_paquet(asset["url"].split("/")[3], asset["nom"])
+    assert fichier is not None
+    assert __import__("json").loads(fichier.read_text(encoding="utf-8")) == {"troncons": [chemin]}
+
+
 def test_l_archive_de_chaque_systeme_suit_la_convention_publiee():
     # Les noms que build.py publie (il les demande au commun) : la mise à jour
     # automatique cherche ces fichiers dans la release, cette racine dedans.

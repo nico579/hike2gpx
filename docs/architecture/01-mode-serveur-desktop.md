@@ -8,7 +8,7 @@ Conserver le fonctionnement local de l'application actuelle. Ajouter dans les r�
 
 - `GET /api/etat` annonce `mode_serveur: true`.
 - `GET /api/paquet-zone?s=&w=&n=&e=&source=&officiel=&strict=` lit un paquet déjà calculé couvrant toute la zone. Une zone absente répond `pret: false`, sans lancer de génération.
-- Le manifeste contient la couverture, la source, la variante stricte, les fichiers `.rd5`, `lookups.dat`, `hike2gpx.brf`, leurs tailles et SHA-256, ainsi que les coupes BRouter `polylines` déjà finales. Les franchissements restent aussi listés pour l'affichage et le contrôle du tracé.
+- Le manifeste contient la couverture, la source, la variante stricte, les fichiers `.rd5`, `lookups.dat`, `hike2gpx.brf`, leurs tailles et SHA-256, ainsi que les coupes BRouter `polylines` déjà finales. Pour une source nationale, `chemins-officiels.json` fournit aussi la géométrie du calque hors ligne. Les franchissements restent listés pour l'affichage et le contrôle du tracé.
 - `GET /api/paquets/<id>/<fichier>` livre les fichiers avec reprise HTTP `Range`.
 - `POST /api/itineraire` peut servir de secours lorsque l'appareil ne peut pas calculer, sans être la voie principale.
 

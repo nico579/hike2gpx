@@ -832,14 +832,20 @@ class Application:
                 fichiers, assets = [], []
                 sources = [(dossier_segments / f"{nom}.rd5", fichiers) for nom in segments_attendus]
                 sources += [(profil, assets), (profil.parent / "lookups.dat", assets)]
+                if officiel:
+                    chemins = providers.source(source).module.troncons_zone(*zone, self.dossier)
+                    chemin_officiel = dossier_paquet / "chemins-officiels.json"
+                    atomique.ecrire_json(chemin_officiel, {"troncons": chemins}, indent=None)
+                    sources.append((chemin_officiel, assets))
                 for source_fichier, destination in sources:
                     if not source_fichier.is_file():
                         raise brouter.ErreurBRouter(f"Fichier BRouter {source_fichier.name} absent du paquet.")
                     cible = dossier_paquet / source_fichier.name
-                    try:
-                        os.link(source_fichier, cible)
-                    except OSError:
-                        shutil.copy2(source_fichier, cible)
+                    if source_fichier != cible:
+                        try:
+                            os.link(source_fichier, cible)
+                        except OSError:
+                            shutil.copy2(source_fichier, cible)
                     empreinte = hashlib.sha256()
                     with cible.open("rb") as entree:
                         while bloc := entree.read(1024 * 1024):
@@ -889,7 +895,7 @@ class Application:
 
     def fichier_paquet(self, jeton: str, nom: str) -> Path | None:
         if not re.fullmatch(r"[0-9a-f]{32}", jeton) or not re.fullmatch(
-                r"(?:[EW]\d+_[NS]\d+\.rd5|lookups\.dat|hike2gpx\.brf)", nom):
+                r"(?:[EW]\d+_[NS]\d+\.rd5|lookups\.dat|hike2gpx\.brf|chemins-officiels\.json)", nom):
             return None
         dossier = self.dossier / "paquets" / jeton
         manifest = atomique.lire_json(dossier / "manifest.json", {})
