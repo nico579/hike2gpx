@@ -95,6 +95,7 @@ const TEXTES = {
     "reglages.majImpossible": "Vérification impossible (réseau ?).",
     "disponibilite.oui": "Tracé disponible",
     "disponibilite.non": "Tracé indisponible",
+    "disponibilite.calcule": "Tracé calculé",
     "statut.donneesIndisponibles": "Données OSM indisponibles pour ce tracé. Nouvelle tentative automatique après téléchargement.",
     "donnees.titre": "Données téléchargées",
     "donnees.note": "Tout se retélécharge de soi-même au besoin : vider ou supprimer libère de la place, actualiser donne des données fraîches.",
@@ -282,6 +283,7 @@ const TEXTES = {
     "reglages.majImpossible": "Could not check (network?).",
     "disponibilite.oui": "Routing available",
     "disponibilite.non": "Routing unavailable",
+    "disponibilite.calcule": "Route calculated",
     "statut.donneesIndisponibles": "OSM data unavailable for this route. Automatic retry after download.",
     "donnees.titre": "Downloaded data",
     "donnees.note": "Everything downloads again by itself when needed: clearing or deleting frees space, refreshing brings fresh data.",
@@ -514,6 +516,7 @@ function appliquerLangue(code) {
   afficherDonnees();
   afficherStatut(...etat.statut);
   if (etat.dernier) ecrireResultat(etat.dernier);
+  afficherDisponibilite(derniereDisponibilite);
   actualiserDisponibilite();
 }
 
@@ -673,12 +676,17 @@ carte.on("moveend", () => {
 });
 
 let sequenceDisponibilite = 0;
+let derniereDisponibilite = null;
 function afficherDisponibilite(d) {
-  const pret = Boolean(d?.pret);
+  derniereDisponibilite = d;
+  const calcule = Boolean(etat.dernier);
+  const pret = calcule || Boolean(d?.pret);
   $("readiness").classList.toggle("available", pret);
   $("readiness").classList.toggle("unavailable", !pret);
-  $("readinessText").textContent = t(pret ? "disponibilite.oui" : "disponibilite.non");
-  $("readiness").title = pret ? `OSM : ${d.source === "extrait" ? d.nom : "Overpass"}`
+  $("readinessText").textContent = t(calcule ? "disponibilite.calcule"
+    : pret ? "disponibilite.oui" : "disponibilite.non");
+  $("readiness").title = calcule ? t("disponibilite.calcule")
+    : pret ? `OSM : ${d.source === "extrait" ? d.nom : "Overpass"}`
     : d?.verification ? "Vérification d'Overpass…" : "Aucune source OSM disponible dans cette zone";
 }
 
@@ -1362,6 +1370,7 @@ function planifierCalcul() {
   } catch (e) { /* le parcours reste utilisable si le stockage est indisponible */ }
   etat.sequence++;
   etat.dernier = null;
+  afficherDisponibilite(derniereDisponibilite);
   $("exporter").disabled = true;
   etat.minuterie = setTimeout(calculer, DELAI_CALCUL_MS);
 }
@@ -1373,6 +1382,7 @@ function effacerResultat() {
   cacherMarqueurProfil();
   profilRoute = null;
   etat.dernier = null;
+  afficherDisponibilite(derniereDisponibilite);
   $("resultat").hidden = true;
   $("exporter").disabled = true;
 }
@@ -1591,6 +1601,7 @@ function bulleFranchissement(f) {
 
 function afficher(r) {
   etat.dernier = r;
+  afficherDisponibilite(derniereDisponibilite);
   cacherMarqueurProfil();
   profilRoute = null;
   couches.clearLayers();

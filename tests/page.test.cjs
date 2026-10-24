@@ -99,6 +99,7 @@ function charger(preferences = {}, documentGpx = null) {
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
+    + " afficherDisponibilite,"
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
@@ -290,6 +291,24 @@ test("le parcours revient après rechargement et se recalcule", async () => {
   repondre(apres.derniere(), resultat(6.02));
   await calcul;
   assert.equal(apres.elements.get("exporter").disabled, false);
+});
+
+test("un tracé calculé reste indiqué pendant l'import de l'extrait OSM", async () => {
+  const { page, elements, derniere, minuteurs } = charger();
+  page.afficherDisponibilite({ pret: false, source: null });
+  assert.equal(elements.get("readinessText").textContent, "Tracé indisponible");
+  page.ajouterPoint({ lat: 43.3, lng: 6 });
+  page.ajouterPoint({ lat: 43.31, lng: 6.02 });
+  const calcul = minuteurs.findLast((m) => m.ms === 250 && !m.annule).callback();
+  repondre(derniere(), resultat(6.02));
+  await calcul;
+  page.afficherDisponibilite({ pret: false, source: null });
+  assert.equal(elements.get("readinessText").textContent, "Tracé calculé");
+  assert.equal(elements.get("readiness").classList.contains("available"), true);
+  page.appliquerLangue("en");
+  assert.equal(elements.get("readinessText").textContent, "Route calculated");
+  page.ajouterPoint({ lat: 43.32, lng: 6.03 });
+  assert.equal(elements.get("readinessText").textContent, "Routing unavailable");
 });
 
 test("déplacer, retirer et effacer mettent à jour le parcours sauvegardé", () => {
