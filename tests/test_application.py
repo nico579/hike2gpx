@@ -610,6 +610,16 @@ def test_routes_init_annonce_l_application(tmp_path):
                          "arreter_calques", "donnees", "ouvrir_journaux", "serveur"}
 
 
+def test_paquet_cloud_deja_telecharge_sert_hors_connexion(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(a.cloud, "etat", lambda **_: {"actif": False, "adresse": "https://rando.example.org"})
+    monkeypatch.setattr(a.cloud, "paquet", lambda *args: ({"pret": True}, tmp_path))
+    monkeypatch.setattr(a.installation, "installee", lambda: True)
+    monkeypatch.setattr(a, "_itineraire_paquet", lambda *args: {"moteur": "cloud-local"})
+    resultat = a._itineraire({"points": [[43.4, 6.0], [43.41, 6.01]], "source": "ign"})
+    assert resultat == {"moteur": "cloud-local"}
+
+
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
     # /api/langue : le choix FR / EN du commun, à côté de la clé IGN.
     a = appli.Application(tmp_path)

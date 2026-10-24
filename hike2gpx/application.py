@@ -495,7 +495,8 @@ class Application:
         if ign and not providers.source(source).disponible(zone):
             return {"erreur": f"Chemins {providers.source(source).nom} indisponibles dans cette zone.",
                     "code": "source_hors_zone"}
-        if self.cloud and self.cloud.etat()["actif"]:
+        # Un paquet vérifié reste utilisable lorsque le serveur ne répond plus.
+        if self.cloud and self.cloud.etat()["adresse"]:
             try:
                 paquet, dossier = self.cloud.paquet({"source": source, "officiel": ign,
                                                       "strict": strict}, self.dossier, zone)
