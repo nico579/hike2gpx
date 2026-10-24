@@ -860,7 +860,7 @@ class Application:
             if (isinstance(paquet, dict) and paquet.get("format") == 1
                     and paquet.get("source") == cle and paquet.get("strict") is est_strict
                     and isinstance(paquet.get("couverture"), list)
-                    and contient(paquet["couverture"], zone)):
+                    and contient(paquet["couverture"], zone, marge_deg=0)):
                 disponibles.append((dossier.stat().st_mtime, paquet))
         return max(disponibles, key=lambda item: item[0])[1] if disponibles else {
             "pret": False, "raison": "zone_non_preparee"}

@@ -185,6 +185,7 @@ def test_paquet_de_zone_fournit_tuiles_et_coupes_finales(tmp_path, monkeypatch):
     assert {a["nom"] for a in paquet["assets"]} == {"hike2gpx.brf", "lookups.dat"}
     assert paquet["franchissements"][0]["nature"] == "Portail"
     assert application.lire_paquet((43.4, 6.0, 43.401, 6.001), "ign", "1", "0")["pret"]
+    assert application.lire_paquet(tuple(paquet["zone"]), "ign", "1", "0")["pret"]
 
     serveur, port = web.demarrer(application, port=8840, plage=20, nom_hote="rando.example.org")
     try:
