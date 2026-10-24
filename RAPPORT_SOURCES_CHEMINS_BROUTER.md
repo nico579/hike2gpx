@@ -4,9 +4,9 @@ Rapport du 23 octobre 2026, écrit après la release 0.3.0. En France, hike2gpx 
 
 ## Verdict
 
-**L'intérêt est limité hors de France, et la mesure le montre.** Sur les tuiles les plus riches en sentiers de quatre pays, la règle de fusion de hike2gpx garde ce que la source officielle connaît et qu'OSM ignore. En France, la BD TOPO agrandit le réseau routable de 18 % à 100 % ; dans le Var, de 21 % à 72 %. Aux États-Unis, en Suisse et aux Pays-Bas, les sources officielles ajoutent de 0 % à 12 %, et souvent sans dire si l'on peut y passer à pied.
+**L'Allemagne est le second cas où une source officielle comble beaucoup de lacunes géométriques d'OSM.** La BD TOPO ajoute 18 % à 100 % de longueur potentielle sur les tuiles françaises étudiées. En Bavière, le Basis-DLM ajoute 12 % à 37 % ; à Rosa, en Thuringe, 79 % sur la tuile du village et 127 % sur la tuile voisine la plus dense. Les États-Unis, la Suisse et les Pays-Bas restent à 0 % à 12 %.
 
-La France n'est pas un cas parmi d'autres : c'est là que se trouve presque toute la valeur. On n'écrira donc pas de connecteur étranger pour l'instant. L'effort ira plutôt à la qualité de la BD TOPO dans hike2gpx. L'Espagne et l'Allemagne, non mesurées faute d'accès simple, restent les seules pistes ouvertes, à condition d'être mesurées avant tout développement.
+Ces pourcentages mesurent des **longueurs de voies candidates**, pas un gain garanti pour une randonnée. À Rosa, presque tout le supplément est classé `Fahrwegachse` (chemins agricoles) et le WFS ne donne pas de permission piétonne explicite. La PR ajoute donc un calque ATKIS et permet la fusion pour BRouter en marquant les portions utilisées « à vérifier ». Les deux connecteurs par emprise couvrent la Bavière et la Thuringe ; TopPlusOpen reste le fond de carte allemand pour tout le pays.
 
 ## La mesure
 
@@ -14,12 +14,12 @@ La France n'est pas un cas parmi d'autres : c'est là que se trouve presque tout
 
 L'outil `tools/essai_sources_chemins.py` réutilise le code de hike2gpx sans le modifier. Pour chaque massif, il procède en quatre temps.
 
-1. **Trouver une zone dense en chemins.** Une zone pauvre en chemins ne dirait rien : la source officielle et OSM y auraient tous deux peu de chose. L'outil lit donc la source officielle sur la tuile de 0,05° du massif (environ 5,5 × 4 km) et sur ses voisines : 3 × 3 tuiles pour la France et les États-Unis, cinq en croix pour la Suisse et les Pays-Bas, dont les services paginent plus lentement. Il garde la tuile où la source a le plus de kilomètres. En France, seuls les sentiers, chemins et escaliers comptent pour ce classement. Une première passe classée sur toute la BD TOPO avait retenu Fréjus au lieu du massif de l'Estérel : une ville l'emporte sur un massif dès que les routes comptent.
+1. **Trouver une zone dense en chemins.** Une zone pauvre en chemins ne dirait rien : la source officielle et OSM y auraient tous deux peu de chose. L'outil lit donc la source officielle sur la tuile de 0,05° du massif (environ 5,5 × 4 km) et sur ses voisines : 3 × 3 tuiles pour la France, les États-Unis, la Bavière et Rosa ; cinq en croix pour la Suisse et les Pays-Bas, dont les services paginent plus lentement. Il garde la tuile où la source a le plus de kilomètres. La tuile qui contient Rosa est également mesurée séparément. En France, seuls les sentiers, chemins et escaliers comptent pour le classement. Une première passe classée sur toute la BD TOPO avait retenu Fréjus au lieu du massif de l'Estérel : une ville l'emporte sur un massif dès que les routes comptent.
 2. **Lire OSM sur cette tuile**, avec 1 km de marge, par la même requête Overpass que le calcul (`franchissements.requete()`), pour ne pas compter comme absent un chemin coupé au bord.
 3. **Appliquer la règle de fusion** : un morceau de la source est « nouveau » quand moins de la moitié de sa longueur passe à moins de 12 m d'une voie OSM praticable (`fusion.parts_couvertes()`, seuil `PART_COUVERTE_MAX`). C'est exactement ce que fait `fusion.ajouter_ign()` avec la BD TOPO.
-4. **Rapporter les kilomètres nouveaux** à la longueur du réseau OSM praticable de la tuile. Ce « gain du réseau » dit de combien la source agrandirait le réseau que BRouter voit.
+4. **Rapporter les kilomètres nouveaux** à la longueur du réseau OSM praticable de la tuile. Ce « gain du réseau » est un potentiel géométrique : l'accessibilité et la continuité doivent être vérifiées avant d'en déduire un itinéraire supplémentaire.
 
-Les sources sont la BD TOPO (WFS de la Géoplateforme), les sentiers USGS National Digital Trails (type `Terra Trail` seulement), swissTLM3D « Strassen und Wege » (API de geo.admin.ch) et TOP10NL `wegdeel_hartlijn` (OGC API de PDOK). Les données OSM sont celles d'Overpass le 23 octobre 2026.
+Les sources sont la BD TOPO (WFS de la Géoplateforme), les sentiers USGS National Digital Trails (type `Terra Trail` seulement), swissTLM3D « Strassen und Wege » (API de geo.admin.ch), TOP10NL `wegdeel_hartlijn` (OGC API de PDOK), puis les objets `AX_WegPfadSteig` et `AX_Fahrwegachse` du [WFS bavarois](https://geodatenonline.bayern.de/geodatenonline/seiten/wfs_atkis) et du [WFS de Thuringe](https://geoportal.thueringen.de/media/Download/Geoproxy/Allgemeine_Beschreibung_der_frei_verfuegbaren_Dienste_WFS_opendata_Geobasisdaten-TLBG.pdf). Les données OSM sont celles d'Overpass le 23 octobre 2026.
 
 ### France, dont le Var
 
@@ -36,6 +36,22 @@ Les sources sont la BD TOPO (WFS de la Géoplateforme), les sentiers USGS Nation
 Les kilomètres absents d'OSM sont presque tous des sentiers et des chemins : 93 des 96 km en Ariège, 66 des 66 km dans les Maures, 64 des 73 km à la Sainte-Baume. La tuile la plus dense de la Sainte-Baume se trouve à cheval sur la limite des Bouches-du-Rhône, vers Cuges-les-Pins et Riboux. Celle du Verdon est au sud des gorges et non dans les gorges elles-mêmes.
 
 Le Var confirme ce que montrent l'Ariège et les Vosges. Le gain est le plus fort là où les randonneurs sont moins nombreux et où OSM est donc plus clairsemé : les Maures plus que l'Estérel, très parcouru. C'est précisément là qu'un calcul sur OSM seul est le plus trompeur.
+
+### Allemagne : Bavière et Rosa (Thuringe)
+
+| Zone | Centre de la tuile | Voies Basis-DLM | Réseau OSM | Retenues comme absentes d'OSM | Gain géométrique potentiel |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Rosa, tuile du village | 50,725 N 10,275 E | 149,8 km | 96,8 km | 76,6 km | **+79 %** |
+| Rosa, tuile voisine la plus dense | 50,675 N 10,325 E | 186,8 km | 89,4 km | 113,4 km | **+127 %** |
+| Bavière, forêt franconienne | 50,275 N 11,475 E | 201,4 km | 179,2 km | 66,7 km | **+37 %** |
+| Bavière, forêt bavaroise | 48,975 N 13,275 E | 99,0 km | 105,6 km | 32,5 km | **+31 %** |
+| Bavière, Berchtesgaden | 47,625 N 12,925 E | 124,5 km | 145,5 km | 29,6 km | **+20 %** |
+| Bavière, Allgäu | 47,575 N 10,275 E | 100,1 km | 154,2 km | 18,2 km | **+12 %** |
+
+La tuile du centre de Rosa est mesurée en plus de la règle habituelle « choisir la voisine la plus dense », afin de contrôler précisément le lieu signalé. Parmi ses 76,6 km retenus, 76,3 km sont des `AX_Fahrwegachse` et 0,3 km des `AX_WegPfadSteig`. Dans la voisine dense, les 113,4 km retenus sont tous des `AX_Fahrwegachse`. Cette classe comprend des axes de chemins agricoles ; le service ne donne pas de droit de passage piéton fiable. Le résultat confirme une différence de contenu avec OSM, pas que chaque voie constitue un sentier ouvert et raccordable.
+
+Les requêtes sont limitées à une emprise de 0,05° par [WFS ATKIS de Bavière](https://geodatenonline.bayern.de/geodatenonline/seiten/wfs_atkis) et [WFS Basis-DLM de Thuringe](https://geoportal.thueringen.de/media/Download/Geoproxy/Allgemeine_Beschreibung_der_frei_verfuegbaren_Dienste_WFS_opendata_Geobasisdaten-TLBG.pdf), avec pagination. Les coordonnées GML bavaroises sont renvoyées latitude puis longitude, celles de Thuringe longitude puis latitude ; l'outil les remet toutes en `[latitude, longitude]` avant la comparaison. Les filtres FES explicites ont été nécessaires, car les requêtes `BBOX` KVP testées ne rendaient pas correctement les tronçons sur ces services. Le serveur local applique le même découpage par tuiles et le même cache de trente jours que BD TOPO.
+Les deux WFS annoncent une licence CC BY 4.0 ; le service thuringien demande la mention « © GDI-Th ». Le calque affiche les deux producteurs et la licence dans l'attribution Leaflet.
 
 ### États-Unis, Suisse, Pays-Bas
 
@@ -61,16 +77,18 @@ Le jeu USGS est toujours alimenté. Sur 607 202 tronçons, 443 690 ont été cha
 
 ### Limites de la mesure
 
-- **Une tuile par massif**, soit une vingtaine de km² chacune. Sept zones françaises et sept étrangères suffisent à séparer un gain de 20 à 100 % d'un gain de 0 à 12 %. Elles ne suffiraient pas à départager deux pays proches.
+- **Une tuile par massif**, soit une vingtaine de km² chacune, et deux tuiles autour de Rosa. Sept zones françaises, sept zones américaines/suisses/néerlandaises et cinq zones allemandes donnent des exemples concrets, pas une moyenne nationale.
 - **« Absent d'OSM » est un plafond.** Un tracé officiel décalé de plus de 12 m de son équivalent OSM compte comme nouveau. Cela vaut aussi pour la BD TOPO : le gain français est peut-être un peu surestimé, l'écart entre la France et les autres pays non.
 - **Un chemin nouveau n'est pas forcément praticable.** hike2gpx affiche déjà les chemins IGN comme « non vérifiés », et la mesure ne dit rien de leur état sur le terrain.
-- **L'Espagne et l'Allemagne ne sont pas mesurées.** Les sentiers de la BTN ne s'obtiennent qu'en téléchargeant des feuilles, et l'ATKIS Basis-DLM dépend de chaque Land. On les mesurera en ajoutant une fonction de lecture à l'outil, sur le modèle des quatre existantes.
+- **Les chemins agricoles allemands demandent un contrôle.** `Fahrwegachse` fournit l'essentiel du gain à Rosa et dans les massifs bavarois. La présence géométrique ne prouve ni l'accès public ni le bon raccordement à OSM. Les tuiles BRouter ajoutées gardent donc une pénalité et signalent leurs portions « à vérifier ».
+- **La couverture ATKIS par emprise est limitée à deux Länder dans l'application.** Le fond TopPlusOpen couvre toute l'Allemagne, mais seuls les WFS de Bavière et de Thuringe sont intégrés comme calque de chemins et comme source de calcul. L'Espagne reste non mesurée : les sentiers BTN exigent des feuilles à télécharger.
 
 Pour refaire la mesure :
 
 ```
 python tools/essai_sources_chemins.py            toutes les zones
 python tools/essai_sources_chemins.py US Var     un pays, ou les zones dont le nom contient « Var »
+python tools/essai_sources_chemins.py DE Rosa    Bavière et Rosa (Thuringe)
 ```
 
 ## Ce que fait la BD TOPO, et pourquoi elle marche
@@ -85,18 +103,17 @@ Ce succès tient à quatre qualités réunies. La BD TOPO **comble de vrais trou
 
 La première qualité est celle qui manque ailleurs. Les trois autres se retrouvent en partie : les services américain, suisse et néerlandais répondent tous par emprise. Mais une source bien servie qui n'ajoute rien n'apporte rien au calcul.
 
-## Ce qui est aujourd'hui propre à l'IGN
+## Une deuxième source pour les tuiles BRouter maison
 
-La BD TOPO est câblée en dur à quatre endroits :
+La mesure allemande donne maintenant un second cas réel. La chaîne conserve ses interfaces historiques (`ajouter_ign()`, `portions_ign()`), mais accepte une source `atkis` en plus de `ign` :
 
-- `fusion.py` : `ajouter_ign()` et l'étiquette constante `{"highway": "path", "hike2gpx": "ign"}` ;
-- `brouter.py` : la table d'étiquettes ajoute la clé `hike2gpx=ign`, et le profil en tire une pénalité (`ign_penalty`) ;
-- `application.py` : `portions_ign()` cherche `hike2gpx=ign` dans le résultat de BRouter pour signaler les portions « non vérifiées » ;
-- `providers/fr.js` : `routableOverlay: "bdtopo"` est la seule déclaration d'une capacité de calcul, et elle vit côté page.
+- `atkis.py` interroge les WFS de Bavière et de Thuringe par tuiles de 0,05°, avec pagination, cache de trente jours et dédoublonnage ;
+- `maison.py` choisit le cache officiel selon la source demandée et ne mélange jamais des tuiles françaises et allemandes dans une fabrication ;
+- `fusion.py` applique le même seuil de recouvrement et les mêmes raccordements, avec l'étiquette `hike2gpx=atkis` ;
+- `brouter.py` pénalise également `ign` et `atkis` ; `application.py` lit la source dans les messages de BRouter et nomme correctement les portions à vérifier ;
+- `providers/de.js` propose le calque ATKIS et la coche de calcul. Le serveur accepte uniquement les identifiants de sources connus.
 
-Tant qu'aucune source étrangère n'est justifiée, ce câblage n'est pas un problème : il n'y a qu'une source, et elle est française. Généraliser la fusion serait une abstraction sans second cas.
-
-Le dernier point reste pourtant un défaut latent. La page active la coche « utiliser pour le calcul » d'après le provider JavaScript, alors que le calcul est fait par le serveur Python. Si quelqu'un déclarait `routableOverlay` dans `es.js`, la coche s'allumerait en Espagne. Le serveur irait chercher la BD TOPO, ne trouverait rien hors de France, et calculerait avec OSM seul sans le dire. Une capacité de calcul doit être annoncée par le côté qui calcule. La section suivante montre comment.
+Le calque et le calcul portent sur les mêmes voies. En dehors des deux Länder pris en charge, TopPlusOpen continue de s'afficher, mais le WFS ATKIS n'apporte aucun tronçon. Une déclaration structurée des capacités côté serveur reste souhaitable si d'autres Länder sont ajoutés : aujourd'hui le provider JavaScript peut annoncer la coche partout en Allemagne, alors que les connecteurs ne couvrent que deux Länder.
 
 ## Les providers : un seul fichier par pays
 
@@ -190,7 +207,7 @@ Voici, par exemple, le fichier de l'Espagne. Il reprend exactement ce que font a
 
 **Ce qui est fait.** Sans attendre la refonte, deux tests gardent déjà contre les oublis silencieux. Dans `tests/page.test.cjs`, chaque fond et chaque calque de chaque provider doit avoir son libellé en français et en anglais, et le fond par défaut doit exister. Dans `tests/test_application.py`, `PAYS_CARTES` doit couvrir exactement les providers présents. On a vérifié qu'ils échouent bien sur un oubli : un libellé anglais retiré au fond suisse, une entrée retirée de `PAYS_CARTES`.
 
-**La refonte elle-même attendra un vrai besoin.** Depuis la mesure, elle a perdu sa raison principale : sans source de calcul hors de France, le bloc `chemins` n'existerait que pour la France, où la coche est déjà juste. Il reste l'intérêt de déclarer un pays en un seul endroit au lieu de trois. Pour un pays ajouté de temps en temps, sous la garde des deux tests, ce n'est pas un problème. La migration ne paierait qu'avec un flux d'ajouts (plusieurs pays d'un coup) : elle est mécanique, huit fichiers à convertir, `PAYS_CARTES` et les libellés à retirer d'`application.py` et d'`app.js`, une fabrique de couches à écrire, en une PR sans changement visible. Elle se ferait alors avec un test sur les fichiers JSON, qui vérifierait en plus que chaque `type` est connu de la page et chaque `chemins.protocole` du serveur.
+**La refonte des providers attendra une PR dédiée.** Deux sources de calcul rendent désormais utile le bloc `chemins` proposé ci-dessus, surtout pour déclarer précisément leur aire de couverture côté serveur. Cette PR ajoute le connecteur allemand au mécanisme actuel afin de livrer et tester les chemins de Rosa sans convertir tous les providers. La migration devra vérifier que chaque `type` de couche est connu de la page et chaque `chemins.protocole` du serveur, et déclarer les Länder couverts plutôt que seulement le pays.
 
 ## Sources candidates, pays par pays
 
@@ -199,8 +216,8 @@ Voici, par exemple, le fichier de l'Espagne. Il reprend exactement ce que font a
 | États-Unis | USGS National Digital Trails | Oui, requête ArcGIS | 0 à 10 %, accès piéton souvent inconnu | Affichage seulement |
 | Suisse | swissTLM3D | Oui, API geo.admin.ch | 4 à 5 % | Affichage seulement |
 | Pays-Bas | TOP10NL (PDOK) | Oui, OGC API Features | 10 à 12 %, plafond | Affichage seulement |
-| Espagne | BTN du CNIG | Non pour les sentiers ; fichiers par feuille | Non mesuré | Seule piste ouverte, à mesurer d'abord |
-| Allemagne | ATKIS Basis-DLM (par Land) | Selon le Land | Non mesuré | À mesurer en Bavière, sans provider à ce jour |
+| Espagne | BTN du CNIG | Non pour les sentiers ; fichiers par feuille | Non mesuré | À mesurer avant un connecteur |
+| Allemagne | ATKIS Basis-DLM (par Land) | Oui, WFS en Bavière et Thuringe | +12 à +37 % en Bavière ; +79 % sur la tuile du village de Rosa | Calque et calcul BRouter dans ces deux Länder, voies à vérifier |
 | Luxembourg | BD-L-GeoBase | Non ; un seul GeoPackage | Non mesuré ; OSM réputé complet | Affichage seulement |
 | Autriche | GIP | Non ; export national | Non mesuré ; sentiers alpins mal couverts par le GIP | Affichage seulement |
 | Norvège | N50 | Non ; fichiers | Non mesuré ; réseau généralisé | Affichage seulement |
@@ -213,7 +230,7 @@ La mesure la disqualifie pourtant pour le calcul. Elle ne recense que les sentie
 
 ### Espagne : BTN du CNIG
 
-C'est la seule piste qui reste ouverte. La [BTN](https://centrodedescargas.cnig.es/CentroDescargas/btn) est un vrai réseau physique, sous [licence d'attribution](https://centrodedescargas.cnig.es/CentroDescargas/detalleArchivo?sec=10318930), et l'on dit OSM moins complet en Espagne rurale. C'est une impression, pas une mesure.
+La [BTN](https://centrodedescargas.cnig.es/CentroDescargas/btn) est un vrai réseau physique, sous [licence d'attribution](https://centrodedescargas.cnig.es/CentroDescargas/detalleArchivo?sec=10318930), et l'on dit OSM moins complet en Espagne rurale. C'est une impression, pas une mesure.
 
 Le mode d'accès est défavorable. Le WFS INSPIRE des réseaux de transport, `servicios.idee.es/wfs-inspire/transportes` ([datos.gob.es](https://datos.gob.es/es/catalogo/e0dat0002-redes-de-transporte-de-espana), CC BY 4.0), n'a rendu que 6 tronçons routiers du réseau `ES.SCNE.IGR-RT` sur 4 × 5 km dans le Val d'Aran, sans nature de voie. Les sentiers de la BTN ne s'obtiennent qu'en téléchargeant des feuilles. Avant tout connecteur, il faut télécharger une feuille sur une zone pyrénéenne et une autre en Espagne intérieure, ajouter une fonction de lecture à l'outil de mesure, et ne poursuivre que si le gain approche celui de la BD TOPO.
 
@@ -223,7 +240,7 @@ Les [sentiers FEDME](https://centrodedescargas.cnig.es/CentroDescargas/senderos-
 
 Par sa structure, l'ATKIS Basis-DLM est le cousin le plus direct de la BD TOPO : un modèle topographique national au 1:25 000, avec un réseau de voies qui distingue routes, chemins agricoles et sentiers. Mais la cartographie allemande est l'affaire des Länder. Selon sa [lettre d'information de juin 2024](https://geodaten.bayern.de/odd/m/3/pdf/newsletter_archiv/2024_06.pdf), la Bavière publie son Basis-DLM en open data, en téléchargement et par WFS. La Rhénanie-Palatinat réserve [son WFS](https://lvermgeo.rlp.de/fileadmin/lvermgeo/pdf/produktblaetter/BASIS_DLM_WFS.pdf) aux utilisateurs enregistrés, et la situation des autres Länder n'est pas établie.
 
-OSM est très complet en Allemagne. Vu les résultats suisses et néerlandais, un gain important serait une surprise. Une mesure en Bavière, par son WFS, coûterait peu et trancherait.
+La comparaison contredit l'hypothèse selon laquelle OSM serait partout aussi complet que le Basis-DLM : les tuiles bavaroises vont de +12 % à +37 %, et Rosa atteint +79 % sur la tuile du village. Une autre réserve apparaît : presque tout ce gain est porté par `AX_Fahrwegachse`, sans permission piétonne explicite. Le calque sert à voir ces voies et le calcul les propose avec pénalité et signalement, sans les présenter comme des passages garantis.
 
 ### Suisse, Pays-Bas, Luxembourg, Autriche, Norvège
 
@@ -237,10 +254,9 @@ Tous gardent leurs fonds d'affichage. On ne reviendra sur leur cas que si un uti
 
 ## Plan
 
-1. **Ne pas écrire de connecteur de chemins étranger.** La mesure ne justifie aucun des trois pays testés. Le câblage IGN de la fusion reste en l'état : le généraliser serait une abstraction sans second cas.
-2. **Investir dans la BD TOPO**, qui porte la valeur : dans le Var, en Ariège et dans les Vosges, elle agrandit le réseau de 21 % à 100 %. Les pistes sont dans le code existant : règles d'accès, raccordements, signalement des chemins « non vérifiés ».
-3. **Mesurer avant de rouvrir le chantier.** L'Espagne (une feuille BTN pyrénéenne, une en Espagne intérieure) et la Bavière (WFS du Basis-DLM) se mesurent en ajoutant une fonction de lecture à `tools/essai_sources_chemins.py`. Un connecteur ne se discute qu'au-delà d'environ 20 % de gain, le bas de la fourchette française.
-4. **Garder les providers en JavaScript, sous la garde des deux tests de cohérence** (fait). Ne passer aux fichiers JSON par pays que si plusieurs pays doivent s'ajouter d'un coup.
-5. ~~Vérifier le proxy FEDME dans le navigateur, puis le supprimer s'il ne sert à rien.~~ Fait : vérifié dans Chrome et retiré.
+1. **Tester la connexion et l'accès à pied autour de Rosa.** La comparaison géométrique est forte, mais des itinéraires BRouter doivent confirmer la continuité et l'utilisateur doit vérifier les chemins agricoles sur le terrain.
+2. **Étendre les Länder par services de données par emprise**, après contrôle de leur licence, de leur schéma et de leurs attributs d'accès. Le fond TopPlusOpen, national, ne suffit pas à construire un réseau de routage précis.
+3. **Déclarer les capacités de calcul côté serveur**, avec leur couverture géographique, si le troisième connecteur allemand est ajouté.
+4. **Continuer la qualité de la BD TOPO française**, notamment ses règles d'accès et ses raccordements ; mesurer l'Espagne sur deux feuilles BTN avant d'envisager le calcul.
 
-**État : analyse et mesure. Seul le proxy FEDME, inutile, a été retiré du code.** Hors de France, les calques de sentiers sont marqués « affichage seul », et le calcul utilise OSM seul.
+**État : cinq zones allemandes mesurées, connecteurs ATKIS de Bavière et de Thuringe ajoutés au calque et aux tuiles BRouter maison.** Aux États-Unis, en Suisse et aux Pays-Bas, les calques restent pour l'affichage seul.

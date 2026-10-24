@@ -37,6 +37,7 @@ function charger(preferences = {}, documentGpx = null) {
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
       getEast: () => v.e }; } };
   const requetes = [];
+  const pressePapiers = [];
   const confirmations = Object.assign([], { reponse: false });
   const corps = element();
   const contexte = vm.createContext({
@@ -46,17 +47,21 @@ function charger(preferences = {}, documentGpx = null) {
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
        addEventListener() {}, querySelectorAll(selector) {
          if (selector !== "[data-map-overlay]") return [];
-         return [["legendBdtopo", "bdtopo"], ["legendSenderos", "senderos"],
+         return [["legendBdtopo", "bdtopo"], ["legendAtkis", "atkis"], ["legendSenderos", "senderos"],
            ["legendSuisse", "suisseSentiers"]].map(([id, cle]) => {
            const ligne = this.getElementById(id); ligne.dataset.mapOverlay = cle; return ligne;
          });
        } },
     localStorage: { getItem(key) { return stockage.get(key) ?? null; }, setItem(key, value) { stockage.set(key, value); } },
     confirm: (texte) => { confirmations.push(texte); return confirmations.reponse; },
+    navigator: { clipboard: { async writeText(texte) { pressePapiers.push(texte); } } },
     setTimeout(callback, ms) { minuteurs.push({ callback, ms }); return minuteurs.length; },
     clearTimeout(id) { if (minuteurs[id - 1]) minuteurs[id - 1].annule = true; },
     setInterval() { return 1; }, clearInterval() {},
      L: { map() { return carte; }, layerGroup: couche, canvas: couche,
+       popup: (options) => ({ options, setLatLng(latlng) { this.latlng = latlng; return this; },
+         setContent(content) { this.content = content; return this; },
+         openOn(map) { map.popup = this; return this; } }),
        vectorGrid: { protobuf: (url, options) => Object.assign(couche(), { url, options }) },
       polyline: (points, options) => Object.assign(couche(), { points, options }), circleMarker: couche,
       marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
@@ -98,7 +103,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
-  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs };
+  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs, pressePapiers };
 }
 
 function resultat(lonArrivee) {
@@ -108,6 +113,17 @@ function resultat(lonArrivee) {
 }
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
+
+test("un clic droit affiche les coordonnées et permet de les copier sans ajouter de point", async () => {
+  const { carte, page, pressePapiers } = charger();
+  carte.handlers.contextmenu({ latlng: { lat: 50.71234567, lng: 10.24987654 } });
+  const [titre, bouton] = carte.popup.content.enfants;
+  assert.equal(titre.enfants[0].value, "50.712346, 10.249877");
+  assert.equal(bouton.textContent, "Copier les coordonnées");
+  await bouton.ecouteurs.click[0]();
+  assert.deepEqual(pressePapiers, ["50.712346, 10.249877"]);
+  assert.equal(page.etat.points.length, 0);
+});
 
 function documentGpx(segments) {
   const point = ([lat, lon]) => ({ hasAttribute: (nom) => nom === "lat" || nom === "lon",
@@ -189,7 +205,7 @@ test("chaque fond et chaque calque des providers a son libellé FR et EN", () =>
   for (const [code, provider] of Object.entries(page.providers)) {
     if (code === "autre") continue;
     const fonds = Object.keys(provider.bases({ L: globalThis.L ?? {
-      tileLayer: () => ({}) }, clesFonds: { ign: "cle" }, tuileIgn: () => "" }));
+      tileLayer: () => ({}) }, cleIgn: "cle", tuileIgn: () => "" }));
     assert.ok(fonds.includes(provider.defaultBase), `${code} : fond par défaut ${provider.defaultBase} absent`);
     for (const langue of ["fr", "en"]) {
       for (const cle of [...fonds.map((f) => `fond.${f}`), ...provider.overlays.map((c) => `calque.${c}`)]) {
@@ -286,9 +302,9 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
 
 test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent en France", async () => {
   const { page, elements, requetes, stockage, carte } = charger();
-  page.etat.clesFonds.ign = "cle-test";
+  page.etat.cleIgn = "cle-test";
   page.construireFonds();
-  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "reliefLidar", "osmRando", "osm", "osmVelo", "satellite"]);
+  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "reliefLidar", "osmRando", "osm", "satellite"]);
   assert.ok(page.controle().fonds["Relief LiDAR HD (IGN)"]);
   assert.match(page.fonds().reliefLidar.url, /IGNF_LIDAR-HD_MNT_ELEVATION\.ELEVATIONGRIDCOVERAGE\.SHADOW/);
   assert.match(page.fonds().reliefLidar.url, /TILEMATRIXSET=PM_0_18/);
@@ -302,12 +318,9 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
     { nom: "Madrid", detail: "Espagne", code_pays: "es", lat: 40.416782, lon: -3.703507 },
   ] });
   await rechercheMadrid;
-  assert.deepEqual(Object.keys(page.fonds()), ["espagne", "osmRando", "osm", "osmVelo", "satellite"]);
-  assert.deepEqual(Object.keys(page.controle().fonds), ["Carte topographique (IGN Espagne)", "OSM rando", "OSM", "OSM vélo", "Satellite"]);
+  assert.deepEqual(Object.keys(page.fonds()), ["espagne", "osmRando", "osm", "satellite"]);
+  assert.deepEqual(Object.keys(page.controle().fonds), ["Carte topographique (IGN Espagne)", "OSM rando", "OSM", "Satellite"]);
   assert.match(page.fonds().osmRando.url, /tile\.opentopomap\.org/);
-  assert.match(page.fonds().osmVelo.url, /tile-cyclosm\.openstreetmap\.fr\/cyclosm/);
-  assert.equal(page.fonds().osmVelo.options.maxNativeZoom, 18);
-  assert.equal(page.fonds().osmVelo.options.maxZoom, 19);
   assert.match(page.fonds().satellite.url, /World_Imagery/);
   assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM", "Sentiers balisés GR/PR/SL (IGN Espagne)"]);
   assert.equal(page.fonds().reliefLidar, undefined);
@@ -322,7 +335,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   const recharge = charger(Object.fromEntries(stockage));
   recharge.page.restaurerCalques();
   recharge.page.construireFonds();
-  assert.deepEqual(Object.keys(recharge.page.fonds()), ["espagne", "osmRando", "osm", "osmVelo", "satellite"]);
+  assert.deepEqual(Object.keys(recharge.page.fonds()), ["espagne", "osmRando", "osm", "satellite"]);
   assert.equal(recharge.page.CALQUES.bdtopo.groupe.addedTo, undefined);
   assert.equal(recharge.page.fonds().reliefLidar, undefined);
   assert.equal(recharge.elements.get("ignOption").hidden, false);
@@ -338,7 +351,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
     { nom: "Grenoble", detail: "Isère", code_pays: "fr", lat: 45.1842, lon: 5.7155 },
   ] });
   await rechercheGrenoble;
-  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "reliefLidar", "osmRando", "osm", "osmVelo", "satellite"]);
+  assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "reliefLidar", "osmRando", "osm", "satellite"]);
   assert.equal(Object.keys(page.controle().calques).length, 2);
   assert.equal(page.fond(), page.fonds().reliefLidar);
   assert.equal(elements.get("ignOption").hidden, false);
@@ -395,41 +408,6 @@ test("la Suisse active swisstopo et conserve un fond préféré par pays", () =>
   assert.match(page.fond().url, /tile\.openstreetmap\.org/);
 });
 
-test("Thunderforest apparaît après enregistrement de sa clé, dans chaque pays", async () => {
-  const { page, elements, requetes } = charger();
-  repondre(requetes.find((r) => r.url === "/api/etat"),
-    { version: "0.3.2", brouter: "1.7.10", moteur_installe: true });
-  repondre(requetes.find((r) => r.url === "/api/reglages"),
-    { cles_fonds: { ign: "", thunderforest: "" }, renouvellement_jours: 30 });
-  await new Promise(setImmediate);
-  page.construireFonds();
-  assert.equal(page.fonds().osmOutdoors, undefined);
-  elements.get("cleIgn").value = "cle-ign";
-  elements.get("cleThunderforest").value = "cle-thunderforest";
-  elements.get("renouvellementJours").value = "30";
-  const enregistrement = elements.get("enregistrerCle").ecouteurs.click[0]();
-  const requete = requetes.findLast((r) => r.url === "/api/reglages");
-  assert.deepEqual(JSON.parse(requete.options.body).cles_fonds,
-    { ign: "cle-ign", thunderforest: "cle-thunderforest" });
-  repondre(requete, { cles_fonds: { ign: "cle-ign", thunderforest: "cle-thunderforest" },
-    renouvellement_jours: 30 });
-  await enregistrement;
-  assert.match(page.fonds().osmOutdoors.url, /api\.thunderforest\.com\/outdoors\/\{z\}\/\{x\}\/\{y\}\.png\?apikey=cle-thunderforest/);
-  assert.match(page.fonds().osmOutdoors.options.attribution, /Thunderforest.*OpenStreetMap/);
-  assert.ok(page.fonds().scan25);
-  page.choisirPays("de");
-  assert.ok(page.fonds().osmOutdoors);
-  page.choisirPays("es");
-  assert.ok(page.fonds().osmOutdoors);
-
-  elements.get("cleThunderforest").value = "";
-  const retrait = elements.get("enregistrerCle").ecouteurs.click[0]();
-  repondre(requetes.findLast((r) => r.url === "/api/reglages"),
-    { cles_fonds: { ign: "cle-ign", thunderforest: "" }, renouvellement_jours: 30 });
-  await retrait;
-  assert.equal(page.fonds().osmOutdoors, undefined);
-});
-
 test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins disponibles", () => {
   const { page, elements } = charger();
   page.choisirPays("at");
@@ -442,14 +420,26 @@ test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins
   assert.equal(elements.get("ignOption").hidden, true);
 });
 
-test("l'Allemagne propose le fond officiel BKG TopPlusOpen", () => {
-  const { page, elements } = charger();
+test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => {
+  const { page, elements, carte, requetes } = charger();
   page.choisirPays("de");
   assert.match(page.fond().url, /sgx\.geodatenzentrum\.de\/wmts_topplus_open\/tile\/1\.0\.0\/web\/default\/WEBMERCATOR\/\{z\}\/\{y\}\/\{x\}\.png/);
-  assert.equal(page.fond().options.maxNativeZoom, 18);
   assert.match(page.fond().options.attribution, /BKG.*dl-de\/by-2-0.*Datenquellen/);
-  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
-  assert.equal(elements.get("ignOption").hidden, true);
+  assert.deepEqual(Object.keys(page.controle().calques),
+    ["Chemins OSM", "Chemins ATKIS (Bavière et Thuringe)"]);
+  assert.match(page.CALQUES.atkis.groupe.getAttribution(), /GDI-Th.*BVV.*CC BY 4\.0/);
+  assert.equal(elements.get("legendAtkis").hidden, false);
+  assert.equal(elements.get("ignOption").hidden, false);
+  assert.equal(elements.get("ign").disabled, false);
+  page.CALQUES.atkis.groupe.addTo(carte);
+  carte.hasLayer = (layer) => layer === page.CALQUES.atkis.groupe;
+  const lecture = page.rafraichirCalques();
+  const requete = requetes.find((r) => r.url.startsWith("/api/atkis?"));
+  assert.ok(requete);
+  repondre(requete, { troncons: [{ id: "TH:test", land: "TH", nature: "Wirtschaftsweg",
+    pts: [[50.717, 10.25], [50.718, 10.251]] }], bornes: [50.7, 10.2, 50.75, 10.3] });
+  await lecture;
+  assert.equal(page.CALQUES.atkis.groupe.layers.length, 1);
 });
 
 test("les États-Unis proposent le fond USGS et ses sentiers agrégés", () => {
@@ -503,7 +493,7 @@ test("une ouverture vérifie les tuiles BRouter même si le moteur est déjà in
   repondre(requetes.find((r) => r.url === "/api/etat"),
     { version: "0.1.0", brouter: "1.7.10", moteur_installe: true });
   repondre(requetes.find((r) => r.url === "/api/reglages"),
-    { cles_fonds: { ign: "", thunderforest: "" }, renouvellement_jours: 30 });
+    { cle_ign: "", renouvellement_jours: 30 });
   await new Promise(setImmediate);
   assert.ok(requetes.some((r) => r.url === "/api/moteur"));
 });
@@ -636,7 +626,7 @@ test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tu
   // Journal du 2026-10-19 : chaque déplacement ajoutait ses lectures à celles
   // des vues quittées, et la vue demandée était élargie de 15 %.
   const { page, requetes, carte } = charger();
-  carte.hasLayer = () => true;
+  carte.hasLayer = (layer) => layer !== page.CALQUES.atkis.groupe;
   const calques = () => requetes.filter((r) => /^\/api\/(osm|bdtopo)\?/.test(r.url));
   const premiere = page.rafraichirCalques();
   const [osmA, bdtopoA] = calques();

@@ -21,7 +21,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, bdtopo, brouter, communes, franchissements, geofabrik, journaux, maison, osmfr
+from . import __version__, atkis, bdtopo, brouter, communes, franchissements, geofabrik, journaux, maison, osmfr
 
 journal = logging.getLogger(__name__)
 
@@ -49,8 +49,7 @@ ELARGISSEMENTS = 3
 # environ 55 × 40 km. Au-delà, la première lecture prendrait des dizaines de
 # minutes ; mieux vaut découper le parcours en étapes.
 TUILES_MAX = 100
-CLES_FONDS = ("ign", "thunderforest")
-_CLE_FOND = re.compile(r"^[A-Za-z0-9_-]{0,100}$")
+_CLE_IGN = re.compile(r"^[A-Za-z0-9_\-]{0,100}$")
 
 
 def configurer_journal(dossier) -> Path:
@@ -162,10 +161,11 @@ def sur_le_trace(coordonnees, liste) -> list:
 
 
 RAISON_IGN = "Chemin de la BD TOPO absent d'OpenStreetMap : existence et accès à vérifier"
+RAISON_ATKIS = "Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier"
 
 
 def portions_ign(trace) -> list:
-    """Portions du tracé sur des chemins IGN, lues dans les messages de
+    """Portions du tracé sur des chemins IGN ou ATKIS, lues dans les messages de
     BRouter : chaque ligne y résume un morceau de mêmes étiquettes, avec sa
     longueur et la position, en millionièmes de degré, de son dernier point
     (constaté le 19 octobre : c'est exactement un point du tracé)."""
@@ -188,22 +188,26 @@ def portions_ign(trace) -> list:
     for ligne in messages[1:]:
         longueur = float(ligne[i_dist])
         fin_rang = rang((int(ligne[i_lon]), int(ligne[i_lat])), debut_rang)
-        if "hike2gpx=ign" in ligne[i_tags]:
-            if portions and portions[-1]["fin_rang"] == debut_rang:
+        source = next((nom for nom in ("ign", "atkis") if f"hike2gpx={nom}" in ligne[i_tags]), None)
+        if source:
+            if portions and portions[-1]["fin_rang"] == debut_rang and portions[-1]["source"] == source:
                 portions[-1].update(fin_rang=fin_rang, longueur_m=portions[-1]["longueur_m"] + longueur)
             else:
                 portions.append({"debut_m": round(cumul), "longueur_m": longueur, "debut_rang": debut_rang,
-                                 "fin_rang": fin_rang})
+                                 "fin_rang": fin_rang, "source": source})
         cumul += longueur
         debut_rang = fin_rang
     return [{"debut_m": p["debut_m"], "longueur_m": round(p["longueur_m"]),
-             "coords": [[c[1], c[0]] for c in coords[p["debut_rang"]:p["fin_rang"] + 1]]} for p in portions]
+             "coords": [[c[1], c[0]] for c in coords[p["debut_rang"]:p["fin_rang"] + 1]],
+             **({"source": "atkis"} if p["source"] == "atkis" else {})} for p in portions]
 
 
 def entrees_ign(portions) -> list:
-    """Les portions IGN comme points à vérifier sur le tracé."""
-    return [{"cle": f"ign-{k}", "statut": "uncertain", "raison": RAISON_IGN,
-             "nature": f"Chemin IGN de {p['longueur_m']} m", "longueur_m": p["longueur_m"],
+    """Les portions officielles comme points à vérifier sur le tracé."""
+    return [{"cle": f"{p.get('source', 'ign')}-{k}", "statut": "uncertain",
+             "raison": RAISON_ATKIS if p.get("source") == "atkis" else RAISON_IGN,
+             "nature": f"Chemin {'ATKIS' if p.get('source') == 'atkis' else 'IGN'} de {p['longueur_m']} m",
+             "longueur_m": p["longueur_m"],
              "lat": p["coords"][0][0], "lon": p["coords"][0][1],
              "osm": None, "distance_m": p["debut_m"]} for k, p in enumerate(portions) if p["coords"]]
 
@@ -233,7 +237,7 @@ class Application:
         self._verrou_denivele = threading.Lock()
         # Numéro de la vue en cours de chaque calque : une vue plus récente
         # arrête la lecture des tuiles de la précédente.
-        self._vues = {"osm": 0, "bdtopo": 0}
+        self._vues = {"osm": 0, "bdtopo": 0, "atkis": 0}
         self._verrou_vues = threading.Lock()
         # Avancement de la vue en cours de chaque calque, pour la barre de la
         # page : {"faites", "total", "debut"} (tuiles), absent hors lecture.
@@ -251,39 +255,21 @@ class Application:
 
     def reglages(self) -> dict:
         prefs = atomique.lire_json(self.preferences, {})
-        prefs = prefs if isinstance(prefs, dict) else {}
-        sauvegardees = prefs.get("cles_fonds")
-        sauvegardees = sauvegardees if isinstance(sauvegardees, dict) else {}
-        # Les versions précédentes rangeaient la clé SCAN 25 à la racine.
-        if "ign" not in sauvegardees:
-            sauvegardees = {**sauvegardees, "ign": prefs.get("cle_ign")}
-        cles = {}
-        for nom in CLES_FONDS:
-            valeur = sauvegardees.get(nom)
-            cles[nom] = valeur if isinstance(valeur, str) and _CLE_FOND.fullmatch(valeur) else ""
-        return {"cles_fonds": cles,
+        cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
+        return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
                 "renouvellement_jours": geofabrik.jours_renouvellement(self.dossier)}
 
     def enregistrer_reglages(self, payload) -> dict:
         payload = payload or {}
-        cles = self.reglages()["cles_fonds"]
-        nouvelles = payload.get("cles_fonds", {})
-        if not isinstance(nouvelles, dict) or any(nom not in CLES_FONDS for nom in nouvelles):
-            return {"erreur": "Fournisseur de carte inconnu."}
-        # Compatibilité avec les anciens clients de l'API locale.
-        if "cle_ign" in payload and "ign" not in nouvelles:
-            nouvelles = {**nouvelles, "ign": payload["cle_ign"]}
-        for nom, valeur in nouvelles.items():
-            if not isinstance(valeur, str) or not _CLE_FOND.fullmatch(valeur.strip()):
-                return {"erreur": "Clé de fond de carte invalide : lettres, chiffres, _ et - seulement."}
-            cles[nom] = valeur.strip()
+        cle = payload.get("cle_ign", "")
+        if not isinstance(cle, str) or not _CLE_IGN.match(cle.strip()):
+            return {"erreur": "Clé IGN invalide : lettres, chiffres, _ et - seulement."}
         jours = payload.get("renouvellement_jours", self.reglages()["renouvellement_jours"])
         if type(jours) is not int or not 1 <= jours <= 365:
             return {"erreur": "Le délai de renouvellement doit être compris entre 1 et 365 jours."}
         prefs = atomique.lire_json(self.preferences, {})
         prefs = prefs if isinstance(prefs, dict) else {}
-        prefs["cles_fonds"] = cles
-        prefs.pop("cle_ign", None)
+        prefs["cle_ign"] = cle.strip()
         prefs["renouvellement_jours"] = jours
         atomique.ecrire_json(self.preferences, prefs)
         return self.reglages()
@@ -479,6 +465,9 @@ class Application:
             return {"erreur": str(exc)}
         strict, comparer = bool(payload.get("strict")), bool(payload.get("comparer", True))
         ign = bool(payload.get("ign", True))
+        source = payload.get("source", "ign")
+        if source not in ("ign", "atkis"):
+            return {"erreur": "Source de chemins officiels inconnue."}
         debut = time.monotonic()
         zone = zone_autour(points)
         # Un calcul est un usage réel de la région : son extrait OSM part en
@@ -489,8 +478,9 @@ class Application:
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True,
                     "brouter_en_cours": self._brouter_automatique(brouter.segments_zone(*zone))}
         avertissement = detail_avertissement = None
-        journal.info("Itinéraire : %d points, %d tuiles, chemins IGN %s, mode strict %s", len(points),
-                     len(franchissements.tuiles_zone(*zone)), "oui" if ign else "non", "oui" if strict else "non")
+        journal.info("Itinéraire : %d points, %d tuiles, chemins %s %s, mode strict %s", len(points),
+                     len(franchissements.tuiles_zone(*zone)), source.upper(),
+                     "oui" if ign else "non", "oui" if strict else "non")
         try:
             for essai in range(ELARGISSEMENTS):
                 passe = essai + 1
@@ -516,13 +506,14 @@ class Application:
                         self._avancer(etape, fraction, faites, total, passe)
                     try:
                         segments, liste = self.maison.preparer(franchissements.tuiles_zone(*zone),
-                                                               suivi=suivi_maison)
+                                                               suivi=suivi_maison, source=source)
                         port = self.moteur_maison(segments)
                     except (franchissements.ErreurDonnees, brouter.ErreurBRouter, OSError, ImportError,
                             ValueError) as exc:
-                        avertissement = f"Chemins IGN indisponibles, calcul sur OSM seul : {exc}"
+                        nom_source = "ATKIS" if source == "atkis" else "IGN"
+                        avertissement = f"Chemins {nom_source} indisponibles, calcul sur OSM seul : {exc}"
                         detail_avertissement = str(exc)
-                        journal.warning("Chemins IGN indisponibles : %s", exc)
+                        journal.warning("Chemins %s indisponibles : %s", nom_source, exc)
                         ign = False     # pas de nouvel essai si la zone s'élargit
                     else:
                         self._avancer("itineraire", 0.82, passe=passe)
@@ -568,7 +559,8 @@ class Application:
                    "denivele_m": _nombre(trace["properties"], "filtered ascend"),
                    "sur_le_trace": sorted(passages + entrees_ign(portions), key=lambda f: f["distance_m"]),
                    "portions_ign": portions, "moteur": moteur_utilise, "avertissement": avertissement,
-                   "avertissement_detail": detail_avertissement, "strict": strict}
+                   "avertissement_detail": detail_avertissement, "strict": strict,
+                   "source_officielle": source}
         if comparer:
             self._avancer("comparaison", 0.92)
             try:
@@ -662,6 +654,11 @@ class Application:
         def lire(*bornes, **options):
             return {"troncons": bdtopo.troncons_zone(*bornes, **options)}
         return self._calque("bdtopo", zone, lire, self._prendre_vue("bdtopo", vue))
+
+    def calque_atkis(self, zone, vue=None) -> dict:
+        def lire(*bornes, **options):
+            return {"troncons": atkis.troncons_zone(*bornes, **options)}
+        return self._calque("atkis", zone, lire, self._prendre_vue("atkis", vue))
 
     def arreter_calques(self, corps=None) -> dict:
         """La page n'affiche plus ces calques (zoom trop faible, calque masqué) :
@@ -784,7 +781,7 @@ class Application:
         """Les dossiers des caches de tuiles : ce que Vider efface, et qui se
         relit de lui-même au besoin."""
         return {"osm": [self.dossier / "overpass", self.dossier / "franchissements"],
-                "bdtopo": [self.dossier / "bdtopo"]}
+                "bdtopo": [self.dossier / "bdtopo"], "atkis": [self.dossier / "atkis"]}
 
     def _restes(self) -> list:
         """Ce qui traîne au dossier des extraits : l'ancien index de Geofabrik
@@ -855,7 +852,7 @@ class Application:
                     self._verrou_denivele.release()
             finally:
                 self._verrou_calcul.release()
-        elif action in ("vider_osm", "vider_bdtopo"):
+        elif action in ("vider_osm", "vider_bdtopo", "vider_atkis"):
             for dossier in self._caches()[action[6:]]:
                 for p in dossier.glob("*.json") if dossier.is_dir() else []:
                     p.unlink(missing_ok=True)
@@ -953,7 +950,8 @@ class Application:
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
         get_langue, post_langue = langue_commune.routes(self.lire_langue, self.ecrire_langue)
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
-               "osm": self.calque_osm, "bdtopo": self.calque_bdtopo, "extrait": self.extrait,
+               "osm": self.calque_osm, "bdtopo": self.calque_bdtopo, "atkis": self.calque_atkis,
+               "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
                "disponibilite": self.disponibilite,
                **get_langue}

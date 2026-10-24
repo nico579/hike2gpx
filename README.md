@@ -36,9 +36,8 @@ a tray icon.
 by hand, and offers that country's base maps; each country remembers the last
 base map you chose.
 
-- **Everywhere**: OpenStreetMap, OSM hiking (OpenTopoMap), OSM cycling
-  (CyclOSM), Thunderforest Outdoors with an API key, and a satellite view
-  (Esri). A layer you can tick, from zoom 14,
+- **Everywhere**: OpenStreetMap, OSM hiking (OpenTopoMap), and a satellite
+  view (Esri). A layer you can tick, from zoom 14,
   shows OpenStreetMap's paths (footpaths dashed), with the fences and walls it
   maps.
 - **In France**: IGN's base maps, SCAN 25 (with an IGN key, see below), IGN
@@ -46,16 +45,18 @@ base map you chose.
   A second layer shows the paths of IGN's BD TOPO; next to OpenStreetMap's, it
   shows at a glance the paths one source is missing.
 - **In eight other countries**: the national map of Spain, Switzerland,
-  Germany (BKG TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway and
-  the United States. Spain,
+  Germany (BKG TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway
+  and the United States. Spain,
   Switzerland and the United States add their official trails, for display
-  only. The ⓘ button, next to the base map selector, lists these countries.
+  only. Germany adds an ATKIS path layer for Bavaria and Thuringia. The ⓘ
+  button, next to the base map selector, lists these countries.
 
 A town search recenters the map: French municipalities through the French
 government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
 search engine. A button switches the map to full screen. An indicator tells
 whether a route can be planned right away, thanks to an OSM extract already
 installed or to Overpass.
+Right-click the map to show and copy the clicked point's GPS coordinates.
 
 **The route.** A click sets the start, then the waypoints and the finish; a
 point moves by dragging it and is removed from its popup. "Return" closes the
@@ -65,12 +66,11 @@ the paths (see below). Three options tune it:
 
 - **Strict mode**: also avoid the passages "to check", not only the blocking
   ones;
-- **IGN paths** (in France): let BRouter also use the BD TOPO paths missing
-  from OpenStreetMap. They show as orange dashes and join the points to check,
-  since nothing guarantees they still exist or that you may walk them. Outside
-  France, the checkbox is inactive and routing uses OpenStreetMap; in Spain,
-  Switzerland and the United States, it names the country's official trails
-  and states that they are for display only;
+- **Official paths** (France, Bavaria and Thuringia): let BRouter use BD TOPO
+  or ATKIS paths missing from OpenStreetMap. They show as orange dashes and
+  join the points to check, since nothing guarantees they still exist or that
+  you may walk them. In Spain, Switzerland and the United States, the checkbox
+  names the country's official trails and states they are for display only;
 - **Comparison**: show, dotted, the standard route that ignores the barriers,
   with its length and the blocking crossings it would go through.
 
@@ -91,8 +91,7 @@ loaded, the button becomes "Remove GPX" and takes the track off the map
 without touching the file on the computer. The loaded track stays on screen
 until the page is closed or reloaded.
 
-**The settings.** The IGN key for SCAN 25 and the Thunderforest key for
-Outdoors, how long downloaded data is
+**The settings.** The IGN key for the SCAN 25, how long downloaded data is
 kept before being renewed (30 days by default), the transparency of the panels
 and whether to hide them, and a button that empties all local caches. One
 button opens the `logs` folder, which holds the logs of the application and of
@@ -139,7 +138,7 @@ The routing relies on five pieces.
    BRouter's figure, taken from a coarser worldwide model, is only an estimate
    in the meantime; if no model covers the route, the elevation is reported as
    unavailable rather than replaced by that figure.
-5. **The IGN paths, in France.** A path that the BD TOPO knows and
+5. **Official paths in France, Bavaria and Thuringia.** A path that the BD TOPO knows and
    OpenStreetMap does not is invisible to BRouter, which only sees its own
    tiles. So hike2gpx builds its own BRouter tile from the data it has already
    read: the OpenStreetMap ways, plus the BD TOPO sections that duplicate none
@@ -153,10 +152,14 @@ The routing relies on five pieces.
    exist or that you may walk them; a restricted pedestrian access in the
    BD TOPO closes them. A checkbox lets you do without them, and if building
    the tile fails, the route is computed on OpenStreetMap alone, with a
-   warning. The gain is real: on the tiles richest in paths, the BD TOPO
-   enlarges the network by 18 to 100 %, and by 21 to 72 % in the Var. Outside
-   France, the official sources measured (United States, Switzerland, the
-   Netherlands) add only 0 to 12 %, so routing there stays on OSM alone. The
+   warning. In Bavaria and Thuringia, the ATKIS layer and routing load the
+   same small areas on demand. ATKIS additions also carry a penalty and are
+   marked for checking. In the tile containing Rosa, 76.6 km of the examined
+   ATKIS ways pass the missing-from-OSM test, compared with 96.8 km of OSM
+   ways; this potential gain does not prove pedestrian access. BD TOPO adds
+   18 to 100 % in the French areas measured. The official sources examined in
+   the United States, Switzerland and the Netherlands add only 0 to 12 %, so
+   routing there stays on OSM alone. The
    measurement and the analysis are in
    [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md)
    (in French).
@@ -226,8 +229,10 @@ OpenStreetMap records only 18 fences, and IGN's BD TOPO none (see
 OpenStreetMap is respected by hike2gpx as soon as its cache of the area is
 renewed; the engines of the other planners keep ignoring it.
 
-Outside France, routing only knows OpenStreetMap's paths: a trail missing from
-OSM does not exist for it, even if the national map draws it.
+Outside France, Bavaria and Thuringia, routing only knows OpenStreetMap's
+paths: a trail missing from OSM does not exist for it, even if the national
+map draws it. The integrated ATKIS ways do not state explicit pedestrian
+rights, so any routed section must be checked on site.
 
 A computation examines at most 100 tiles of 0.05°, about 55 × 40 km: the first
 reading of a larger area would take tens of minutes. A long route is split
@@ -263,11 +268,7 @@ folder (`%LOCALAPPDATA%\hike2gpx-data` on Windows), or the one named by the
 
 The SCAN 25 is not open data: it needs an IGN key, entered in the page
 settings. Without a key, the map uses the IGN Plan, under the Licence Ouverte
-(the French open licence). Thunderforest Outdoors also requires a key, available
-from [thunderforest.com](https://www.thunderforest.com/pricing/) and entered in
-the same settings. Keys remain in the application's local preferences, where
-existing IGN keys are picked up automatically. TopPlusOpen and the other base
-maps need no key.
+(the French open licence). The other base maps need no key.
 
 ## Tests
 

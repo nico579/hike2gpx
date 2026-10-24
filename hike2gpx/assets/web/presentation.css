@@ -21,6 +21,14 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid
 .brand-icon{display:grid;place-items:center;width:35px;height:35px;background:var(--accent);border-radius:10px;color:#fff;font-size:28px;line-height:1;transform:none}
 #version{margin-left:8px;font-size:11px;font-weight:400;letter-spacing:0;color:#8392a2;white-space:nowrap}
 #carte{top:0;left:0;right:0;bottom:0;background:#e7eddf}
+.map-coordinates-popup .leaflet-popup-content{margin:12px 14px}
+.map-coordinates-menu{display:grid;gap:7px;min-width:230px;color:#294762;font-size:12px}
+.map-coordinates-menu label{display:grid;gap:4px;font-weight:650}
+.map-coordinates-menu input{width:100%;padding:7px 8px;border:1px solid #cbd9e8;border-radius:6px;background:#f8fbff;color:#182a3c;font:12px/1.4 ui-monospace,Consolas,monospace}
+.map-coordinates-menu button{justify-self:start;padding:6px 10px;border:1px solid #2367d1;border-radius:6px;background:#2367d1;color:#fff;font-size:12px;cursor:pointer}
+.map-coordinates-menu button:hover{background:#1854b1}
+.map-coordinates-menu [role=status]:empty{display:none}
+.map-coordinates-menu [role=status]{color:#52677e;font-size:11px}
 /* À un zoom Chrome fractionnaire (80 % notamment), les tuiles de 256 px
    laissent un filet du fond visible. Le recouvrement reste à 2 px affichés,
    même quand Leaflet agrandit un fond au-delà de son zoom natif. */
@@ -150,11 +158,11 @@ body.profile-collapsed .map-activity{bottom:81px}
 .renouvellement-ligne input{flex:none;width:52px}
 .setting-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;margin:9px 0 14px}
 .setting-row .ligne{margin:0;min-width:0}
-.map-api-key-row{grid-template-columns:minmax(0,1fr) 148px}
-.show-map-key{display:grid;place-items:center;flex:none;width:36px;min-height:37px;padding:0}
-.show-map-key svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.show-map-key .eye-strike{display:none}
-.show-map-key[aria-pressed=true] .eye-strike{display:block}
+.ign-key-row{grid-template-columns:minmax(0,1fr) 148px}
+#afficherCle{display:grid;place-items:center;flex:none;width:36px;min-height:37px;padding:0}
+#afficherCle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#afficherCle .eye-strike{display:none}
+#afficherCle[aria-pressed=true] .eye-strike{display:block}
 #reglages .setting-row label{margin:0;font-size:12px;line-height:1.5;color:#546a80}
 .settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
 .display-settings{margin-top:17px;padding-top:7px;border-top:1px solid var(--bordure)}

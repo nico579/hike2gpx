@@ -86,14 +86,14 @@ def test_requete_sans_franchissement_sans_polylines():
 def test_lookups_ign_ajoute_la_cle_au_contexte_des_voies():
     source = "---lookupversion:10\n---context:way\nhighway;0000000001 path\n\n---context:node\nbarrier;0000000001 gate\n"
     voies, noeuds = brouter.lookups_ign(source).split("---context:node")
-    assert voies.endswith("highway;0000000001 path\n\nhike2gpx;0000000001 ign\n\n") and "hike2gpx" not in noeuds
+    assert voies.endswith("highway;0000000001 path\n\nhike2gpx;0000000001 ign\nhike2gpx;0000000001 atkis\n\n") and "hike2gpx" not in noeuds
     with pytest.raises(ValueError):
         brouter.lookups_ign(brouter.lookups_ign(source))       # jamais deux fois
 
 
 def test_profil_maison_rend_les_chemins_ign_plus_couteux():
     profil = brouter.profil_maison(brouter.profil_hike2gpx(REFERENCE.read_text(encoding="utf-8")))
-    assert f"assign ign_penalty switch hike2gpx=ign {brouter.PENALITE_IGN} 0" in profil
+    assert f"assign ign_penalty switch hike2gpx=ign|atkis {brouter.PENALITE_IGN} 0" in profil
     assert "assign costfactor\nadd ign_penalty\nadd town_penalty" in profil
     with pytest.raises(ValueError):
         brouter.profil_maison("assign dummy 0\n")

@@ -18,6 +18,7 @@ import tempfile
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -45,11 +46,18 @@ ZONES = [
     ("CH", "Zermatt", 46.01, 7.74),
     ("CH", "Emmental, Napf", 47.00, 7.94),
     ("NL", "Veluwe", 52.07, 5.85),
+    ("DE", "Bavière, Allgäu", 47.55, 10.25),
+    ("DE", "Bavière, Berchtesgaden", 47.62, 12.98),
+    ("DE", "Bavière, forêt bavaroise", 48.91, 13.31),
+    ("DE", "Bavière, forêt franconienne", 50.32, 11.49),
+    ("DE-TH", "Rosa, Thuringe", 50.717, 10.250),
 ]
 VOISINES = {"FR": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "US": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "CH": [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)],
-            "NL": [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)]}
+            "NL": [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)],
+            "DE": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "DE-TH": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)]}
 CHEMINS_FR = {"Sentier", "Chemin", "Escalier"}
 
 
@@ -162,11 +170,93 @@ def source_nl(s, w, n, e, i, j):
     return [(pts, c) for pts, c in en_cache(f"nl_{i}_{j}", lire)]
 
 
+def source_de(s, w, n, e, i, j):
+    """Chemins et voies agricoles du Basis-DLM bavarois, par emprise WFS.
+
+    Le BBOX KVP du service échoue sur le préfixe de ``adv:position`` ; un
+    filtre FES explicite avec le namespace adv fonctionne. Les coordonnées
+    GML demandées en EPSG:4326 sont dans l'ordre latitude, longitude.
+    """
+    def lire():
+        lignes = []
+        filtre = ("<fes:Filter xmlns:fes='http://www.opengis.net/fes/2.0' "
+                  "xmlns:gml='http://www.opengis.net/gml/3.2' "
+                  "xmlns:adv='http://www.adv-online.de/namespaces/adv/gid/7.1'>"
+                  "<fes:BBOX><fes:ValueReference>adv:position</fes:ValueReference>"
+                  "<gml:Envelope srsName='urn:ogc:def:crs:EPSG::4326'>"
+                  f"<gml:lowerCorner>{s} {w}</gml:lowerCorner>"
+                  f"<gml:upperCorner>{n} {e}</gml:upperCorner>"
+                  "</gml:Envelope></fes:BBOX></fes:Filter>")
+        for nom, classe in (("AX_WegPfadSteig", "Weg/Pfad/Steig"),
+                            ("AX_Fahrwegachse", "Wirtschaftsweg")):
+            for depart in range(0, 20_000, 1000):
+                q = {"SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature",
+                     "TYPENAMES": f"adv:{nom}", "SRSNAME": "EPSG:4326",
+                     "FILTER": filtre, "COUNT": 1000, "STARTINDEX": depart}
+                url = "https://geoservices.bayern.de/wfs/v1/ogc_atkis_basisdlm.cgi?" + urllib.parse.urlencode(q)
+                with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120) as r:
+                    racine = ET.fromstring(r.read())
+                if racine.tag.endswith("ExceptionReport"):
+                    raise RuntimeError("WFS bavarois : " + " ".join(racine.itertext()))
+                membres = racine.findall("{http://www.opengis.net/wfs/2.0}member")
+                for membre in membres:
+                    for pos in membre.findall(".//{http://www.opengis.net/gml/3.2}posList"):
+                        valeurs = [float(v) for v in pos.text.split()]
+                        pts = [[valeurs[k], valeurs[k + 1]] for k in range(0, len(valeurs), 2)]
+                        if len(pts) >= 2:
+                            lignes.append([pts, classe])
+                if len(membres) < 1000:
+                    break
+            else:
+                raise RuntimeError("WFS bavarois : plus de 20 000 tronçons dans une tuile")
+        return lignes
+    return [(pts, c) for pts, c in en_cache(f"de_by_{i}_{j}", lire)]
+
+
+def source_de_th(s, w, n, e, i, j):
+    """Weg/Pfad/Steig et Fahrwegachse du Basis-DLM de Thuringe par emprise."""
+    def lire():
+        lignes = []
+        filtre = ("<fes:Filter xmlns:fes='http://www.opengis.net/fes/2.0' "
+                  "xmlns:gml='http://www.opengis.net/gml/3.2' "
+                  "xmlns:dlm='http://www.adv-online.de/namespaces/adv/gid/7.1/dlm'>"
+                  "<fes:BBOX><fes:ValueReference>dlm:geom</fes:ValueReference>"
+                  "<gml:Envelope srsName='EPSG:4326'>"
+                  f"<gml:lowerCorner>{w} {s}</gml:lowerCorner>"
+                  f"<gml:upperCorner>{e} {n}</gml:upperCorner>"
+                  "</gml:Envelope></fes:BBOX></fes:Filter>")
+        for nom, classe in (("AX_WEGPFADSTEIG", "Weg/Pfad/Steig"),
+                            ("AX_FAHRWEGACHSE", "Wirtschaftsweg")):
+            for depart in range(0, 20_000, 1000):
+                q = {"SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature",
+                     "TYPENAMES": f"dlm:{nom}", "SRSNAME": "EPSG:4326",
+                     "FILTER": filtre, "COUNT": 1000, "STARTINDEX": depart}
+                url = "https://www.geoproxy.geoportal-th.de/geoproxy/services/adv_atkis_wfs?" + urllib.parse.urlencode(q)
+                with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120) as r:
+                    racine = ET.fromstring(r.read())
+                if racine.tag.endswith("ExceptionReport"):
+                    raise RuntimeError("WFS de Thuringe : " + " ".join(racine.itertext()))
+                membres = racine.findall("{http://www.opengis.net/wfs/2.0}member")
+                for membre in membres:
+                    for pos in membre.findall(".//{http://www.opengis.net/gml/3.2}posList"):
+                        valeurs = [float(v) for v in pos.text.split()]
+                        pts = [[valeurs[k + 1], valeurs[k]] for k in range(0, len(valeurs), 2)]
+                        if len(pts) >= 2:
+                            lignes.append([pts, classe])
+                if len(membres) < 1000:
+                    break
+            else:
+                raise RuntimeError("WFS de Thuringe : plus de 20 000 tronçons dans une tuile")
+        return lignes
+    return [(pts, c) for pts, c in en_cache(f"de_th_{i}_{j}", lire)]
+
+
 def fr_lignes(geometrie):
     return bdtopo._lignes(geometrie)
 
 
-SOURCES = {"FR": source_fr, "US": source_us, "CH": source_ch, "NL": source_nl}
+SOURCES = {"FR": source_fr, "US": source_us, "CH": source_ch, "NL": source_nl,
+           "DE": source_de, "DE-TH": source_de_th}
 
 
 # ------------------------------------------------------------------ mesure

@@ -86,6 +86,7 @@ dd { margin: 0; font-weight: 600; }
 .trait.osm { border-top: 3px dashed #7b1fa2; }
 .trait.barriere { border-top: 3px solid #e53935; }
 .trait.bdtopo { border-top: 3px dashed #00897b; }
+.trait.atkis { border-top: 3px dashed #c85508; }
 .trait.senderos { border-image: linear-gradient(90deg, #d32f2f 0 33%, #e6a000 33% 66%, #29935d 66%) 1; }
 .trait.suisse-sentiers { border-top: 3px dashed #e8a619; }
 .trait.usgs-sentiers { border-top: 3px solid #d22f2f; }

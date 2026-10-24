@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>hike2gpx — tracer un parcours</title>
   <link rel="stylesheet" href="/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=desktop-9">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-32">
+  <link rel="stylesheet" href="/style.css?v=desktop-10">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-33">
 </head>
 <body>
 <div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
@@ -96,14 +96,7 @@
   </section>
   <section id="pane-reglages" class="pane" role="tabpanel" aria-labelledby="tab-reglages" hidden>
     <section id="reglages">
-      <div class="setting-row map-api-key-row">
-        <div class="map-api-key-label"><label for="cleIgn" data-i18n="reglages.cleIgn">Clé IGN pour le SCAN 25</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé IGN">i<span role="tooltip" data-i18n="reglages.noteIgn">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</span></span></div>
-        <div class="ligne"><input id="cleIgn" type="password" maxlength="100" autocomplete="off" spellcheck="false"><button class="show-map-key" data-key-input="cleIgn" data-provider-name="IGN" type="button" aria-label="Afficher la clé IGN" aria-pressed="false" title="Afficher la clé IGN"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="eye-strike" d="M3 21 21 3"/></svg></button></div>
-      </div>
-      <div class="setting-row map-api-key-row">
-        <div class="map-api-key-label"><label for="cleThunderforest" data-i18n="reglages.cleThunderforest">Clé Thunderforest pour Outdoors</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé Thunderforest">i<span role="tooltip" data-i18n="reglages.noteThunderforest">Obtenez une clé sur thunderforest.com. Le fond Outdoors apparaît dans tous les pays après enregistrement.</span></span></div>
-        <div class="ligne"><input id="cleThunderforest" type="password" maxlength="100" autocomplete="off" spellcheck="false"><button class="show-map-key" data-key-input="cleThunderforest" data-provider-name="Thunderforest" type="button" aria-label="Afficher la clé Thunderforest" aria-pressed="false" title="Afficher la clé Thunderforest"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="eye-strike" d="M3 21 21 3"/></svg></button></div>
-      </div>
+      <div class="setting-row ign-key-row"><div class="ign-key-label"><label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé IGN">i<span role="tooltip" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</span></span></div><div class="ligne"><input id="cleIgn" type="password" autocomplete="off" spellcheck="false" aria-label="Clé IGN SCAN 25"><button id="afficherCle" type="button" aria-label="Afficher la clé IGN" aria-pressed="false" title="Afficher la clé IGN"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="eye-strike" d="M3 21 21 3"/></svg></button></div></div>
       <div class="setting-row renewal-row"><label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les données locales après</label><div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div></div>
       <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
       <div class="display-settings"><label class="option"><input id="hideMapToolbar" type="checkbox"> <span data-i18n="reglages.masquerCartes">Masquer le bandeau des cartes</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
@@ -121,13 +114,14 @@
   <h3 data-i18n="legende.titre">Légende</h3><ul>
     <li id="legendGpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">GPX chargé</span></li>
     <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
-    <li id="legendIgn"><span class="trait ign"></span> <span data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
+    <li id="legendIgn"><span class="trait ign"></span> <span id="legendOfficielTexte" data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
     <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
     <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
     <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
     <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
     <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
     <li id="legendBdtopo" data-map-overlay="bdtopo"><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
+    <li id="legendAtkis" data-map-overlay="atkis" hidden><span class="trait atkis"></span> <span data-i18n="legende.atkis">chemins ATKIS (Bavière et Thuringe, accès à vérifier)</span></li>
     <li data-map-overlay="senderos" hidden><span class="trait senderos"></span> <span data-i18n="legende.senderos">sentiers balisés espagnols (GR rouge, PR jaune, SL vert)</span></li>
     <li data-map-overlay="suisseSentiers" hidden><span class="trait suisse-sentiers"></span> <span data-i18n="legende.suisseSentiers">sentiers de randonnée swisstopo</span></li>
     <li data-map-overlay="usgsSentiers" hidden><span class="trait usgs-sentiers"></span> <span data-i18n="legende.usgsSentiers">sentiers recensés par l’USGS</span></li>
@@ -136,10 +130,10 @@
 <script src="/leaflet/leaflet.js"></script>
 <script src="/leaflet/Leaflet.VectorGrid.bundled.js"></script>
 <script src="/map-providers.js?v=4"></script>
-<script src="/app.js?v=desktop-39"></script>
+<script src="/app.js?v=desktop-41"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-18"></script>
+<script src="/presentation.js?v=desktop-17"></script>
 </body>
 </html>

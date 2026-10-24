@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import time
@@ -50,33 +49,14 @@ def test_sur_le_trace_seulement_si_le_trace_coupe_la_coupe():
     assert f["cle"] == "a" and f["distance_m"] == pytest.approx(406, abs=2)
 
 
-def test_reglages_cles_de_fonds(tmp_path):
+def test_reglages_cle_ign(tmp_path):
     a = appli.Application(tmp_path)
-    assert a.reglages() == {"cles_fonds": {"ign": "", "thunderforest": ""}, "renouvellement_jours": 30}
-    cles = {"ign": "cle_essai-1", "thunderforest": "cle_thunderforest-2"}
-    assert a.enregistrer_reglages({"cles_fonds": {"ign": " cle_essai-1 ",
-                                                   "thunderforest": " cle_thunderforest-2 "}})["cles_fonds"] == cles
-    assert appli.Application(tmp_path).reglages()["cles_fonds"] == cles
-    assert a.enregistrer_reglages({"cles_fonds": {"thunderforest": ""},
-                                  "renouvellement_jours": 45}) == {
-                                      "cles_fonds": {"ign": "cle_essai-1", "thunderforest": ""},
-                                      "renouvellement_jours": 45}
-    for payload in ({"cles_fonds": {"ign": "<script>"}}, {"cles_fonds": {"thunderforest": 42}},
-                    {"cles_fonds": {"inconnu": "cle"}}, {"cles_fonds": []},
-                    {"renouvellement_jours": 0}):
-        assert "erreur" in a.enregistrer_reglages(payload)
-    assert a.reglages()["cles_fonds"] == {"ign": "cle_essai-1", "thunderforest": ""}
-
-
-def test_ancienne_cle_ign_migree_sans_perdre_les_autres_preferences(tmp_path):
-    a = appli.Application(tmp_path)
-    a.preferences.write_text(json.dumps({"cle_ign": "ancienne-cle", "langue": "en"}), encoding="utf-8")
-    assert a.reglages()["cles_fonds"] == {"ign": "ancienne-cle", "thunderforest": ""}
-    assert a.enregistrer_reglages({"cles_fonds": {"thunderforest": "nouvelle-cle"}})["cles_fonds"] == {
-        "ign": "ancienne-cle", "thunderforest": "nouvelle-cle"}
-    prefs = json.loads(a.preferences.read_text(encoding="utf-8"))
-    assert prefs["cles_fonds"] == {"ign": "ancienne-cle", "thunderforest": "nouvelle-cle"}
-    assert "cle_ign" not in prefs and prefs["langue"] == "en"
+    assert a.reglages() == {"cle_ign": "", "renouvellement_jours": 30}
+    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30}
+    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30}
+    assert a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 45})["renouvellement_jours"] == 45
+    assert "erreur" in a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 0})
+    assert "erreur" in a.enregistrer_reglages({"cle_ign": "<script>"})
 
 
 @pytest.fixture(autouse=True)
@@ -94,8 +74,8 @@ def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
         return {"id": identifiant, "bornes": (sud, ouest, nord, est), "polygones": [[anneau]]}
 
     zones = [region("spain", 36, -10, 44, 4), region("switzerland", 45, 5, 48, 11),
-            region("austria", 46, 9, 49, 17), region("germany", 50, 10, 54, 14),
-            region("netherlands", 50, 3, 54, 8),
+             region("austria", 46, 9, 49, 17), region("germany", 50, 10, 54, 14),
+             region("netherlands", 50, 3, 54, 8),
              region("norway", 58, 9, 62, 12), region("luxembourg", 49, 5, 50, 7),
              region("us", 36, -121, 38, -118)]
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: zones)
@@ -161,6 +141,35 @@ def test_portions_ign_lues_dans_les_messages():
     [p] = appli.portions_ign(t)
     assert (p["debut_m"], p["longueur_m"], len(p["coords"])) == (0, 624, 3)
     assert appli.portions_ign(trace(*DETOUR)) == []
+
+
+def test_portions_atkis_sont_signalees_a_verifier():
+    t = trace_messages(DETOUR, [(1, 300, "highway=path"),
+                                (2, 324, "highway=path hike2gpx=atkis"),
+                                (3, 300, "highway=track")])
+    [portion] = appli.portions_ign(t)
+    assert portion["source"] == "atkis" and portion["longueur_m"] == 324
+    [entree] = appli.entrees_ign([portion])
+    assert entree["cle"] == "atkis-0"
+    assert "ATKIS" in entree["nature"] and "accès à vérifier" in entree["raison"]
+
+
+def test_itineraire_demande_les_tuiles_atkis(simulee, monkeypatch):
+    a, _, _, _ = simulee
+    sources = []
+    def preparer(tuiles, **options):
+        sources.append(options["source"])
+        return "segments-maison", []
+    monkeypatch.setattr(a.maison, "preparer", preparer)
+    monkeypatch.setattr(a, "moteur_maison", lambda segments: 2)
+    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **options:
+                        trace_messages(DETOUR, [(1, 300, "highway=path"),
+                                                (2, 324, "highway=path hike2gpx=atkis"),
+                                                (3, 300, "highway=track")]))
+    resultat = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]],
+                            "source": "atkis", "comparer": False})
+    assert sources == ["atkis"]
+    assert resultat["moteur"] == "maison" and resultat["portions_ign"][0]["source"] == "atkis"
 
 
 def test_itineraire_sur_les_tuiles_maison(simulee, monkeypatch):
@@ -530,8 +539,8 @@ def test_une_vue_plus_ancienne_arrivee_apres_est_refusee_d_emblee(tmp_path, monk
 def test_arreter_calques_ne_touche_que_ceux_que_la_page_masque(tmp_path):
     a = appli.Application(tmp_path)
     assert a.arreter_calques({"calques": ["bdtopo"]}) == {"arretes": ["bdtopo"]}
-    assert a._vues == {"osm": 0, "bdtopo": 1}
-    assert a.arreter_calques({}) == {"arretes": ["osm", "bdtopo"]}
+    assert a._vues == {"osm": 0, "bdtopo": 1, "atkis": 0}
+    assert a.arreter_calques({}) == {"arretes": ["osm", "bdtopo", "atkis"]}
 
 
 def test_route_denivele(tmp_path, monkeypatch):
@@ -579,8 +588,7 @@ def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
     assert get["langue"]()["code"] is None
     assert post["langue"]({"code": "en"})["enregistre"]
     autre = appli.Application(tmp_path)
-    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {
-        "cles_fonds": {"ign": "cle_test", "thunderforest": ""}, "renouvellement_jours": 30}
+    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test", "renouvellement_jours": 30}
 
 
 def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch):

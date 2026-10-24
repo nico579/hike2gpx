@@ -33,6 +33,7 @@ class Handler(serveweb.Handler):
     # Les calques et l'extrait hors ligne lisent la zone de la vue :
     # ?s=&w=&n=&e= (None si invalide) ; les calques aussi sa date, &vue=.
     arguments_get = {"osm": lambda q: (lire_zone(q), lire_vue(q)), "bdtopo": lambda q: (lire_zone(q), lire_vue(q)),
+                     "atkis": lambda q: (lire_zone(q), lire_vue(q)),
                      "extrait": lambda q: (lire_zone(q),), "disponibilite": lambda q: (lire_zone(q),)}
 
     def do_GET(self):

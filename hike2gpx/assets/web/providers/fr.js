@@ -3,11 +3,11 @@ window.HIKE2GPX_MAP_PROVIDERS.fr = {
   overlays: ["bdtopo"],
   routableOverlay: "bdtopo",
   routableName: { fr: "chemins BD TOPO (IGN)", en: "BD TOPO paths (IGN)" },
-  bases({ L, clesFonds, tuileIgn }) {
+  bases({ L, cleIgn, tuileIgn }) {
     const ign = '© <a href="https://www.ign.fr/">IGN</a>';
     const fonds = {};
-    if (clesFonds.ign) fonds.scan25 = L.tileLayer(
-      tuileIgn("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", clesFonds.ign),
+    if (cleIgn) fonds.scan25 = L.tileLayer(
+      tuileIgn("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", cleIgn),
       { maxNativeZoom: 16, maxZoom: 19, attribution: ign },
     );
     fonds.plan = L.tileLayer(tuileIgn("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png"),

@@ -1,5 +1,5 @@
 """Réseau fusionné : les voies OSM des tuiles Overpass déjà lues, plus les
-tronçons de la BD TOPO qui y manquent, pour fabriquer les tuiles BRouter de
+tronçons officiels (BD TOPO ou ATKIS) qui y manquent, pour fabriquer les tuiles BRouter de
 hike2gpx.
 
 Un tronçon IGN est gardé quand moins de la moitié de sa longueur passe à
@@ -88,7 +88,7 @@ class Reseau:
         self.noeuds = {}        # id -> [lat, lon, tags]
         self.voies = {}         # id -> [ids de nœuds, tags]
         self.relations = {}     # id -> [membres, tags]
-        self.ign = []           # voies ajoutées depuis la BD TOPO
+        self.ign = []           # voies officielles ajoutées, nom historique
         self._prochain_noeud = self._prochaine_voie = None
 
     # ------------------------------------------------------------ OSM
@@ -163,8 +163,10 @@ class Reseau:
                 for ids, tags in self.voies.values() if fr._praticable(tags) and not fr._hors_sol(tags)
                 for k in range(len(ids) - 1)]
 
-    def ajouter_ign(self, troncons) -> int:
-        """Ajoute les tronçons IGN absents d'OSM ; rend leur nombre."""
+    def ajouter_ign(self, troncons, source="ign") -> int:
+        """Ajoute les tronçons officiels absents d'OSM ; rend leur nombre."""
+        if source not in ("ign", "atkis"):
+            raise ValueError("Source de chemins officiels inconnue.")
         index = self.index()
         self._liens = []
         bouts = {}                  # point (arrondi au 1e-7) -> nœud commun des tronçons IGN
@@ -185,6 +187,7 @@ class Reseau:
                     ids.append(self._nouveau_noeud(lat, lon))
             wid = self._nouvelle_voie()
             tags = dict(ETIQUETTE)
+            tags["hike2gpx"] = source
             if t.get("acces_pieton") not in ACCES_OUVERTS:
                 tags["foot"] = "private"
             self.voies[wid] = [ids, tags]

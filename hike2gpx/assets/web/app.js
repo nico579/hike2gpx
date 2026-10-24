@@ -8,10 +8,8 @@ const DELAI_CALCUL_MS = 250;
 const CLE_VUE = "hike2gpx.vue";
 const CLE_POINTS = "hike2gpx.points";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
-const CHAMPS_CLES_FONDS = { ign: "cleIgn", thunderforest: "cleThunderforest" };
 
-const etat = { points: [], sequence: 0, minuterie: null, dernier: null,
-  clesFonds: { ign: "", thunderforest: "" }, version: "", sequenceDenivele: 0,
+const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0,
   suivi: null, statut: ["", false], extrait: null, donneesAttendues: false };
 const $ = (id) => document.getElementById(id);
 
@@ -53,6 +51,10 @@ const TEXTES = {
 "recherche.attente": "Recherche en cours…",
 "recherche.aucun": "Aucune ville trouvée.",
 "recherche.erreur": "Recherche indisponible : {message}",
+    "menu.coordonnees": "Coordonnées GPS (latitude, longitude)",
+    "menu.copier": "Copier les coordonnées",
+    "menu.copie": "Coordonnées copiées",
+    "menu.selection": "Coordonnées sélectionnées : copiez-les avec Ctrl+C.",
     "resume.deniveleInfo": "gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.",
     "profil.titre": "Le relief du parcours",
     "profil.depart": "Départ",
@@ -63,23 +65,22 @@ const TEXTES = {
     "legende.titre": "Légende",
     "legende.itineraire": "itinéraire hike2gpx",
     "legende.ign": "portion sur un chemin IGN absent d'OSM, à vérifier",
+    "legende.atkisPortion": "portion sur un chemin ATKIS absent d'OSM, à vérifier",
     "legende.naif": "tracé standard, qui ignore les barrières",
     "legende.bloque": "franchissement bloquant",
     "legende.verifier": "franchissement à vérifier",
     "legende.osm": "chemins OSM (tirets : sentiers)",
     "legende.barriere": "clôtures et murs connus d'OSM",
     "legende.bdtopo": "chemins BD TOPO de l'IGN",
+    "legende.atkis": "chemins ATKIS (Bavière et Thuringe, accès à vérifier)",
     "legende.senderos": "sentiers balisés espagnols (GR rouge, PR jaune, SL vert)",
     "legende.suisseSentiers": "sentiers de randonnée swisstopo",
     "legende.usgsSentiers": "sentiers recensés par l’USGS",
     "legende.gpx": "GPX chargé",
     "reglages.titre": "Réglages",
-    "reglages.cleIgn": "Clé IGN pour le SCAN 25",
-    "reglages.cleThunderforest": "Clé Thunderforest pour Outdoors",
+    "reglages.cle": "Clé IGN pour le SCAN 25",
     "reglages.enregistrer": "Enregistrer",
-    "reglages.noteIgn": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
-    "reglages.noteThunderforest": "Obtenez une clé sur thunderforest.com. Le fond Outdoors apparaît dans tous les pays après enregistrement.",
-    "reglages.enregistres": "Réglages enregistrés.",
+    "reglages.note": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
     "reglages.renouvellement": "Renouveler les données locales après",
     "reglages.jours": "jours",
     "reglages.masquerCartes": "Masquer le bandeau des cartes",
@@ -119,6 +120,7 @@ const TEXTES = {
     "statut.deuxiemePoint": "Posez un deuxième point.",
     "statut.calcul": "Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute",
     "statut.calculIgn": ", puis la fusion avec les chemins IGN quelques secondes.",
+    "statut.calculAtkis": ", puis la fusion avec les chemins ATKIS quelques secondes.",
     "statut.erreur": "Erreur : {message}",
     "statut.bilan": "Calculé en {duree} s ; franchissements connus dans la zone examinée : {total}.",
     "comparaison.traverse": "Le tracé standard (profil Randonnée de BRouter, sans les barrières) mesure {km} ; franchissements bloquants traversés : {n}.",
@@ -138,6 +140,7 @@ const TEXTES = {
     "denivele.source": "Source des altitudes du parcours : {modele} · calcul gpx2elev (pas 5 m, lissage 20 m, seuil 2 m).",
     "calque.osm": "Chemins OSM",
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
+    "calque.atkis": "Chemins ATKIS (Bavière et Thuringe)",
     "calque.senderos": "Sentiers balisés GR/PR/SL (IGN Espagne)",
     "calque.suisseSentiers": "Sentiers de randonnée (swisstopo)",
     "calque.usgsSentiers": "Sentiers recensés par l’USGS",
@@ -153,15 +156,14 @@ const TEXTES = {
     "extrait.erreur": "Extrait {nom} non installé : {message}",
     "extrait.attente": "Overpass ne répond pas ; l'extrait OSM {nom} se télécharge, le calcul reprendra de lui-même.",
     "bdtopo.troncon": "Tronçon",
+    "atkis.troncon": "Chemin",
     "bdtopo.acces": "accès piéton : {valeur}",
     "bdtopo.prive": "privé",
     "fond.scan25": "SCAN 25 (IGN)",
     "fond.plan": "Plan IGN",
     "fond.photos": "Photos aériennes (IGN)",
     "fond.osmRando": "OSM rando",
-    "fond.osmOutdoors": "Thunderforest Outdoors",
     "fond.osm": "OSM",
-    "fond.osmVelo": "OSM vélo",
     "fond.satellite": "Satellite",
     "fond.reliefLidar": "Relief LiDAR HD (IGN)",
     "fond.espagne": "Carte topographique (IGN Espagne)",
@@ -173,6 +175,8 @@ const TEXTES = {
     "fond.luxembourg": "Carte topographique (Luxembourg)",
     "fond.etatsUnis": "Carte topographique (USGS)",
     "attribution.osm": "contributeurs OpenStreetMap",
+    "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
+    "cle.retiree": "Clé retirée : Plan IGN par défaut.",
     "pleinEcran.entrer": "Plein écran",
     "pleinEcran.quitter": "Quitter le plein écran",
     "etape.debut": "Préparation du calcul",
@@ -186,10 +190,12 @@ const TEXTES = {
     "icone.depart": "D",
     "icone.arrivee": "A",
     "ign.nature": "Chemin IGN de {m} m",
+    "atkis.nature": "Chemin ATKIS de {m} m",
     "gpx.deniveleIndisponible": "dénivelé gpx2elev indisponible",
     "gpx.description": "Distance {km}, {denivele}, passages à vérifier : {n}. ",
     "gpx.barrieres": "Barrières © contributeurs OpenStreetMap",
     "gpx.bdtopo": ", chemins BD TOPO © IGN",
+    "gpx.atkis": ", chemins ATKIS © Bavière / Thuringe",
     "gpx.trace": " ; tracé hike2gpx.",
     "gpx.aVerifier": "À vérifier : {nature}",
     "erreur.zone_trop_etendue": "Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus {max}. Découpez le parcours en étapes plus courtes.",
@@ -197,6 +203,7 @@ const TEXTES = {
     "mot.bloquant": "bloquant",
     "mot.strict": "à vérifier, en mode strict",
     "avertissement.ign": "Chemins IGN indisponibles, calcul sur OSM seul : {detail}",
+    "avertissement.atkis": "Chemins ATKIS indisponibles, calcul sur OSM seul : {detail}",
   },
   en: {
     "aide": "Click the map to place the start, then the waypoints and the finish. Drag a point to move it; “Back to start” closes a loop.",
@@ -229,6 +236,10 @@ const TEXTES = {
 "recherche.attente": "Searching…",
 "recherche.aucun": "No town found.",
 "recherche.erreur": "Search unavailable: {message}",
+    "menu.coordonnees": "GPS coordinates (latitude, longitude)",
+    "menu.copier": "Copy coordinates",
+    "menu.copie": "Coordinates copied",
+    "menu.selection": "Coordinates selected: copy them with Ctrl+C.",
     "resume.deniveleInfo": "gpx2elev samples elevation every 5 m. It selects the best model covering the whole route: IGN LiDAR HD first, then Mapterhorn, FABDEM, Copernicus GLO-30 or SRTM. It smooths the profile over 20 m and calculates ascent/descent with a 2 m threshold. The selected model appears on the profile. If none is available, elevation remains unavailable; the BRouter estimate is not substituted.",
     "profil.titre": "Route elevation",
     "profil.depart": "Start",
@@ -239,23 +250,22 @@ const TEXTES = {
     "legende.titre": "Legend",
     "legende.itineraire": "hike2gpx route",
     "legende.ign": "section on an IGN path missing from OSM, to check",
+    "legende.atkisPortion": "section on an ATKIS path missing from OSM, to check",
     "legende.naif": "standard route, ignoring barriers",
     "legende.bloque": "blocking crossing",
     "legende.verifier": "crossing to check",
     "legende.osm": "OSM paths (dashed: footpaths)",
     "legende.barriere": "fences and walls known to OSM",
     "legende.bdtopo": "IGN BD TOPO paths",
+    "legende.atkis": "ATKIS paths (Bavaria and Thuringia; access to check)",
     "legende.senderos": "Spanish waymarked trails (GR red, PR yellow, SL green)",
     "legende.suisseSentiers": "swisstopo hiking trails",
     "legende.usgsSentiers": "trails mapped by USGS",
     "legende.gpx": "Loaded GPX",
     "reglages.titre": "Settings",
-    "reglages.cleIgn": "IGN key for SCAN 25",
-    "reglages.cleThunderforest": "Thunderforest key for Outdoors",
+    "reglages.cle": "IGN key for SCAN 25",
     "reglages.enregistrer": "Save",
-    "reglages.noteIgn": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
-    "reglages.noteThunderforest": "Get a key from thunderforest.com. Outdoors appears in every country after saving.",
-    "reglages.enregistres": "Settings saved.",
+    "reglages.note": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
     "reglages.renouvellement": "Refresh local data after",
     "reglages.jours": "days",
     "reglages.masquerCartes": "Hide the map layers panel",
@@ -295,6 +305,7 @@ const TEXTES = {
     "statut.deuxiemePoint": "Place a second point.",
     "statut.calcul": "Calculating… The first time in an area, reading the OSM barriers takes up to a minute",
     "statut.calculIgn": ", then merging the IGN paths a few seconds.",
+    "statut.calculAtkis": ", then merging ATKIS paths takes a few seconds.",
     "statut.erreur": "Error: {message}",
     "statut.bilan": "Calculated in {duree} s; known crossings in the examined area: {total}.",
     "comparaison.traverse": "The standard route (BRouter hiking profile, without the barriers) is {km} long; blocking crossings passed: {n}.",
@@ -314,6 +325,7 @@ const TEXTES = {
     "denivele.source": "Route elevation source: {modele} · gpx2elev calculation (5 m sampling, 20 m smoothing, 2 m threshold).",
     "calque.osm": "OSM paths",
     "calque.bdtopo": "BD TOPO paths (IGN)",
+    "calque.atkis": "ATKIS paths (Bavaria and Thuringia)",
     "calque.senderos": "Waymarked GR/PR/SL trails (Spanish IGN)",
     "calque.suisseSentiers": "Hiking trails (swisstopo)",
     "calque.usgsSentiers": "Trails mapped by USGS",
@@ -329,15 +341,14 @@ const TEXTES = {
     "extrait.erreur": "{nom} extract not installed: {message}",
     "extrait.attente": "Overpass is not responding; the {nom} OSM extract is downloading, the calculation will resume by itself.",
     "bdtopo.troncon": "Section",
+    "atkis.troncon": "Path",
     "bdtopo.acces": "pedestrian access: {valeur}",
     "bdtopo.prive": "private",
     "fond.scan25": "SCAN 25 (IGN)",
     "fond.plan": "Plan IGN",
     "fond.photos": "Aerial photos (IGN)",
     "fond.osmRando": "OSM hiking",
-    "fond.osmOutdoors": "Thunderforest Outdoors",
     "fond.osm": "OSM",
-    "fond.osmVelo": "OSM cycling",
     "fond.satellite": "Satellite",
     "fond.reliefLidar": "LiDAR HD terrain relief (IGN)",
     "fond.espagne": "Topographic map (Spanish IGN)",
@@ -349,6 +360,8 @@ const TEXTES = {
     "fond.luxembourg": "Topographic map (Luxembourg)",
     "fond.etatsUnis": "Topographic map (USGS)",
     "attribution.osm": "OpenStreetMap contributors",
+    "cle.enregistree": "Key saved: SCAN 25 available.",
+    "cle.retiree": "Key removed: Plan IGN by default.",
     "pleinEcran.entrer": "Full screen",
     "pleinEcran.quitter": "Exit full screen",
     "etape.debut": "Preparing the calculation",
@@ -362,10 +375,12 @@ const TEXTES = {
     "icone.depart": "S",
     "icone.arrivee": "F",
     "ign.nature": "IGN path, {m} m",
+    "atkis.nature": "ATKIS path, {m} m",
     "gpx.deniveleIndisponible": "gpx2elev elevation unavailable",
     "gpx.description": "Distance {km}, {denivele}, crossings to check: {n}. ",
     "gpx.barrieres": "Barriers © OpenStreetMap contributors",
     "gpx.bdtopo": ", BD TOPO paths © IGN",
+    "gpx.atkis": ", ATKIS paths © Bavaria / Thuringia",
     "gpx.trace": "; route by hike2gpx.",
     "gpx.aVerifier": "To check: {nature}",
     "erreur.zone_trop_etendue": "Area too large: {nombre} tiles of 0.05° to examine, {max} at most. Split the route into shorter stages.",
@@ -373,6 +388,7 @@ const TEXTES = {
     "mot.bloquant": "blocking",
     "mot.strict": "to-check (strict mode)",
     "avertissement.ign": "IGN paths unavailable, routing on OSM only: {detail}",
+    "avertissement.atkis": "ATKIS paths unavailable, routing on OSM only: {detail}",
   },
 };
 
@@ -399,6 +415,7 @@ const SERVEUR_EN = {
   "Sentier balisé : passage probable, à vérifier": "Marked trail: passage likely, to check",
   "Niveau de franchissement à confirmer": "Crossing level to confirm",
   "Chemin de la BD TOPO absent d'OpenStreetMap : existence et accès à vérifier": "BD TOPO path missing from OpenStreetMap: existence and access to check",
+  "Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier": "ATKIS path missing from OpenStreetMap: existence and access to check",
   "Clôture": "Fence", "Mur": "Wall", "Haie": "Hedge", "Portail": "Gate", "Barrière levante": "Lift gate",
   "Barrière pivotante": "Swing gate", "Échalier": "Stile", "Portillon": "Kissing gate", "Borne": "Bollard",
   "Chicane": "Cycle barrier", "Bloc": "Block", "Chaîne": "Chain", "Passage": "Passage", "Ouverture": "Opening",
@@ -415,11 +432,12 @@ const SERVEUR_EN = {
   "Point invalide.": "Invalid point.",
   "Il faut entre 2 et 50 points.": "Between 2 and 50 points are needed.",
   "Nom de tuile invalide.": "Invalid tile name.",
-  "Clé de fond de carte invalide : lettres, chiffres, _ et - seulement.": "Invalid map key: letters, digits, _ and - only.",
-  "Fournisseur de carte inconnu.": "Unknown map provider.",
+  "Clé IGN invalide : lettres, chiffres, _ et - seulement.": "Invalid IGN key: letters, digits, _ and - only.",
   "Données OSM ou BD TOPO de la zone indisponibles.": "OSM or BD TOPO data for this area unavailable.",
+  "Données OSM ou chemins officiels de la zone indisponibles.": "OSM or official path data for this area unavailable.",
   "Hors connexion : les barrières de cette zone n'ont jamais été chargées.": "Offline: the barriers of this area were never loaded.",
   "Hors connexion : chemins BD TOPO de cette zone jamais chargés.": "Offline: the BD TOPO paths of this area were never loaded.",
+  "Hors connexion : chemins ATKIS de cette zone jamais chargés.": "Offline: the ATKIS paths of this area were never loaded.",
   "Réponse Overpass trop volumineuse : barrières non vérifiées.": "Overpass response too large: barriers not checked.",
   "Extrait inconnu.": "Unknown extract.",
   "Cet extrait se télécharge déjà.": "This extract is already downloading.",
@@ -466,14 +484,18 @@ function texteErreur(r) {
 }
 
 function natureDe(f) {
-  return String(f.cle || "").startsWith("ign-") ? t("ign.nature", { m: f.longueur_m }) : ts(f.nature);
+  const cle = String(f.cle || "");
+  if (cle.startsWith("ign-") || cle.startsWith("atkis-")) {
+    return t(cle.startsWith("atkis-") ? "atkis.nature" : "ign.nature", { m: f.longueur_m });
+  }
+  return ts(f.nature);
 }
 
 function appliquerLangue(code) {
   langue = code === "en" ? "en" : "fr";
   document.documentElement.lang = langue;
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
-  afficherOptionChemins();
+  afficherOptionsIgn();
   $("cityQuery").placeholder = t("recherche.placeholder");
   if ($("pleinEcran")) {
     $("pleinEcran").title = t(document.body.classList.contains("plein-ecran") ? "pleinEcran.quitter" : "pleinEcran.entrer");
@@ -526,6 +548,44 @@ let paysCarte = Object.hasOwn(window.HIKE2GPX_MAP_PROVIDERS, vueInitiale.pays)
   ? vueInitiale.pays : (vueInitiale.hors_france === true ? "autre" : "fr");
 let horsFrance = paysCarte !== "fr";
 const carte = L.map("carte").setView([vueInitiale.lat, vueInitiale.lon], vueInitiale.zoom);
+carte.on("contextmenu", (evenement) => {
+  const { lat, lng } = evenement.latlng;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  const coordonnees = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  const contenu = document.createElement("div");
+  contenu.className = "map-coordinates-menu";
+  const titre = document.createElement("label");
+  titre.textContent = t("menu.coordonnees");
+  const champ = document.createElement("input");
+  champ.type = "text";
+  champ.readOnly = true;
+  champ.value = coordonnees;
+  titre.append(champ);
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.textContent = t("menu.copier");
+  const retour = document.createElement("span");
+  retour.setAttribute("role", "status");
+  bouton.addEventListener("click", async () => {
+    let copie = false;
+    try {
+      if (globalThis.navigator?.clipboard?.writeText) {
+        await globalThis.navigator.clipboard.writeText(coordonnees);
+        copie = true;
+      }
+    } catch (_) { /* le champ reste sélectionnable */ }
+    if (!copie) {
+      champ.focus();
+      champ.select();
+      copie = Boolean(document.execCommand?.("copy"));
+    }
+    retour.textContent = t(copie ? "menu.copie" : "menu.selection");
+  });
+  contenu.append(titre, bouton, retour);
+  L.DomEvent.disableClickPropagation(contenu);
+  L.popup({ className: "map-coordinates-popup", minWidth: 230 })
+    .setLatLng(evenement.latlng).setContent(contenu).openOn(carte);
+});
 let sequenceRecherche = 0;
 const resultatsVilles = $("cityResults");
 $("cityQuery").addEventListener("input", () => {
@@ -648,7 +708,12 @@ const CLE_CALQUES = "hike2gpx.calques";
 const CALQUES = {
   osm: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
   bdtopo: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
+  atkis: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
 };
+CALQUES.atkis.groupe.getAttribution = () =>
+  '© <a href="https://geoportal.thueringen.de/">GDI-Th</a> / '
+  + '<a href="https://geodatenonline.bayern.de/geodatenonline/seiten/wfs_atkis">BVV</a> '
+  + '(<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>)';
 const CALQUES_PAYS = Object.fromEntries(Object.values(FOURNISSEURS_CARTES)
   .flatMap((fournisseur) => Object.entries(fournisseur.calques || {})
     .map(([cle, creer]) => [cle, creer(L)])));
@@ -714,6 +779,16 @@ const DESSINS = {
       if (t2.prive) details.push(t("bdtopo.prive"));
       L.polyline(t2.pts, { ...styleBdtopo(t2.nature), renderer: rendu })
         .bindTooltip(texte(`${details.join(", ")} (BD TOPO)`), { sticky: true }).addTo(groupe);
+    }
+  },
+  atkis(groupe, donnees) {
+    for (const troncon of donnees.troncons) {
+      const style = troncon.nature === "Weg/Pfad/Steig"
+        ? { color: "#c85508", weight: 3, dashArray: "5 4" }
+        : { color: "#c85508", weight: 3, opacity: 0.8 };
+      L.polyline(troncon.pts, { ...style, renderer: rendu })
+        .bindTooltip(texte(`${troncon.nature || t("atkis.troncon")} (ATKIS ${troncon.land})`),
+          { sticky: true }).addTo(groupe);
     }
   },
 };
@@ -908,11 +983,13 @@ function choisirPays(pays) {
   ++sequenceExtrait;
   changementPays = true;
   // Les retraits automatiques de calques ne changent pas leurs préférences.
-  const bdtopo = CALQUES.bdtopo;
-  bdtopo.groupe.remove();
-  if (abandonner(bdtopo)) arreterAuServeur(["bdtopo"]);
-  bdtopo.groupe.clearLayers();
-  bdtopo.charge = null;
+  for (const cle of ["bdtopo", "atkis"]) {
+    const calque = CALQUES[cle];
+    calque.groupe.remove();
+    if (abandonner(calque)) arreterAuServeur([cle]);
+    calque.groupe.clearLayers();
+    calque.charge = null;
+  }
   for (const couche of Object.values(CALQUES_PAYS)) couche.remove();
   paysCarte = pays;
   horsFrance = pays !== "fr";
@@ -923,7 +1000,8 @@ function choisirPays(pays) {
 }
 
 function afficherOptionsIgn() {
-  $("legendIgn").hidden = horsFrance;
+  $("legendIgn").hidden = !FOURNISSEURS_CARTES[paysCarte]?.routableOverlay;
+  $("legendOfficielTexte").textContent = t(paysCarte === "de" ? "legende.atkisPortion" : "legende.ign");
   afficherOptionChemins();
   for (const element of document.querySelectorAll("[data-map-overlay]")) {
     element.hidden = !calquesDuPays().includes(element.dataset.mapOverlay);
@@ -1051,7 +1129,7 @@ carte.on("moveend", () => {
   minuterieExtrait = setTimeout(() => majExtrait(true), 600);
 });
 
-// Fonds de carte et contrôle des calques, refaits quand les clés ou la
+// Fonds de carte et contrôle des calques, refaits quand la clé IGN ou la
 // langue change ; le fond affiché reste le même.
 function construireFonds() {
   let clePreferee = null;
@@ -1060,25 +1138,14 @@ function construireFonds() {
       || (paysCarte === "fr" ? localStorage.getItem(CLE_FOND) : null);
   } catch (erreur) { /* fond par défaut */ }
   couchesFonds = {};
-  Object.assign(couchesFonds, FOURNISSEURS_CARTES[paysCarte].bases({ L, clesFonds: etat.clesFonds, tuileIgn }));
+  Object.assign(couchesFonds, FOURNISSEURS_CARTES[paysCarte].bases({ L, cleIgn: etat.cleIgn, tuileIgn }));
   couchesFonds.osmRando = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 17, maxZoom: 19,
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM '
         + '| © <a href="https://opentopomap.org/">OpenTopoMap</a> (CC-BY-SA)' });
-  if (etat.clesFonds.thunderforest) {
-    couchesFonds.osmOutdoors = L.tileLayer(
-      `https://api.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=${encodeURIComponent(etat.clesFonds.thunderforest)}`,
-      { maxNativeZoom: 19, maxZoom: 19,
-        attribution: '© <a href="https://www.thunderforest.com/">Thunderforest</a> '
-          + '| © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' });
-  }
   couchesFonds.osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: `© <a href="https://www.openstreetmap.org/copyright">${t("attribution.osm")}</a>` });
-  couchesFonds.osmVelo = L.tileLayer("https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
-    { maxNativeZoom: 18, maxZoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
-        + '· <a href="https://www.cyclosm.org/">CyclOSM</a>' });
   couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
@@ -1094,7 +1161,7 @@ function construireFonds() {
   ajusterRecouvrementTuiles();
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES)
-    .filter(([cle]) => !horsFrance || cle === "osm")
+    .filter(([cle]) => cle === "osm" || calquesDuPays().includes(cle))
     .map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
   for (const cle of calquesDuPays()) {
     if (CALQUES_PAYS[cle]) calques[t(`calque.${cle}`)] = CALQUES_PAYS[cle];
@@ -1280,8 +1347,9 @@ async function calculer() {
     afficherStatut(etat.points.length ? () => t("statut.deuxiemePoint") : "");
     return;
   }
-  const ign = Boolean(FOURNISSEURS_CARTES[paysCarte]?.routableOverlay && $("ign").checked);
-  afficherStatut(() => t("statut.calcul") + (ign ? t("statut.calculIgn") : "."));
+  const source = FOURNISSEURS_CARTES[paysCarte]?.routableOverlay;
+  const ign = Boolean(source && $("ign").checked);
+  afficherStatut(() => t("statut.calcul") + (ign ? t(source === "atkis" ? "statut.calculAtkis" : "statut.calculIgn") : "."));
   occupe(true);
   let reponse;
   try {
@@ -1289,6 +1357,7 @@ async function calculer() {
       points: etat.points.map((p) => [p.lat, p.lon]),
       strict: $("strict").checked,
       ign,
+      source: source === "atkis" ? "atkis" : "ign",
       comparer: $("comparer").checked,
     });
   } catch (e) {
@@ -1481,7 +1550,8 @@ function afficher(r) {
   afficherStatut(() => {
     const bilan = t("statut.bilan", { duree: decimal(r.duree_s, 2), total: r.franchissements.length });
     if (!r.avertissement) return bilan;
-    const avertissement = langue === "en" ? t("avertissement.ign", { detail: r.avertissement_detail }) : r.avertissement;
+    const source = r.source_officielle === "atkis" ? "atkis" : "ign";
+    const avertissement = langue === "en" ? t(`avertissement.${source}`, { detail: r.avertissement_detail }) : r.avertissement;
     return `${avertissement} ${bilan}`;
   }, Boolean(r.avertissement));
 }
@@ -1566,7 +1636,8 @@ function descriptionGpx(r) {
     ? `D+ ${r.denivele.montee_m} m, D- ${r.denivele.descente_m} m (gpx2elev, ${r.denivele.modele})`
     : t("gpx.deniveleIndisponible");
   return t("gpx.description", { km: km(r.longueur_m), denivele, n: r.sur_le_trace.length })
-    + t("gpx.barrieres") + ((r.portions_ign || []).length ? t("gpx.bdtopo") : "") + t("gpx.trace");
+    + t("gpx.barrieres") + ((r.portions_ign || []).length
+      ? t(r.source_officielle === "atkis" ? "gpx.atkis" : "gpx.bdtopo") : "") + t("gpx.trace");
 }
 
 function gpx(r) {
@@ -1733,17 +1804,13 @@ for (const id of ["strict", "ign", "comparer"]) {
 }
 $("enregistrerCle").addEventListener("click", async () => {
   try {
-    const clesFonds = Object.fromEntries(Object.entries(CHAMPS_CLES_FONDS)
-      .map(([nom, id]) => [nom, $(id).value]));
-    const r = await api("reglages", { cles_fonds: clesFonds,
-      renouvellement_jours: Number($("renouvellementJours").value) });
+    const r = await api("reglages", { cle_ign: $("cleIgn").value, renouvellement_jours: Number($("renouvellementJours").value) });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
-    etat.clesFonds = r.cles_fonds;
-    for (const [nom, id] of Object.entries(CHAMPS_CLES_FONDS)) $(id).value = etat.clesFonds[nom];
+    etat.cleIgn = r.cle_ign;
     etat.renouvellementJours = r.renouvellement_jours;
     afficherExtrait(etat.extrait);
     construireFonds();
-    afficherStatut(() => t("reglages.enregistres"));
+    afficherStatut(() => t(etat.cleIgn ? "cle.enregistree" : "cle.retiree"));
     verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
@@ -1873,8 +1940,8 @@ async function demarrer() {
     const [infos, reglages] = await Promise.all([api("etat"), api("reglages")]);
     etat.version = infos.version;
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
-    etat.clesFonds = { ...etat.clesFonds, ...(reglages.cles_fonds || {}) };
-    for (const [nom, id] of Object.entries(CHAMPS_CLES_FONDS)) $(id).value = etat.clesFonds[nom];
+    etat.cleIgn = reglages.cle_ign || "";
+    $("cleIgn").value = etat.cleIgn;
     etat.renouvellementJours = reglages.renouvellement_jours ?? 30;
     $("renouvellementJours").value = etat.renouvellementJours;
     await verifierBrouter();

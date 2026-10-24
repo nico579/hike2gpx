@@ -68,13 +68,13 @@ REMPLACEMENTS = (
      "assign footaccess     and not foot=private|no\n                      or issidewalk"),
 )
 
-# Tuiles maison (OSM + BD TOPO, voir fusion.py et maison.py) : une clé de plus
-# dans la table de tags marque les chemins IGN, que le profil maison rend une
+# Tuiles maison (OSM + BD TOPO ou ATKIS, voir fusion.py et maison.py) : une clé
+# dans la table de tags marque les chemins officiels, que le profil maison rend une
 # fois et demie plus coûteux qu'un chemin OSM équivalent.
-CLE_IGN = "hike2gpx;0000000001 ign\n\n"
+CLE_IGN = "hike2gpx;0000000001 ign\nhike2gpx;0000000001 atkis\n\n"
 PENALITE_IGN = 0.5
 REMPLACEMENT_IGN = ("assign costfactor\nadd town_penalty",
-                    f"assign ign_penalty switch hike2gpx=ign {PENALITE_IGN} 0\n\n"
+                    f"assign ign_penalty switch hike2gpx=ign|atkis {PENALITE_IGN} 0\n\n"
                     "assign costfactor\nadd ign_penalty\nadd town_penalty")
 # Profils que lit le créateur de tuiles, absents de l'archive : pris dans le
 # dépôt de BRouter, au tag de la version installée, et vérifiés.
