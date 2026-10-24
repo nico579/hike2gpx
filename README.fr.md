@@ -46,12 +46,13 @@ fond choisi.
   publié. Un second calque montre les chemins de la BD TOPO de l'IGN ; mis à
   côté de celui d'OpenStreetMap, il montre d'un coup d'œil les sentiers qu'une
   source ignore.
-- **Dans neuf autres pays** : la carte nationale de l'Espagne, de la Suisse, de
+- **Dans dix autres pays** : la carte nationale de l'Espagne, de la Suisse, de
   l'Allemagne (BKG TopPlusOpen), de l'Autriche, des Pays-Bas, du Luxembourg,
-  de la Norvège, de la Pologne (Geoportal) et des États-Unis.
-  L'Espagne, la Suisse et les États-Unis y ajoutent leurs sentiers officiels,
-  pour l'affichage seulement. L'Allemagne ajoute le calque ATKIS dans les
-  seize Länder. Le bouton ⓘ, à côté du choix des fonds, liste ces pays.
+  de la Norvège, de la Pologne (Geoportal), de la Tchéquie et des États-Unis.
+  Le lien ⓘ, à côté du choix des fonds, ouvre sur GitHub le
+  [tableau des pays pris en charge](RAPPORT_SOURCES_CHEMINS_BROUTER.md#pays-pris-en-charge).
+  Ses colonnes « fond », « chemins » et « itinéraire » sont générées depuis
+  les fichiers providers avec `node tools/generer_couverture_pays.cjs`.
 
 Une recherche de ville recentre la carte : les communes françaises par l'API
 Géo de l'État, le reste du monde par Nominatim, le moteur de recherche

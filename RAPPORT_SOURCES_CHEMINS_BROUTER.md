@@ -4,6 +4,30 @@ Rapport du 23 octobre 2026, écrit après la release 0.3.0. En France, hike2gpx 
 
 Mise à jour du 24 octobre 2026 : comparaison avec d'autres sources officielles et intégration des sources qui dépassent 20 % sur au moins une zone mesurée.
 
+<!-- DEBUT COUVERTURE PROVIDERS : généré par tools/generer_couverture_pays.cjs -->
+
+## Pays pris en charge
+
+Ce tableau est généré depuis les fichiers `hike2gpx/assets/web/providers/*.js`. Il décrit séparément le fond de carte national, les calques de chemins et les données ajoutées au calcul BRouter. OpenStreetMap reste disponible partout.
+
+| Pays | Fond de carte | Calques de chemins | Calcul d’itinéraire |
+| --- | --- | --- | --- |
+| Allemagne | BKG TopPlusOpen | Chemins ATKIS (Allemagne) | OSM + ATKIS |
+| Autriche | basemap.at | OSM | OSM |
+| Espagne | Carte topographique IGN Espagne | Sentiers balisés FEDME | OSM |
+| États-Unis | Carte topographique USGS | Sentiers USGS | OSM |
+| France | Plan IGN (SCAN 25 avec clé) | Chemins BD TOPO (IGN) | OSM + IGN |
+| Luxembourg | Carte topographique ACT | OSM | OSM |
+| Norvège | Carte topographique Kartverket | OSM | OSM |
+| Pays-Bas | Carte topographique PDOK | OSM | OSM |
+| Pologne | Carte topographique polonaise (Geoportal) | chemins BDOT10k (Basse Silésie) | OSM + BDOT10k (Basse-Silésie) |
+| Suisse | Carte nationale swisstopo | chemins swissTLM3D (Suisse) · Sentiers balisés swisstopo | OSM + swissTLM3D |
+| Tchéquie | Carte ZTM (ČÚZK) | chemins ZABAGED (Tchéquie) | OSM + ZABAGED |
+
+Les chemins officiels sont chargés seulement dans la zone consultée. Pour la Pologne, le calque BDOT10k et son utilisation par BRouter sont limités à la Basse-Silésie. Les sentiers balisés d’Espagne et des États-Unis servent uniquement à l’affichage.
+
+<!-- FIN COUVERTURE PROVIDERS -->
+
 ## Verdict
 
 **L'Allemagne et la Tchéquie sont deux autres cas où une source topographique nationale comble beaucoup de lacunes géométriques d'OSM ; certaines vallées suisses présentent aussi un apport net.** La BD TOPO ajoute 18 % à 100 % de longueur potentielle sur les tuiles françaises étudiées. En Bavière, le Basis-DLM ajoute 12 % à 37 % ; à Rosa, en Thuringe, 79 % sur la tuile du village et 127 % sur la tuile voisine la plus dense. Quatre zones tchèques ZABAGED donnent 40 % à 66 %. La Suisse va de 4 % à 35 % sur huit zones, avec les valeurs les plus hautes dans des vallées du Tessin. Les États-Unis et les Pays-Bas restent à 0 % à 12 %. Les essais dans deux parcs canadiens donnent 2 % à 15 % et ceux de trois itinéraires néo-zélandais 0 % à 20 %.

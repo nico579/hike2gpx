@@ -333,8 +333,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique }
   });
   syncMapToolbarVisibility();
   const layersButton = document.getElementById("layersButton");
-  const providersInfoButton = document.getElementById("providersInfoButton");
-  const providersInfoPanel = document.getElementById("providersInfoPanel");
   const layersPreference = "hike2gpx.layersOpen";
   try {
     const open = localStorage.getItem(layersPreference) === "true";
@@ -389,54 +387,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique }
       try { localStorage.setItem(layersPreference, "false"); } catch (error) {}
     }
   }
-  function remplirPaysCouverts() {
-    const langue = document.documentElement.lang === "en" ? "en" : "fr";
-    const pays = couvertureCartographique(window.HIKE2GPX_MAP_PROVIDERS || {}, langue);
-    const titre = document.createElement("h3");
-    const intitulé = langue === "en" ? "Maps, paths and routing by country"
-      : "Fonds, chemins et itinéraires par pays";
-    titre.textContent = intitulé;
-    providersInfoButton.setAttribute("aria-label", intitulé);
-    providersInfoButton.title = intitulé;
-    providersInfoPanel.setAttribute("aria-label", intitulé);
-    const liste = document.createElement("ul");
-    for (const paysCouvert of pays) {
-      const ligne = document.createElement("li");
-      const nom = document.createElement("span");
-      nom.className = "map-provider-country";
-      nom.textContent = paysCouvert.nom;
-      const details = document.createElement("dl");
-      for (const [cle, libelle] of Object.entries(langue === "en"
-        ? { fond: "Map", chemins: "Paths", itineraire: "Routing" }
-        : { fond: "Fond", chemins: "Chemins", itineraire: "Itinéraire" })) {
-        const rangee = document.createElement("div");
-        const terme = document.createElement("dt");
-        const valeur = document.createElement("dd");
-        terme.textContent = libelle;
-        valeur.textContent = paysCouvert[cle];
-        rangee.append(terme, valeur);
-        details.append(rangee);
-      }
-      ligne.append(nom, details);
-      liste.append(ligne);
-    }
-    providersInfoPanel.replaceChildren(titre, liste);
-  }
-  function closeProvidersInfo() {
-    providersInfoPanel.hidden = true;
-    providersInfoButton.setAttribute("aria-expanded", "false");
-  }
-  providersInfoButton.addEventListener("click", () => {
-    const ouvrir = providersInfoPanel.hidden;
-    if (ouvrir) {
-      closeLayers(false);
-      remplirPaysCouverts();
-    }
-    providersInfoPanel.hidden = !ouvrir;
-    providersInfoButton.setAttribute("aria-expanded", String(ouvrir));
-  });
-  document.addEventListener("nico579-langue", remplirPaysCouverts);
-  remplirPaysCouverts();
   function syncLayers() {
     const control = leafletControls.querySelector(".leaflet-control-layers") || toolbar.querySelector(".leaflet-control-layers");
     if (!control) return;

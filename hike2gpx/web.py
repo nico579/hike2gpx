@@ -4,9 +4,11 @@ des autres applications de nico579."""
 from __future__ import annotations
 
 import logging
+import subprocess
 import threading
 import webbrowser
 from pathlib import Path
+from urllib.parse import quote
 
 from nico579_commons import maj, serveweb
 
@@ -20,6 +22,22 @@ PORT = 8795
 PLAGE = 10
 GUI = Path(__file__).parent / "assets" / "web"
 PROVIDERS = GUI / "providers"
+RAPPORT_GITHUB = "https://github.com/nico579/hike2gpx/blob/{ref}/RAPPORT_SOURCES_CHEMINS_BROUTER.md#pays-pris-en-charge"
+
+
+def url_couverture_pays() -> str:
+    """Pointe vers la branche de travail en source, vers main en version publiée."""
+    ref = "main"
+    racine = Path(__file__).resolve().parent.parent
+    if (racine / ".git").exists():
+        try:
+            resultat = subprocess.run(["git", "branch", "--show-current"], cwd=racine,
+                                      capture_output=True, text=True, timeout=2, check=False)
+            if resultat.returncode == 0 and resultat.stdout.strip():
+                ref = resultat.stdout.strip()
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return RAPPORT_GITHUB.format(ref=quote(ref, safe="/"))
 
 
 class Handler(serveweb.Handler):
@@ -38,6 +56,16 @@ class Handler(serveweb.Handler):
 
     def do_GET(self):
         chemin = self.path.split("?", 1)[0]
+        if chemin == "/documentation/pays":
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            self.send_response(302)
+            self.send_header("Location", url_couverture_pays())
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if chemin == "/map-providers.js":
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)

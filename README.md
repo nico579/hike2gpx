@@ -50,8 +50,10 @@ base map you chose.
   States, Czechia and Poland (Geoportal topographic map). Germany has an ATKIS path layer in all sixteen
   states; Czechia has ZABAGED, Switzerland swissTLM3D and Lower Silesia in
   Poland BDOT10k. Spain and the United States have display-only trail layers.
-  The ⓘ button next to the base map selector lists every country with its
-  base map, path layer and routing source separately.
+  The ⓘ link next to the base map selector opens the
+  [country coverage table](RAPPORT_SOURCES_CHEMINS_BROUTER.md#pays-pris-en-charge)
+  on GitHub. Its base map, path layer and routing columns are generated from
+  the provider files with `node tools/generer_couverture_pays.cjs`.
 
 A town search recenters the map: French municipalities through the French
 government's Géo API, the rest of the world through Nominatim, OpenStreetMap's

@@ -9,6 +9,7 @@ const vm = require("node:vm");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { couvertureCartographique } = require("../hike2gpx/assets/web/presentation.js");
+const { sectionGeneree } = require("../tools/generer_couverture_pays.cjs");
 
 function charger(preferences = {}, documentGpx = null) {
   const elements = new Map();
@@ -227,7 +228,7 @@ test("chaque fond et chaque calque des providers a son libellé FR et EN", () =>
   }
 });
 
-test("le bouton d'information présente fond, chemins et itinéraire pour tous les pays", () => {
+test("le rapport des pays présente fond, chemins et itinéraire depuis les providers", () => {
   const { page } = charger();
   const fr = couvertureCartographique(page.providers, "fr");
   assert.equal(fr.length, 11);
@@ -242,6 +243,8 @@ test("le bouton d'information présente fond, chemins et itinéraire pour tous l
   const en = couvertureCartographique(page.providers, "en");
   assert.equal(en.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k (Lower Silesia)");
   assert.equal(en.find((p) => p.code === "us").fond, "USGS topographic map");
+  assert.ok(fs.readFileSync(path.join(__dirname, "..", "RAPPORT_SOURCES_CHEMINS_BROUTER.md"), "utf8")
+    .includes(sectionGeneree()), "le tableau du rapport doit être régénéré depuis les providers");
 });
 
 test("le panneau Réglages montre la version et vérifie les mises à jour", async () => {
