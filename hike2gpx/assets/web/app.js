@@ -825,10 +825,12 @@ carte.on("baselayerchange", (e) => {
 carte.createPane("trace").style.zIndex = 450;
 carte.createPane("sensTrace").style.zIndex = 451;
 carte.createPane("gpxImporte").style.zIndex = 449;
+carte.createPane("obstaclesOsm").style.zIndex = 452;
 const traceGpxImporte = L.layerGroup();
 let nomGpxImporte = null;
 let sequenceImportGpx = 0;
 const rendu = L.canvas({ padding: 0.2 });
+const renduObstacles = L.canvas({ padding: 0.2, pane: "obstaclesOsm" });
 const ZOOM_CALQUES = 14;
 const CLE_CALQUES = "hike2gpx.calques";
 // charge : bornes des tuiles déjà dessinées ; annulation : la requête en cours.
@@ -896,6 +898,11 @@ const DESSINS = {
     for (const b of donnees.barrieres) {
       L.polyline(b.pts, { color: "#e53935", weight: 3, renderer: rendu })
         .bindTooltip(texte(`${ts(b.nature)} (OSM)`), { sticky: true }).addTo(groupe);
+    }
+    for (const f of donnees.franchissements || []) {
+      L.circleMarker([f.lat, f.lon], { radius: 6, weight: 2, color: "#fff", fillOpacity: 1,
+        fillColor: COULEURS[f.statut], renderer: renduObstacles, pane: "obstaclesOsm" })
+        .bindPopup(() => bulleFranchissement(f)).addTo(groupe);
     }
   },
 };

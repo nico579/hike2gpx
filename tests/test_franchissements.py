@@ -272,6 +272,21 @@ def test_voies_affichables_par_genre_sans_les_bordures(tmp_path):
     assert calque["voies"][0]["pts"][0] == [round(LAT0, 6), round(LON0 - 50 / KX, 6)]
 
 
+def test_calque_osm_contient_les_franchissements_sans_itineraire(tmp_path):
+    carte = Carte()
+    portail = carte.noeud(0, 40, barrier="gate")
+    carte.voie([carte.noeud(-50, 40), portail, carte.noeud(50, 40)], highway="track")
+    carte.chemin((-50, 0), (50, 0))
+    cloture = carte.cloture((0, -20), (0, 20))
+    donnees = fr.voies_affichables(43.31, 6.01, 43.32, 6.02, tmp_path,
+                                   interroger=lambda texte, **_: carte.elements)
+    points = donnees["franchissements"]
+    assert any(p["osm"] == f"node/{portail}" and p["statut"] == "uncertain" for p in points)
+    assert any(p["osm"] == f"way/{cloture}" and p["statut"] == "blocked" for p in points)
+    assert {"cle", "statut", "raison", "nature", "lat", "lon", "osm"} == set(points[0])
+    assert [(b["id"], b["nature"]) for b in donnees["barrieres"]] == [(cloture, "Clôture")]
+
+
 def test_tuiles_et_requete():
     assert fr.tuiles_zone(43.31, 6.01, 43.34, 6.06) == [(866, 120), (866, 121)]
     assert fr.bornes_tuile(866, 120) == (43.3, 6.0, 43.35, 6.05)

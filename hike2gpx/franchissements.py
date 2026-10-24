@@ -717,11 +717,11 @@ def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=
         return donnees
 
 
-def franchissements_tuile(i: int, j: int, dossier, **options) -> list:
+def franchissements_tuile(i: int, j: int, dossier, *, donnees=None, **options) -> list:
     """Franchissements situés dans une tuile. Overpass y renvoie entières
     toutes les voies et barrières qui la touchent : chaque franchissement de
     la tuile y est donc vu, ceux d'à côté sont écartés ici."""
-    donnees = charger_tuile(i, j, dossier, **options)
+    donnees = donnees if donnees is not None else charger_tuile(i, j, dossier, **options)
     chemin = Path(dossier) / "franchissements" / f"v{VERSION_ANALYSE}_{i}_{j}.json"
     cache = atomique.lire_json(chemin, None)
     if isinstance(cache, dict) and cache.get("fetched_at") == donnees["fetched_at"] \
@@ -767,7 +767,7 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
     piéton, telles que les tuiles Overpass les connaissent, pour le calque des
     chemins OSM. Une bordure de trottoir n'y figure pas : elle se franchit.
     suivi(faites, total), tuile après tuile, pour la barre de la page."""
-    voies, barrieres = {}, {}
+    voies, barrieres, franchissements = {}, {}, []
     continuer = options.get("continuer", _toujours)
     suivi = options.pop("suivi", None)
     tuiles = _couvertes_d_abord(tuiles_zone(sud, ouest, nord, est), dossier)
@@ -776,7 +776,8 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
     for k, (i, j) in enumerate(tuiles):
         if not continuer():
             raise VueRemplacee()
-        for e in charger_tuile(i, j, dossier, **options)["elements"]:
+        donnees = charger_tuile(i, j, dossier, **options)
+        for e in donnees["elements"]:
             points = _geometrie(e) if e.get("type") == "way" else []
             if not points:
                 continue
@@ -787,6 +788,10 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
             elif "barrier" in tags and "highway" not in tags and regles.status(tags, MODE)[0] != "passable":
                 barrieres[e["id"]] = {"id": e["id"], "nature": regles.LABELS.get(tags["barrier"], "Barrière"),
                                       "pts": ligne}
+        franchissements.extend({cle: f[cle] for cle in ("cle", "statut", "raison", "nature", "lat", "lon", "osm")}
+                               for f in franchissements_tuile(i, j, dossier, donnees=donnees)
+                               if f["statut"] in ("blocked", "uncertain"))
         if suivi:
             suivi(k + 1, len(tuiles))
-    return {"voies": list(voies.values()), "barrieres": list(barrieres.values())}
+    return {"voies": list(voies.values()), "barrieres": list(barrieres.values()),
+            "franchissements": franchissements}

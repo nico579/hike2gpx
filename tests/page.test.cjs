@@ -64,7 +64,8 @@ function charger(preferences = {}, documentGpx = null) {
          setContent(content) { this.content = content; return this; },
          openOn(map) { map.popup = this; return this; } }),
        vectorGrid: { protobuf: (url, options) => Object.assign(couche(), { url, options }) },
-      polyline: (points, options) => Object.assign(couche(), { points, options }), circleMarker: couche,
+      polyline: (points, options) => Object.assign(couche(), { points, options }),
+      circleMarker: (points, options) => Object.assign(couche(), { points, options }),
       marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
       tileLayer: Object.assign((url, options) => Object.assign(couche(), { url, options }),
         { wms: (url, options) => Object.assign(couche(), { url, options }) }),
@@ -719,6 +720,28 @@ test("plein écran : la carte seule, puis la page revient", () => {
   assert.equal(corps.classList.contains("plein-ecran"), true);
   page.basculerPleinEcran();
   assert.equal(corps.classList.contains("plein-ecran"), false);
+});
+
+test("le calque OSM montre clôtures et franchissements sans itinéraire", async () => {
+  const { page, carte, requetes } = charger();
+  carte.hasLayer = (layer) => layer === page.CALQUES.osm.groupe;
+  const lecture = page.rafraichirCalques();
+  const osm = requetes.find((r) => r.url.startsWith("/api/osm?"));
+  repondre(osm, { voies: [], barrieres: [{ id: 7, nature: "Clôture", pts: [[43.3, 6], [43.31, 6]] }],
+    franchissements: [
+      { cle: "noeud-8", statut: "uncertain", raison: "Franchissement à vérifier sur place",
+        nature: "Portail", lat: 43.3, lon: 6.01, osm: "node/8" },
+      { cle: "ligne-7", statut: "blocked", raison: "Accès interdit ou privé",
+        nature: "Clôture", lat: 43.31, lon: 6.01, osm: "way/7" },
+    ], bornes: [43.3, 6, 43.35, 6.05] });
+  await lecture;
+  assert.equal(page.etat.points.length, 0);
+  assert.equal(page.etat.dernier, null);
+  const couches = page.CALQUES.osm.groupe.layers;
+  assert.equal(couches.length, 3);
+  assert.equal(couches[0].options.color, "#e53935");
+  assert.deepEqual(couches.slice(1).map((c) => c.options.fillColor), ["#ef6c00", "#d32f2f"]);
+  assert.ok(couches.slice(1).every((c) => c.options.pane === "obstaclesOsm"));
 });
 
 test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tuiles déjà lues", async () => {

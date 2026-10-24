@@ -38,8 +38,9 @@ base map you chose.
 
 - **Everywhere**: OpenStreetMap, OSM hiking (OpenTopoMap), and a satellite
   view (Esri). A layer you can tick, from zoom 14,
-  shows OpenStreetMap's paths (footpaths dashed), with the fences and walls it
-  maps.
+  shows OpenStreetMap's paths (footpaths dashed), plus mapped fences, walls,
+  blocked crossings and crossings to check. These remain visible without a
+  planned route.
 - **In France**: IGN's base maps, SCAN 25 (with an IGN key, see below), IGN
   Plan, aerial photos, and the LiDAR HD relief wherever IGN has published it.
   A second layer shows the paths of IGN's BD TOPO; next to OpenStreetMap's, it

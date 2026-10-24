@@ -38,8 +38,9 @@ fond choisi.
 
 - **Partout** : OpenStreetMap, OSM rando (OpenTopoMap) et une vue satellite
   (Esri). Un calque à cocher, à partir du zoom 14, montre les
-  chemins d'OpenStreetMap (les sentiers en tirets), avec les clôtures et murs
-  qu'il cartographie.
+  chemins d'OpenStreetMap (les sentiers en tirets), avec les clôtures, murs et
+  franchissements bloquants ou à vérifier qu'il cartographie. Ces obstacles
+  restent visibles même sans itinéraire tracé.
 - **En France** : les fonds de l'IGN, SCAN 25 (avec une clé IGN, voir plus
   bas), Plan IGN, photos aériennes, et le relief du LiDAR HD là où l'IGN l'a
   publié. Un second calque montre les chemins de la BD TOPO de l'IGN ; mis à
