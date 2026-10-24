@@ -2,9 +2,11 @@
 
 Rapport du 23 octobre 2026, écrit après la release 0.3.0. En France, hike2gpx ajoute à OpenStreetMap les chemins de la BD TOPO que BRouter ne connaîtrait pas sans elle. La question posée ici est simple : d'autres pays ont-ils une source officielle qui rendrait le même service ? Le rapport y répond par une mesure, puis examine les providers d'affichage par pays et la façon de les organiser.
 
+Mise à jour du 24 octobre 2026 : comparaison avec deux autres sources officielles.
+
 ## Verdict
 
-**L'Allemagne est le second cas où une source officielle comble beaucoup de lacunes géométriques d'OSM.** La BD TOPO ajoute 18 % à 100 % de longueur potentielle sur les tuiles françaises étudiées. En Bavière, le Basis-DLM ajoute 12 % à 37 % ; à Rosa, en Thuringe, 79 % sur la tuile du village et 127 % sur la tuile voisine la plus dense. Les États-Unis, la Suisse et les Pays-Bas restent à 0 % à 12 %.
+**L'Allemagne est le second cas où une source officielle comble beaucoup de lacunes géométriques d'OSM.** La BD TOPO ajoute 18 % à 100 % de longueur potentielle sur les tuiles françaises étudiées. En Bavière, le Basis-DLM ajoute 12 % à 37 % ; à Rosa, en Thuringe, 79 % sur la tuile du village et 127 % sur la tuile voisine la plus dense. Les États-Unis, la Suisse et les Pays-Bas restent à 0 % à 12 %. Les nouveaux essais donnent 2 % à 15 % dans deux parcs canadiens et 0 % à 20 % sur trois itinéraires néo-zélandais.
 
 Ces pourcentages mesurent des **longueurs de voies candidates**, pas un gain garanti pour une randonnée. À Rosa, presque tout le supplément est classé `Fahrwegachse` (chemins agricoles) et le WFS ne donne pas de permission piétonne explicite. La PR ajoute donc un calque ATKIS et permet la fusion pour BRouter en marquant les portions utilisées « à vérifier ». Les WFS natifs couvrent la Bavière et la Thuringe ; les tuiles vectorielles ATKIS dérivées de basemap.de couvrent les quatorze autres Länder, toujours par petite emprise. TopPlusOpen reste le fond de carte allemand pour tout le pays.
 
@@ -71,6 +73,22 @@ Trois remarques précisent ces chiffres.
 - **En Suisse, OSM et swissTLM3D se recouvrent presque entièrement.** Les quelques kilomètres restants relèvent des classes 15 et 16 de swissTLM3D (`objektart`), que nous n'avons pas décodées.
 - **Aux Pays-Bas, le chiffre est un plafond.** Les 35,5 km comprennent 6,5 km de routes rapides (`snelverkeer`) et 0,3 km de voies d'aérodrome. Restent environ 29 km de voies mixtes ou piétonnes, soit +10 %. Le classement néerlandais comptait aussi les routes, et la tuile retenue touche le nord d'Arnhem. Enfin, une ligne médiane de TOP10NL qui s'écarte de plus de 12 m de la voie OSM correspondante est comptée comme nouvelle.
 
+### Canada et Nouvelle-Zélande : essais du 24 octobre 2026
+
+Le même outil a comparé deux jeux de données supplémentaires aux voies OSM praticables. Il a choisi la tuile de 0,05° la plus riche en voies officielles parmi les neuf tuiles autour de chaque lieu. La colonne « part absente » rapporte les kilomètres nouveaux à ceux de la source officielle ; le « gain du réseau » les rapporte aux kilomètres OSM, comme dans les tableaux précédents.
+
+| Zone | Centre de la tuile | Source officielle | Réseau OSM | Absents d'OSM | Part absente de la source | Gain du réseau |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| CA, Yoho | 51,425 N 116,525 O | 14,5 km | 20,8 km | 3,0 km | 21 % | **+14,6 %** |
+| CA, Banff | 51,175 N 115,525 O | 46,5 km | 105,9 km | 2,4 km | 5 % | **+2,3 %** |
+| NZ, Routeburn | 44,725 S 168,175 E | 9,0 km | 11,9 km | 2,3 km | 26 % | **+19,6 %** |
+| NZ, Tongariro | 39,225 S 175,525 E | 20,8 km | 27,9 km | 0,0 km | 0 % | **0 %** |
+| NZ, Kepler | 45,475 S 167,675 E | 24,4 km | 47,1 km | 0,0 km | 0 % | **0 %** |
+
+Au Canada, la requête sur le [jeu de Parcs Canada](https://open.canada.ca/data/en/dataset/64a90e8d-5bc0-4027-8645-b5881b4068d4) garde les sentiers officiels sans interdiction estivale (`Official_Officiel=1`, `Restr_Sum_Ete_Interd=0`). Ce jeu porte sur les lieux gérés par Parcs Canada : ces ratios locaux ne valent pas pour toutes les provinces canadiennes. En Nouvelle-Zélande, la [couche DOC « Walking and Tramping Experiences routes »](https://services1.arcgis.com/3JjYDyG3oajxU6HO/ArcGIS/rest/services/DOC_Walking_Experiences/FeatureServer/1) regroupe les itinéraires de marche gérés par le DOC, pas tous les chemins du pays. À Routeburn, les 2,3 km retenus portent la classe de difficulté `Expert`. Le service indique que certains parcours peuvent être fermés et renvoie aux alertes du DOC ; ce test géométrique ne contrôle pas leur ouverture.
+
+Ces cinq essais montrent un apport local jusqu'à 20 %, mais ne justifient pas encore une source de calcul nationale comparable à la BD TOPO ou à ATKIS. En particulier, un tracé décalé de plus de 12 m peut être compté comme nouveau sans l'être sur le terrain. La [base topographique finlandaise](https://www.maanmittauslaitos.fi/en/maps-and-spatial-data/datasets-and-interfaces/product-descriptions/topographic-database) est une piste de couverture nationale, mais son [API nécessite une clé](https://www.maanmittauslaitos.fi/en/maastotietokannan-kyselypalvelu/tekninen-kuvaus) ; aucun ratio finlandais n'est avancé sans interrogation du jeu de données. Les sentiers BTN25 espagnols sont distribués par feuilles et n'ont pas été mesurés ici.
+
 ### Fraîcheur des sentiers USGS
 
 Le jeu USGS est toujours alimenté. Sur 607 202 tronçons, 443 690 ont été chargés en 2026, le dernier le 14 septembre 2026. Les années précédentes donnent 19 433 tronçons en 2022, aucun en 2023, 34 173 en 2024 et 13 256 en 2025. Mais `loaddate` est la date d'entrée dans la base nationale, non celle d'un relevé de terrain. L'USGS agrège ce que lui transmettent le National Park Service, le Forest Service, le BLM et les États, et le chargement massif de 2026 ressemble à un rechargement complet. La fraîcheur réelle dépend de ces agences, et rien dans la donnée ne permet de juger l'effet des restrictions budgétaires fédérales.
@@ -78,6 +96,7 @@ Le jeu USGS est toujours alimenté. Sur 607 202 tronçons, 443 690 ont été cha
 ### Limites de la mesure
 
 - **Une tuile par massif**, soit une vingtaine de km² chacune, et deux tuiles autour de Rosa. Sept zones françaises, sept zones américaines/suisses/néerlandaises et cinq zones allemandes donnent des exemples concrets, pas une moyenne nationale.
+- **Les cinq nouveaux essais sont également locaux.** Deux parcs canadiens et trois itinéraires néo-zélandais ne donnent ni une moyenne nationale ni une mesure des chemins hors des espaces couverts par Parcs Canada et le DOC.
 - **« Absent d'OSM » est un plafond.** Un tracé officiel décalé de plus de 12 m de son équivalent OSM compte comme nouveau. Cela vaut aussi pour la BD TOPO : le gain français est peut-être un peu surestimé, l'écart entre la France et les autres pays non.
 - **Un chemin nouveau n'est pas forcément praticable.** hike2gpx affiche déjà les chemins IGN comme « non vérifiés », et la mesure ne dit rien de leur état sur le terrain.
 - **Les chemins agricoles allemands demandent un contrôle.** `Fahrwegachse` fournit l'essentiel du gain à Rosa et dans les massifs bavarois. La présence géométrique ne prouve ni l'accès public ni le bon raccordement à OSM. Les tuiles BRouter ajoutées gardent donc une pénalité et signalent leurs portions « à vérifier ».
@@ -89,6 +108,8 @@ Pour refaire la mesure :
 python tools/essai_sources_chemins.py            toutes les zones
 python tools/essai_sources_chemins.py US Var     un pays, ou les zones dont le nom contient « Var »
 python tools/essai_sources_chemins.py DE Rosa    Bavière et Rosa (Thuringe)
+python tools/essai_sources_chemins.py CA         Banff et Yoho
+python tools/essai_sources_chemins.py NZ         Tongariro, Kepler et Routeburn
 ```
 
 ## Ce que fait la BD TOPO, et pourquoi elle marche

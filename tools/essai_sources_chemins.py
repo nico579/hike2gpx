@@ -51,13 +51,20 @@ ZONES = [
     ("DE", "Bavière, forêt bavaroise", 48.91, 13.31),
     ("DE", "Bavière, forêt franconienne", 50.32, 11.49),
     ("DE-TH", "Rosa, Thuringe", 50.717, 10.250),
+    ("CA", "Banff", 51.18, -115.57),
+    ("CA", "Yoho", 51.40, -116.50),
+    ("NZ", "Tongariro", -39.20, 175.50),
+    ("NZ", "Kepler", -45.42, 167.65),
+    ("NZ", "Routeburn", -44.72, 168.15),
 ]
 VOISINES = {"FR": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "US": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "CH": [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)],
             "NL": [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)],
             "DE": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
-            "DE-TH": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)]}
+            "DE-TH": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "CA": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "NZ": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)]}
 CHEMINS_FR = {"Sentier", "Chemin", "Escalier"}
 
 
@@ -251,12 +258,60 @@ def source_de_th(s, w, n, e, i, j):
     return [(pts, c) for pts, c in en_cache(f"de_th_{i}_{j}", lire)]
 
 
+def _arcgis_trails(url, s, w, n, e, *, geojson, condition="1=1"):
+    """Tronçons d'un service ArcGIS officiel, paginés et bornés par emprise."""
+    lignes = []
+    for depart in range(0, 100_000, 2000):
+        q = {"where": condition, "geometry": f"{w},{s},{e},{n}",
+             "geometryType": "esriGeometryEnvelope", "inSR": 4326,
+             "spatialRel": "esriSpatialRelIntersects", "outSR": 4326,
+             "outFields": "*", "f": "geojson" if geojson else "json",
+             "resultRecordCount": 2000, "resultOffset": depart}
+        donnees = lire_json(url + "/query?" + urllib.parse.urlencode(q))
+        if "error" in donnees:
+            raise RuntimeError(f"ArcGIS : {donnees['error']}")
+        objets = donnees.get("features", [])
+        for objet in objets:
+            if geojson:
+                geom = objet.get("geometry") or {}
+                lignes_geo = ([geom.get("coordinates", [])] if geom.get("type") == "LineString"
+                              else geom.get("coordinates", []) if geom.get("type") == "MultiLineString" else [])
+                classe = objet.get("properties", {}).get("General_Activity", "sentier")
+            else:
+                lignes_geo = (objet.get("geometry") or {}).get("paths", [])
+                classe = objet.get("attributes", {}).get("difficulty", "sentier")
+            for points in lignes_geo:
+                if len(points) >= 2:
+                    lignes.append(([[lat, lon] for lon, lat in points], classe))
+        if len(objets) < 2000:
+            return lignes
+    raise RuntimeError("ArcGIS : plus de 100 000 objets dans cette tuile")
+
+
+def source_ca(s, w, n, e, i, j):
+    """Sentiers officiels ouverts en été de Parcs Canada."""
+    url = ("https://services2.arcgis.com/wCOMu5IS7YdSyPNx/arcgis/rest/services/"
+           "vw_Trails_Sentiers_APCA_V2_FGP/FeatureServer/0")
+    return [(pts, c) for pts, c in en_cache(f"ca_{i}_{j}",
+        lambda: _arcgis_trails(url, s, w, n, e, geojson=True,
+                               condition="Official_Officiel=1 AND Restr_Sum_Ete_Interd=0"))]
+
+
+def source_nz(s, w, n, e, i, j):
+    """Itinéraires de marche entretenus par le DOC néo-zélandais."""
+    url = ("https://services1.arcgis.com/3JjYDyG3oajxU6HO/ArcGIS/rest/services/"
+           "DOC_Walking_Experiences/FeatureServer/1")
+    return [(pts, c) for pts, c in en_cache(f"nz_{i}_{j}",
+        lambda: _arcgis_trails(url, s, w, n, e, geojson=False))]
+
+
 def fr_lignes(geometrie):
     return bdtopo._lignes(geometrie)
 
 
 SOURCES = {"FR": source_fr, "US": source_us, "CH": source_ch, "NL": source_nl,
-           "DE": source_de, "DE-TH": source_de_th}
+           "DE": source_de, "DE-TH": source_de_th,
+           "CA": source_ca, "NZ": source_nz}
 
 
 # ------------------------------------------------------------------ mesure
