@@ -47,6 +47,10 @@ function charger(preferences = {}, documentGpx = null) {
     tab.dataset.i18n = cle;
     elements.set(id, tab);
   }
+  // Le DOM initial reproduit la valeur cochée dans index.html.
+  const strict = element();
+  strict.checked = true;
+  elements.set("strict", strict);
   const contexte = vm.createContext({
     console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance,
     DOMParser: class { parseFromString() { return documentGpx; } },
@@ -624,6 +628,9 @@ test("les deux calques sont cochés par défaut, sans écraser un choix mémoris
 });
 
 test("les options de marche et le fond reviennent à l'ouverture", () => {
+  assert.equal(charger().elements.get("strict").checked, true);
+  assert.equal(charger({ "hike2gpx.options": JSON.stringify({ strict: false }) })
+    .elements.get("strict").checked, false);
   const { page, elements, stockage, carte } = charger({
     "hike2gpx.options": JSON.stringify({ strict: true, ign: false, comparer: false }),
     "hike2gpx.fond": "osm",
