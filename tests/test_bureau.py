@@ -74,6 +74,10 @@ def test_onglet_de_la_page_porte_l_icone(tmp_path):
         with urllib.request.urlopen(f"http://{web.HOST}:{port}/favicon.ico", timeout=5) as reponse:
             assert reponse.headers["Content-Type"] == "image/x-icon"
             assert reponse.read() == bureau.ICONE.read_bytes()
+        with urllib.request.urlopen(f"http://{web.HOST}:{port}/", timeout=5) as reponse:
+            page = reponse.read().decode("utf-8")
+            assert '<link rel="icon" href="/favicon.ico"' in page
+            assert '<img class="brand-icon" src="/favicon.ico"' in page
     finally:
         serveur.shutdown()
         serveur.server_close()
@@ -94,6 +98,11 @@ def test_la_page_charge_les_providers_depuis_leur_dossier(tmp_path):
             reponse = connexion.getresponse()
             assert reponse.status == 302
             assert reponse.getheader("Location") == web.url_couverture_pays()
+            reponse.read()
+            connexion.request("GET", "/documentation/pays?lang=en")
+            reponse = connexion.getresponse()
+            assert reponse.status == 302
+            assert reponse.getheader("Location") == web.url_couverture_pays("en")
         finally:
             connexion.close()
     finally:

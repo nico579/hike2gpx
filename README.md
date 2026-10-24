@@ -51,9 +51,10 @@ base map you chose.
   states; Czechia has ZABAGED, Switzerland swissTLM3D and Lower Silesia in
   Poland BDOT10k. Spain and the United States have display-only trail layers.
   The ⓘ link next to the base map selector opens the
-  [country coverage table](RAPPORT_SOURCES_CHEMINS_BROUTER.md#pays-pris-en-charge)
+  [country coverage table](COUNTRY_COVERAGE.md#supported-countries)
   on GitHub. Its base map, path layer and routing columns are generated from
-  the provider files with `node tools/generer_couverture_pays.cjs`.
+  the provider files with `node tools/generer_couverture_pays.cjs`, in both
+  English and French.
 
 A town search recenters the map: French municipalities through the French
 government's Géo API, the rest of the world through Nominatim, OpenStreetMap's

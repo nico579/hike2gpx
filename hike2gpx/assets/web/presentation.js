@@ -21,7 +21,10 @@ function couvertureCartographique(providers, langue) {
     })
     .sort((a, b) => a.nom.localeCompare(b.nom, langue));
 }
-if (typeof module !== "undefined") module.exports = { couvertureCartographique };
+function lienCouverturePays(langue) {
+  return langue === "en" ? "/documentation/pays?lang=en" : "/documentation/pays";
+}
+if (typeof module !== "undefined") module.exports = { couvertureCartographique, lienCouverturePays };
 (() => {
   if (typeof document === "undefined") return;
   const tabs = [...document.querySelectorAll("[data-pane]")];
@@ -333,6 +336,16 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique }
   });
   syncMapToolbarVisibility();
   const layersButton = document.getElementById("layersButton");
+  const providersInfoLink = document.getElementById("providersInfoButton");
+  function updateProvidersInfoLink() {
+    const english = document.documentElement.lang === "en";
+    providersInfoLink.href = lienCouverturePays(english ? "en" : "fr");
+    providersInfoLink.setAttribute("aria-label", english
+      ? "Open supported countries on GitHub" : "Ouvrir les pays pris en charge sur GitHub");
+    providersInfoLink.title = english ? "Supported countries on GitHub" : "Pays pris en charge sur GitHub";
+  }
+  document.addEventListener("nico579-langue", updateProvidersInfoLink);
+  updateProvidersInfoLink();
   const layersPreference = "hike2gpx.layersOpen";
   try {
     const open = localStorage.getItem(layersPreference) === "true";
@@ -417,7 +430,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique }
   // avant lui pour actualiser le nom du fond choisi.
   toolbar.addEventListener("change", () => setTimeout(syncLayers, 0), true);
   layersButton.addEventListener("click", () => {
-    closeProvidersInfo();
     const open = toolbar.classList.toggle("layers-open");
     layersButton.setAttribute("aria-expanded", String(open));
     try { localStorage.setItem(layersPreference, String(open)); } catch (error) {}
@@ -426,7 +438,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique }
   document.addEventListener("keydown", event => {
     if (event.key === "Escape") {
       closeLayers();
-      closeProvidersInfo();
     }
   });
   window.addEventListener("resize", () => requestAnimationFrame(syncProfileWidth));

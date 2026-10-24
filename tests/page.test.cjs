@@ -8,8 +8,8 @@ const path = require("node:path");
 const vm = require("node:vm");
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { couvertureCartographique } = require("../hike2gpx/assets/web/presentation.js");
-const { sectionGeneree } = require("../tools/generer_couverture_pays.cjs");
+const { couvertureCartographique, lienCouverturePays } = require("../hike2gpx/assets/web/presentation.js");
+const { sectionGeneree, documentEnglish } = require("../tools/generer_couverture_pays.cjs");
 
 function charger(preferences = {}, documentGpx = null) {
   const elements = new Map();
@@ -245,6 +245,9 @@ test("le rapport des pays présente fond, chemins et itinéraire depuis les prov
   assert.equal(en.find((p) => p.code === "us").fond, "USGS topographic map");
   assert.ok(fs.readFileSync(path.join(__dirname, "..", "RAPPORT_SOURCES_CHEMINS_BROUTER.md"), "utf8")
     .includes(sectionGeneree()), "le tableau du rapport doit être régénéré depuis les providers");
+  assert.equal(fs.readFileSync(path.join(__dirname, "..", "COUNTRY_COVERAGE.md"), "utf8"), documentEnglish());
+  assert.equal(lienCouverturePays("fr"), "/documentation/pays");
+  assert.equal(lienCouverturePays("en"), "/documentation/pays?lang=en");
 });
 
 test("le panneau Réglages montre la version et vérifie les mises à jour", async () => {
