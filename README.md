@@ -36,24 +36,33 @@ a tray icon.
 by hand, and offers that country's base maps; each country remembers the last
 base map you chose.
 
-- **Everywhere**: OpenStreetMap, OSM hiking (OpenTopoMap), OSM cycling
-  (CyclOSM) and a satellite view (Esri). A layer you can tick, from zoom 14,
-  shows OpenStreetMap's paths (footpaths dashed), with the fences and walls it
-  maps.
+- **Everywhere**: OpenStreetMap, OSM hiking (OpenTopoMap), and a satellite
+  view (Esri). A layer you can tick, from zoom 14,
+  shows OpenStreetMap's paths (footpaths dashed), plus mapped fences, walls,
+  blocked crossings and crossings to check. These remain visible without a
+  planned route.
 - **In France**: IGN's base maps, SCAN 25 (with an IGN key, see below), IGN
   Plan, aerial photos, and the LiDAR HD relief wherever IGN has published it.
   A second layer shows the paths of IGN's BD TOPO; next to OpenStreetMap's, it
   shows at a glance the paths one source is missing.
-- **In seven other countries**: the national map of Spain, Switzerland,
-  Austria, the Netherlands, Luxembourg, Norway and the United States. Spain,
-  Switzerland and the United States add their official trails, for display
-  only. The ⓘ button, next to the base map selector, lists these countries.
+- **In ten other countries**: maps of Spain, Switzerland, Germany (BKG
+  TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway, the United
+  States, Czechia and Poland (Geoportal topographic map). Germany has an ATKIS path layer in all sixteen
+  states; Czechia has ZABAGED, Switzerland swissTLM3D and Lower Silesia in
+  Poland BDOT10k. Spain and the United States have display-only trail layers.
+  The ⓘ link next to the base map selector opens the
+  [country coverage table](RAPPORT_SOURCES_CHEMINS_BROUTER.md#pays-pris-en-charge)
+  on GitHub. Its base map, path layer and routing columns are generated from
+  the provider files with `node tools/generer_couverture_pays.cjs`.
 
 A town search recenters the map: French municipalities through the French
 government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
-search engine. A button switches the map to full screen. An indicator tells
-whether a route can be planned right away, thanks to an OSM extract already
-installed or to Overpass.
+search engine. The same field accepts GPS coordinates such as `50.725, 10.275`
+or `50,725 ; 10,275` (latitude first). A button switches the map to full screen. An indicator tells
+whether the next route has BRouter and its tiles plus OSM data for the area
+(an extract, cached data or Overpass). Its yellow “i” shows the state of
+Overpass and the local and regional OSM extracts.
+Right-click the map to show and copy the clicked point's GPS coordinates.
 
 **The route.** A click sets the start, then the waypoints and the finish; a
 point moves by dragging it and is removed from its popup. "Return" closes the
@@ -63,12 +72,12 @@ the paths (see below). Three options tune it:
 
 - **Strict mode**: also avoid the passages "to check", not only the blocking
   ones;
-- **IGN paths** (in France): let BRouter also use the BD TOPO paths missing
-  from OpenStreetMap. They show as orange dashes and join the points to check,
-  since nothing guarantees they still exist or that you may walk them. Outside
-  France, the checkbox is inactive and routing uses OpenStreetMap; in Spain,
-  Switzerland and the United States, it names the country's official trails
-  and states that they are for display only;
+- **Official paths** (France, Germany, Czechia, Switzerland and Lower Silesia):
+  let BRouter use official paths missing from OpenStreetMap in the selected
+  area. They show as dashes and join the points to check, since their presence
+  and access must be verified on site. The Polish source is regional; outside
+  its coverage routing uses OSM alone. Spain and the United States offer
+  display-only trail layers;
 - **Comparison**: show, dotted, the standard route that ignores the barriers,
   with its length and the blocking crossings it would go through.
 
@@ -136,7 +145,7 @@ The routing relies on five pieces.
    BRouter's figure, taken from a coarser worldwide model, is only an estimate
    in the meantime; if no model covers the route, the elevation is reported as
    unavailable rather than replaced by that figure.
-5. **The IGN paths, in France.** A path that the BD TOPO knows and
+5. **Official paths by provider and area.** A path that the BD TOPO knows and
    OpenStreetMap does not is invisible to BRouter, which only sees its own
    tiles. So hike2gpx builds its own BRouter tile from the data it has already
    read: the OpenStreetMap ways, plus the BD TOPO sections that duplicate none
@@ -150,10 +159,20 @@ The routing relies on five pieces.
    exist or that you may walk them; a restricted pedestrian access in the
    BD TOPO closes them. A checkbox lets you do without them, and if building
    the tile fails, the route is computed on OpenStreetMap alone, with a
-   warning. The gain is real: on the tiles richest in paths, the BD TOPO
-   enlarges the network by 18 to 100 %, and by 21 to 72 % in the Var. Outside
-   France, the official sources measured (United States, Switzerland, the
-   Netherlands) add only 0 to 12 %, so routing there stays on OSM alone. The
+   warning. In Germany, the ATKIS layer and routing load the same small areas
+   on demand. Bavaria and Thuringia use their native WFS; the other fourteen
+   states use [basemap.de's](https://basemap.de/produkte-und-dienste/web-vektor/)
+   official vector tiles derived from ATKIS Basis-DLM. Those presentation
+   geometries may have less precise connections. ATKIS additions carry a
+   penalty and are marked for checking. In the tile containing Rosa, 76.6 km of the examined
+   ATKIS ways pass the missing-from-OSM test, compared with 96.8 km of OSM
+   ways; this potential gain does not prove pedestrian access. BD TOPO adds
+   18 to 100 % in the French areas measured. ZABAGED adds 40 to 66 % on four
+   Czech test areas; BDOT10k adds 26 to 44 % in two Lower Silesian areas, and
+   swissTLM3D adds 35 % in Val Onsernone, though most Swiss areas tested are
+   below 20 %. The provider declares its base map, path layer and BRouter
+   source separately; each official source loads only the small areas requested.
+   The
    measurement and the analysis are in
    [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md)
    (in French).
@@ -223,8 +242,10 @@ OpenStreetMap records only 18 fences, and IGN's BD TOPO none (see
 OpenStreetMap is respected by hike2gpx as soon as its cache of the area is
 renewed; the engines of the other planners keep ignoring it.
 
-Outside France, routing only knows OpenStreetMap's paths: a trail missing from
-OSM does not exist for it, even if the national map draws it.
+Outside France and Germany, routing only knows OpenStreetMap's
+paths: a trail missing from OSM does not exist for it, even if the national
+map draws it. The integrated ATKIS ways do not state explicit pedestrian
+rights, so any routed section must be checked on site.
 
 A computation examines at most 100 tiles of 0.05°, about 55 × 40 km: the first
 reading of a larger area would take tens of minutes. A long route is split

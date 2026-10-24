@@ -21,7 +21,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, bdtopo, brouter, communes, franchissements, geofabrik, journaux, maison, osmfr
+from . import __version__, brouter, communes, franchissements, geofabrik, journaux, maison, osmfr, providers
 
 journal = logging.getLogger(__name__)
 
@@ -38,9 +38,7 @@ NOMS_ETAPES = {"debut": "préparation", "donnees": "lecture des données", "fusi
 ZONE_CALQUE_MAX_DEG2 = 0.03  # un grand écran au zoom 14 ; au-delà, trop de tuiles à lire
 # Un fournisseur cartographique peut être ajouté côté page sans modifier le
 # choix du pays : seul son identifiant dans l'index Geofabrik est déclaré ici.
-PAYS_CARTES = {"france": "fr", "spain": "es", "switzerland": "ch",
-               "austria": "at", "netherlands": "nl", "norway": "no",
-               "luxembourg": "lu", "us": "us"}
+PAYS_CARTES = providers.PAYS_CARTES
 MARGE_DEG = 0.01            # environ 1 km autour des points
 MARGE_RELATIVE = 0.25
 POINTS_MAX = 50
@@ -161,10 +159,11 @@ def sur_le_trace(coordonnees, liste) -> list:
 
 
 RAISON_IGN = "Chemin de la BD TOPO absent d'OpenStreetMap : existence et accès à vérifier"
+RAISON_ATKIS = "Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier"
 
 
 def portions_ign(trace) -> list:
-    """Portions du tracé sur des chemins IGN, lues dans les messages de
+    """Portions du tracé sur des chemins IGN ou ATKIS, lues dans les messages de
     BRouter : chaque ligne y résume un morceau de mêmes étiquettes, avec sa
     longueur et la position, en millionièmes de degré, de son dernier point
     (constaté le 19 octobre : c'est exactement un point du tracé)."""
@@ -187,22 +186,26 @@ def portions_ign(trace) -> list:
     for ligne in messages[1:]:
         longueur = float(ligne[i_dist])
         fin_rang = rang((int(ligne[i_lon]), int(ligne[i_lat])), debut_rang)
-        if "hike2gpx=ign" in ligne[i_tags]:
-            if portions and portions[-1]["fin_rang"] == debut_rang:
+        source = next((nom for nom in providers.SOURCES if f"hike2gpx={nom}" in ligne[i_tags]), None)
+        if source:
+            if portions and portions[-1]["fin_rang"] == debut_rang and portions[-1]["source"] == source:
                 portions[-1].update(fin_rang=fin_rang, longueur_m=portions[-1]["longueur_m"] + longueur)
             else:
                 portions.append({"debut_m": round(cumul), "longueur_m": longueur, "debut_rang": debut_rang,
-                                 "fin_rang": fin_rang})
+                                 "fin_rang": fin_rang, "source": source})
         cumul += longueur
         debut_rang = fin_rang
     return [{"debut_m": p["debut_m"], "longueur_m": round(p["longueur_m"]),
-             "coords": [[c[1], c[0]] for c in coords[p["debut_rang"]:p["fin_rang"] + 1]]} for p in portions]
+             "coords": [[c[1], c[0]] for c in coords[p["debut_rang"]:p["fin_rang"] + 1]],
+             **({"source": p["source"]} if p["source"] != "ign" else {})} for p in portions]
 
 
 def entrees_ign(portions) -> list:
-    """Les portions IGN comme points à vérifier sur le tracé."""
-    return [{"cle": f"ign-{k}", "statut": "uncertain", "raison": RAISON_IGN,
-             "nature": f"Chemin IGN de {p['longueur_m']} m", "longueur_m": p["longueur_m"],
+    """Les portions officielles comme points à vérifier sur le tracé."""
+    return [{"cle": f"{p.get('source', 'ign')}-{k}", "statut": "uncertain",
+             "raison": f"Chemin {providers.source(p.get('source', 'ign')).nom} absent d'OpenStreetMap : existence et accès à vérifier",
+             "nature": f"Chemin {providers.source(p.get('source', 'ign')).nom} de {p['longueur_m']} m",
+             "longueur_m": p["longueur_m"],
              "lat": p["coords"][0][0], "lon": p["coords"][0][1],
              "osm": None, "distance_m": p["debut_m"]} for k, p in enumerate(portions) if p["coords"]]
 
@@ -232,7 +235,7 @@ class Application:
         self._verrou_denivele = threading.Lock()
         # Numéro de la vue en cours de chaque calque : une vue plus récente
         # arrête la lecture des tuiles de la précédente.
-        self._vues = {"osm": 0, "bdtopo": 0}
+        self._vues = {"osm": 0, **{p.calque: 0 for p in providers.SOURCES.values()}}
         self._verrou_vues = threading.Lock()
         # Avancement de la vue en cours de chaque calque, pour la barre de la
         # page : {"faites", "total", "debut"} (tuiles), absent hors lecture.
@@ -460,8 +463,14 @@ class Application:
             return {"erreur": str(exc)}
         strict, comparer = bool(payload.get("strict")), bool(payload.get("comparer", True))
         ign = bool(payload.get("ign", True))
+        source = payload.get("source", "ign")
+        if source not in providers.SOURCES:
+            return {"erreur": "Source de chemins officiels inconnue."}
         debut = time.monotonic()
         zone = zone_autour(points)
+        if ign and not providers.source(source).disponible(zone):
+            return {"erreur": f"Chemins {providers.source(source).nom} indisponibles dans cette zone.",
+                    "code": "source_hors_zone"}
         # Un calcul est un usage réel de la région : son extrait OSM part en
         # tâche de fond s'il manque, Overpass servant en attendant ; de même le
         # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
@@ -470,8 +479,9 @@ class Application:
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True,
                     "brouter_en_cours": self._brouter_automatique(brouter.segments_zone(*zone))}
         avertissement = detail_avertissement = None
-        journal.info("Itinéraire : %d points, %d tuiles, chemins IGN %s, mode strict %s", len(points),
-                     len(franchissements.tuiles_zone(*zone)), "oui" if ign else "non", "oui" if strict else "non")
+        journal.info("Itinéraire : %d points, %d tuiles, chemins %s %s, mode strict %s", len(points),
+                     len(franchissements.tuiles_zone(*zone)), source.upper(),
+                     "oui" if ign else "non", "oui" if strict else "non")
         try:
             for essai in range(ELARGISSEMENTS):
                 passe = essai + 1
@@ -497,13 +507,14 @@ class Application:
                         self._avancer(etape, fraction, faites, total, passe)
                     try:
                         segments, liste = self.maison.preparer(franchissements.tuiles_zone(*zone),
-                                                               suivi=suivi_maison)
+                                                               suivi=suivi_maison, source=source)
                         port = self.moteur_maison(segments)
                     except (franchissements.ErreurDonnees, brouter.ErreurBRouter, OSError, ImportError,
                             ValueError) as exc:
-                        avertissement = f"Chemins IGN indisponibles, calcul sur OSM seul : {exc}"
+                        nom_source = providers.source(source).nom
+                        avertissement = f"Chemins {nom_source} indisponibles, calcul sur OSM seul : {exc}"
                         detail_avertissement = str(exc)
-                        journal.warning("Chemins IGN indisponibles : %s", exc)
+                        journal.warning("Chemins %s indisponibles : %s", nom_source, exc)
                         ign = False     # pas de nouvel essai si la zone s'élargit
                     else:
                         self._avancer("itineraire", 0.82, passe=passe)
@@ -549,7 +560,8 @@ class Application:
                    "denivele_m": _nombre(trace["properties"], "filtered ascend"),
                    "sur_le_trace": sorted(passages + entrees_ign(portions), key=lambda f: f["distance_m"]),
                    "portions_ign": portions, "moteur": moteur_utilise, "avertissement": avertissement,
-                   "avertissement_detail": detail_avertissement, "strict": strict}
+                   "avertissement_detail": detail_avertissement, "strict": strict,
+                   "source_officielle": source}
         if comparer:
             self._avancer("comparaison", 0.92)
             try:
@@ -639,10 +651,14 @@ class Application:
         resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
 
-    def calque_bdtopo(self, zone, vue=None) -> dict:
+    def calque_officiel(self, source, zone, vue=None) -> dict:
+        fournisseur = providers.source(source)
         def lire(*bornes, **options):
-            return {"troncons": bdtopo.troncons_zone(*bornes, **options)}
-        return self._calque("bdtopo", zone, lire, self._prendre_vue("bdtopo", vue))
+            if not fournisseur.disponible(bornes):
+                return {"troncons": []}
+            return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
+        return self._calque(fournisseur.calque, zone, lire,
+                           self._prendre_vue(fournisseur.calque, vue))
 
     def arreter_calques(self, corps=None) -> dict:
         """La page n'affiche plus ces calques (zoom trop faible, calque masqué) :
@@ -747,17 +763,65 @@ class Application:
             return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
         return reponse
 
-    def disponibilite(self, zone) -> dict:
-        """Source OSM utilisable pour la zone, sans attendre un extrait en cours."""
+    def _detail_sources_osm(self, zone, overpass) -> dict:
+        """État des deux extraits de la tuile centrale et d'Overpass."""
+        detail = {"overpass": "oui" if overpass is True else "non" if overpass is False else "verification"}
         if zone is None:
-            return {"pret": False, "source": None}
+            return detail
         i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
-        installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
-        if installe is not None:
-            return {"pret": True, "source": "extrait", "nom": installe["nom"]}
-        disponible = franchissements.disponibilite_overpass()
-        return {"pret": disponible is True, "source": "overpass" if disponible else None,
-                "verification": disponible is None}
+        locaux = [r for r in osmfr.regions(self.dossier) if r.get("genre") == "departement"]
+        local = geofabrik.region_de_tuile(locaux, i, j)
+        regional = geofabrik.region_de_tuile(geofabrik.regions(self.dossier), i, j)
+        installes = {r["id"] for r in geofabrik.installes(self.dossier)}
+        en_cours = geofabrik.telechargements(self.dossier).etat()
+
+        def etat(region):
+            if region is None:
+                return {"etat": "non_applicable"}
+            statut = "disponible" if region["id"] in installes else "absent"
+            if statut == "absent" and en_cours and en_cours.get("id") == region["id"] \
+                    and en_cours.get("etape") in ("telechargement", "import"):
+                statut = en_cours["etape"]
+            return {"nom": region["nom"], "etat": statut}
+
+        return {**detail, "local": etat(local), "regional": etat(regional)}
+
+    def disponibilite(self, zone) -> dict:
+        """Prérequis d'un nouveau calcul au centre de la vue ou dans la zone du parcours."""
+        overpass = franchissements.disponibilite_overpass()
+        details = self._detail_sources_osm(zone, overpass)
+        if zone is None:
+            return {"pret": False, "source": None, "attente": "zone", "details": details}
+        if not self.installation.installee():
+            return {"pret": False, "source": None, "attente": "moteur", "details": details}
+        if any(not self.installation.segment_present(n) for n in brouter.segments_zone(*zone)):
+            return {"pret": False, "source": None, "attente": "segments", "details": details}
+        tuiles = franchissements.tuiles_zone(*zone)
+        if len(tuiles) > TUILES_MAX:
+            return {"pret": False, "source": None, "attente": "zone", "details": details}
+        extraits = [geofabrik.extrait_de_tuile(self.dossier, i, j) for i, j in tuiles]
+        if all(extraits):
+            return {"pret": True, "source": "extrait", "nom": extraits[0]["nom"], "details": details}
+        if all(extrait is not None or franchissements.tuile_disponible(i, j, self.dossier)
+               for (i, j), extrait in zip(tuiles, extraits)):
+            return {"pret": True, "source": "cache", "details": details}
+        return {"pret": overpass is True, "source": "overpass" if overpass else None,
+                "verification": overpass is None, "attente": "osm" if overpass is not True else None,
+                "details": details}
+
+    def disponibilite_parcours(self, payload) -> dict:
+        """Même contrôle, sur la zone du prochain calcul plutôt que sur la vue."""
+        try:
+            points = valider_points((payload or {}).get("points"))
+        except ValueError:
+            return self.disponibilite(None)
+        zone = zone_autour(points)
+        resultat = self.disponibilite(zone)
+        if (payload or {}).get("ign"):
+            source = (payload or {}).get("source")
+            if source not in providers.SOURCES or not providers.source(source).disponible(zone):
+                return {**resultat, "pret": False, "source": None, "attente": "source"}
+        return resultat
 
     # ---------------------------------------------------------- données téléchargées
 
@@ -765,7 +829,7 @@ class Application:
         """Les dossiers des caches de tuiles : ce que Vider efface, et qui se
         relit de lui-même au besoin."""
         return {"osm": [self.dossier / "overpass", self.dossier / "franchissements"],
-                "bdtopo": [self.dossier / "bdtopo"]}
+                **{p.calque: [self.dossier / p.calque] for p in providers.SOURCES.values()}}
 
     def _restes(self) -> list:
         """Ce qui traîne au dossier des extraits : l'ancien index de Geofabrik
@@ -836,7 +900,7 @@ class Application:
                     self._verrou_denivele.release()
             finally:
                 self._verrou_calcul.release()
-        elif action in ("vider_osm", "vider_bdtopo"):
+        elif action.startswith("vider_") and action[6:] in self._caches():
             for dossier in self._caches()[action[6:]]:
                 for p in dossier.glob("*.json") if dossier.is_dir() else []:
                     p.unlink(missing_ok=True)
@@ -934,11 +998,15 @@ class Application:
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
         get_langue, post_langue = langue_commune.routes(self.lire_langue, self.ecrire_langue)
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
-               "osm": self.calque_osm, "bdtopo": self.calque_bdtopo, "extrait": self.extrait,
+               "osm": self.calque_osm,
+               **{p.calque: (lambda zone, vue=None, cle=cle: self.calque_officiel(cle, zone, vue))
+                  for cle, p in providers.SOURCES.items()},
+               "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
                "disponibilite": self.disponibilite,
                **get_langue}
-        post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
+        post = {"itineraire": self.itineraire, "disponibilite": self.disponibilite_parcours,
+                "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
                 "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux, **post_langue}

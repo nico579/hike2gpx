@@ -1,6 +1,8 @@
 window.HIKE2GPX_MAP_PROVIDERS.es = {
   defaultBase: "espagne",
+  infoBase: { fr: "Carte topographique IGN Espagne", en: "Spanish IGN topographic map" },
   overlays: ["senderos"],
+  overlayNames: { senderos: { fr: "Sentiers balisés FEDME", en: "FEDME waymarked trails" } },
   bases({ L }) {
     return { espagne: L.tileLayer(
       "https://www.ign.es/wmts/mapa-raster?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=MTN&STYLE=default&TILEMATRIXSET=GoogleMapsCompatible&FORMAT=image/jpeg&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}",

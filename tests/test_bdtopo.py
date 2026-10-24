@@ -2,7 +2,7 @@ import urllib.error
 
 import pytest
 
-from hike2gpx import bdtopo
+from hike2gpx.providers import bdtopo
 from hike2gpx.franchissements import ErreurDonnees
 
 

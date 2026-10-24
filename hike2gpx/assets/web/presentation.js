@@ -1,5 +1,29 @@
 /* Présentation de la page ; le moteur de tracé reste app.js. */
+function couvertureCartographique(providers, langue) {
+  const noms = new Intl.DisplayNames([langue], { type: "region" });
+  return Object.entries(providers)
+    .filter(([code]) => code !== "autre")
+    .map(([code, provider]) => {
+      const chemins = [
+        ...(provider.paths?.overlay ? [provider.paths.name[langue]] : []),
+        ...(provider.overlays || []).map(cle => provider.overlayNames?.[cle]?.[langue] || cle),
+      ];
+      const source = provider.paths?.source;
+      const nomSource = provider.paths?.label || source;
+      const region = provider.paths?.scope?.[langue];
+      return {
+        code,
+        nom: noms.of(code.toUpperCase()),
+        fond: provider.infoBase?.[langue] || provider.defaultBase,
+        chemins: chemins.length ? chemins.join(" · ") : "OSM",
+        itineraire: source ? `OSM + ${nomSource}${region ? ` (${region})` : ""}` : "OSM",
+      };
+    })
+    .sort((a, b) => a.nom.localeCompare(b.nom, langue));
+}
+if (typeof module !== "undefined") module.exports = { couvertureCartographique };
 (() => {
+  if (typeof document === "undefined") return;
   const tabs = [...document.querySelectorAll("[data-pane]")];
   const panel = document.getElementById("panneau");
   const panelToggle = document.getElementById("panelToggle");
@@ -309,8 +333,6 @@
   });
   syncMapToolbarVisibility();
   const layersButton = document.getElementById("layersButton");
-  const providersInfoButton = document.getElementById("providersInfoButton");
-  const providersInfoPanel = document.getElementById("providersInfoPanel");
   const layersPreference = "hike2gpx.layersOpen";
   try {
     const open = localStorage.getItem(layersPreference) === "true";
@@ -365,54 +387,6 @@
       try { localStorage.setItem(layersPreference, "false"); } catch (error) {}
     }
   }
-  function remplirPaysCouverts() {
-    const langue = document.documentElement.lang === "en" ? "en" : "fr";
-    const noms = new Intl.DisplayNames([langue], { type: "region" });
-    const pays = Object.entries(window.HIKE2GPX_MAP_PROVIDERS || {})
-      .filter(([code]) => code !== "autre")
-      .map(([code, provider]) => ({
-        nom: noms.of(code.toUpperCase()),
-        fond: provider.defaultBase !== "osm",
-        chemins: (provider.overlays || []).length > 0,
-      }))
-      .filter(pays => pays.fond || pays.chemins)
-      .sort((a, b) => a.nom.localeCompare(b.nom, langue));
-    const titre = document.createElement("h3");
-    const intitulé = langue === "en" ? "Countries covered in addition to OSM (worldwide)"
-      : "Pays couverts en plus d’OSM (monde entier)";
-    titre.textContent = intitulé;
-    providersInfoButton.setAttribute("aria-label", intitulé);
-    providersInfoButton.title = intitulé;
-    providersInfoPanel.setAttribute("aria-label", intitulé);
-    const liste = document.createElement("ul");
-    for (const paysCouvert of pays) {
-      const ligne = document.createElement("li");
-      const nom = document.createElement("span");
-      nom.textContent = paysCouvert.nom;
-      const couverture = document.createElement("span");
-      couverture.textContent = langue === "en"
-        ? (paysCouvert.fond && paysCouvert.chemins ? "Map and paths" : paysCouvert.fond ? "Map" : "Paths")
-        : (paysCouvert.fond && paysCouvert.chemins ? "Fond et chemins" : paysCouvert.fond ? "Fond" : "Chemins");
-      ligne.append(nom, couverture);
-      liste.append(ligne);
-    }
-    providersInfoPanel.replaceChildren(titre, liste);
-  }
-  function closeProvidersInfo() {
-    providersInfoPanel.hidden = true;
-    providersInfoButton.setAttribute("aria-expanded", "false");
-  }
-  providersInfoButton.addEventListener("click", () => {
-    const ouvrir = providersInfoPanel.hidden;
-    if (ouvrir) {
-      closeLayers(false);
-      remplirPaysCouverts();
-    }
-    providersInfoPanel.hidden = !ouvrir;
-    providersInfoButton.setAttribute("aria-expanded", String(ouvrir));
-  });
-  document.addEventListener("nico579-langue", remplirPaysCouverts);
-  remplirPaysCouverts();
   function syncLayers() {
     const control = leafletControls.querySelector(".leaflet-control-layers") || toolbar.querySelector(".leaflet-control-layers");
     if (!control) return;

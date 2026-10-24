@@ -1,5 +1,6 @@
 window.HIKE2GPX_MAP_PROVIDERS.lu = {
   defaultBase: "luxembourg",
+  infoBase: { fr: "Carte topographique ACT", en: "ACT topographic map" },
   overlays: [],
   bases({ L }) {
     return { luxembourg: L.tileLayer(

@@ -1,6 +1,7 @@
 """Intégration au bureau par le commun : relance, raccourci, menu de l'icône,
 instance unique."""
 import sys
+import http.client
 import urllib.request
 from pathlib import Path
 
@@ -87,6 +88,14 @@ def test_la_page_charge_les_providers_depuis_leur_dossier(tmp_path):
             assert reponse.headers["Content-Type"].startswith("text/javascript")
         for code in ("fr", "es", "ch", "at", "nl", "no", "lu", "us"):
             assert f"HIKE2GPX_MAP_PROVIDERS.{code} =" in script
+        connexion = http.client.HTTPConnection(web.HOST, port, timeout=5)
+        try:
+            connexion.request("GET", "/documentation/pays")
+            reponse = connexion.getresponse()
+            assert reponse.status == 302
+            assert reponse.getheader("Location") == web.url_couverture_pays()
+        finally:
+            connexion.close()
     finally:
         serveur.shutdown()
         serveur.server_close()
