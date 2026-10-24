@@ -1,0 +1,3 @@
+[submodule "android/brouter"]
+	path = android/brouter
+	url = https://github.com/abrensch/brouter.git
