@@ -1,0 +1,11 @@
+[Unit]
+Description=Check hike2gpx zones for refresh every day
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=1h
+Unit=hike2gpx-refresh.service
+
+[Install]
+WantedBy=timers.target

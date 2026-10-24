@@ -1,0 +1,20 @@
+{
+  "zones": [
+    {
+      "id": "fr-gareoult",
+      "pays": "fr",
+      "source": "ign",
+      "zone": [43.42, 5.98, 43.49, 6.08],
+      "renouvellement_jours": 30,
+      "modes": ["strict"]
+    },
+    {
+      "id": "de-dresde",
+      "pays": "de",
+      "source": "atkis",
+      "zone": [51.0, 13.6, 51.08, 13.8],
+      "renouvellement_jours": 30,
+      "modes": ["strict"]
+    }
+  ]
+}

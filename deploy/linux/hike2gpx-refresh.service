@@ -1,0 +1,17 @@
+[Unit]
+Description=Prepare hike2gpx zone packages
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hike2gpx
+Group=hike2gpx
+Environment=HIKE2GPX_HOME=/var/lib/hike2gpx
+Environment=PATH=/opt/hike2gpx/venv/bin:/usr/bin:/bin
+ExecStart=/opt/hike2gpx/venv/bin/python /opt/hike2gpx/refresh.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/hike2gpx
