@@ -31,6 +31,7 @@ import re
 import sqlite3
 import threading
 import time
+from functools import lru_cache
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -652,6 +653,30 @@ def _couverte(i: int, j: int, dossier) -> bool:
         return geofabrik.extrait_de_tuile(dossier, i, j) is not None
     except (OSError, ValueError):
         return False
+
+
+@lru_cache(maxsize=512)
+def _date_cache_valide(chemin: Path, modification: int, taille: int) -> float | None:
+    """Valide le cache une seule fois tant que son fichier ne change pas."""
+    cache = atomique.lire_json(chemin, None)
+    if isinstance(cache, dict) and isinstance(cache.get("elements"), list) \
+            and isinstance(cache.get("fetched_at"), (int, float)):
+        return cache["fetched_at"]
+    return None
+
+
+def tuile_disponible(i: int, j: int, dossier, maintenant=time.time) -> bool:
+    """Une tuile peut fournir ses franchissements sans nouvel appel Overpass."""
+    from . import geofabrik
+    if geofabrik.extrait_de_tuile(dossier, i, j) is not None:
+        return True
+    chemin = Path(dossier) / "overpass" / f"v{VERSION_DONNEES}_{i}_{j}.json"
+    try:
+        info = chemin.stat()
+    except OSError:
+        return False
+    date = _date_cache_valide(chemin, info.st_mtime_ns, info.st_size)
+    return date is not None and maintenant() - date < TTL_S
 
 
 def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=interroger,

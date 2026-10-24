@@ -1,8 +1,21 @@
+import json
 import math
 
 import pytest
 
-from hike2gpx import franchissements as fr
+from hike2gpx import franchissements as fr, geofabrik
+
+
+def test_disponibilite_tuile_utilise_le_cache_valide_sans_overpass(tmp_path, monkeypatch):
+    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: None)
+    i, j = fr.tuile_du_point(43.3, 6.0)
+    assert not fr.tuile_disponible(i, j, tmp_path, maintenant=lambda: 1000)
+    dossier = tmp_path / "overpass"
+    dossier.mkdir()
+    (dossier / f"v{fr.VERSION_DONNEES}_{i}_{j}.json").write_text(
+        json.dumps({"fetched_at": 900, "elements": []}), encoding="utf-8")
+    assert fr.tuile_disponible(i, j, tmp_path, maintenant=lambda: 1000)
+    assert not fr.tuile_disponible(i, j, tmp_path, maintenant=lambda: 900 + fr.TTL_S + 1)
 
 LAT0, LON0 = 43.3, 6.0
 KX = fr.M_PAR_DEGRE * math.cos(math.radians(LAT0))

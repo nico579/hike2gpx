@@ -46,7 +46,7 @@ base map you chose.
   shows at a glance the paths one source is missing.
 - **In ten other countries**: maps of Spain, Switzerland, Germany (BKG
   TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway, the United
-  States, Czechia and Poland. Germany has an ATKIS path layer in all sixteen
+  States, Czechia and Poland (Geoportal topographic map). Germany has an ATKIS path layer in all sixteen
   states; Czechia has ZABAGED, Switzerland swissTLM3D and Lower Silesia in
   Poland BDOT10k. Spain and the United States have display-only trail layers.
   The ⓘ button next to the base map selector lists every country with its
@@ -56,8 +56,9 @@ A town search recenters the map: French municipalities through the French
 government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
 search engine. The same field accepts GPS coordinates such as `50.725, 10.275`
 or `50,725 ; 10,275` (latitude first). A button switches the map to full screen. An indicator tells
-whether a route can be planned right away, thanks to an OSM extract already
-installed or to Overpass.
+whether the next route has BRouter and its tiles plus OSM data for the area
+(an extract, cached data or Overpass). Its yellow “i” shows the state of
+Overpass and the local and regional OSM extracts.
 Right-click the map to show and copy the clicked point's GPS coordinates.
 
 **The route.** A click sets the start, then the waypoints and the finish; a

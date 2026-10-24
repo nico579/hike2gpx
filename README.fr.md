@@ -45,18 +45,20 @@ fond choisi.
   publié. Un second calque montre les chemins de la BD TOPO de l'IGN ; mis à
   côté de celui d'OpenStreetMap, il montre d'un coup d'œil les sentiers qu'une
   source ignore.
-- **Dans huit autres pays** : la carte nationale de l'Espagne, de la Suisse, de
+- **Dans neuf autres pays** : la carte nationale de l'Espagne, de la Suisse, de
   l'Allemagne (BKG TopPlusOpen), de l'Autriche, des Pays-Bas, du Luxembourg,
-  de la Norvège et des États-Unis.
+  de la Norvège, de la Pologne (Geoportal) et des États-Unis.
   L'Espagne, la Suisse et les États-Unis y ajoutent leurs sentiers officiels,
   pour l'affichage seulement. L'Allemagne ajoute le calque ATKIS dans les
   seize Länder. Le bouton ⓘ, à côté du choix des fonds, liste ces pays.
 
 Une recherche de ville recentre la carte : les communes françaises par l'API
 Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
-d'OpenStreetMap. Un bouton passe la carte en plein écran. Un voyant dit si le
-tracé est possible tout de suite, grâce à un extrait OSM déjà installé ou à
-Overpass.
+d'OpenStreetMap. Un bouton passe la carte en plein écran. Un voyant indique
+si le prochain calcul dispose du moteur et des tuiles BRouter ainsi que des
+données OSM de la zone (extrait, cache ou Overpass). Son « i » jaune détaille
+l'état d'Overpass et des extraits OSM local et régional, par exemple le Var
+et la PACA.
 Un clic droit sur la carte affiche les coordonnées GPS du point choisi et
 permet de les copier.
 

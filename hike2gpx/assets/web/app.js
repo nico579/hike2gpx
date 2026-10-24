@@ -95,7 +95,27 @@ const TEXTES = {
     "reglages.majImpossible": "Vérification impossible (réseau ?).",
     "disponibilite.oui": "Tracé disponible",
     "disponibilite.non": "Tracé indisponible",
-    "disponibilite.calcule": "Tracé calculé",
+    "disponibilite.attente.moteur": "Installation de BRouter en cours",
+    "disponibilite.attente.segments": "Tuiles BRouter en cours de téléchargement",
+    "disponibilite.attente.osm": "Données OSM ou Overpass en attente",
+    "disponibilite.attente.source": "Chemins officiels indisponibles dans cette zone",
+    "disponibilite.attente.zone": "Zone du parcours à préciser",
+    "disponibilite.info.titre": "Sources du prochain calcul",
+    "disponibilite.info.verification": "Vérification des données en cours…",
+    "disponibilite.info.overpass": "Overpass",
+    "disponibilite.info.local": "Extrait OSM local",
+    "disponibilite.info.regional": "Extrait OSM régional",
+    "disponibilite.info.brouter": "BRouter",
+    "disponibilite.info.pret": "prêt",
+    "disponibilite.info.attente": "en attente",
+    "disponibilite.etat.oui": "répond",
+    "disponibilite.etat.non": "ne répond pas",
+    "disponibilite.etat.verification": "vérification en cours",
+    "disponibilite.etat.disponible": "disponible",
+    "disponibilite.etat.absent": "absent",
+    "disponibilite.etat.telechargement": "téléchargement en cours",
+    "disponibilite.etat.import": "import en cours",
+    "disponibilite.etat.non_applicable": "sans objet",
     "statut.donneesIndisponibles": "Données OSM indisponibles pour ce tracé. Nouvelle tentative automatique après téléchargement.",
     "donnees.titre": "Données téléchargées",
     "donnees.note": "Tout se retélécharge de soi-même au besoin : vider ou supprimer libère de la place, actualiser donne des données fraîches.",
@@ -283,7 +303,27 @@ const TEXTES = {
     "reglages.majImpossible": "Could not check (network?).",
     "disponibilite.oui": "Routing available",
     "disponibilite.non": "Routing unavailable",
-    "disponibilite.calcule": "Route calculated",
+    "disponibilite.attente.moteur": "BRouter installation in progress",
+    "disponibilite.attente.segments": "BRouter tiles downloading",
+    "disponibilite.attente.osm": "Waiting for OSM data or Overpass",
+    "disponibilite.attente.source": "Official paths unavailable in this area",
+    "disponibilite.attente.zone": "Route area needs to be specified",
+    "disponibilite.info.titre": "Sources for the next route",
+    "disponibilite.info.verification": "Checking data…",
+    "disponibilite.info.overpass": "Overpass",
+    "disponibilite.info.local": "Local OSM extract",
+    "disponibilite.info.regional": "Regional OSM extract",
+    "disponibilite.info.brouter": "BRouter",
+    "disponibilite.info.pret": "ready",
+    "disponibilite.info.attente": "waiting",
+    "disponibilite.etat.oui": "responding",
+    "disponibilite.etat.non": "not responding",
+    "disponibilite.etat.verification": "checking",
+    "disponibilite.etat.disponible": "available",
+    "disponibilite.etat.absent": "absent",
+    "disponibilite.etat.telechargement": "downloading",
+    "disponibilite.etat.import": "importing",
+    "disponibilite.etat.non_applicable": "not applicable",
     "statut.donneesIndisponibles": "OSM data unavailable for this route. Automatic retry after download.",
     "donnees.titre": "Downloaded data",
     "donnees.note": "Everything downloads again by itself when needed: clearing or deleting frees space, refreshing brings fresh data.",
@@ -679,22 +719,42 @@ let sequenceDisponibilite = 0;
 let derniereDisponibilite = null;
 function afficherDisponibilite(d) {
   derniereDisponibilite = d;
-  const calcule = Boolean(etat.dernier);
-  const pret = calcule || Boolean(d?.pret);
+  const pret = Boolean(d?.pret);
   $("readiness").classList.toggle("available", pret);
   $("readiness").classList.toggle("unavailable", !pret);
-  $("readinessText").textContent = t(calcule ? "disponibilite.calcule"
-    : pret ? "disponibilite.oui" : "disponibilite.non");
-  $("readiness").title = calcule ? t("disponibilite.calcule")
-    : pret ? `OSM : ${d.source === "extrait" ? d.nom : "Overpass"}`
-    : d?.verification ? "Vérification d'Overpass…" : "Aucune source OSM disponible dans cette zone";
+  $("readinessText").textContent = t(pret ? "disponibilite.oui" : "disponibilite.non");
+  $("readiness").title = pret ? `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`
+    : t(`disponibilite.attente.${d?.attente || "osm"}`);
+  $("readinessInfo").setAttribute("aria-label", t("disponibilite.info.titre"));
+  const details = d?.details;
+  if (!details) {
+    $("readinessInfoText").textContent = t("disponibilite.info.verification");
+    return;
+  }
+  const extrait = (cle) => {
+    const source = details[cle] || { etat: "non_applicable" };
+    return `${t(`disponibilite.info.${cle}`)}${source.nom ? ` (${source.nom})` : ""} : `
+      + t(`disponibilite.etat.${source.etat}`);
+  };
+  $("readinessInfoText").textContent = [t("disponibilite.info.titre"),
+    `${t("disponibilite.info.overpass")} : ${t(`disponibilite.etat.${details.overpass}`)}`,
+    extrait("local"), extrait("regional"),
+    `${t("disponibilite.info.brouter")} : ${t(d.attente === "moteur" || d.attente === "segments"
+      ? "disponibilite.info.attente" : "disponibilite.info.pret")}`].join("\n");
 }
 
 async function actualiserDisponibilite() {
   const numero = ++sequenceDisponibilite;
-  const parametres = new URLSearchParams(Object.entries(zoneVue()).map(([k, v]) => [k, v.toFixed(5)]));
+  const centre = etat.points[0] || { lat: carte.getCenter().lat, lon: carte.getCenter().lng };
+  const parametres = new URLSearchParams({ s: (centre.lat - 0.00001).toFixed(6),
+    w: (centre.lon - 0.00001).toFixed(6), n: (centre.lat + 0.00001).toFixed(6),
+    e: (centre.lon + 0.00001).toFixed(6) });
   try {
-    const d = await api(`disponibilite?${parametres}`);
+    const d = etat.points.length >= 2 ? await api("disponibilite", {
+      points: etat.points.map((p) => [p.lat, p.lon]),
+      ign: $("ign").checked && Boolean(FOURNISSEURS_CARTES[paysCarte]?.paths?.source),
+      source: FOURNISSEURS_CARTES[paysCarte]?.paths?.source,
+    }) : await api(`disponibilite?${parametres}`);
     if (numero === sequenceDisponibilite) afficherDisponibilite(d);
   } catch (e) {
     if (numero === sequenceDisponibilite) afficherDisponibilite(null);
@@ -1155,8 +1215,9 @@ async function majExtrait(forcer = false) {
 
 function afficherExtrait(r) {
   const avant = extraitActif(etat.extrait) ? etat.extrait.en_cours.id : null;
+  const avantInstalle = Boolean(etat.extrait?.installe);
   etat.extrait = r;
-  if (r?.installe) afficherDisponibilite({ pret: true, source: "extrait", nom: r.installe.nom });
+  if (r?.installe && !avantInstalle) actualiserDisponibilite();
   const e = r?.en_cours;
   const actif = extraitActif(r);
   // L'extrait suivi jusqu'ici a fini, même si la région de Geofabrik part
@@ -1370,7 +1431,8 @@ function planifierCalcul() {
   } catch (e) { /* le parcours reste utilisable si le stockage est indisponible */ }
   etat.sequence++;
   etat.dernier = null;
-  afficherDisponibilite(derniereDisponibilite);
+  afficherDisponibilite(null);
+  actualiserDisponibilite();
   $("exporter").disabled = true;
   etat.minuterie = setTimeout(calculer, DELAI_CALCUL_MS);
 }
@@ -1382,7 +1444,7 @@ function effacerResultat() {
   cacherMarqueurProfil();
   profilRoute = null;
   etat.dernier = null;
-  afficherDisponibilite(derniereDisponibilite);
+  actualiserDisponibilite();
   $("resultat").hidden = true;
   $("exporter").disabled = true;
 }
@@ -1601,7 +1663,6 @@ function bulleFranchissement(f) {
 
 function afficher(r) {
   etat.dernier = r;
-  afficherDisponibilite(derniereDisponibilite);
   cacherMarqueurProfil();
   profilRoute = null;
   couches.clearLayers();

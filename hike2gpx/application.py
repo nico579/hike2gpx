@@ -763,17 +763,65 @@ class Application:
             return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
         return reponse
 
-    def disponibilite(self, zone) -> dict:
-        """Source OSM utilisable pour la zone, sans attendre un extrait en cours."""
+    def _detail_sources_osm(self, zone, overpass) -> dict:
+        """État des deux extraits de la tuile centrale et d'Overpass."""
+        detail = {"overpass": "oui" if overpass is True else "non" if overpass is False else "verification"}
         if zone is None:
-            return {"pret": False, "source": None}
+            return detail
         i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
-        installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
-        if installe is not None:
-            return {"pret": True, "source": "extrait", "nom": installe["nom"]}
-        disponible = franchissements.disponibilite_overpass()
-        return {"pret": disponible is True, "source": "overpass" if disponible else None,
-                "verification": disponible is None}
+        locaux = [r for r in osmfr.regions(self.dossier) if r.get("genre") == "departement"]
+        local = geofabrik.region_de_tuile(locaux, i, j)
+        regional = geofabrik.region_de_tuile(geofabrik.regions(self.dossier), i, j)
+        installes = {r["id"] for r in geofabrik.installes(self.dossier)}
+        en_cours = geofabrik.telechargements(self.dossier).etat()
+
+        def etat(region):
+            if region is None:
+                return {"etat": "non_applicable"}
+            statut = "disponible" if region["id"] in installes else "absent"
+            if statut == "absent" and en_cours and en_cours.get("id") == region["id"] \
+                    and en_cours.get("etape") in ("telechargement", "import"):
+                statut = en_cours["etape"]
+            return {"nom": region["nom"], "etat": statut}
+
+        return {**detail, "local": etat(local), "regional": etat(regional)}
+
+    def disponibilite(self, zone) -> dict:
+        """Prérequis d'un nouveau calcul au centre de la vue ou dans la zone du parcours."""
+        overpass = franchissements.disponibilite_overpass()
+        details = self._detail_sources_osm(zone, overpass)
+        if zone is None:
+            return {"pret": False, "source": None, "attente": "zone", "details": details}
+        if not self.installation.installee():
+            return {"pret": False, "source": None, "attente": "moteur", "details": details}
+        if any(not self.installation.segment_present(n) for n in brouter.segments_zone(*zone)):
+            return {"pret": False, "source": None, "attente": "segments", "details": details}
+        tuiles = franchissements.tuiles_zone(*zone)
+        if len(tuiles) > TUILES_MAX:
+            return {"pret": False, "source": None, "attente": "zone", "details": details}
+        extraits = [geofabrik.extrait_de_tuile(self.dossier, i, j) for i, j in tuiles]
+        if all(extraits):
+            return {"pret": True, "source": "extrait", "nom": extraits[0]["nom"], "details": details}
+        if all(extrait is not None or franchissements.tuile_disponible(i, j, self.dossier)
+               for (i, j), extrait in zip(tuiles, extraits)):
+            return {"pret": True, "source": "cache", "details": details}
+        return {"pret": overpass is True, "source": "overpass" if overpass else None,
+                "verification": overpass is None, "attente": "osm" if overpass is not True else None,
+                "details": details}
+
+    def disponibilite_parcours(self, payload) -> dict:
+        """Même contrôle, sur la zone du prochain calcul plutôt que sur la vue."""
+        try:
+            points = valider_points((payload or {}).get("points"))
+        except ValueError:
+            return self.disponibilite(None)
+        zone = zone_autour(points)
+        resultat = self.disponibilite(zone)
+        if (payload or {}).get("ign"):
+            source = (payload or {}).get("source")
+            if source not in providers.SOURCES or not providers.source(source).disponible(zone):
+                return {**resultat, "pret": False, "source": None, "attente": "source"}
+        return resultat
 
     # ---------------------------------------------------------- données téléchargées
 
@@ -957,7 +1005,8 @@ class Application:
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
                "disponibilite": self.disponibilite,
                **get_langue}
-        post = {"itineraire": self.itineraire, "reglages": self.enregistrer_reglages,
+        post = {"itineraire": self.itineraire, "disponibilite": self.disponibilite_parcours,
+                "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
                 "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux, **post_langue}

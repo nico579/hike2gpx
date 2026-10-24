@@ -66,7 +66,9 @@ function charger(preferences = {}, documentGpx = null) {
        vectorGrid: { protobuf: (url, options) => Object.assign(couche(), { url, options }) },
       polyline: (points, options) => Object.assign(couche(), { points, options }), circleMarker: couche,
       marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
-      tileLayer: (url, options) => Object.assign(couche(), { url, options }), divIcon: (options) => ({ options }),
+      tileLayer: Object.assign((url, options) => Object.assign(couche(), { url, options }),
+        { wms: (url, options) => Object.assign(couche(), { url, options }) }),
+      CRS: { EPSG4326: { code: "EPSG:4326" } }, divIcon: (options) => ({ options }),
       control: { layers: (fonds, calques) => Object.assign(couche(), { fonds, calques,
         addOverlay(layer, name) { this.calques[name] = layer; return this; },
         removeLayer(layer) {
@@ -204,8 +206,8 @@ test("chaque fond et chaque calque des providers a son libellé FR et EN", () =>
   const { page } = charger();
   for (const [code, provider] of Object.entries(page.providers)) {
     if (code === "autre") continue;
-    const fonds = Object.keys(provider.bases({ L: globalThis.L ?? {
-      tileLayer: () => ({}) }, cleIgn: "cle", tuileIgn: () => "" }));
+    const fauxL = { tileLayer: Object.assign(() => ({}), { wms: () => ({}) }), CRS: { EPSG4326: {} } };
+    const fonds = Object.keys(provider.bases({ L: fauxL, cleIgn: "cle", tuileIgn: () => "" }));
     assert.ok([...fonds, "osmRando", "osm", "satellite"].includes(provider.defaultBase),
       `${code} : fond par défaut ${provider.defaultBase} absent`);
     for (const langue of ["fr", "en"]) {
@@ -293,20 +295,29 @@ test("le parcours revient après rechargement et se recalcule", async () => {
   assert.equal(apres.elements.get("exporter").disabled, false);
 });
 
-test("un tracé calculé reste indiqué pendant l'import de l'extrait OSM", async () => {
+test("le voyant suit les données du prochain calcul, pas le tracé affiché", async () => {
   const { page, elements, derniere, minuteurs } = charger();
-  page.afficherDisponibilite({ pret: false, source: null });
+  page.afficherDisponibilite({ pret: false, source: null, attente: "osm" });
   assert.equal(elements.get("readinessText").textContent, "Tracé indisponible");
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   page.ajouterPoint({ lat: 43.31, lng: 6.02 });
   const calcul = minuteurs.findLast((m) => m.ms === 250 && !m.annule).callback();
   repondre(derniere(), resultat(6.02));
   await calcul;
-  page.afficherDisponibilite({ pret: false, source: null });
-  assert.equal(elements.get("readinessText").textContent, "Tracé calculé");
+  page.afficherDisponibilite({ pret: false, source: null, attente: "osm" });
+  assert.equal(elements.get("readinessText").textContent, "Tracé indisponible");
+  page.afficherDisponibilite({ pret: true, source: "cache", details: {
+    overpass: "oui", local: { nom: "Var", etat: "disponible" },
+    regional: { nom: "Provence-Alpes-Côte d’Azur", etat: "import" },
+  } });
+  assert.equal(elements.get("readinessText").textContent, "Tracé disponible");
   assert.equal(elements.get("readiness").classList.contains("available"), true);
+  assert.match(elements.get("readinessInfoText").textContent, /Overpass : répond/);
+  assert.match(elements.get("readinessInfoText").textContent, /Extrait OSM local \(Var\) : disponible/);
+  assert.match(elements.get("readinessInfoText").textContent, /Extrait OSM régional .* : import en cours/);
   page.appliquerLangue("en");
-  assert.equal(elements.get("readinessText").textContent, "Route calculated");
+  assert.equal(elements.get("readinessText").textContent, "Routing available");
+  assert.match(elements.get("readinessInfoText").textContent, /Regional OSM extract .* : importing/);
   page.ajouterPoint({ lat: 43.32, lng: 6.03 });
   assert.equal(elements.get("readinessText").textContent, "Routing unavailable");
 });
@@ -508,6 +519,11 @@ test("les nouveaux providers transmettent leur source au calcul, avec limite ré
     carte.vue = { s: centre[0] - 0.005, w: centre[1] - 0.005,
       n: centre[0] + 0.005, e: centre[1] + 0.005 };
     page.choisirPays(pays);
+    if (pays === "pl") {
+      assert.match(page.fond().url, /geoportal\.gov\.pl\/wss\/service\/img\/guest\/TOPO/);
+      assert.equal(page.fond().options.layers, "Raster");
+      assert.equal(page.fond().options.crs.code, "EPSG:4326");
+    }
     assert.ok(page.controle().calques[page.providers[pays].paths.name.fr]);
     assert.equal(elements.get("ign").disabled, false);
     page.etat.points = [{ lat: centre[0], lon: centre[1] },
