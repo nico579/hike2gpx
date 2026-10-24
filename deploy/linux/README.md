@@ -16,7 +16,7 @@ Adapter `/etc/hike2gpx/zones.json` : chaque zone a un `id`, un `pays` du registr
 
 ```bash
 # Depuis le PC, déclencher un seul calcul distant par SSH.
-ssh nico@rando.example.org 'sudo -u hike2gpx env HIKE2GPX_HOME=/var/lib/hike2gpx PATH=/opt/hike2gpx/venv/bin:/usr/bin:/bin /opt/hike2gpx/venv/bin/python /opt/hike2gpx/refresh.py --zone de-dresde --all'
+ssh nico@rando.example.org 'sudo -u hike2gpx env HIKE2GPX_HOME=/var/lib/hike2gpx PATH=/opt/hike2gpx/venv/bin:/usr/bin:/bin /opt/hike2gpx/venv/bin/python /opt/hike2gpx/refresh.py --zone de-rosa --all'
 
 # Ou, sur le serveur, déclencher toutes les zones arrivées à échéance.
 sudo systemctl start hike2gpx-refresh.service

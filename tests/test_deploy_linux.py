@@ -10,7 +10,7 @@ from deploy.linux import refresh
 def test_zones_exemple_respectent_les_providers():
     chemin = Path(__file__).resolve().parents[1] / "deploy/linux/zones.example.json"
     zones = refresh.zones_valides(json.loads(chemin.read_text(encoding="utf-8")))
-    assert {z["source"] for z in zones} == {"ign", "atkis"}
+    assert {z["source"] for z in zones} == {"ign", "atkis", "zabaged", "swisstlm3d", "bdot10k_ds"}
 
 
 @pytest.mark.parametrize("changement", [
