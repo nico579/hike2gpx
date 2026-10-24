@@ -10,7 +10,7 @@ L'application demande un manifeste via `GET /api/paquet-zone`, puis télécharge
 
 ## Calcul embarqué
 
-- Intégrer les bibliothèques Java de BRouter dans le processus Android, avec un adaptateur Kotlin autour de `RoutingEngine` et des fichiers de la zone dans le stockage privé de l'application. L'accès à l'installation Android distincte de BRouter ne suffit pas, car elle ne connaît pas les RD5 enrichis de hike2gpx.
+- Intégrer les bibliothèques Java de BRouter dans le processus Android, avec un adaptateur Java autour de `RoutingEngine` et des fichiers de la zone dans le stockage privé de l'application. L'accès à l'installation Android distincte de BRouter ne suffit pas, car elle ne connaît pas les RD5 enrichis de hike2gpx.
 - Lancer le calcul sur un fil de fond annulable. Transmettre les points, le profil et les coupes finales du manifeste à BRouter ; convertir le résultat en tracé et statistiques.
 - Vérifier après calcul que le tracé reste dans la couverture du paquet et ne traverse aucun franchissement interdit. Afficher les franchissements et les portions officielles sur la carte.
 - Si les fichiers sont absents, incomplets ou périmés, proposer le téléchargement. Si le moteur local échoue pour une limite de ressources, tenter le calcul de secours du serveur lorsque le réseau répond.

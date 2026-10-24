@@ -22,3 +22,7 @@ android {
         '../brouter/brouter-core/src/main/java'
     ]
 }
+
+dependencies {
+    implementation 'org.osmdroid:osmdroid-android:6.1.20'
+}

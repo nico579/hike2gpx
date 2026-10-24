@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:label="hike2gpx" android:theme="@android:style/Theme.Material.Light.NoActionBar"
+    <application android:label="hike2gpx" android:icon="@drawable/hike2gpx"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="false" android:allowBackup="false">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>

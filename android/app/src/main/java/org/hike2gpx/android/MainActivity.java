@@ -13,11 +13,22 @@ import android.widget.ArrayAdapter;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import org.osmdroid.config.Configuration;
+import org.osmdroid.events.MapEventsReceiver;
+import org.osmdroid.util.BoundingBox;
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.MapView;
+import org.osmdroid.views.overlay.MapEventsOverlay;
+import org.osmdroid.views.overlay.Polyline;
+import org.osmdroid.views.overlay.CopyrightOverlay;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -28,12 +39,18 @@ public final class MainActivity extends Activity {
     private Spinner source;
     private Switch strict;
     private TextView status;
-    private RouteView map;
+    private MapView map;
+    private Polyline routeOverlay;
+    private CrossingOverlay crossingOverlay;
+    private boolean nextTapIsStart = true;
     private JSONObject lastRoute;
     private PackageStore packages;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        Configuration.getInstance().setUserAgentValue("hike2gpx-android/0.1 (+https://github.com/nico579/hike2gpx)");
+        Configuration.getInstance().setOsmdroidBasePath(new java.io.File(getCacheDir(), "osmdroid"));
+        Configuration.getInstance().setOsmdroidTileCache(new java.io.File(getCacheDir(), "osmdroid/tiles"));
         packages = new PackageStore(this);
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -58,14 +75,35 @@ public final class MainActivity extends Activity {
         strict.setChecked(true);
         column.addView(strict);
         Button download = button(column, R.string.download);
+        Button visibleZone = button(column, R.string.visible_zone);
         Button calculate = button(column, R.string.calculate);
         Button serverFallback = button(column, R.string.server_fallback);
         Button export = button(column, R.string.export);
         status = new TextView(this);
         status.setText(R.string.status_ready);
         column.addView(status);
-        map = new RouteView(this);
+        map = new MapView(this);
+        map.setMultiTouchControls(true);
+        map.getController().setZoom(13.0);
+        map.getController().setCenter(new GeoPoint(43.458, 6.045));
+        map.getOverlays().add(new CopyrightOverlay(this));
+        crossingOverlay = new CrossingOverlay();
+        map.getOverlays().add(crossingOverlay);
+        map.getOverlays().add(new MapEventsOverlay(new MapEventsReceiver() {
+            @Override public boolean singleTapConfirmedHelper(GeoPoint point) {
+                EditText target = nextTapIsStart ? start : finish;
+                target.setText(String.format(Locale.US, "%.6f, %.6f", point.getLatitude(), point.getLongitude()));
+                nextTapIsStart = !nextTapIsStart;
+                return true;
+            }
+            @Override public boolean longPressHelper(GeoPoint point) { return false; }
+        }));
         column.addView(map, new LinearLayout.LayoutParams(-1, (int) (350 * getResources().getDisplayMetrics().density)));
+        visibleZone.setOnClickListener(v -> {
+            BoundingBox box = map.getBoundingBox();
+            bounds.setText(String.format(Locale.US, "%.6f, %.6f, %.6f, %.6f",
+                    box.getLatSouth(), box.getLonWest(), box.getLatNorth(), box.getLonEast()));
+        });
         download.setOnClickListener(v -> {
             String areaText = bounds.getText().toString();
             String address = server.getText().toString().trim().replaceAll("/+$", "");
@@ -75,6 +113,7 @@ public final class MainActivity extends Activity {
             runTask(() -> {
                 double[] area = numbers(areaText, 4);
                 PackageStore.Zone zone = packages.download(address, area, selected, useStrict);
+                runOnUiThread(() -> showCrossings(zone.manifest));
                 return getString(R.string.zone_ready, zone.manifest.getJSONArray("segments").length());
             });
         });
@@ -89,6 +128,7 @@ public final class MainActivity extends Activity {
                     Math.max(a[0], b[0]), Math.max(a[1], b[1])};
             PackageStore.Zone zone = packages.covering(area, selected, useStrict);
             if (zone == null) throw new IllegalStateException(getString(R.string.zone_missing));
+            runOnUiThread(() -> showCrossings(zone.manifest));
             String lonlats = String.format(Locale.US, "%.7f,%.7f|%.7f,%.7f", a[1], a[0], b[1], b[0]);
             String result = new LocalRouter().calculate(zone.directory, lonlats,
                     zone.manifest.getString("polylines"));
@@ -96,7 +136,7 @@ public final class MainActivity extends Activity {
             JSONObject feature = geojson.has("features") ? geojson.getJSONArray("features").getJSONObject(0) : geojson;
             JSONArray coordinates = feature.getJSONObject("geometry").getJSONArray("coordinates");
             verifyRoute(coordinates, zone.manifest, useStrict);
-            runOnUiThread(() -> { lastRoute = feature; map.setRoute(coordinates); });
+            runOnUiThread(() -> { lastRoute = feature; showRoute(coordinates); });
             return getString(R.string.route_ready, coordinates.length());
             });
         });
@@ -109,7 +149,7 @@ public final class MainActivity extends Activity {
                 JSONObject feature = new RemoteRouter().calculate(address, numbers(startText, 2),
                         numbers(finishText, 2), selected, useStrict);
                 JSONArray coordinates = feature.getJSONObject("geometry").getJSONArray("coordinates");
-                runOnUiThread(() -> { lastRoute = feature; map.setRoute(coordinates); });
+                runOnUiThread(() -> { lastRoute = feature; showRoute(coordinates); });
                 return getString(R.string.route_remote, coordinates.length());
             });
         });
@@ -134,6 +174,33 @@ public final class MainActivity extends Activity {
     }
 
     private String selectedSource() { return SOURCES[source.getSelectedItemPosition()]; }
+
+    private void showCrossings(JSONObject manifest) {
+        try { crossingOverlay.setManifest(manifest); map.invalidate(); }
+        catch (Exception error) { status.setText(error.getMessage()); }
+    }
+
+    private void showRoute(JSONArray coordinates) {
+        try {
+            if (routeOverlay != null) map.getOverlays().remove(routeOverlay);
+            List<GeoPoint> points = new ArrayList<>();
+            double south = 90, west = 180, north = -90, east = -180;
+            for (int i = 0; i < coordinates.length(); i++) {
+                JSONArray item = coordinates.getJSONArray(i);
+                double lat = item.getDouble(1), lon = item.getDouble(0);
+                points.add(new GeoPoint(lat, lon));
+                south = Math.min(south, lat); west = Math.min(west, lon);
+                north = Math.max(north, lat); east = Math.max(east, lon);
+            }
+            routeOverlay = new Polyline(map);
+            routeOverlay.setPoints(points);
+            routeOverlay.getOutlinePaint().setColor(0xff175dcb);
+            routeOverlay.getOutlinePaint().setStrokeWidth(8f);
+            map.getOverlays().add(routeOverlay);
+            map.zoomToBoundingBox(new BoundingBox(north, east, south, west), true, 40);
+            map.invalidate();
+        } catch (Exception error) { status.setText(error.getMessage()); }
+    }
 
     private static double[] numbers(String value, int count) {
         String[] fields = value.trim().split("[,; ]+");
@@ -214,5 +281,7 @@ public final class MainActivity extends Activity {
         } catch (Exception error) { status.setText(error.getMessage()); }
     }
 
-    @Override protected void onDestroy() { worker.shutdownNow(); super.onDestroy(); }
+    @Override protected void onResume() { super.onResume(); map.onResume(); }
+    @Override protected void onPause() { map.onPause(); super.onPause(); }
+    @Override protected void onDestroy() { worker.shutdownNow(); map.onDetach(); super.onDestroy(); }
 }
