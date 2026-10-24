@@ -1,6 +1,7 @@
 package org.hike2gpx.android;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
@@ -138,7 +139,8 @@ public final class MainActivity extends Activity {
             runOnUiThread(() -> showCrossings(zone.manifest));
             String lonlats = String.format(Locale.US, "%.7f,%.7f|%.7f,%.7f", a[1], a[0], b[1], b[0]);
             String result = new LocalRouter().calculate(zone.directory, lonlats,
-                    zone.manifest.getString("polylines"));
+                    zone.manifest.getString("polylines"),
+                    ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryClass());
             JSONObject geojson = new JSONObject(result);
             JSONObject feature = geojson.has("features") ? geojson.getJSONArray("features").getJSONObject(0) : geojson;
             JSONArray coordinates = feature.getJSONObject("geometry").getJSONArray("coordinates");

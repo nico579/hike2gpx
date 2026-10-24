@@ -14,12 +14,13 @@ import btools.router.RoutingParamCollector;
 
 /** BRouter 1.7.10 runs directly in this process against the downloaded RD5 files. */
 final class LocalRouter {
-    String calculate(File packageDir, String lonlats, String polylines) {
+    String calculate(File packageDir, String lonlats, String polylines, int memoryClassMb) {
         RoutingParamCollector collector = new RoutingParamCollector();
         List<OsmNodeNamed> waypoints = collector.getWayPointList(lonlats);
         if (waypoints.size() < 2) throw new IllegalArgumentException("At least two points required");
         RoutingContext context = new RoutingContext();
         context.localFunction = new File(packageDir, "hike2gpx.brf").getAbsolutePath();
+        context.memoryclass = Math.max(16, Math.min(256, memoryClassMb));
         Map<String, String> params = new HashMap<>();
         params.put("format", "json");
         params.put("alternativeidx", "0");
