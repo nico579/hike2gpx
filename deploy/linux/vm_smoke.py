@@ -1,6 +1,6 @@
 """Vérifie l'API d'une instance Linux locale avant de la publier par Caddy.
 
-python vm_smoke.py [nom-dns] [port] [--prepared]
+python vm_smoke.py [nom-dns] [port] [--prepared] [--route]
 """
 import json
 import sys
@@ -32,7 +32,7 @@ query = urllib.parse.urlencode({"s": 43.30, "w": 6.00, "n": 43.35, "e": 6.05,
                                 "source": "ign", "strict": 1, "officiel": 1})
 status, package = demander("paquet-zone?" + query)
 assert status == 200 and package["raison"] == "zone_non_preparee"
-if len(sys.argv) > 3 and sys.argv[3] == "--prepared":
+if "--prepared" in sys.argv[3:]:
     osm_query = urllib.parse.urlencode({"s": 43.30, "w": 6.00, "n": 43.35, "e": 6.05,
                                         "source": "ign", "strict": 1, "officiel": 0})
     status, package = demander("paquet-zone?" + osm_query)
@@ -44,5 +44,12 @@ if len(sys.argv) > 3 and sys.argv[3] == "--prepared":
     with urllib.request.urlopen(request, timeout=8) as response:
         assert response.status == 206 and len(response.read()) == 16
     print(f"API Linux OK : paquet réel, {len(package['franchissements'])} franchissements, RD5 avec Range")
+    if "--route" in sys.argv[3:]:
+        payload = json.dumps({"points": [[43.324163, 6.04207], [43.323743, 6.041067]],
+                              "source": "ign", "ign": False, "strict": True,
+                              "comparer": False}).encode("utf-8")
+        status, result = demander("itineraire", data=payload)
+        assert status == 200 and "itineraire" in result, result
+        print(f"Calcul serveur de secours OK : {result['longueur_m']} m, {result['moteur']}")
 else:
     print("API Linux locale OK : santé, paquet absent, administration inaccessible")
