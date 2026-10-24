@@ -32,7 +32,7 @@ LIGNES_JOURNAL = 300        # montrées par la page
 SESSIONS_GARDEES = 10       # journaux horodatés gardés, celui de la session en cours compris
 LENT_S = 60.0               # au-delà, l'itinéraire est signalé lent dans le journal
 # Étapes d'un calcul, telles que le journal en détaille les temps.
-NOMS_ETAPES = {"debut": "préparation", "donnees": "lecture des données", "fusion": "fusion IGN",
+NOMS_ETAPES = {"debut": "préparation", "donnees": "lecture des données", "fusion": "fusion des chemins officiels",
                "tuiles": "tuile BRouter", "analyse": "franchissements", "itineraire": "calcul BRouter",
                "comparaison": "tracé standard"}
 ZONE_CALQUE_MAX_DEG2 = 0.03  # un grand écran au zoom 14 ; au-delà, trop de tuiles à lire
@@ -43,7 +43,7 @@ MARGE_DEG = 0.01            # environ 1 km autour des points
 MARGE_RELATIVE = 0.25
 POINTS_MAX = 50
 ELARGISSEMENTS = 3
-# Tuiles de 0,05° lues (Overpass, BD TOPO) et fusionnées pour un calcul :
+# Tuiles de 0,05° lues (OSM et source officielle) et fusionnées pour un calcul :
 # environ 55 × 40 km. Au-delà, la première lecture prendrait des dizaines de
 # minutes ; mieux vaut découper le parcours en étapes.
 TUILES_MAX = 100
@@ -158,12 +158,8 @@ def sur_le_trace(coordonnees, liste) -> list:
     return sorted(resultat, key=lambda f: f["distance_m"])
 
 
-RAISON_IGN = "Chemin de la BD TOPO absent d'OpenStreetMap : existence et accès à vérifier"
-RAISON_ATKIS = "Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier"
-
-
 def portions_ign(trace) -> list:
-    """Portions du tracé sur des chemins IGN ou ATKIS, lues dans les messages de
+    """Portions du tracé sur des chemins officiels, lues dans les messages de
     BRouter : chaque ligne y résume un morceau de mêmes étiquettes, avec sa
     longueur et la position, en millionièmes de degré, de son dernier point
     (constaté le 19 octobre : c'est exactement un point du tracé)."""
@@ -448,7 +444,7 @@ class Application:
                                 etapes)
             else:
                 journal.info("Itinéraire calculé en %.1f s : %.0f m, moteur %s, %d point(s) à vérifier, "
-                             "%d portion(s) IGN%s", duree, reponse["longueur_m"] or 0, reponse["moteur"],
+                             "%d portion(s) officielles%s", duree, reponse["longueur_m"] or 0, reponse["moteur"],
                              len(reponse["sur_le_trace"]), len(reponse["portions_ign"]),
                              f" ; {reponse['avertissement']}" if reponse["avertissement"] else "")
                 journal.info("Étapes : %s", etapes)
@@ -497,7 +493,7 @@ class Application:
                             "segments_manquants": manquants, "brouter_en_cours": self._brouter_automatique(manquants)}
                 trace, moteur_utilise = None, "standard"
                 if ign:
-                    # Tuiles maison : OSM plus les chemins IGN qui y manquent, avec
+                    # Tuiles maison : OSM plus les chemins officiels qui y manquent, avec
                     # les franchissements du réseau fusionné. Si elles ne peuvent se
                     # faire, le moteur standard calcule sur OSM seul ; un itinéraire
                     # introuvable sur elles reste une erreur.

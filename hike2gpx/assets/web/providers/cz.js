@@ -3,6 +3,7 @@ window.HIKE2GPX_MAP_PROVIDERS.cz = {
   infoBase: { fr: "Carte ZTM (ČÚZK)", en: "ZTM map (ČÚZK)" },
   baseNames: { tchequie: { fr: "Carte topographique (ČÚZK)", en: "Topographic map (ČÚZK)" } },
   paths: {
+    legendStyle: { borderTop: "3px dashed #aa6b13" },
     overlay: "zabaged", source: "zabaged", label: "ZABAGED",
     name: { fr: "chemins ZABAGED (Tchéquie)", en: "ZABAGED paths (Czechia)" },
     legend: { fr: "portion sur un chemin ZABAGED absent d'OSM, à vérifier",

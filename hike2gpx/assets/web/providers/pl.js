@@ -4,6 +4,7 @@ window.HIKE2GPX_MAP_PROVIDERS.pl = {
   baseNames: { plTopo: { fr: "Carte topographique (Geoportal Pologne)",
     en: "Topographic map (Polish Geoportal)" } },
   paths: {
+    legendStyle: { borderTop: "3px dashed #b04a75" },
     overlay: "bdot10k_ds", source: "bdot10k_ds", label: "BDOT10k",
     scope: { fr: "Basse-Silésie", en: "Lower Silesia" },
     name: { fr: "chemins BDOT10k (Basse Silésie)", en: "BDOT10k paths (Lower Silesia)" },

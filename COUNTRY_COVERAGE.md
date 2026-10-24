@@ -12,9 +12,9 @@ This table is generated from `hike2gpx/assets/web/providers/*.js`. It lists each
 | Netherlands | PDOK topographic map | OSM | OSM |
 | Norway | Kartverket topographic map | OSM | OSM |
 | Poland | Polish topographic map (Geoportal) | BDOT10k paths (Lower Silesia) | OSM + BDOT10k (Lower Silesia) |
-| Spain | Spanish IGN topographic map | FEDME waymarked trails | OSM |
-| Switzerland | swisstopo national map | swissTLM3D paths (Switzerland) · swisstopo hiking trails | OSM + swissTLM3D |
-| United States | USGS topographic map | USGS trails | OSM |
+| Spain | Spanish IGN topographic map | Waymarked GR/PR/SL trails (Spanish IGN) | OSM |
+| Switzerland | swisstopo national map | swissTLM3D paths (Switzerland) · Hiking trails (swisstopo) | OSM + swissTLM3D |
+| United States | USGS topographic map | Trails mapped by USGS | OSM |
 
 Official paths are loaded only for the area being viewed. In Poland, the BDOT10k path layer and routing support cover Lower Silesia only. Marked trails in Spain and the United States are display only.
 

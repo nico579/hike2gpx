@@ -1,9 +1,12 @@
 window.HIKE2GPX_MAP_PROVIDERS.ch = {
   defaultBase: "suisse",
   infoBase: { fr: "Carte nationale swisstopo", en: "swisstopo national map" },
+  baseNames: { suisse: { fr: "Carte nationale (swisstopo)", en: "National map (swisstopo)" } },
   overlays: ["suisseSentiers"],
-  overlayNames: { suisseSentiers: { fr: "Sentiers balisés swisstopo", en: "swisstopo hiking trails" } },
+  overlayNames: { suisseSentiers: { fr: "Sentiers de randonnée (swisstopo)", en: "Hiking trails (swisstopo)" } },
+  overlayLegendStyles: { suisseSentiers: { borderTop: "3px dashed #e8a619" } },
   paths: {
+    legendStyle: { borderTop: "3px dashed #8650ac" },
     overlay: "swisstlm3d", source: "swisstlm3d", label: "swissTLM3D",
     name: { fr: "chemins swissTLM3D (Suisse)", en: "swissTLM3D paths (Switzerland)" },
     legend: { fr: "portion sur un chemin swissTLM3D absent d'OSM, à vérifier",

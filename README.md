@@ -56,6 +56,12 @@ base map you chose.
   the provider files with `node tools/generer_couverture_pays.cjs`, in both
   English and French.
 
+The `hike2gpx/assets/web/providers/<country>.js` files hold each country's
+maps, overlays, styles and labels. Official paths used by BRouter also have
+a reader in `hike2gpx/providers/` (BD TOPO, ATKIS, ZABAGED, swissTLM3D or
+BDOT10k). That directory's registry links countries to path sources; area
+loading and display then use the shared machinery.
+
 A town search recenters the map: French municipalities through the French
 government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
 search engine. The same field accepts GPS coordinates such as `50.725, 10.275`

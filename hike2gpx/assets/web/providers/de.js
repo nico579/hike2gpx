@@ -1,9 +1,15 @@
 window.HIKE2GPX_MAP_PROVIDERS.de = {
   defaultBase: "allemagne",
   infoBase: { fr: "BKG TopPlusOpen", en: "BKG TopPlusOpen" },
+  baseNames: { allemagne: { fr: "Carte officielle (BKG TopPlusOpen)", en: "Official map (BKG TopPlusOpen)" } },
+  texts: { fr: { "atkis.troncon": "Chemin" }, en: { "atkis.troncon": "Path" } },
+  serverTexts: { "Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier":
+    "ATKIS path missing from OpenStreetMap: existence and access to check",
+    "Hors connexion : chemins ATKIS de cette zone jamais chargés.":
+    "Offline: the ATKIS paths of this area were never loaded." },
   paths: {
     overlay: "atkis", source: "atkis", label: "ATKIS",
-    legendStatic: true,
+    legendStyle: { borderTop: "3px dashed #c85508" },
     name: { fr: "Chemins ATKIS (Allemagne)", en: "ATKIS paths (Germany)" },
     routeName: { fr: "chemins ATKIS (Allemagne)", en: "ATKIS paths (Germany)" },
     legend: { fr: "portion sur un chemin ATKIS absent d'OSM, à vérifier",

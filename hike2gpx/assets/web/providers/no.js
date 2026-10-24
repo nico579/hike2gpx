@@ -1,6 +1,7 @@
 window.HIKE2GPX_MAP_PROVIDERS.no = {
   defaultBase: "norvege",
   infoBase: { fr: "Carte topographique Kartverket", en: "Kartverket topographic map" },
+  baseNames: { norvege: { fr: "Carte de randonnée (Kartverket)", en: "Hiking map (Kartverket)" } },
   overlays: [],
   bases({ L }) {
     return { norvege: L.tileLayer(

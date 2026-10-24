@@ -1,8 +1,11 @@
 window.HIKE2GPX_MAP_PROVIDERS.us = {
   defaultBase: "etatsUnis",
   infoBase: { fr: "Carte topographique USGS", en: "USGS topographic map" },
+  baseNames: { etatsUnis: { fr: "Carte topographique (USGS)", en: "Topographic map (USGS)" } },
   overlays: ["usgsSentiers"],
-  overlayNames: { usgsSentiers: { fr: "Sentiers USGS", en: "USGS trails" } },
+  legacyOverlays: { npsSentiers: "usgsSentiers" },
+  overlayNames: { usgsSentiers: { fr: "Sentiers recensés par l’USGS", en: "Trails mapped by USGS" } },
+  overlayLegendStyles: { usgsSentiers: { borderTop: "3px solid #d22f2f" } },
   bases({ L }) {
     return { etatsUnis: L.tileLayer(
       "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}",

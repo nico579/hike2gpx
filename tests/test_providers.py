@@ -25,8 +25,8 @@ def test_arcgis_garde_les_identifiants_et_filtre_les_objets(monkeypatch):
             {"attributes": {"objectid": 8, "rodzaj": "aleja", "kategoriaistnienia": "eksploatowany"},
              "geometry": {"paths": [[[15.5, 50.7], [15.6, 50.8]]]}},
         ]}
-    monkeypatch.setattr(providers, "_json", lire)
-    [troncon] = providers._pologne_ds(50.7, 15.5, 50.8, 15.6)
+    monkeypatch.setattr(providers.core, "_json", lire)
+    [troncon] = providers.bdot10k.lire(50.7, 15.5, 50.8, 15.6)
     assert troncon["id"] == "18:7:0" and troncon["pts"] == [[50.7, 15.5], [50.8, 15.6]]
     assert "resultOffset=0" in vu[0] and "geometry=15.5%2C50.7%2C15.6%2C50.8" in vu[0]
 
@@ -45,8 +45,8 @@ def test_suisse_exclut_restrictions_et_autres_routes(monkeypatch):
              "geometry": {"type": "LineString", "coordinates": [[8.5, 46.2], [8.6, 46.3]]}},
         ]}
     lire.appels = 0
-    monkeypatch.setattr(providers, "_json", lire)
-    [troncon] = providers._suisse(46.2, 8.5, 46.3, 8.6)
+    monkeypatch.setattr(providers.swisstlm3d, "_json", lire)
+    [troncon] = providers.swisstlm3d.lire(46.2, 8.5, 46.3, 8.6)
     assert troncon["id"] == "1:0" and troncon["nature"] == "Weg 16"
 
 

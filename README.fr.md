@@ -54,6 +54,12 @@ fond choisi.
   Ses colonnes « fond », « chemins » et « itinéraire » sont générées depuis
   les fichiers providers avec `node tools/generer_couverture_pays.cjs`.
 
+Les fichiers `hike2gpx/assets/web/providers/<pays>.js` regroupent les fonds,
+les calques, leurs styles et leurs libellés. Les sources de chemins utilisées
+par BRouter ont en plus un lecteur dans `hike2gpx/providers/` (BD TOPO, ATKIS,
+ZABAGED, swissTLM3D ou BDOT10k). Le registre de ce dossier relie les pays aux
+sources ; la lecture par zone et l'affichage suivent ensuite le même mécanisme.
+
 Une recherche de ville recentre la carte : les communes françaises par l'API
 Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
 d'OpenStreetMap. Un bouton passe la carte en plein écran. Un voyant indique

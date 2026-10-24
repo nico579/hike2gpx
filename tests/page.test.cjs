@@ -42,17 +42,21 @@ function charger(preferences = {}, documentGpx = null) {
   const pressePapiers = [];
   const confirmations = Object.assign([], { reponse: false });
   const corps = element();
+  for (const [id, cle] of [["tab-trace", "onglets.parcours"], ["tab-reglages", "onglets.reglages"]]) {
+    const tab = element();
+    tab.dataset.i18n = cle;
+    elements.set(id, tab);
+  }
   const contexte = vm.createContext({
     console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance,
     DOMParser: class { parseFromString() { return documentGpx; } },
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
        addEventListener() {}, querySelectorAll(selector) {
-         if (selector !== "[data-map-overlay]") return [];
-         return [["legendBdtopo", "bdtopo"], ["legendAtkis", "atkis"], ["legendSenderos", "senderos"],
-           ["legendSuisse", "suisseSentiers"]].map(([id, cle]) => {
-           const ligne = this.getElementById(id); ligne.dataset.mapOverlay = cle; return ligne;
-         });
+         if (selector === "[data-i18n]") return [...elements.values()].filter((el) => el.dataset.i18n);
+         if (selector === "[data-map-overlay]")
+           return elements.get("legendRows")?.enfants.filter((ligne) => ligne.dataset.mapOverlay) || [];
+         return [];
        } },
     localStorage: { getItem(key) { return stockage.get(key) ?? null; }, setItem(key, value) { stockage.set(key, value); } },
     confirm: (texte) => { confirmations.push(texte); return confirmations.reponse; },
@@ -102,14 +106,15 @@ function charger(preferences = {}, documentGpx = null) {
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
-    + " appliquerLangue, texteErreur, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
+    + " appliquerLangue, texteErreur, ts, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " afficherDisponibilite,"
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
-  return { page: contexte.page, elements, derniere, corps, requetes, carte, confirmations, stockage, minuteurs, pressePapiers };
+  return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
+    confirmations, stockage, minuteurs, pressePapiers };
 }
 
 function resultat(lonArrivee) {
@@ -215,11 +220,10 @@ test("chaque fond et chaque calque des providers a son libellé FR et EN", () =>
     for (const langue of ["fr", "en"]) {
       assert.ok(provider.infoBase?.[langue], `${code} : fond du panneau ⓘ sans libellé ${langue}`);
       for (const fond of fonds) {
-        assert.ok(provider.baseNames?.[fond]?.[langue] || page.TEXTES[langue][`fond.${fond}`],
+        assert.ok(provider.baseNames?.[fond]?.[langue],
           `${code} : libellé ${langue} « fond.${fond} » manquant`);
       }
       for (const calque of provider.overlays || []) {
-        assert.ok(page.TEXTES[langue][`calque.${calque}`], `${code} : libellé ${langue} « calque.${calque} » manquant`);
         assert.ok(provider.overlayNames?.[calque]?.[langue],
           `${code} : calque du panneau ⓘ sans libellé ${langue}`);
       }
@@ -403,7 +407,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.equal(elements.get("ignOption").hidden, false);
   assert.equal(elements.get("ign").disabled, true);
   assert.match(elements.get("ignOptionTexte").textContent, /affichage seul/);
-  assert.equal(elements.get("legendBdtopo").hidden, true);
+  assert.equal(elements.get("legendRows").enfants.find((ligne) => ligne.dataset.mapOverlay === "bdtopo").hidden, true);
   assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, true);
 
   const recharge = charger(Object.fromEntries(stockage));
@@ -502,7 +506,7 @@ test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => 
   assert.deepEqual(Object.keys(page.controle().calques),
     ["Chemins OSM", "Chemins ATKIS (Allemagne)"]);
   assert.match(page.CALQUES.atkis.groupe.getAttribution(), /GeoBasis-DE.*GDI-Th.*BVV.*CC BY 4\.0/);
-  assert.equal(elements.get("legendAtkis").hidden, false);
+  assert.equal(elements.get("legendRows").enfants.find((ligne) => ligne.dataset.mapOverlay === "atkis").hidden, false);
   assert.equal(elements.get("ignOption").hidden, false);
   assert.equal(elements.get("ign").disabled, false);
   page.CALQUES.atkis.groupe.addTo(carte);
@@ -706,8 +710,13 @@ test("pointeur d'attente et barre de progression le temps du calcul", async () =
 });
 
 test("en anglais, la page traduit ses textes et les erreurs du serveur", async () => {
-  const { page, elements, derniere } = charger();
+  const { page, elements, document, derniere } = charger();
   page.appliquerLangue("en");
+  assert.equal(document.title, "hike2gpx — plan a route");
+  assert.equal(elements.get("tab-trace").textContent, "Route");
+  assert.equal(elements.get("tab-reglages").textContent, "Settings");
+  assert.equal(elements.get("panelTabs")["aria-label"], "Hiking tools");
+  assert.match(page.ts("Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier"), /ATKIS path missing/);
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   await page.calculer();
   assert.equal(elements.get("statut").textContent, "Place a second point.");
@@ -717,6 +726,9 @@ test("en anglais, la page traduit ses textes et les erreurs du serveur", async (
   assert.equal(page.texteErreur({ erreur: "Calcul trop long : rapprochez les points." }),
     "Calculation too long: bring the points closer.");
   page.appliquerLangue("fr");
+  assert.equal(document.title, "hike2gpx — tracer un parcours");
+  assert.equal(elements.get("tab-trace").textContent, "Parcours");
+  assert.equal(elements.get("tab-reglages").textContent, "Réglages");
   assert.equal(elements.get("statut").textContent, "Posez un deuxième point.");
 });
 
@@ -951,7 +963,7 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
   let bouton = controles.enfants[0];
   assert.equal(bouton.textContent, "Vider le cache");
   assert.match(controles.enfants[1].enfants[0].textContent, /IGN LiDAR HD|gpx2elev/);
-  assert.match(controles.enfants[1].enfants[0].textContent, /tuiles des fonds de carte IGN et OSM/);
+  assert.match(controles.enfants[1].enfants[0].textContent, /tuiles des fonds de carte/);
   assert.equal(bouton.disabled, true);
   page.afficherDonnees({ occupe: { extrait: null, brouter: false } });
   bouton = elements.get("donnees").enfants[0].enfants[0];

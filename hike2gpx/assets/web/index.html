@@ -6,7 +6,7 @@
   <title>hike2gpx — tracer un parcours</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=desktop-10">
+  <link rel="stylesheet" href="/style.css?v=desktop-11">
   <link rel="stylesheet" href="/presentation.css?v=desktop-37">
 </head>
 <body>
@@ -58,9 +58,9 @@
       <div class="summary-relief"><dt class="elevation-label"><span data-i18n="resultat.denivele">Dénivelé</span><span class="info-tooltip" tabindex="0" aria-label="Calcul du dénivelé">i<span role="tooltip" data-i18n="resume.deniveleInfo">gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.</span></span></dt><dd id="denivele" class="summary-values"></dd></div>
     </dl>
   </section>
-  <nav class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
-    <button type="button" role="tab" id="tab-trace" data-pane="trace" aria-controls="pane-trace" aria-selected="true">Parcours</button>
-    <button type="button" role="tab" id="tab-reglages" data-pane="reglages" aria-controls="pane-reglages" aria-selected="false" tabindex="-1">Réglages</button>
+  <nav id="panelTabs" class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
+    <button type="button" role="tab" id="tab-trace" data-pane="trace" data-i18n="onglets.parcours" aria-controls="pane-trace" aria-selected="true">Parcours</button>
+    <button type="button" role="tab" id="tab-reglages" data-pane="reglages" data-i18n="onglets.reglages" aria-controls="pane-reglages" aria-selected="false" tabindex="-1">Réglages</button>
   </nav>
   <div class="panel-scroll">
   <section id="pane-trace" class="pane" role="tabpanel" aria-labelledby="tab-trace">
@@ -80,7 +80,7 @@
     </div>
     <h2 class="section-title">Votre façon de marcher</h2>
     <label class="option"><input type="checkbox" id="strict"> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
-    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte" data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
+    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte">Emprunter aussi les chemins officiels absents d'OSM (à vérifier sur place)</span></label>
     <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
     <p id="statut" role="status"></p>
     <p id="noteCalques" class="note" hidden><span id="noteCalquesTexte"></span><span id="noteCalquesPiste" class="piste" role="progressbar" hidden><span id="noteCalquesBarre" class="barre"></span></span></p>
@@ -111,27 +111,21 @@
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg>
 </button>
 <section id="mapLegend" class="legende" aria-label="Légende de la carte" hidden>
-  <h3 data-i18n="legende.titre">Légende</h3><ul>
+  <h3 data-i18n="legende.titre">Légende</h3><ul id="legendRows">
     <li id="legendGpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">GPX chargé</span></li>
     <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
-    <li id="legendIgn"><span class="trait ign"></span> <span id="legendOfficielTexte" data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
+    <li id="legendIgn"><span class="trait ign"></span> <span id="legendOfficielTexte">portion sur un chemin officiel absent d'OSM, à vérifier</span></li>
     <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
     <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
     <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
     <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
     <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
-    <li id="legendBdtopo" data-map-overlay="bdtopo"><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
-    <li id="legendAtkis" data-map-overlay="atkis" hidden><span class="trait atkis"></span> <span data-i18n="legende.atkis">chemins ATKIS (Allemagne, accès à vérifier)</span></li>
-    <li id="legendOfficialProviders" hidden></li>
-    <li data-map-overlay="senderos" hidden><span class="trait senderos"></span> <span data-i18n="legende.senderos">sentiers balisés espagnols (GR rouge, PR jaune, SL vert)</span></li>
-    <li data-map-overlay="suisseSentiers" hidden><span class="trait suisse-sentiers"></span> <span data-i18n="legende.suisseSentiers">sentiers de randonnée swisstopo</span></li>
-    <li data-map-overlay="usgsSentiers" hidden><span class="trait usgs-sentiers"></span> <span data-i18n="legende.usgsSentiers">sentiers recensés par l’USGS</span></li>
   </ul>
 </section>
 <script src="/leaflet/leaflet.js"></script>
 <script src="/leaflet/Leaflet.VectorGrid.bundled.js"></script>
-<script src="/map-providers.js?v=7"></script>
-<script src="/app.js?v=desktop-46"></script>
+<script src="/map-providers.js?v=8"></script>
+<script src="/app.js?v=desktop-47"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>

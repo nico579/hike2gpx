@@ -14,14 +14,14 @@ Ce tableau est généré depuis les fichiers `hike2gpx/assets/web/providers/*.js
 | --- | --- | --- | --- |
 | Allemagne | BKG TopPlusOpen | Chemins ATKIS (Allemagne) | OSM + ATKIS |
 | Autriche | basemap.at | OSM | OSM |
-| Espagne | Carte topographique IGN Espagne | Sentiers balisés FEDME | OSM |
-| États-Unis | Carte topographique USGS | Sentiers USGS | OSM |
+| Espagne | Carte topographique IGN Espagne | Sentiers balisés GR/PR/SL (IGN Espagne) | OSM |
+| États-Unis | Carte topographique USGS | Sentiers recensés par l’USGS | OSM |
 | France | Plan IGN (SCAN 25 avec clé) | Chemins BD TOPO (IGN) | OSM + IGN |
 | Luxembourg | Carte topographique ACT | OSM | OSM |
 | Norvège | Carte topographique Kartverket | OSM | OSM |
 | Pays-Bas | Carte topographique PDOK | OSM | OSM |
 | Pologne | Carte topographique polonaise (Geoportal) | chemins BDOT10k (Basse Silésie) | OSM + BDOT10k (Basse-Silésie) |
-| Suisse | Carte nationale swisstopo | chemins swissTLM3D (Suisse) · Sentiers balisés swisstopo | OSM + swissTLM3D |
+| Suisse | Carte nationale swisstopo | chemins swissTLM3D (Suisse) · Sentiers de randonnée (swisstopo) | OSM + swissTLM3D |
 | Tchéquie | Carte ZTM (ČÚZK) | chemins ZABAGED (Tchéquie) | OSM + ZABAGED |
 
 Les chemins officiels sont chargés seulement dans la zone consultée. Pour la Pologne, le calque BDOT10k et son utilisation par BRouter sont limités à la Basse-Silésie. Les sentiers balisés d’Espagne et des États-Unis servent uniquement à l’affichage.
