@@ -56,6 +56,10 @@ ZONES = [
     ("NZ", "Tongariro", -39.20, 175.50),
     ("NZ", "Kepler", -45.42, 167.65),
     ("NZ", "Routeburn", -44.72, 168.15),
+    ("CZ", "Šumava", 49.06, 13.50),
+    ("CZ", "Krkonoše", 50.72, 15.72),
+    ("CZ", "České Švýcarsko", 50.87, 14.36),
+    ("CZ", "Moravský kras", 49.37, 16.73),
 ]
 VOISINES = {"FR": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "US": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
@@ -64,7 +68,8 @@ VOISINES = {"FR": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "DE": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "DE-TH": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "CA": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
-            "NZ": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)]}
+            "NZ": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "CZ": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)]}
 CHEMINS_FR = {"Sentier", "Chemin", "Escalier"}
 
 
@@ -305,13 +310,25 @@ def source_nz(s, w, n, e, i, j):
         lambda: _arcgis_trails(url, s, w, n, e, geojson=False))]
 
 
+def source_cz(s, w, n, e, i, j):
+    """Sentiers et chemins ZABAGED du service national tchèque."""
+    racine = "https://ags.cuzk.gov.cz/arcgis/rest/services/ZABAGED_POLOHOPIS/MapServer"
+    def lire():
+        lignes = []
+        for couche, classe in ((82, "Pěšina"), (83, "Cesta")):
+            lignes.extend((pts, classe) for pts, _ in _arcgis_trails(
+                f"{racine}/{couche}", s, w, n, e, geojson=False))
+        return lignes
+    return [(pts, c) for pts, c in en_cache(f"cz_{i}_{j}", lire)]
+
+
 def fr_lignes(geometrie):
     return bdtopo._lignes(geometrie)
 
 
 SOURCES = {"FR": source_fr, "US": source_us, "CH": source_ch, "NL": source_nl,
            "DE": source_de, "DE-TH": source_de_th,
-           "CA": source_ca, "NZ": source_nz}
+           "CA": source_ca, "NZ": source_nz, "CZ": source_cz}
 
 
 # ------------------------------------------------------------------ mesure
@@ -374,6 +391,6 @@ if __name__ == "__main__":
             r = {"pays": pays, "zone": nom, "erreur": repr(exc)}
         r["duree_s"] = round(time.monotonic() - debut)
         resultats.append(r)
-        print(json.dumps(r, ensure_ascii=False), flush=True)
+        print(json.dumps(r, ensure_ascii=True), flush=True)
     (CACHE / f"resultats_{'_'.join(choix or ['tous'])}.json").write_text(
         json.dumps(resultats, ensure_ascii=False, indent=1), encoding="utf-8")

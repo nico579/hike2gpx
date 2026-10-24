@@ -6,7 +6,7 @@ Mise à jour du 24 octobre 2026 : comparaison avec deux autres sources officiell
 
 ## Verdict
 
-**L'Allemagne est le second cas où une source officielle comble beaucoup de lacunes géométriques d'OSM.** La BD TOPO ajoute 18 % à 100 % de longueur potentielle sur les tuiles françaises étudiées. En Bavière, le Basis-DLM ajoute 12 % à 37 % ; à Rosa, en Thuringe, 79 % sur la tuile du village et 127 % sur la tuile voisine la plus dense. Les États-Unis, la Suisse et les Pays-Bas restent à 0 % à 12 %. Les nouveaux essais donnent 2 % à 15 % dans deux parcs canadiens et 0 % à 20 % sur trois itinéraires néo-zélandais.
+**L'Allemagne et la Tchéquie sont deux autres cas où une source topographique nationale comble beaucoup de lacunes géométriques d'OSM.** La BD TOPO ajoute 18 % à 100 % de longueur potentielle sur les tuiles françaises étudiées. En Bavière, le Basis-DLM ajoute 12 % à 37 % ; à Rosa, en Thuringe, 79 % sur la tuile du village et 127 % sur la tuile voisine la plus dense. Quatre zones tchèques ZABAGED donnent 40 % à 66 %. Les États-Unis, la Suisse et les Pays-Bas restent à 0 % à 12 %. Les essais dans deux parcs canadiens donnent 2 % à 15 % et ceux de trois itinéraires néo-zélandais 0 % à 20 %.
 
 Ces pourcentages mesurent des **longueurs de voies candidates**, pas un gain garanti pour une randonnée. À Rosa, presque tout le supplément est classé `Fahrwegachse` (chemins agricoles) et le WFS ne donne pas de permission piétonne explicite. La PR ajoute donc un calque ATKIS et permet la fusion pour BRouter en marquant les portions utilisées « à vérifier ». Les WFS natifs couvrent la Bavière et la Thuringe ; les tuiles vectorielles ATKIS dérivées de basemap.de couvrent les quatorze autres Länder, toujours par petite emprise. TopPlusOpen reste le fond de carte allemand pour tout le pays.
 
@@ -73,6 +73,21 @@ Trois remarques précisent ces chiffres.
 - **En Suisse, OSM et swissTLM3D se recouvrent presque entièrement.** Les quelques kilomètres restants relèvent des classes 15 et 16 de swissTLM3D (`objektart`), que nous n'avons pas décodées.
 - **Aux Pays-Bas, le chiffre est un plafond.** Les 35,5 km comprennent 6,5 km de routes rapides (`snelverkeer`) et 0,3 km de voies d'aérodrome. Restent environ 29 km de voies mixtes ou piétonnes, soit +10 %. Le classement néerlandais comptait aussi les routes, et la tuile retenue touche le nord d'Arnhem. Enfin, une ligne médiane de TOP10NL qui s'écarte de plus de 12 m de la voie OSM correspondante est comptée comme nouvelle.
 
+### Tchéquie : ZABAGED, essais du 24 octobre 2026
+
+La [base topographique nationale ZABAGED](https://ags.cuzk.gov.cz/opendata/) est accessible par emprise. Le [service officiel ArcGIS REST/WFS](https://ags.cuzk.gov.cz/arcgis/rest/services/ZABAGED_POLOHOPIS/MapServer) expose séparément les sentiers `Pěšina` (couche 82) et les chemins `Cesta` (couche 83). Le test a additionné ces deux classes, puis appliqué exactement la règle de recouvrement utilisée pour la BD TOPO : moins de la moitié du tracé à 12 m ou moins d'une voie OSM praticable. Pour chaque massif, la tuile la plus dense en chemins officiels parmi neuf tuiles de 0,05° est retenue.
+
+| Zone | Centre de la tuile | Sentiers et chemins ZABAGED | Réseau OSM | Retenus comme absents d'OSM | Gain du réseau | Dont `Pěšina` |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Šumava | 49,125 N 13,475 E | 101,7 km | 84,7 km | 39,2 km | **+46,3 %** | 8,1 km |
+| Krkonoše | 50,675 N 15,775 E | 122,7 km | 96,7 km | 38,3 km | **+39,6 %** | 23,1 km |
+| České Švýcarsko | 50,875 N 14,425 E | 140,0 km | 96,8 km | 63,4 km | **+65,5 %** | 27,8 km |
+| Moravský kras | 49,425 N 16,775 E | 135,7 km | 114,1 km | 50,8 km | **+44,6 %** | 0,0 km |
+
+Un contrôle de sensibilité avec une tolérance de **20 m** au lieu de 12 m retient encore 34,1 km à Šumava, 35,3 km à Krkonoše, 60,8 km en Suisse bohémienne et 49,1 km dans le Karst morave. Un simple écart de quelques mètres entre les deux jeux ne suffit donc pas à expliquer l'essentiel des différences. Ce contrôle n'établit toutefois ni le droit de passage, ni la continuité des tracés ; `Cesta` comprend aussi des chemins non entretenus et des voies de parc ou de cimetière. Aucune intégration au calcul ou au calque n'est faite sur la seule base de ces ratios.
+
+Deux autres bases nationales méritent un essai, sans ratio à ce stade : la [BDOT10k polonaise](https://www.geoportal.gov.pl/en/data/topographic-objects-database-bdot10k/), disponible gratuitement en vecteur mais principalement distribuée par paquets ou classes, et le [DLM Verkehr autrichien](https://www.bev.gv.at/Services/Produkte/Digitales-Landschaftsmodell/Verkehr.html), disponible en téléchargement sans accès en ligne par emprise. Leur mode de diffusion demande une extraction préalable pour un essai comparable.
+
 ### Canada et Nouvelle-Zélande : essais du 24 octobre 2026
 
 Le même outil a comparé deux jeux de données supplémentaires aux voies OSM praticables. Il a choisi la tuile de 0,05° la plus riche en voies officielles parmi les neuf tuiles autour de chaque lieu. La colonne « part absente » rapporte les kilomètres nouveaux à ceux de la source officielle ; le « gain du réseau » les rapporte aux kilomètres OSM, comme dans les tableaux précédents.
@@ -97,6 +112,7 @@ Le jeu USGS est toujours alimenté. Sur 607 202 tronçons, 443 690 ont été cha
 
 - **Une tuile par massif**, soit une vingtaine de km² chacune, et deux tuiles autour de Rosa. Sept zones françaises, sept zones américaines/suisses/néerlandaises et cinq zones allemandes donnent des exemples concrets, pas une moyenne nationale.
 - **Les cinq nouveaux essais sont également locaux.** Deux parcs canadiens et trois itinéraires néo-zélandais ne donnent ni une moyenne nationale ni une mesure des chemins hors des espaces couverts par Parcs Canada et le DOC.
+- **Les quatre essais tchèques sont locaux eux aussi.** ZABAGED couvre le pays, mais le ratio de ces massifs ne se généralise pas sans échantillonnage d'autres régions. Une validation sur le terrain et des attributs d'accès seront nécessaires avant d'utiliser ces voies pour le routage.
 - **« Absent d'OSM » est un plafond.** Un tracé officiel décalé de plus de 12 m de son équivalent OSM compte comme nouveau. Cela vaut aussi pour la BD TOPO : le gain français est peut-être un peu surestimé, l'écart entre la France et les autres pays non.
 - **Un chemin nouveau n'est pas forcément praticable.** hike2gpx affiche déjà les chemins IGN comme « non vérifiés », et la mesure ne dit rien de leur état sur le terrain.
 - **Les chemins agricoles allemands demandent un contrôle.** `Fahrwegachse` fournit l'essentiel du gain à Rosa et dans les massifs bavarois. La présence géométrique ne prouve ni l'accès public ni le bon raccordement à OSM. Les tuiles BRouter ajoutées gardent donc une pénalité et signalent leurs portions « à vérifier ».
@@ -110,6 +126,7 @@ python tools/essai_sources_chemins.py US Var     un pays, ou les zones dont le n
 python tools/essai_sources_chemins.py DE Rosa    Bavière et Rosa (Thuringe)
 python tools/essai_sources_chemins.py CA         Banff et Yoho
 python tools/essai_sources_chemins.py NZ         Tongariro, Kepler et Routeburn
+python tools/essai_sources_chemins.py CZ         quatre massifs tchèques
 ```
 
 ## Ce que fait la BD TOPO, et pourquoi elle marche
