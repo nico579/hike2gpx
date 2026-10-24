@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import fcntl
 import json
 import os
 import subprocess
@@ -50,6 +49,7 @@ def zones_valides(configuration: dict) -> list[dict]:
 
 
 def main(argv=None) -> int:
+    import fcntl  # Linux uniquement ; la validation de configuration reste testable partout.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("/etc/hike2gpx/zones.json"))
     parser.add_argument("--zone", help="un seul identifiant de zone")
