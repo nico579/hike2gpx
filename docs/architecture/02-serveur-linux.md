@@ -10,7 +10,7 @@ Installer sur un Linux vierge le service qui prépare les données par pays et p
 - Caddy expose les routes de lecture `GET /api/etat`, `GET /api/paquet-zone`, `GET /api/paquets/*` et les calques nécessaires. Le calcul de secours `POST /api/itineraire` est borné séparément ; aucun mot de passe n'est requis pour lire les données.
 - Les sources officielles et leurs zones de validité proviennent du registre `providers`. Une configuration de zones associe pays, fournisseur, emprise, variantes stricte et non stricte, et cadence.
 - `hike2gpx preparer-zone ...` est la même commande pour un appel SSH ponctuel et pour systemd. Elle écrit un nouveau paquet complet avant de le rendre visible ; les clients peuvent continuer à lire l'ancien durant le calcul.
-- Le planificateur évite les calculs concurrents et journalise durée, succès, taille, date et prochaine échéance. Sa fréquence initiale est configurable, puis s'ajuste à la durée et à la date des données sources.
+- Le planificateur évite les calculs concurrents et journalise durée, succès, taille, date et prochaine échéance. Sa fréquence initiale est configurable, puis s'ajuste à la durée des calculs observée.
 
 ## Étapes de code
 
