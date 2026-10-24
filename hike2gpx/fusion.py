@@ -170,6 +170,7 @@ class Reseau:
         index = self.index()
         self._liens = []
         bouts = {}                  # point (arrondi au 1e-7) -> nœud commun des tronçons IGN
+        bords_vectoriels = defaultdict(list)  # extrémités découpées par basemap.de
         ajoutes = 0
         candidats = [t for t in troncons if t.get("nature") not in NATURES_EXCLUES and len(t.get("pts") or []) >= 2]
         parts = parts_couvertes([t["pts"] for t in candidats], self.segments_osm())
@@ -180,8 +181,28 @@ class Reseau:
             for k, (lat, lon) in enumerate(t["pts"]):
                 if k in (0, len(t["pts"]) - 1):
                     cle = (round(lat, 7), round(lon, 7))
+                    if source == "atkis" and t["id"].startswith("BM:"):
+                        cle += (t["land"], t.get("niveau", 0))
                     if cle not in bouts:
-                        bouts[cle] = self._nouveau_noeud(lat, lon)
+                        nid = None
+                        bord = (source == "atkis" and t["id"].startswith("BM:")
+                                and t.get("bords", [False, False])[0 if k == 0 else 1])
+                        if bord:
+                            case = (math.floor(lat / 0.00002), math.floor(lon / 0.00002))
+                            voisins = (entree for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+                                       for entree in bords_vectoriels.get((case[0] + dx, case[1] + dy), ()))
+                            for la, lo, proche, land, niveau, identifiant in voisins:
+                                if (land == t["land"] and niveau == t.get("niveau", 0)
+                                        and identifiant != t["id"]
+                                        and math.hypot(*_xy(la, lo, lat, lon)) < 1.5):
+                                    nid = proche
+                                    break
+                        if nid is None:
+                            nid = self._nouveau_noeud(lat, lon)
+                        bouts[cle] = nid
+                        if bord:
+                            bords_vectoriels[case].append((lat, lon, nid, t["land"],
+                                                           t.get("niveau", 0), t["id"]))
                     ids.append(bouts[cle])
                 else:
                     ids.append(self._nouveau_noeud(lat, lon))

@@ -27,7 +27,7 @@ from . import atkis, bdtopo, brouter, franchissements as fr, fusion
 
 journal = logging.getLogger(__name__)
 
-VERSION = 5     # format de l'état, règles de fusion ou d'analyse : l'augmenter refait la tuile
+VERSION = 6     # format de l'état, règles de fusion ou d'analyse : l'augmenter refait la tuile
 
 
 def _source(source):

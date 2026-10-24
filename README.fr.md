@@ -49,8 +49,8 @@ fond choisi.
   l'Allemagne (BKG TopPlusOpen), de l'Autriche, des Pays-Bas, du Luxembourg,
   de la Norvège et des États-Unis.
   L'Espagne, la Suisse et les États-Unis y ajoutent leurs sentiers officiels,
-  pour l'affichage seulement. L'Allemagne ajoute le calque ATKIS en Bavière
-  et en Thuringe. Le bouton ⓘ, à côté du choix des fonds, liste ces pays.
+  pour l'affichage seulement. L'Allemagne ajoute le calque ATKIS dans les
+  seize Länder. Le bouton ⓘ, à côté du choix des fonds, liste ces pays.
 
 Une recherche de ville recentre la carte : les communes françaises par l'API
 Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
@@ -69,7 +69,7 @@ règlent :
 
 - **Mode strict** : éviter aussi les passages « à vérifier », pas seulement
   les bloquants ;
-- **Chemins officiels** (France, Bavière et Thuringe) : laisser BRouter
+- **Chemins officiels** (France et Allemagne) : laisser BRouter
   emprunter aussi les chemins BD TOPO ou ATKIS absents d'OpenStreetMap. Ils
   s'affichent en tirets orange et rejoignent les points à vérifier, car rien
   ne garantit qu'ils existent encore ni qu'on y passe. En Espagne, en Suisse
@@ -147,7 +147,7 @@ Le calcul passe par cinq pièces.
    SRTM. Le chiffre de BRouter, tiré d'un modèle mondial plus grossier, ne sert
    que d'estimation en attendant ; si aucun modèle ne couvre le parcours, le
    dénivelé est dit indisponible plutôt que remplacé par ce chiffre.
-5. **Les chemins officiels, en France et dans deux Länder allemands.** Un sentier que la BD TOPO connaît et
+5. **Les chemins officiels, en France et en Allemagne.** Un sentier que la BD TOPO connaît et
    qu'OpenStreetMap ignore n'existe pas pour BRouter, qui ne voit que ses
    tuiles. hike2gpx fabrique donc sa propre tuile BRouter à partir des données
    déjà lues : les voies d'OpenStreetMap, plus les tronçons de la BD TOPO qui
@@ -162,9 +162,13 @@ Le calcul passe par cinq pièces.
    qu'ils existent encore ni qu'on y passe ; un accès piéton restreint dans la
    BD TOPO les ferme. Une case permet de s'en passer, et si la fabrication
    échoue, le calcul se fait sur OpenStreetMap seul, avec un avertissement.
-   En Bavière et en Thuringe, le calque ATKIS et le calcul reprennent le même
-   chargement par zone, sans téléchargement préalable de tout un Land. Les
-   chemins ATKIS ajoutés sont eux aussi pénalisés et signalés « à vérifier ».
+   En Allemagne, le calque ATKIS et le calcul reprennent le même chargement
+   par zone, sans téléchargement préalable de tout un Land. La Bavière et la
+   Thuringe utilisent leurs WFS natifs ; les quatorze autres Länder utilisent
+   les petites tuiles vectorielles officielles de [basemap.de](https://basemap.de/produkte-und-dienste/web-vektor/),
+   dérivées de l'ATKIS Basis-DLM. Ces dernières sont des géométries de
+   présentation, dont la précision et les raccordements restent à vérifier.
+   Tous les chemins ATKIS ajoutés sont pénalisés et signalés « à vérifier ».
    Sur la tuile du centre de Rosa, 76,6 km de voies ATKIS étudiées manquent à
    OSM selon la règle de fusion, contre 96,8 km de voies OSM ; ce gain de
    longueur potentiel ne prouve pas l'accès à pied. La BD TOPO française
@@ -238,11 +242,11 @@ ajoutée à OpenStreetMap est respectée par hike2gpx dès que son cache de la
 zone se renouvelle ; les moteurs des autres planificateurs, eux, continuent de
 l'ignorer.
 
-En dehors de la France, de la Bavière et de la Thuringe, le calcul ne connaît que les
-chemins d'OpenStreetMap : un sentier absent d'OSM n'existe pas pour lui,
-même si la carte nationale le dessine. En Allemagne, les chemins ATKIS
-intégrés n'ont pas de droit de passage piéton explicite : les portions
-empruntées restent à vérifier sur place.
+En dehors de la France et de l'Allemagne, le calcul ne connaît que les chemins
+d'OpenStreetMap : un sentier absent d'OSM n'existe pas pour lui, même si la
+carte nationale le dessine. En Allemagne, les chemins ATKIS intégrés n'ont
+pas de droit de passage piéton explicite : les portions empruntées restent
+à vérifier sur place.
 
 Un calcul examine au plus 100 tuiles de 0,05°, soit environ 55 × 40 km : la
 première lecture d'une zone plus grande prendrait des dizaines de minutes. Un

@@ -6,7 +6,7 @@ Rapport du 23 octobre 2026, écrit après la release 0.3.0. En France, hike2gpx 
 
 **L'Allemagne est le second cas où une source officielle comble beaucoup de lacunes géométriques d'OSM.** La BD TOPO ajoute 18 % à 100 % de longueur potentielle sur les tuiles françaises étudiées. En Bavière, le Basis-DLM ajoute 12 % à 37 % ; à Rosa, en Thuringe, 79 % sur la tuile du village et 127 % sur la tuile voisine la plus dense. Les États-Unis, la Suisse et les Pays-Bas restent à 0 % à 12 %.
 
-Ces pourcentages mesurent des **longueurs de voies candidates**, pas un gain garanti pour une randonnée. À Rosa, presque tout le supplément est classé `Fahrwegachse` (chemins agricoles) et le WFS ne donne pas de permission piétonne explicite. La PR ajoute donc un calque ATKIS et permet la fusion pour BRouter en marquant les portions utilisées « à vérifier ». Les deux connecteurs par emprise couvrent la Bavière et la Thuringe ; TopPlusOpen reste le fond de carte allemand pour tout le pays.
+Ces pourcentages mesurent des **longueurs de voies candidates**, pas un gain garanti pour une randonnée. À Rosa, presque tout le supplément est classé `Fahrwegachse` (chemins agricoles) et le WFS ne donne pas de permission piétonne explicite. La PR ajoute donc un calque ATKIS et permet la fusion pour BRouter en marquant les portions utilisées « à vérifier ». Les WFS natifs couvrent la Bavière et la Thuringe ; les tuiles vectorielles ATKIS dérivées de basemap.de couvrent les quatorze autres Länder, toujours par petite emprise. TopPlusOpen reste le fond de carte allemand pour tout le pays.
 
 ## La mesure
 
@@ -81,7 +81,7 @@ Le jeu USGS est toujours alimenté. Sur 607 202 tronçons, 443 690 ont été cha
 - **« Absent d'OSM » est un plafond.** Un tracé officiel décalé de plus de 12 m de son équivalent OSM compte comme nouveau. Cela vaut aussi pour la BD TOPO : le gain français est peut-être un peu surestimé, l'écart entre la France et les autres pays non.
 - **Un chemin nouveau n'est pas forcément praticable.** hike2gpx affiche déjà les chemins IGN comme « non vérifiés », et la mesure ne dit rien de leur état sur le terrain.
 - **Les chemins agricoles allemands demandent un contrôle.** `Fahrwegachse` fournit l'essentiel du gain à Rosa et dans les massifs bavarois. La présence géométrique ne prouve ni l'accès public ni le bon raccordement à OSM. Les tuiles BRouter ajoutées gardent donc une pénalité et signalent leurs portions « à vérifier ».
-- **La couverture ATKIS par emprise est limitée à deux Länder dans l'application.** Le fond TopPlusOpen couvre toute l'Allemagne, mais seuls les WFS de Bavière et de Thuringe sont intégrés comme calque de chemins et comme source de calcul. L'Espagne reste non mesurée : les sentiers BTN exigent des feuilles à télécharger.
+- **Les sources ATKIS n'ont pas toutes la même précision géométrique.** Les mesures ci-dessus utilisent les WFS natifs de Bavière et de Thuringe. Dans les autres Länder, l'application lit les tuiles vectorielles de présentation de basemap.de au zoom maximal 15 : elles couvrent le pays, mais leur généralisation et leurs raccordements peuvent différer des objets natifs. Aucun pourcentage de gain OSM n'est extrapolé à ces Länder. L'Espagne reste non mesurée : les sentiers BTN exigent des feuilles à télécharger.
 
 Pour refaire la mesure :
 
@@ -107,13 +107,15 @@ La première qualité est celle qui manque ailleurs. Les trois autres se retrouv
 
 La mesure allemande donne maintenant un second cas réel. La chaîne conserve ses interfaces historiques (`ajouter_ign()`, `portions_ign()`), mais accepte une source `atkis` en plus de `ign` :
 
-- `atkis.py` interroge les WFS de Bavière et de Thuringe par tuiles de 0,05°, avec pagination, cache de trente jours et dédoublonnage ;
+- `atkis.py` interroge les WFS de Bavière et de Thuringe par tuiles de 0,05°, avec pagination, et `basemap_atkis.py` lit uniquement les tuiles vectorielles qui touchent la zone sélectionnée dans les quatorze autres Länder. Le cache dure trente jours ;
 - `maison.py` choisit le cache officiel selon la source demandée et ne mélange jamais des tuiles françaises et allemandes dans une fabrication ;
-- `fusion.py` applique le même seuil de recouvrement et les mêmes raccordements, avec l'étiquette `hike2gpx=atkis` ;
+- `fusion.py` applique le même seuil de recouvrement et les mêmes raccordements, avec l'étiquette `hike2gpx=atkis` ; les extrémités coupées par les tuiles vectorielles se rejoignent à moins de 1,5 m, seulement dans le même Land et au même niveau ;
 - `brouter.py` pénalise également `ign` et `atkis` ; `application.py` lit la source dans les messages de BRouter et nomme correctement les portions à vérifier ;
 - `providers/de.js` propose le calque ATKIS et la coche de calcul. Le serveur accepte uniquement les identifiants de sources connus.
 
-Le calque et le calcul portent sur les mêmes voies. En dehors des deux Länder pris en charge, TopPlusOpen continue de s'afficher, mais le WFS ATKIS n'apporte aucun tronçon. Une déclaration structurée des capacités côté serveur reste souhaitable si d'autres Länder sont ajoutés : aujourd'hui le provider JavaScript peut annoncer la coche partout en Allemagne, alors que les connecteurs ne couvrent que deux Länder.
+Le calque et le calcul portent sur les mêmes voies dans toute l'Allemagne. Aucun GeoPackage de Land entier n'est téléchargé : le service [basemap.de Web Vektor](https://basemap.de/produkte-und-dienste/web-vektor/) fournit les petits fichiers PBF officiels à la demande. Seules les classes de voies pédestres ou agricoles du calque `Verkehrslinie` sont retenues, avec découpage sur les limites de la zone demandée. Le contrôle d'accès piéton reste celui d'OSM et la pénalité « à vérifier » reste appliquée.
+
+Une tuile de 0,05° a été lue directement dans chacun des quatorze Länder desservis par basemap.de : Berlin, Bade-Wurtemberg, Brême, Hesse, Hambourg, Mecklembourg-Poméranie-Occidentale, Basse-Saxe, Rhénanie-du-Nord-Westphalie, Rhénanie-Palatinat, Sarre, Saxe, Brandebourg, Saxe-Anhalt et Schleswig-Holstein. Chaque lecture a rendu des voies de son Land (de 125 à 2 996 fragments après découpage). Ce contrôle valide l'accès aux données, pas la continuité du réseau ni un gain mesuré face à OSM.
 
 ## Les providers : un seul fichier par pays
 
@@ -217,7 +219,7 @@ Voici, par exemple, le fichier de l'Espagne. Il reprend exactement ce que font a
 | Suisse | swissTLM3D | Oui, API geo.admin.ch | 4 à 5 % | Affichage seulement |
 | Pays-Bas | TOP10NL (PDOK) | Oui, OGC API Features | 10 à 12 %, plafond | Affichage seulement |
 | Espagne | BTN du CNIG | Non pour les sentiers ; fichiers par feuille | Non mesuré | À mesurer avant un connecteur |
-| Allemagne | ATKIS Basis-DLM (par Land) | Oui, WFS en Bavière et Thuringe | +12 à +37 % en Bavière ; +79 % sur la tuile du village de Rosa | Calque et calcul BRouter dans ces deux Länder, voies à vérifier |
+| Allemagne | ATKIS Basis-DLM, WFS natifs et basemap.de Web Vektor | Oui, petites emprises dans les 16 Länder | +12 à +37 % en Bavière ; +79 % sur la tuile du village de Rosa, autres Länder non mesurés | Calque et calcul BRouter dans toute l'Allemagne, voies à vérifier |
 | Luxembourg | BD-L-GeoBase | Non ; un seul GeoPackage | Non mesuré ; OSM réputé complet | Affichage seulement |
 | Autriche | GIP | Non ; export national | Non mesuré ; sentiers alpins mal couverts par le GIP | Affichage seulement |
 | Norvège | N50 | Non ; fichiers | Non mesuré ; réseau généralisé | Affichage seulement |
@@ -238,7 +240,7 @@ Les [sentiers FEDME](https://centrodedescargas.cnig.es/CentroDescargas/senderos-
 
 ### Allemagne : ATKIS Basis-DLM
 
-Par sa structure, l'ATKIS Basis-DLM est le cousin le plus direct de la BD TOPO : un modèle topographique national au 1:25 000, avec un réseau de voies qui distingue routes, chemins agricoles et sentiers. Mais la cartographie allemande est l'affaire des Länder. Selon sa [lettre d'information de juin 2024](https://geodaten.bayern.de/odd/m/3/pdf/newsletter_archiv/2024_06.pdf), la Bavière publie son Basis-DLM en open data, en téléchargement et par WFS. La Rhénanie-Palatinat réserve [son WFS](https://lvermgeo.rlp.de/fileadmin/lvermgeo/pdf/produktblaetter/BASIS_DLM_WFS.pdf) aux utilisateurs enregistrés, et la situation des autres Länder n'est pas établie.
+Par sa structure, l'ATKIS Basis-DLM est le cousin le plus direct de la BD TOPO : un modèle topographique national au 1:25 000, avec un réseau de voies qui distingue routes, chemins agricoles et sentiers. La cartographie allemande est l'affaire des Länder : la Bavière et la Thuringe fournissent ici leurs WFS natifs, tandis que [basemap.de Web Vektor](https://basemap.de/produkte-und-dienste/web-vektor/) assemble les voies des seize Länder dans un modèle dérivé, disponible par tuiles vectorielles. La [description du modèle](https://basemap.de/data/produkte/web_vektor/meta/bm_web_vektor_datenmodell.html) identifie les chemins dans la couche `Verkehrslinie`.
 
 La comparaison contredit l'hypothèse selon laquelle OSM serait partout aussi complet que le Basis-DLM : les tuiles bavaroises vont de +12 % à +37 %, et Rosa atteint +79 % sur la tuile du village. Une autre réserve apparaît : presque tout ce gain est porté par `AX_Fahrwegachse`, sans permission piétonne explicite. Le calque sert à voir ces voies et le calcul les propose avec pénalité et signalement, sans les présenter comme des passages garantis.
 
@@ -256,7 +258,7 @@ Tous gardent leurs fonds d'affichage. On ne reviendra sur leur cas que si un uti
 
 1. **Tester la connexion et l'accès à pied autour de Rosa.** La comparaison géométrique est forte, mais des itinéraires BRouter doivent confirmer la continuité et l'utilisateur doit vérifier les chemins agricoles sur le terrain.
 2. **Étendre les Länder par services de données par emprise**, après contrôle de leur licence, de leur schéma et de leurs attributs d'accès. Le fond TopPlusOpen, national, ne suffit pas à construire un réseau de routage précis.
-3. **Déclarer les capacités de calcul côté serveur**, avec leur couverture géographique, si le troisième connecteur allemand est ajouté.
+3. **Comparer les chemins basemap.de aux données natives dans d'autres Länder** et contrôler sur le terrain les raccordements des tuiles vectorielles avant d'interpréter les gains d'itinéraire.
 4. **Continuer la qualité de la BD TOPO française**, notamment ses règles d'accès et ses raccordements ; mesurer l'Espagne sur deux feuilles BTN avant d'envisager le calcul.
 
-**État : cinq zones allemandes mesurées, connecteurs ATKIS de Bavière et de Thuringe ajoutés au calque et aux tuiles BRouter maison.** Aux États-Unis, en Suisse et aux Pays-Bas, les calques restent pour l'affichage seul.
+**État : cinq zones allemandes mesurées, calque et calcul ATKIS disponibles par zone dans les seize Länder.** Les WFS natifs servent la Bavière et la Thuringe ; basemap.de Web Vektor sert les autres. Aux États-Unis, en Suisse et aux Pays-Bas, les calques restent pour l'affichage seul.

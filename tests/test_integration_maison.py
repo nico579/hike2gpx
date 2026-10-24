@@ -56,9 +56,9 @@ IGN = [{"id": "OUEST-0", "nature": "Chemin", "acces_pieton": None, "pts": [list(
        {"id": "EST-0", "nature": "Sentier", "acces_pieton": None, "pts": [list(geo(600, 0)), list(geo(600, 150))]}]
 
 
-@pytest.fixture(scope="module", params=["ign", "atkis"])
+@pytest.fixture(scope="module", params=["ign", "atkis", "basemap"])
 def maison_essai(tmp_path_factory, request):
-    source = request.param
+    source = "atkis" if request.param == "basemap" else request.param
     dossier = tmp_path_factory.mktemp("maison")
     inst = brouter.Installation(DOSSIERS.dossier_etat())
     inst.maison = dossier / "brouter-maison"
@@ -73,6 +73,15 @@ def maison_essai(tmp_path_factory, request):
                              {"version": bdtopo.VERSION_CACHE, "fetched_at": date, "troncons": IGN})
     else:
         chemins = [{**t, "id": f"TH:{t['id']}", "land": "TH", "nature": "Wirtschaftsweg"} for t in IGN]
+        if request.param == "basemap":
+            chemins = [
+                {"id": "BM:1", "land": "SN", "niveau": 0, "bords": [False, True],
+                 "nature": "Wirtschaftsweg", "pts": [list(geo(200, 0)), list(geo(200, 150))]},
+                {"id": "BM:2", "land": "SN", "niveau": 0, "bords": [True, False],
+                 "nature": "Wirtschaftsweg", "pts": [list(geo(200.6, 150)), list(geo(200, 300))]},
+                {**chemins[1], "id": "BM:3", "land": "SN", "niveau": 0,
+                 "bords": [False, False]},
+            ]
         atomique.ecrire_json(dossier / "atkis" / f"v{atkis.VERSION_CACHE}_{I}_{J}.json",
                              {"version": atkis.VERSION_CACHE, "fetched_at": date, "troncons": chemins})
     segments, liste = maison.TuilesMaison(inst, dossier).preparer([(I, J)], en_ligne=False, source=source)
@@ -90,9 +99,9 @@ def test_le_raccord_sur_la_cloture_est_bloquant(maison_essai):
 def test_l_itineraire_emprunte_le_chemin_ign(maison_essai):
     port, liste, source = maison_essai
     trace = brouter.calculer(port, [geo(150, 0), geo(150, 300)], liste)
-    [portion] = application.portions_ign(trace)
-    assert portion["longueur_m"] == pytest.approx(300, abs=5)
-    assert portion.get("source", "ign") == source
+    portions = application.portions_ign(trace)
+    assert sum(p["longueur_m"] for p in portions) == pytest.approx(300, abs=5)
+    assert all(p.get("source", "ign") == source for p in portions)
 
 
 def test_le_raccord_sur_la_cloture_n_est_pas_franchi(maison_essai):

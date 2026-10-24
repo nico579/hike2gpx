@@ -1,9 +1,9 @@
 """Chemins du Basis-DLM allemand, lus par zone comme la BD TOPO.
 
-Les WFS ouverts de Thuringe et de Bavière servent les tronçons par emprise.
-Leur schéma et l'ordre des coordonnées GML diffèrent ; chaque tuile de 0,05°
-est gardée trente jours. Les objets ne décrivent pas l'accès piéton : un
-chemin absent d'OSM doit toujours être vérifié sur place.
+Les WFS de Thuringe et de Bavière servent leurs tronçons par emprise ; les
+autres Länder passent par les tuiles vectorielles officielles de basemap.de.
+Chaque tuile de 0,05° est gardée trente jours. Les voies ne décrivent pas
+l'accès piéton : un chemin absent d'OSM doit toujours être vérifié sur place.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from pathlib import Path
 
 from nico579_commons import atomique
 
-from . import __version__
+from . import __version__, basemap_atkis
 from .franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
 
 journal = logging.getLogger(__name__)
@@ -27,11 +27,10 @@ GML_NS = "{http://www.opengis.net/gml/3.2}"
 PAGE = 1000
 PAGES_MAX = 20
 TTL_S = 30 * 86400
-VERSION_CACHE = 1
+VERSION_CACHE = 2
 
-# Bornes larges : une tuile de frontière interroge les deux services et chacun
-# rend seulement ses objets. Aucune donnée officielle d'un autre Land n'est
-# annoncée tant que son service n'est pas raccordé.
+# Bornes larges : une tuile de frontière interroge les deux WFS et chacun
+# rend seulement ses objets. basemap.de fournit les quatorze autres Länder.
 SOURCES = {
     "TH": {"url": "https://www.geoproxy.geoportal-th.de/geoproxy/services/adv_atkis_wfs",
            "prefixe": "dlm", "namespace": "http://www.adv-online.de/namespaces/adv/gid/7.1/dlm",
@@ -92,7 +91,7 @@ def interroger(source, parametres, delai_s=120):
 
 def lire_tuile(i, j, interroger=interroger):
     bornes = bornes_tuile(i, j)
-    troncons = []
+    troncons = basemap_atkis.lire_tuile(bornes)
     for land, source in SOURCES.items():
         if not _intersecte(bornes, source["bornes"]):
             continue

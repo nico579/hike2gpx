@@ -51,7 +51,8 @@ datas += collect_data_files("nico579_commons") + collect_data_files("gpx2elev") 
 # Imports que l'analyse statique ne voit pas : modules compilés de pyosmium et
 # de rasterio chargés depuis leur code C, icône du commun par StatusNotifierItem
 # sous Linux, moteur de pystray propre au système (comme gpx2elev).
-hiddenimports = collect_submodules("osmium") + collect_submodules("rasterio") + collect_submodules("nico579_commons")
+hiddenimports = (collect_submodules("osmium") + collect_submodules("rasterio")
+                 + collect_submodules("nico579_commons") + collect_submodules("mapbox_vector_tile"))
 hiddenimports += ["pystray." + {"win32": "_win32", "darwin": "_darwin"}.get(sys.platform, "_xorg")]
 
 

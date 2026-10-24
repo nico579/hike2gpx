@@ -72,7 +72,7 @@ const TEXTES = {
     "legende.osm": "chemins OSM (tirets : sentiers)",
     "legende.barriere": "clôtures et murs connus d'OSM",
     "legende.bdtopo": "chemins BD TOPO de l'IGN",
-    "legende.atkis": "chemins ATKIS (Bavière et Thuringe, accès à vérifier)",
+    "legende.atkis": "chemins ATKIS (Allemagne, accès à vérifier)",
     "legende.senderos": "sentiers balisés espagnols (GR rouge, PR jaune, SL vert)",
     "legende.suisseSentiers": "sentiers de randonnée swisstopo",
     "legende.usgsSentiers": "sentiers recensés par l’USGS",
@@ -140,7 +140,7 @@ const TEXTES = {
     "denivele.source": "Source des altitudes du parcours : {modele} · calcul gpx2elev (pas 5 m, lissage 20 m, seuil 2 m).",
     "calque.osm": "Chemins OSM",
     "calque.bdtopo": "Chemins BD TOPO (IGN)",
-    "calque.atkis": "Chemins ATKIS (Bavière et Thuringe)",
+    "calque.atkis": "Chemins ATKIS (Allemagne)",
     "calque.senderos": "Sentiers balisés GR/PR/SL (IGN Espagne)",
     "calque.suisseSentiers": "Sentiers de randonnée (swisstopo)",
     "calque.usgsSentiers": "Sentiers recensés par l’USGS",
@@ -195,7 +195,7 @@ const TEXTES = {
     "gpx.description": "Distance {km}, {denivele}, passages à vérifier : {n}. ",
     "gpx.barrieres": "Barrières © contributeurs OpenStreetMap",
     "gpx.bdtopo": ", chemins BD TOPO © IGN",
-    "gpx.atkis": ", chemins ATKIS © Bavière / Thuringe",
+    "gpx.atkis": ", chemins ATKIS © GeoBasis-DE / BKG et Länder",
     "gpx.trace": " ; tracé hike2gpx.",
     "gpx.aVerifier": "À vérifier : {nature}",
     "erreur.zone_trop_etendue": "Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus {max}. Découpez le parcours en étapes plus courtes.",
@@ -257,7 +257,7 @@ const TEXTES = {
     "legende.osm": "OSM paths (dashed: footpaths)",
     "legende.barriere": "fences and walls known to OSM",
     "legende.bdtopo": "IGN BD TOPO paths",
-    "legende.atkis": "ATKIS paths (Bavaria and Thuringia; access to check)",
+    "legende.atkis": "ATKIS paths (Germany; access to check)",
     "legende.senderos": "Spanish waymarked trails (GR red, PR yellow, SL green)",
     "legende.suisseSentiers": "swisstopo hiking trails",
     "legende.usgsSentiers": "trails mapped by USGS",
@@ -325,7 +325,7 @@ const TEXTES = {
     "denivele.source": "Route elevation source: {modele} · gpx2elev calculation (5 m sampling, 20 m smoothing, 2 m threshold).",
     "calque.osm": "OSM paths",
     "calque.bdtopo": "BD TOPO paths (IGN)",
-    "calque.atkis": "ATKIS paths (Bavaria and Thuringia)",
+    "calque.atkis": "ATKIS paths (Germany)",
     "calque.senderos": "Waymarked GR/PR/SL trails (Spanish IGN)",
     "calque.suisseSentiers": "Hiking trails (swisstopo)",
     "calque.usgsSentiers": "Trails mapped by USGS",
@@ -380,7 +380,7 @@ const TEXTES = {
     "gpx.description": "Distance {km}, {denivele}, crossings to check: {n}. ",
     "gpx.barrieres": "Barriers © OpenStreetMap contributors",
     "gpx.bdtopo": ", BD TOPO paths © IGN",
-    "gpx.atkis": ", ATKIS paths © Bavaria / Thuringia",
+    "gpx.atkis": ", ATKIS paths © GeoBasis-DE / BKG and states",
     "gpx.trace": "; route by hike2gpx.",
     "gpx.aVerifier": "To check: {nature}",
     "erreur.zone_trop_etendue": "Area too large: {nombre} tiles of 0.05° to examine, {max} at most. Split the route into shorter stages.",
@@ -711,7 +711,9 @@ const CALQUES = {
   atkis: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
 };
 CALQUES.atkis.groupe.getAttribution = () =>
-  '© <a href="https://geoportal.thueringen.de/">GDI-Th</a> / '
+  '© <a href="https://basemap.de/open-data/">GeoBasis-DE / BKG</a> '
+  + '(<a href="https://basemap.de/open-data/">licences des Länder</a>), '
+  + '<a href="https://geoportal.thueringen.de/">GDI-Th</a> / '
   + '<a href="https://geodatenonline.bayern.de/geodatenonline/seiten/wfs_atkis">BVV</a> '
   + '(<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>)';
 const CALQUES_PAYS = Object.fromEntries(Object.values(FOURNISSEURS_CARTES)

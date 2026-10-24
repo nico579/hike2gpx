@@ -2,7 +2,7 @@ window.HIKE2GPX_MAP_PROVIDERS.de = {
   defaultBase: "allemagne",
   overlays: ["atkis"],
   routableOverlay: "atkis",
-  routableName: { fr: "chemins ATKIS (Bavière et Thuringe)", en: "ATKIS paths (Bavaria and Thuringia)" },
+  routableName: { fr: "chemins ATKIS (Allemagne)", en: "ATKIS paths (Germany)" },
   bases({ L }) {
     const annee = new Date().getFullYear();
     return { allemagne: L.tileLayer(

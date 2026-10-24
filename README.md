@@ -48,7 +48,7 @@ base map you chose.
   Germany (BKG TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway
   and the United States. Spain,
   Switzerland and the United States add their official trails, for display
-  only. Germany adds an ATKIS path layer for Bavaria and Thuringia. The ⓘ
+  only. Germany adds an ATKIS path layer in all sixteen states. The ⓘ
   button, next to the base map selector, lists these countries.
 
 A town search recenters the map: French municipalities through the French
@@ -66,7 +66,7 @@ the paths (see below). Three options tune it:
 
 - **Strict mode**: also avoid the passages "to check", not only the blocking
   ones;
-- **Official paths** (France, Bavaria and Thuringia): let BRouter use BD TOPO
+- **Official paths** (France and Germany): let BRouter use BD TOPO
   or ATKIS paths missing from OpenStreetMap. They show as orange dashes and
   join the points to check, since nothing guarantees they still exist or that
   you may walk them. In Spain, Switzerland and the United States, the checkbox
@@ -138,7 +138,7 @@ The routing relies on five pieces.
    BRouter's figure, taken from a coarser worldwide model, is only an estimate
    in the meantime; if no model covers the route, the elevation is reported as
    unavailable rather than replaced by that figure.
-5. **Official paths in France, Bavaria and Thuringia.** A path that the BD TOPO knows and
+5. **Official paths in France and Germany.** A path that the BD TOPO knows and
    OpenStreetMap does not is invisible to BRouter, which only sees its own
    tiles. So hike2gpx builds its own BRouter tile from the data it has already
    read: the OpenStreetMap ways, plus the BD TOPO sections that duplicate none
@@ -152,9 +152,12 @@ The routing relies on five pieces.
    exist or that you may walk them; a restricted pedestrian access in the
    BD TOPO closes them. A checkbox lets you do without them, and if building
    the tile fails, the route is computed on OpenStreetMap alone, with a
-   warning. In Bavaria and Thuringia, the ATKIS layer and routing load the
-   same small areas on demand. ATKIS additions also carry a penalty and are
-   marked for checking. In the tile containing Rosa, 76.6 km of the examined
+   warning. In Germany, the ATKIS layer and routing load the same small areas
+   on demand. Bavaria and Thuringia use their native WFS; the other fourteen
+   states use [basemap.de's](https://basemap.de/produkte-und-dienste/web-vektor/)
+   official vector tiles derived from ATKIS Basis-DLM. Those presentation
+   geometries may have less precise connections. ATKIS additions carry a
+   penalty and are marked for checking. In the tile containing Rosa, 76.6 km of the examined
    ATKIS ways pass the missing-from-OSM test, compared with 96.8 km of OSM
    ways; this potential gain does not prove pedestrian access. BD TOPO adds
    18 to 100 % in the French areas measured. The official sources examined in
@@ -229,7 +232,7 @@ OpenStreetMap records only 18 fences, and IGN's BD TOPO none (see
 OpenStreetMap is respected by hike2gpx as soon as its cache of the area is
 renewed; the engines of the other planners keep ignoring it.
 
-Outside France, Bavaria and Thuringia, routing only knows OpenStreetMap's
+Outside France and Germany, routing only knows OpenStreetMap's
 paths: a trail missing from OSM does not exist for it, even if the national
 map draws it. The integrated ATKIS ways do not state explicit pedestrian
 rights, so any routed section must be checked on site.

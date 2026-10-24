@@ -426,8 +426,8 @@ test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => 
   assert.match(page.fond().url, /sgx\.geodatenzentrum\.de\/wmts_topplus_open\/tile\/1\.0\.0\/web\/default\/WEBMERCATOR\/\{z\}\/\{y\}\/\{x\}\.png/);
   assert.match(page.fond().options.attribution, /BKG.*dl-de\/by-2-0.*Datenquellen/);
   assert.deepEqual(Object.keys(page.controle().calques),
-    ["Chemins OSM", "Chemins ATKIS (Bavière et Thuringe)"]);
-  assert.match(page.CALQUES.atkis.groupe.getAttribution(), /GDI-Th.*BVV.*CC BY 4\.0/);
+    ["Chemins OSM", "Chemins ATKIS (Allemagne)"]);
+  assert.match(page.CALQUES.atkis.groupe.getAttribution(), /GeoBasis-DE.*GDI-Th.*BVV.*CC BY 4\.0/);
   assert.equal(elements.get("legendAtkis").hidden, false);
   assert.equal(elements.get("ignOption").hidden, false);
   assert.equal(elements.get("ign").disabled, false);

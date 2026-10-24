@@ -13,6 +13,7 @@ def _reponse(positions, identifiant="chemin-1"):
 
 
 def test_thuringe_et_baviere_ont_le_bon_ordre_de_coordonnees(monkeypatch):
+    monkeypatch.setattr(atkis.basemap_atkis, "lire_tuile", lambda bornes: [])
     sources = dict(atkis.SOURCES)
     for land, tuile, positions, attendu, bas_gauche in (
         ("TH", (1014, 205), "10.25 50.717 10.251 50.718", [[50.717, 10.25], [50.718, 10.251]], "10.25 50.7"),
