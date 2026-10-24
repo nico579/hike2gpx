@@ -6,7 +6,7 @@ Créer une application Android qui lit les données préparées par le serveur L
 
 ## Contrat avec le serveur
 
-L'application demande un manifeste via `GET /api/paquet-zone`, puis télécharge les RD5 enrichis, `lookups.dat` et `hike2gpx.brf`. Elle vérifie taille et SHA-256 avant de rendre la zone active. Le manifeste contient les `polylines` BRouter définitives pour le mode strict choisi et les franchissements nécessaires à l'affichage et au contrôle final. Il n'y a ni compte ni mot de passe. L'utilisateur choisit l'adresse HTTPS et les zones à conserver.
+L'application demande un manifeste via `GET /api/paquet-zone`, puis télécharge les RD5 enrichis, `lookups.dat`, `hike2gpx.brf` et, pour une source nationale, `chemins-officiels.json`. Elle vérifie taille et SHA-256 avant de rendre la zone active. Le manifeste contient les `polylines` BRouter définitives pour le mode strict choisi et les franchissements nécessaires à l'affichage et au contrôle final. Le fichier de chemins affiche le calque hors ligne indépendamment du tracé. Il n'y a ni compte ni mot de passe. L'utilisateur choisit l'adresse HTTPS et les zones à conserver.
 
 ## Calcul embarqué
 
