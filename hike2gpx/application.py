@@ -495,6 +495,28 @@ class Application:
         if ign and not providers.source(source).disponible(zone):
             return {"erreur": f"Chemins {providers.source(source).nom} indisponibles dans cette zone.",
                     "code": "source_hors_zone"}
+        if self.mode_serveur:
+            # Le calcul distant est un secours sur données déjà publiées. Une
+            # requête cliente ne déclenche ni fusion, ni Overpass, ni création
+            # de RD5 : seule la commande SSH prépare ces données.
+            paquet = self.lire_paquet(zone, source, str(int(strict)), str(int(ign)))
+            if not paquet.get("pret"):
+                return {"erreur": "Paquet de zone non préparé sur le serveur.",
+                        "code": "zone_non_preparee"}
+            if not self.installation.installee():
+                return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True}
+            try:
+                fichier = paquet["segments"][0]["url"]
+                jeton = fichier.split("/")[3]
+                if not re.fullmatch(r"[0-9a-f]{32}", jeton):
+                    raise ValueError("Identifiant de paquet invalide.")
+                reponse = self._itineraire_paquet(points, zone, paquet,
+                                                   self.dossier / "paquets" / jeton, debut)
+                if "erreur" not in reponse:
+                    reponse["moteur"] = "serveur-secours"
+                return reponse
+            except (brouter.ErreurBRouter, OSError, ValueError, KeyError, IndexError) as exc:
+                return {"erreur": str(exc)}
         # Un paquet vérifié reste utilisable lorsque le serveur ne répond plus.
         if self.cloud and self.cloud.etat()["adresse"]:
             try:

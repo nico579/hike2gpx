@@ -151,6 +151,22 @@ def test_mode_serveur_ecarte_les_actions_du_bureau(tmp_path):
     assert "donnees" not in post and "paquet-zone" in get and "paquet-zone" not in post
 
 
+def test_calcul_serveur_ne_prepare_jamais_une_zone_depuis_une_requete(tmp_path, monkeypatch):
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    monkeypatch.setattr(application, "_extrait_automatique", lambda *_: pytest.fail("extrait lancé"))
+    monkeypatch.setattr(application.maison, "preparer", lambda *_args, **_kw: pytest.fail("fusion lancée"))
+    points = {"points": [[43.4, 6.0], [43.41, 6.01]], "source": "ign", "strict": True}
+    assert application._itineraire(points)["code"] == "zone_non_preparee"
+    jeton = "a" * 32
+    monkeypatch.setattr(application, "lire_paquet", lambda *_: {
+        "pret": True, "segments": [{"url": f"/api/paquets/{jeton}/E5_N40.rd5"}]})
+    monkeypatch.setattr(application.installation, "installee", lambda: True)
+    monkeypatch.setattr(application, "_itineraire_paquet", lambda *_: {"moteur": "cloud-local"})
+    assert application._itineraire(points)["moteur"] == "serveur-secours"
+
+
 def test_mode_serveur_exige_un_nom_dns(tmp_path):
     from hike2gpx.application import Application
 
