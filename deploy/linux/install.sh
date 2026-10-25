@@ -50,6 +50,7 @@ fi
 /opt/hike2gpx/venv/bin/python -m pip install --upgrade pip
 /opt/hike2gpx/venv/bin/python -m pip install --upgrade "$repo_dir"
 install -m 0755 "$repo_dir/deploy/linux/refresh.py" /opt/hike2gpx/refresh.py
+install -m 0755 "$repo_dir/deploy/linux/france_osm.py" /opt/hike2gpx/france_osm.py
 install -d -m 0755 /etc/hike2gpx
 if [[ ! -f /etc/hike2gpx/zones.json ]]; then
   install -m 0644 "$repo_dir/deploy/linux/zones.example.json" /etc/hike2gpx/zones.json
