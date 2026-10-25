@@ -5,7 +5,9 @@ import unittest
 import shutil
 from pathlib import Path
 
-from deploy.linux import rd5_mosaic, rd5_quarts, rd5_shards
+from deploy.linux import publish_rd5_package, rd5_mosaic, rd5_quarts, rd5_shards
+from hike2gpx import mailles, rd5_fragments
+from hike2gpx.application import Application
 
 
 class Rd5QuartsTest(unittest.TestCase):
@@ -55,6 +57,28 @@ class Rd5QuartsTest(unittest.TestCase):
                                                       (autre, 8, 1, 0)])
             self.assertEqual(manifeste["couverture"], [[8, 0, 0], [8, 1, 0]])
             self.assertEqual((mosaique / "E5_N40.rd5").read_bytes(), source.read_bytes())
+            client = racine / "client.rd5"
+            rd5_fragments.assembler(manifeste, mosaique, client)
+            self.assertEqual(client.read_bytes(), source.read_bytes())
+
+            donnees = racine / "serveur"
+            for j in (24, 25):
+                mailles.publier(donnees, "osm", 172, j,
+                                osm={"voies": [], "barrieres": []}, officiels=[], franchissements=[])
+                mailles.publier(donnees, "ign", 172, j,
+                                osm={"voies": [], "barrieres": []}, officiels=[], franchissements=[])
+            profils = racine / "profils"
+            profils.mkdir()
+            (profils / "hike2gpx.brf").write_text("profil", encoding="utf-8")
+            (profils / "lookups.dat").write_bytes(b"lookups")
+            paquet = publish_rd5_package.publier(mosaique, donnees, profils, "ign", True)
+            self.assertEqual(paquet["format"], 2)
+            self.assertEqual(len(paquet["segments"]), 2)
+            self.assertEqual(paquet["mailles"], [[172, 24], [172, 25]])
+            application = Application(donnees, mode_serveur=True)
+            self.assertEqual(application.lire_paquet((43.01, 6.24, 43.02, 6.26), "ign")["format"], 2)
+            fragment = paquet["segments"][0]
+            self.assertTrue(application.fichier_paquet(fragment["url"].split("/")[3], fragment["nom"]).is_file())
 
 
 if __name__ == "__main__":

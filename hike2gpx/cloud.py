@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 from nico579_commons import atomique
-from . import providers
+from . import providers, rd5_fragments
 
 
 ROUTES_GET_ZONE = {"osm"} | {p.calque for p in providers.SOURCES.values()}
@@ -130,13 +130,16 @@ class Client:
         racine = Path(dossier) / "cloud-paquets"
         cible = racine / cle
         cache = atomique.lire_json(cible / "manifest.json", None)
-        present = (isinstance(cache, dict) and cache.get("format") == 1
+        present = (isinstance(cache, dict) and cache.get("format") in (1, 2)
                    and cache.get("pret") is True
                    and all(cache.get(k) == v for k, v in
                            {"strict": bool(payload.get("strict", True)),
                             "source": payload.get("source", "ign") if payload.get("officiel", True) else "osm"}.items())
                    and all((cible / f["nom"]).is_file()
-                           for f in cache.get("segments", []) + cache.get("assets", [])))
+                           for f in cache.get("segments", []) + cache.get("assets", []))
+                   and (cache.get("format") != 2
+                        or (isinstance(cache.get("assemblage"), dict)
+                            and (cible / cache["assemblage"].get("rd5", "")).is_file())))
         if present and (time.time() - cache.get("telecharge_a", 0) < 7 * 86400
                         or not self.etat()["actif"]):
             return cache, cible
@@ -147,6 +150,8 @@ class Client:
                                                          payload.get("strict", True)))
         if not paquet.get("pret"):
             raise Indisponible(paquet.get("erreur") or "Paquet de zone en préparation.")
+        if paquet.get("format") not in (1, 2):
+            raise Indisponible("Format de paquet inconnu.")
         config = self._config()
         racine.mkdir(parents=True, exist_ok=True)
         provisoire = racine / f"{cle}-{secrets.token_hex(6)}"
@@ -167,6 +172,13 @@ class Client:
                 if ((provisoire / nom).stat().st_size != fichier["octets"]
                         or empreinte.hexdigest() != fichier["sha256"]):
                     raise Indisponible(f"Empreinte inattendue pour {nom}.")
+            if paquet["format"] == 2:
+                try:
+                    assemblage = paquet["assemblage"]
+                    rd5_fragments.assembler(assemblage, provisoire,
+                                           provisoire / assemblage["rd5"])
+                except (KeyError, OSError, ValueError, TypeError) as exc:
+                    raise Indisponible(f"Assemblage RD5 invalide : {exc}") from exc
             paquet["telecharge_a"] = time.time()
             atomique.ecrire_json(provisoire / "manifest.json", paquet)
             ancien = racine / f"{cle}-ancien"

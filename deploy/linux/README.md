@@ -14,12 +14,21 @@ python /opt/hike2gpx/rd5_mosaic.py /var/lib/hike2gpx/mesures/mosaique /var/lib/h
 
 # Publier les calques OSM et nationaux à partir des sources locales d'une maille.
 python /opt/hike2gpx/publish_calques.py E5_N40-osm.sqlite PACA.gpkg franchissements.json /var/lib/hike2gpx 43.25 6 --source ign
+
+# Après l'assemblage des fragments adjacents, publier un paquet de routage.
+python /opt/hike2gpx/publish_rd5_package.py /var/lib/hike2gpx/mesures/mosaique /var/lib/hike2gpx /var/lib/hike2gpx/brouter/maison/profils --source ign
 ```
 
 Le dernier script publie deux JSON gzip par maille sous `mailles/osm` et
 `mailles/<source>`. L'API `/api/osm` et `/api/<calque du provider>` lit seulement
 les mailles qui touchent la vue. Une maille manquante est signalée comme telle.
-L'installation de production des fragments RD5 de 0,25° reste à achever.
+Le paquet de routage format 2 contient les fragments RD5q de la mosaïque,
+leurs empreintes, les franchissements et les fichiers nécessaires à BRouter.
+Il est publié atomiquement sous `paquets/<identifiant>` et servi en lecture
+seule. Le bureau et Android recomposent la RD5 après téléchargement. Le script
+refuse les couvertures trouées ; pour une grande région, former plusieurs
+paquets rectangulaires assez petits pour les appareils. Le catalogue national
+de mailles et leur mise à jour groupée restent à construire.
 
 Pré-requis : Ubuntu 24.04 x86_64, nom DNS public pointant vers le serveur, ports 80 et 443 ouverts, accès SSH pour l'administration. L'API de lecture ne demande aucun mot de passe. La gestion reste exclusivement sur le serveur via SSH et systemd.
 
@@ -82,3 +91,7 @@ l'application de bureau. HTTP n'est accepté que pour `localhost` et
 `127.0.0.1` ; les autres adresses exigent HTTPS. Les mailles de test
 publiées couvrent `[43,25 ; 6,00 ; 43,50 ; 6,50]` près de Garéoult.
 Les chemins OSM et BD TOPO de cette zone sont servis depuis la VM.
+Le paquet strict IGN de ces deux mailles est aussi disponible sur `/api/paquet-zone`.
+La commande `vm_smoke_quarters.py http://127.0.0.1:8796 <installation-BRouter> <RD5-référence>`
+vérifie le téléchargement des deux RD5q, l'assemblage octet pour octet et
+un itinéraire local traversant leur limite.
