@@ -51,11 +51,12 @@ volume de la source ; le produit final pour l'application reste à indexer et
 Pour l'application, un lot de 0,25° contiendra deux produits de la même édition :
 
 1. Le fragment binaire RD5, assemblé dans une RD5 locale pour le calcul.
-2. Un fichier de données **indexé spatialement**, contenant chemins OSM,
-   chemins officiels avec leur source, et franchissements finalisés. Le client
-   interrogera uniquement l'emprise visible pour le calque et la zone du
-   parcours pour les coupes BRouter. Un SQLite avec RTree et coordonnées WGS84
-   reste un candidat ; son schéma et sa taille doivent être mesurés sur un lot.
+2. Les chemins OSM, les chemins officiels avec leur source, et les
+   franchissements finalisés. Le prototype publie deux JSON gzip par maille,
+   un pour OSM et un pour la source nationale. Le serveur lit les mailles qui
+   touchent la vue, élimine les objets hors de la vue et déduplique ceux qui
+   traversent une limite. Un index spatial interne à chaque fichier reste à
+   étudier si la lecture devient trop coûteuse.
 
 Une seule RD5 ne suffit pas : elle ne conserve pas directement la distinction
 des sources ni les attributs d'affichage et de franchissement dont l'application
@@ -122,6 +123,17 @@ montre qu'une frontière entre **ces deux** fabrications se raccorde. Il reste
 à tester les chemins officiels qui franchissent la frontière, les coins de
 quatre mailles, une limite de RD5 et les autres providers.
 
+Les calques de ces deux mailles ont ensuite été publiés directement depuis
+l'index OSM local et le GeoPackage IGN. Les fichiers OSM gzip font
+**1 452 101** et **1 682 730 octets** ; les fichiers IGN gzip **2 189 983** et
+**2 029 314 octets**. La vue `[43,30 ; 6,24 ; 43,31 ; 6,26]`, à cheval sur la
+limite, renvoie **1 035 chemins OSM**, **33 barrières**, **18 franchissements**
+et **2 756 tronçons IGN**. L'application de bureau a obtenu ces réponses du
+service de la VM par un tunnel SSH. Une maille absente produit une erreur
+explicite : elle ne donne pas un calque vide trompeur. Pour le moment,
+l'itinéraire en mode cloud utilise encore les paquets RD5 du format initial ;
+les fragments RD5 de 0,25° ne sont pas encore distribués par l'API.
+
 ## Étapes de validation avant généralisation
 
 1. Produire une RD5 **complète** sur une case témoin, avec tout l'OSM de sa
@@ -131,9 +143,9 @@ quatre mailles, une limite de RD5 et les autres providers.
 2. Étendre l'essai de raccord aux chemins officiels, aux coins de quatre
    mailles et aux limites de RD5 ; vérifier les identifiants synthétiques,
    les chemins et les franchissements après assemblage.
-3. Mesurer la taille de l'index de calques par 0,25° et la durée de
-   téléchargement sur mobile. Grouper les téléchargements des mailles voisines
-   pour limiter le nombre de requêtes ; conserver l'assemblage local atomique.
+3. Mesurer la durée de téléchargement sur mobile et le coût de lecture des
+   JSON gzip. Grouper les téléchargements des mailles voisines pour limiter
+   le nombre de requêtes ; conserver l'assemblage local atomique.
 4. Publier un manifeste de version commun aux RD5, calques et franchissements,
    avec couverture, empreintes et état `complet`. Ne rendre visible que la
    version entièrement préparée ; garder l'ancienne pendant le remplacement.

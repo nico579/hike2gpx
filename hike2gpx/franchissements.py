@@ -777,17 +777,9 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
         if not continuer():
             raise VueRemplacee()
         donnees = charger_tuile(i, j, dossier, **options)
-        for e in donnees["elements"]:
-            points = _geometrie(e) if e.get("type") == "way" else []
-            if not points:
-                continue
-            tags = e.get("tags", {})
-            ligne = [[round(lat, 6), round(lon, 6)] for lat, lon in points]
-            if _praticable(tags):
-                voies[e["id"]] = {"id": e["id"], "genre": GENRES.get(tags["highway"], "route"), "pts": ligne}
-            elif "barrier" in tags and "highway" not in tags and regles.status(tags, MODE)[0] != "passable":
-                barrieres[e["id"]] = {"id": e["id"], "nature": regles.LABELS.get(tags["barrier"], "Barrière"),
-                                      "pts": ligne}
+        affichables = voies_elements(donnees["elements"])
+        voies.update((v["id"], v) for v in affichables["voies"])
+        barrieres.update((v["id"], v) for v in affichables["barrieres"])
         franchissements.extend({cle: f[cle] for cle in ("cle", "statut", "raison", "nature", "lat", "lon", "osm")}
                                for f in franchissements_tuile(i, j, dossier, donnees=donnees)
                                if f["statut"] in ("blocked", "uncertain"))
@@ -795,3 +787,20 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
             suivi(k + 1, len(tuiles))
     return {"voies": list(voies.values()), "barrieres": list(barrieres.values()),
             "franchissements": franchissements}
+
+
+def voies_elements(elements) -> dict:
+    """Même forme de calque OSM pour Overpass et l'index local du serveur."""
+    voies, barrieres = {}, {}
+    for e in elements:
+        points = _geometrie(e) if e.get("type") == "way" else []
+        if not points:
+            continue
+        tags = e.get("tags", {})
+        ligne = [[round(lat, 6), round(lon, 6)] for lat, lon in points]
+        if _praticable(tags):
+            voies[e["id"]] = {"id": e["id"], "genre": GENRES.get(tags["highway"], "route"), "pts": ligne}
+        elif "barrier" in tags and "highway" not in tags and regles.status(tags, MODE)[0] != "passable":
+            barrieres[e["id"]] = {"id": e["id"], "nature": regles.LABELS.get(tags["barrier"], "Barrière"),
+                                   "pts": ligne}
+    return {"voies": list(voies.values()), "barrieres": list(barrieres.values())}

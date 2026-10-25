@@ -34,9 +34,10 @@ def valider_adresse(adresse: str) -> str:
         port = url.port
     except ValueError as exc:
         raise ValueError("Adresse du serveur invalide.") from exc
-    if (url.scheme != "https" or not url.hostname or url.username or url.password
+    local_http = url.scheme == "http" and url.hostname in {"127.0.0.1", "localhost"}
+    if (not (url.scheme == "https" or local_http) or not url.hostname or url.username or url.password
             or url.path or url.query or url.fragment or port == 0):
-        raise ValueError("Indiquez une adresse HTTPS, sans chemin ni identifiants.")
+        raise ValueError("Indiquez une adresse HTTPS (HTTP accepté sur localhost), sans chemin ni identifiants.")
     return adresse
 
 
