@@ -10,7 +10,7 @@ microcache. Ces niveaux ont des rôles différents :
 
 | Niveau | Usage prévu |
 | --- | --- |
-| 5° | Nom de fichier et couverture que BRouter reconnaît ; fabrication au plus d'une RD5 par job serveur. |
+| 5° | Nom et conteneur de fichier que BRouter reconnaît ; assemblage des fragments préparés par maille. |
 | 1° | Sous-index natif de la RD5, utile pour assembler et vérifier. |
 | 0,25° | **Lot de distribution retenu pour le prototype** : 8 × 8 microcaches, 16 lots par sous-case de 1°. |
 | 0,03125° | Plus petite unité binaire ; une requête par microcache multiplierait les fichiers et les appels réseau. |
