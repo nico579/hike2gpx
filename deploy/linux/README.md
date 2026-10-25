@@ -8,6 +8,9 @@ Sur la VM de test, les scripts de mesure se lancent par SSH :
 ```bash
 python /opt/hike2gpx/rd5_quarts.py decouper E5_N40.rd5 /var/lib/hike2gpx/mesures/E5_N40
 python /opt/hike2gpx/ign_gpkg.py PACA.gpkg 43.25 6 43.5 6.25 /var/lib/hike2gpx/mesures/ign-gareoult.json.gz
+python /opt/hike2gpx/pilot_osm_index.py E5_N40.osm.pbf /var/lib/hike2gpx/mesures/E5_N40-osm.sqlite 40 5 45 10
+python /opt/hike2gpx/pilot_fusion_quart.py /var/lib/hike2gpx/mesures/E5_N40-osm.sqlite PACA.gpkg /var/lib/hike2gpx/mesures/gareoult /var/lib/hike2gpx 43.25 6
+python /opt/hike2gpx/rd5_mosaic.py /var/lib/hike2gpx/mesures/mosaique /var/lib/hike2gpx/mesures/gareoult/fragments:8:0:1 /var/lib/hike2gpx/mesures/est/fragments:8:1:1
 ```
 
 Ces sorties sont des preuves de découpage et de volume ; leur publication aux

@@ -84,11 +84,43 @@ fonctionnelle, pas seulement une optimisation.
 
 La tentative `osmium extract --strategy complete_ways` de la France vers
 `E5_N40` a dépassé la RAM de la VM (3,3 Gio disponibles, aucun swap initial).
-Une nouvelle tentative avec 6 Gio de swap temporaire est en cours. Le serveur
+Une seconde tentative avec 6 Gio de swap temporaire a été lancée. Le serveur
 ne doit pas indexer toute la France pour une seule RD5 : le PBF de 4,8 Gio est
 conservé comme source réutilisable, les 12 Gio d'index national partiel ont
 été effacés. À terme, l'import doit être borné par case et pouvoir reprendre
 sans recommencer les autres cases.
+
+La seconde tentative a réussi en **10 min 21 s**, avec **2,5 Gio de RAM** et
+**2,6 Gio de swap** au pic. Le PBF `E5_N40` extrait de France fait **373 Mo**.
+Le créateur BRouter a ensuite produit la RD5 principale en **2 min 31 s**,
+avec **2 Gio de RAM** au pic et **32 073 783 octets** de RD5 `E5_N40` ; les
+intermédiaires de fabrication ont été effacés après succès. Cette RD5 est
+**OSM seul et limitée à l'extrait France** : elle sert à dimensionner le job,
+pas encore à publier un paquet complet pour cette case.
+
+Le même PBF borné a été indexé localement en **3 min 04 s** :
+**1 035 442 voies**, **0,34 Gio** de SQLite final, **1,1 Gio** de RAM au pic.
+L'index permet de relire les petites mailles OSM de la case sans redemander
+Overpass ni reparcourir les 373 Mo de PBF pour chaque maille.
+
+Deux fabrications indépendantes OSM + BD TOPO ont été faites sur les mailles
+`[43,25 ; 6,00 ; 43,50 ; 6,25]` et `[43,25 ; 6,25 ; 43,50 ; 6,50]`, avec un
+halo de 0,05° pour lire les raccords. La première a lu 43 327 voies OSM et
+54 613 tronçons IGN, conservé 12 196 chemins IGN nouveaux, calculé 253
+franchissements et produit une RD5 de 1 456 360 octets en **50 s** (pic RAM
+1,1 Gio). Le fragment distribuable ciblé fait environ **600 Ko** et sa RD5
+reconstituée **618 092 octets**. Un trajet local a réussi avec et sans les
+coupes des franchissements. La maille est lue depuis l'index OSM et le RTree
+IGN, sans Overpass ni WFS.
+
+La seconde a conservé 16 342 chemins IGN nouveaux et calculé 241
+franchissements en **56 s** (pic RAM 1 Gio). `rd5_mosaic.py` a assemblé les
+deux fragments sélectionnés en une RD5 de **1 248 993 octets**. Le BRouter
+réel a calculé un trajet de **86 m franchissant le méridien 6,25°** sur un
+chemin OSM, avec et sans les coupes strictes des deux mailles. Ce test
+montre qu'une frontière entre **ces deux** fabrications se raccorde. Il reste
+à tester les chemins officiels qui franchissent la frontière, les coins de
+quatre mailles, une limite de RD5 et les autres providers.
 
 ## Étapes de validation avant généralisation
 
@@ -96,9 +128,9 @@ sans recommencer les autres cases.
    case, y compris les pays voisins, et les chemins nationaux présents. Une
    RD5 issue du seul extrait France ne serait pas complète dans les portions
    italiennes ou espagnoles de sa case.
-2. Tester un itinéraire qui franchit deux sous-cases puis deux RD5, vérifier
-   que le nombre de chemins et les franchissements ne changent pas après
-   découpage et assemblage.
+2. Étendre l'essai de raccord aux chemins officiels, aux coins de quatre
+   mailles et aux limites de RD5 ; vérifier les identifiants synthétiques,
+   les chemins et les franchissements après assemblage.
 3. Mesurer la taille de l'index de calques par 0,25° et la durée de
    téléchargement sur mobile. Grouper les téléchargements des mailles voisines
    pour limiter le nombre de requêtes ; conserver l'assemblage local atomique.

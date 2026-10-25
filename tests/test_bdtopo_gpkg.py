@@ -8,6 +8,7 @@ from pathlib import Path
 from pyproj import Transformer
 from shapely import LineString, to_wkb
 
+from hike2gpx import providers
 from hike2gpx.providers import bdtopo
 
 
@@ -34,4 +35,6 @@ def test_troncons_gpkg_reprojette_et_respecte_emprise():
         assert len(troncons) == 1
         assert troncons[0]["id"] == "BDT1-0"
         assert troncons[0]["pts"] == [[43.32, 6.04], [43.321, 6.041]]
+        assert providers.source("ign").troncons_pour_job(
+            (43.25, 6.0, 43.5, 6.25), racine, gpkg) == troncons
         assert bdtopo.troncons_gpkg(gpkg, 44.0, 6.0, 44.25, 6.25) == []
