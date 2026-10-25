@@ -14,6 +14,7 @@ Cette PR prépare le serveur Ubuntu qui fabrique à l'avance les réseaux de rou
 - Client bureau en mode serveur avec cache gzip des calques dans `cloud-paquets/calques`, réutilisation hors ligne et provenance `cloud`/`local` affichée sur la carte. Le quadrillage des cellules disponibles s'active dans les réglages.
 - Journaux horodatés au démarrage et lors des échanges : source des données, téléchargement direct ou cloud, durée, taille reçue et état du cache.
 - Script d'inspection du contenu des calques et règles d'épuration propres au provider IGN, sans changer les données du routage.
+- Le voyant « Tracé disponible » interroge le serveur pour savoir si le paquet de routage préparé couvre la zone. En dehors de cette couverture, les calques, le voyant et le calcul basculent ensemble vers les données locales : Overpass, extraits locaux et BRouter local reprennent alors leur rôle normal.
 
 ## Mesures réalisées
 

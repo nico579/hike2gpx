@@ -1082,8 +1082,17 @@ class Application:
 
         return {**detail, "local": etat(local), "regional": etat(regional)}
 
-    def disponibilite(self, zone) -> dict:
+    def disponibilite(self, zone, source="ign", strict=True, officiel=True) -> dict:
         """Prérequis d'un nouveau calcul au centre de la vue ou dans la zone du parcours."""
+        if self.mode_serveur:
+            if zone is None:
+                return {"pret": False, "source": None, "attente": "zone"}
+            paquet = self.lire_paquet(zone, source, str(int(bool(strict))), str(int(bool(officiel))))
+            if not paquet.get("pret"):
+                return {"pret": False, "source": None, "attente": "paquet"}
+            if not self.installation.installee():
+                return {"pret": False, "source": None, "attente": "moteur"}
+            return {"pret": True, "source": "paquet"}
         overpass = franchissements.disponibilite_overpass()
         details = self._detail_sources_osm(zone, overpass)
         if zone is None:
@@ -1111,13 +1120,14 @@ class Application:
             points = valider_points((payload or {}).get("points"))
         except ValueError:
             return self.disponibilite(None)
+        payload = payload or {}
         zone = zone_autour(points)
-        resultat = self.disponibilite(zone)
-        if (payload or {}).get("ign"):
-            source = (payload or {}).get("source")
+        ign = bool(payload.get("ign"))
+        source = payload.get("source", "ign")
+        if ign:
             if source not in providers.SOURCES or not providers.source(source).disponible(zone):
-                return {**resultat, "pret": False, "source": None, "attente": "source"}
-        return resultat
+                return {"pret": False, "source": None, "attente": "source"}
+        return self.disponibilite(zone, source, bool(payload.get("strict", True)), ign)
 
     # ---------------------------------------------------------- données téléchargées
 
@@ -1328,7 +1338,11 @@ class Application:
                     locale = get[route]
                     def avec_repli_get(*args, _route=route, _locale=locale):
                         try:
-                            return self.cloud.calque(_route, args)
+                            resultat = self.cloud.calque(_route, args)
+                            if not resultat.get("erreur"):
+                                return resultat
+                            journal.info("Calque %s : absent du serveur, repli sur les données locales : %s",
+                                         _route, resultat["erreur"])
                         except cloud.Indisponible as exc:
                             if self.cloud.etat(force=True)["actif"]:
                                 journal.warning("Calque %s : cache cloud indisponible, serveur joignable : %s",
@@ -1342,11 +1356,43 @@ class Application:
                     def avec_repli_post(payload, _route=route, _locale=locale):
                         if self.cloud.etat()["actif"]:
                             try:
-                                return self.cloud.demander(_route, "POST", payload=payload)
+                                resultat = self.cloud.demander(_route, "POST", payload=payload)
+                                if not (_route == "itineraire" and resultat.get("code") == "zone_non_preparee"):
+                                    return resultat
+                                journal.info("Itinéraire : paquet cloud absent, repli sur le calcul local")
                             except cloud.Indisponible:
                                 pass
                         return _locale(payload)
                     post[route] = avec_repli_post
+            # Le voyant de disponibilité doit interroger le même serveur que
+            # le calcul cloud. Il indique donc la présence du paquet préparé,
+            # plutôt que les extraits OSM et segments du poste local.
+            disponibilite_get, disponibilite_post = get["disponibilite"], post["disponibilite"]
+
+            def disponibilite_cloud_get(*args):
+                if self.cloud.etat()["actif"]:
+                    try:
+                        resultat = self.cloud.demander("disponibilite", "GET", args=args)
+                        if resultat.get("pret") or resultat.get("attente") != "paquet":
+                            return resultat
+                        journal.info("Disponibilité : paquet cloud absent, vérification locale")
+                    except cloud.Indisponible:
+                        pass
+                return disponibilite_get(*args)
+
+            def disponibilite_cloud_post(payload):
+                if self.cloud.etat()["actif"]:
+                    try:
+                        resultat = self.cloud.demander("disponibilite", "POST", payload=payload)
+                        if resultat.get("pret") or resultat.get("attente") != "paquet":
+                            return resultat
+                        journal.info("Disponibilité : paquet cloud absent, vérification locale")
+                    except cloud.Indisponible:
+                        pass
+                return disponibilite_post(payload)
+
+            get["disponibilite"] = disponibilite_cloud_get
+            post["disponibilite"] = disponibilite_cloud_post
         return get, post
 
     def ouvrir_journaux(self, corps=None) -> dict:
