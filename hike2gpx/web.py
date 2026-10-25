@@ -66,8 +66,24 @@ class Handler(serveweb.Handler):
 
     def do_GET(self):
         chemin = self.path.split("?", 1)[0]
+        if chemin == "/" and self.mode_serveur:
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            corps = ("<!doctype html><html lang='fr'><meta charset='utf-8'>"
+                    "<title>hike2gpx — serveur de données</title>"
+                    "<h1>Serveur de données hike2gpx</h1>"
+                    "<p>Ouvrez l'application de bureau pour tracer un parcours. "
+                    "Dans ses réglages, indiquez l'adresse de ce serveur.</p>"
+                    "<p><a href='/api/etat'>État du serveur</a></p></html>").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(corps)))
+            self.end_headers()
+            self.wfile.write(corps)
+            return
         paquet = re.fullmatch(r"/api/paquets/([0-9a-f]{32})/"
-                              r"([EW]\d+_[NS]\d+\.rd5|lookups\.dat|hike2gpx\.brf)", chemin)
+                              r"([EW]\d+_[NS]\d+\.rd5|\d{2}_[0-3]_[0-3]\.rd5q|lookups\.dat|hike2gpx\.brf|chemins-officiels\.json)", chemin)
         if paquet and self.mode_serveur:
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)
@@ -179,6 +195,9 @@ def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, ins
                                                 favicon=bureau.ICONE)
     if serveur is None:
         raise OSError("Aucun port disponible pour la page de hike2gpx.")
+    journal.info("Serveur HTTP %s prêt sur %s:%d, données %s",
+                 "de données" if application.mode_serveur else "de bureau",
+                 HOST, port, application.dossier)
     return serveur, port
 
 

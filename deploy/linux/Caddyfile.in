@@ -1,0 +1,18 @@
+@DOMAIN@ {
+    encode zstd gzip
+    @data {
+        method GET
+        path /api/*
+    }
+    handle @data {
+        reverse_proxy 127.0.0.1:8795
+    }
+    @route {
+        method POST
+        path /api/itineraire
+    }
+    handle @route {
+        reverse_proxy 127.0.0.1:8795
+    }
+    respond 404
+}

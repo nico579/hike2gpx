@@ -267,7 +267,7 @@ def test_voies_affichables_par_genre_sans_les_bordures(tmp_path):
     cloture = carte.cloture((0, -30), (0, 30))
     carte.cloture((10, -30), (10, 30), barrier="kerb")
     calque = fr.voies_affichables(43.31, 6.01, 43.32, 6.02, tmp_path, interroger=lambda texte, **_: carte.elements)
-    assert {v["id"]: v["genre"] for v in calque["voies"]} == {sentier: "sentier", piste: "piste", route: "route"}
+    assert {v["id"]: v["genre"] for v in calque["voies"]} == {sentier: "sentier", piste: "piste"}
     assert [(b["id"], b["nature"]) for b in calque["barrieres"]] == [(cloture, "Clôture")]
     assert calque["voies"][0]["pts"][0] == [round(LAT0, 6), round(LON0 - 50 / KX, 6)]
 

@@ -9,6 +9,7 @@ pour qu'aucun détour ne passe par une barrière jamais vérifiée.
 from __future__ import annotations
 
 import logging
+import json
 import hashlib
 import math
 import os
@@ -24,7 +25,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, brouter, cloud, communes, franchissements, geofabrik, journaux, maison, osmfr, providers
+from . import __version__, brouter, cloud, communes, franchissements, geofabrik, journaux, mailles, maison, osmfr, providers
 
 journal = logging.getLogger(__name__)
 
@@ -728,12 +729,22 @@ class Application:
         except franchissements.VueRemplacee:
             return {"erreur": "Vue remplacée par une autre.", "code": "vue_remplacee"}
         except franchissements.ErreurDonnees as exc:
+            journal.warning("Calque %s (%s) : échec après %.2f s, zone %s : %s",
+                            cle, "serveur" if self.mode_serveur else "local",
+                            time.monotonic() - debut, zone, exc)
             return {"erreur": str(exc)}
         finally:
             # Seulement la sienne : une vue plus récente a peut-être déjà la place.
             if self._lectures.get(cle_lecture, {}).get("numero") == numero:
                 self._lectures.pop(cle_lecture, None)
-        return {**resultat, "bornes": franchissements.bornes_zone(*zone)}
+        reponse = {"bornes": franchissements.bornes_zone(*zone), **resultat}
+        journal.info("Calque %s (%s) : %d octets JSON en %.2f s, zone %s, %d chemins, %d barrières, %d franchissements",
+                     cle, "serveur" if self.mode_serveur else "local",
+                     len(json.dumps(reponse, ensure_ascii=False).encode("utf-8")),
+                     time.monotonic() - debut, zone,
+                     len(reponse.get("voies", reponse.get("troncons", []))),
+                     len(reponse.get("barrieres", [])), len(reponse.get("franchissements", [])))
+        return reponse
 
     def calque_osm(self, zone, vue=None) -> dict:
         # La vue d'abord : une vue déjà remplacée ne lance rien, pas même un
@@ -742,6 +753,10 @@ class Application:
         numero = self._prendre_vue("osm", vue)
         if numero is None:
             return self._calque("osm", zone, None, None)
+        if self.mode_serveur:
+            def lire(s, w, n, e, dossier, **options):
+                return mailles.calque("osm", (s, w, n, e), dossier, "osm", **options)
+            return self._calque("osm", zone, lire, numero)
         extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone else None
         resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
@@ -749,9 +764,12 @@ class Application:
     def calque_officiel(self, source, zone, vue=None) -> dict:
         fournisseur = providers.source(source)
         def lire(*bornes, **options):
-            if not fournisseur.disponible(bornes):
+            if not fournisseur.disponible(bornes[:4]):
                 return {"troncons": []}
-            return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
+            if self.mode_serveur:
+                return mailles.calque(source, bornes[:4], bornes[4], "officiel", **options)
+            return {"troncons": fournisseur.chemins_pour_calque(
+                fournisseur.module.troncons_zone(*bornes, **options))}
         return self._calque(fournisseur.calque, zone, lire,
                            self._prendre_vue(fournisseur.calque, vue))
 
@@ -885,7 +903,7 @@ class Application:
             if not dossier.is_dir() or not re.fullmatch(r"[0-9a-f]{32}", dossier.name):
                 continue
             paquet = atomique.lire_json(dossier / "public.json", None)
-            if (isinstance(paquet, dict) and paquet.get("format") == 1
+            if (isinstance(paquet, dict) and paquet.get("format") in (1, 2)
                     and paquet.get("source") == cle and paquet.get("strict") is est_strict
                     and isinstance(paquet.get("couverture"), list)
                     and contient(paquet["couverture"], zone, marge_deg=0)):
@@ -893,9 +911,52 @@ class Application:
         return max(disponibles, key=lambda item: item[0])[1] if disponibles else {
             "pret": False, "raison": "zone_non_preparee"}
 
+    def mailles_disponibles(self) -> dict:
+        """Inventaire public des quarts de degré effectivement publiés."""
+        if not self.mode_serveur:
+            if self.cloud is None or not self.cloud.etat()["actif"]:
+                return {"mailles": [], "erreur": "Serveur de données indisponible."}
+            try:
+                return self.cloud.demander("mailles-disponibles", "GET")
+            except cloud.Indisponible as exc:
+                return {"mailles": [], "erreur": str(exc)}
+        index = {}
+        for source in ("osm", *providers.SOURCES):
+            racine = self.dossier / "mailles" / source
+            for fichier in racine.glob("*.json.gz") if racine.is_dir() else []:
+                match = re.fullmatch(r"(-?\d+)_(-?\d+)\.json\.gz", fichier.name)
+                if not match:
+                    continue
+                cellule = (int(match[1]), int(match[2]))
+                info = index.setdefault(cellule, {"maille": list(cellule), "osm": False,
+                                                 "sources": [], "itineraires": []})
+                if source == "osm":
+                    info["osm"] = True
+                else:
+                    info["sources"].append(source)
+        racine = self.dossier / "paquets"
+        for dossier in racine.iterdir() if racine.is_dir() else []:
+            if not dossier.is_dir() or not re.fullmatch(r"[0-9a-f]{32}", dossier.name):
+                continue
+            paquet = atomique.lire_json(dossier / "public.json", None)
+            if (not isinstance(paquet, dict) or paquet.get("format") != 2
+                    or paquet.get("pret") is not True or paquet.get("source") not in providers.SOURCES):
+                continue
+            for brut in paquet.get("mailles", []):
+                if (not isinstance(brut, list) or len(brut) != 2
+                        or any(type(v) is not int for v in brut)):
+                    continue
+                cellule = tuple(brut)
+                info = index.setdefault(cellule, {"maille": list(cellule), "osm": False,
+                                                 "sources": [], "itineraires": []})
+                entree = {"source": paquet["source"], "strict": paquet.get("strict") is True}
+                if entree not in info["itineraires"]:
+                    info["itineraires"].append(entree)
+        return {"pas": 0.25, "mailles": [index[cle] for cle in sorted(index)]}
+
     def fichier_paquet(self, jeton: str, nom: str) -> Path | None:
         if not re.fullmatch(r"[0-9a-f]{32}", jeton) or not re.fullmatch(
-                r"(?:[EW]\d+_[NS]\d+\.rd5|lookups\.dat|hike2gpx\.brf|chemins-officiels\.json)", nom):
+                r"(?:[EW]\d+_[NS]\d+\.rd5|\d{2}_[0-3]_[0-3]\.rd5q|lookups\.dat|hike2gpx\.brf|chemins-officiels\.json)", nom):
             return None
         dossier = self.dossier / "paquets" / jeton
         manifest = atomique.lire_json(dossier / "manifest.json", {})
@@ -1021,8 +1082,17 @@ class Application:
 
         return {**detail, "local": etat(local), "regional": etat(regional)}
 
-    def disponibilite(self, zone) -> dict:
+    def disponibilite(self, zone, source="ign", strict=True, officiel=True) -> dict:
         """Prérequis d'un nouveau calcul au centre de la vue ou dans la zone du parcours."""
+        if self.mode_serveur:
+            if zone is None:
+                return {"pret": False, "source": None, "attente": "zone"}
+            paquet = self.lire_paquet(zone, source, str(int(bool(strict))), str(int(bool(officiel))))
+            if not paquet.get("pret"):
+                return {"pret": False, "source": None, "attente": "paquet"}
+            if not self.installation.installee():
+                return {"pret": False, "source": None, "attente": "moteur"}
+            return {"pret": True, "source": "paquet"}
         overpass = franchissements.disponibilite_overpass()
         details = self._detail_sources_osm(zone, overpass)
         if zone is None:
@@ -1050,13 +1120,14 @@ class Application:
             points = valider_points((payload or {}).get("points"))
         except ValueError:
             return self.disponibilite(None)
+        payload = payload or {}
         zone = zone_autour(points)
-        resultat = self.disponibilite(zone)
-        if (payload or {}).get("ign"):
-            source = (payload or {}).get("source")
+        ign = bool(payload.get("ign"))
+        source = payload.get("source", "ign")
+        if ign:
             if source not in providers.SOURCES or not providers.source(source).disponible(zone):
-                return {**resultat, "pret": False, "source": None, "attente": "source"}
-        return resultat
+                return {"pret": False, "source": None, "attente": "source"}
+        return self.disponibilite(zone, source, bool(payload.get("strict", True)), ign)
 
     # ---------------------------------------------------------- données téléchargées
 
@@ -1235,6 +1306,7 @@ class Application:
             # calcul de secours. Aucun réglage, journal ni effacement de cache.
             return ({"init": self.etat, "etat": self.etat,
                      "paquet-zone": self.lire_paquet,
+                     "mailles-disponibles": self.mailles_disponibles,
                      "osm": self.calque_osm,
                      **{p.calque: (lambda zone, vue=None, cle=cle: self.calque_officiel(cle, zone, vue))
                         for cle, p in providers.SOURCES.items()},
@@ -1245,6 +1317,7 @@ class Application:
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
         get_langue, post_langue = langue_commune.routes(self.lire_langue, self.ecrire_langue)
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
+               "mailles-disponibles": self.mailles_disponibles,
                "osm": self.calque_osm,
                **{p.calque: (lambda zone, vue=None, cle=cle: self.calque_officiel(cle, zone, vue))
                   for cle, p in providers.SOURCES.items()},
@@ -1264,23 +1337,62 @@ class Application:
                 if route in get:
                     locale = get[route]
                     def avec_repli_get(*args, _route=route, _locale=locale):
-                        if self.cloud.etat()["actif"]:
-                            try:
-                                return self.cloud.demander(_route, "GET", args)
-                            except cloud.Indisponible:
-                                pass
-                        return _locale(*args)
+                        try:
+                            resultat = self.cloud.calque(_route, args)
+                            if not resultat.get("erreur"):
+                                return resultat
+                            journal.info("Calque %s : absent du serveur, repli sur les données locales : %s",
+                                         _route, resultat["erreur"])
+                        except cloud.Indisponible as exc:
+                            if self.cloud.etat(force=True)["actif"]:
+                                journal.warning("Calque %s : cache cloud indisponible, serveur joignable : %s",
+                                                _route, exc)
+                                return {"erreur": str(exc), "origine_calque": "cloud"}
+                            journal.info("Calque %s : repli sur les données locales : %s", _route, exc)
+                        return {**_locale(*args), "origine_calque": "local"}
                     get[route] = avec_repli_get
                 if route in post:
                     locale = post[route]
                     def avec_repli_post(payload, _route=route, _locale=locale):
                         if self.cloud.etat()["actif"]:
                             try:
-                                return self.cloud.demander(_route, "POST", payload=payload)
+                                resultat = self.cloud.demander(_route, "POST", payload=payload)
+                                if not (_route == "itineraire" and resultat.get("code") == "zone_non_preparee"):
+                                    return resultat
+                                journal.info("Itinéraire : paquet cloud absent, repli sur le calcul local")
                             except cloud.Indisponible:
                                 pass
                         return _locale(payload)
                     post[route] = avec_repli_post
+            # Le voyant de disponibilité doit interroger le même serveur que
+            # le calcul cloud. Il indique donc la présence du paquet préparé,
+            # plutôt que les extraits OSM et segments du poste local.
+            disponibilite_get, disponibilite_post = get["disponibilite"], post["disponibilite"]
+
+            def disponibilite_cloud_get(*args):
+                if self.cloud.etat()["actif"]:
+                    try:
+                        resultat = self.cloud.demander("disponibilite", "GET", args=args)
+                        if resultat.get("pret") or resultat.get("attente") != "paquet":
+                            return resultat
+                        journal.info("Disponibilité : paquet cloud absent, vérification locale")
+                    except cloud.Indisponible:
+                        pass
+                return disponibilite_get(*args)
+
+            def disponibilite_cloud_post(payload):
+                if self.cloud.etat()["actif"]:
+                    try:
+                        resultat = self.cloud.demander("disponibilite", "POST", payload=payload)
+                        if resultat.get("pret") or resultat.get("attente") != "paquet":
+                            return resultat
+                        journal.info("Disponibilité : paquet cloud absent, vérification locale")
+                    except cloud.Indisponible:
+                        pass
+                return disponibilite_post(payload)
+
+            get["disponibilite"] = disponibilite_cloud_get
+            post["disponibilite"] = disponibilite_cloud_post
         return get, post
 
     def ouvrir_journaux(self, corps=None) -> dict:

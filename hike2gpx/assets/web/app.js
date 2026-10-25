@@ -83,6 +83,13 @@ const TEXTES = {
     "reglages.serveurLocal": "Mode local",
     "reglages.serveurCloud": "Mode cloud : serveur disponible",
     "reglages.serveurRepli": "Mode local : serveur indisponible ({raison})",
+    "reglages.maillesServeur": "Afficher les mailles de 0,25° présentes sur le serveur",
+    "reglages.maillesChargement": "Lecture des mailles du serveur…",
+    "reglages.maillesNombre": "{nombre} mailles · vert : itinéraire, bleu : chemins nationaux, gris : OSM seul",
+    "reglages.maillesAbsentes": "Aucune maille publiée sur ce serveur.",
+    "mailles.osm": "Chemins OSM",
+    "mailles.nationaux": "Chemins nationaux",
+    "mailles.itineraire": "Itinéraire",
     "reglages.jours": "jours",
     "reglages.masquerCartes": "Masquer le bandeau des cartes",
     "reglages.masquerDenivele": "Masquer le bandeau du dénivelé",
@@ -99,6 +106,7 @@ const TEXTES = {
     "disponibilite.attente.moteur": "Installation de BRouter en cours",
     "disponibilite.attente.segments": "Tuiles BRouter en cours de téléchargement",
     "disponibilite.attente.osm": "Données OSM ou Overpass en attente",
+    "disponibilite.attente.paquet": "Paquet de routage absent du serveur",
     "disponibilite.attente.source": "Chemins officiels indisponibles dans cette zone",
     "disponibilite.attente.zone": "Zone du parcours à préciser",
     "disponibilite.info.titre": "Sources du prochain calcul",
@@ -132,7 +140,7 @@ const TEXTES = {
     "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
     "donnees.viderTout": "Vider le cache",
     "donnees.aideCache": "Détail des caches vidés",
-    "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins officiels, les extraits OSM téléchargés, les données BRouter et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte, conservées dans le cache du navigateur, ne sont pas effacées.",
+    "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins officiels, les extraits OSM téléchargés, les données BRouter et les modèles d'altitude gpx2elev. Le dossier cloud-paquets (calques et itinéraires cloud) reste séparé et conservé. Les tuiles des fonds de carte restent dans le cache du navigateur.",
     "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter ? Elles seront retéléchargées au besoin. Les tuiles de fond de carte restent dans le cache du navigateur.",
     "donnees.vide": "Cache local vidé. Les tuiles du fond de carte restent gérées par le navigateur.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
@@ -164,6 +172,12 @@ const TEXTES = {
     "calque.avancement": "Chargement des {nom}… {faites} sur {total} tuiles · {duree} s",
     "liaison.et": " et ",
     "calque.zoom": "Zoomez davantage (niveau {niveau}) pour voir les chemins.",
+    "calque.origineCloud": "cloud",
+    "calque.origineLocal": "local",
+    "calque.origineChargement": "chargement…",
+    "calque.origineAttente": "en attente",
+    "calque.origineIndisponible": "indisponible",
+    "calque.origineInfo": "Source des chemins affichés ; le fond de carte est chargé directement par le navigateur.",
     "extrait.telechargement": "Données OSM hors ligne : téléchargement de l'extrait {nom}, {pourcent} %",
     "extrait.import": "Données OSM hors ligne : import de l'extrait {nom}, {voies} voies lues…",
     "extrait.relais.telechargement": "Données OSM hors ligne : extrait {nom} du {date} ; la région {region} se télécharge pour prendre le relais, {pourcent} %",
@@ -262,6 +276,13 @@ const TEXTES = {
     "reglages.serveurLocal": "Local mode",
     "reglages.serveurCloud": "Cloud mode: server available",
     "reglages.serveurRepli": "Local mode: server unavailable ({raison})",
+    "reglages.maillesServeur": "Show the 0.25° cells available on the server",
+    "reglages.maillesChargement": "Loading server cells…",
+    "reglages.maillesNombre": "{nombre} cells · green: routing, blue: national paths, gray: OSM only",
+    "reglages.maillesAbsentes": "No cells have been published on this server.",
+    "mailles.osm": "OSM paths",
+    "mailles.nationaux": "National paths",
+    "mailles.itineraire": "Routing",
     "reglages.jours": "days",
     "reglages.masquerCartes": "Hide the map layers panel",
     "reglages.masquerDenivele": "Hide the elevation panel",
@@ -278,6 +299,7 @@ const TEXTES = {
     "disponibilite.attente.moteur": "BRouter installation in progress",
     "disponibilite.attente.segments": "BRouter tiles downloading",
     "disponibilite.attente.osm": "Waiting for OSM data or Overpass",
+    "disponibilite.attente.paquet": "Routing package is absent from the server",
     "disponibilite.attente.source": "Official paths unavailable in this area",
     "disponibilite.attente.zone": "Route area needs to be specified",
     "disponibilite.info.titre": "Sources for the next route",
@@ -311,7 +333,7 @@ const TEXTES = {
     "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
     "donnees.viderTout": "Clear cache",
     "donnees.aideCache": "Details of cleared caches",
-    "donnees.detailCache": "This clears Overpass responses and OSM crossings, official paths, downloaded OSM extracts, BRouter data and gpx2elev elevation models. They are downloaded again when needed. Background map tiles held in the browser cache are not cleared.",
+    "donnees.detailCache": "This clears Overpass responses and OSM crossings, official paths, downloaded OSM extracts, BRouter data and gpx2elev elevation models. The separate cloud-paquets directory (cloud path layers and route packages) is kept. Background map tiles remain in the browser cache.",
     "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data? It will download again when needed. Background map tiles remain in the browser cache.",
     "donnees.vide": "Local cache cleared. Background map tiles remain managed by the browser.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
@@ -343,6 +365,12 @@ const TEXTES = {
     "calque.avancement": "Loading the {nom}… {faites} of {total} tiles · {duree} s",
     "liaison.et": " and ",
     "calque.zoom": "Zoom in further (level {niveau}) to see the paths.",
+    "calque.origineCloud": "cloud",
+    "calque.origineLocal": "local",
+    "calque.origineChargement": "loading…",
+    "calque.origineAttente": "waiting",
+    "calque.origineIndisponible": "unavailable",
+    "calque.origineInfo": "Source of displayed paths; the background map loads directly in the browser.",
     "extrait.telechargement": "Offline OSM data: downloading the {nom} extract, {pourcent} %",
     "extrait.import": "Offline OSM data: importing the {nom} extract, {voies} ways read…",
     "extrait.relais.telechargement": "Offline OSM data: {nom} extract of {date}; the {region} region is downloading to take over, {pourcent} %",
@@ -489,6 +517,8 @@ function appliquerLangue(code) {
   $("panelTabs").setAttribute("aria-label", t("onglets.titre"));
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
   afficherEtatServeur(dernierEtatServeur);
+  afficherOrigineCalques();
+  afficherStatutGrille();
   afficherOptionsIgn();
   $("cityQuery").placeholder = t("recherche.placeholder");
   if ($("pleinEcran")) {
@@ -528,6 +558,8 @@ $("saveServerUrl").addEventListener("click", async () => {
     const resultat = await api("serveur", { adresse: $("serverUrl").value.trim() });
     if (resultat.erreur) throw new Error(resultat.erreur);
     afficherEtatServeur(resultat);
+    rechargerCalquesApresServeur();
+    chargerGrilleServeur(true);
   } catch (e) {
     $("serverModeStatus").textContent = e.message;
   } finally {
@@ -685,6 +717,7 @@ function memoriserVue(lat, lon, zoom) {
   } catch (e) { /* sans importance */ }
 }
 carte.on("moveend", () => {
+  if ($("showServerGrid").checked) chargerGrilleServeur();
   const c = carte.getCenter();
   memoriserVue(c.lat, c.lng, carte.getZoom());
   actualiserDisponibilite();
@@ -698,7 +731,8 @@ function afficherDisponibilite(d) {
   $("readiness").classList.toggle("available", pret);
   $("readiness").classList.toggle("unavailable", !pret);
   $("readinessText").textContent = t(pret ? "disponibilite.oui" : "disponibilite.non");
-  $("readiness").title = pret ? `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`
+  $("readiness").title = pret ? (d.source === "paquet" ? "Paquet de routage serveur"
+    : `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`)
     : t(`disponibilite.attente.${d?.attente || "osm"}`);
   $("readinessInfo").setAttribute("aria-label", t("disponibilite.info.titre"));
   const details = d?.details;
@@ -729,6 +763,7 @@ async function actualiserDisponibilite() {
       points: etat.points.map((p) => [p.lat, p.lon]),
       ign: $("ign").checked && Boolean(FOURNISSEURS_CARTES[paysCarte]?.paths?.source),
       source: FOURNISSEURS_CARTES[paysCarte]?.paths?.source,
+      strict: $("strict").checked,
     }) : await api(`disponibilite?${parametres}`);
     if (numero === sequenceDisponibilite) afficherDisponibilite(d);
   } catch (e) {
@@ -814,7 +849,108 @@ const ZOOM_CALQUES = 14;
 const CLE_CALQUES = "hike2gpx.calques";
 // charge : bornes des tuiles déjà dessinées ; annulation : la requête en cours.
 const CALQUES = Object.fromEntries(["osm", ...Object.keys(CHEMINS_OFFICIELS)]
-  .map((cle) => [cle, { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null }]));
+  .map((cle) => [cle, { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null,
+    origine: null, chargement: false, erreur: false }]));
+function afficherOrigineCalques() {
+  const badge = $("mapDataMode");
+  const actifs = Object.entries(CALQUES).filter(([, calque]) => carte.hasLayer(calque.groupe));
+  badge.hidden = !actifs.length || carte.getZoom() < ZOOM_CALQUES;
+  if (badge.hidden) return;
+  badge.title = t("calque.origineInfo");
+  badge.textContent = actifs.map(([cle, calque]) => {
+    const cleOrigine = { cloud: "Cloud", local: "Local" }[calque.origine];
+    const origine = calque.chargement ? t("calque.origineChargement")
+      : cleOrigine ? t(`calque.origine${cleOrigine}`)
+        + (calque.erreur ? ` (${t("calque.origineIndisponible")})` : "")
+        : calque.erreur ? t("calque.origineIndisponible") : t("calque.origineAttente");
+    return `${nomCalque(cle)} : ${origine}`;
+  }).join(" · ");
+}
+function rechargerCalquesApresServeur() {
+  for (const calque of Object.values(CALQUES)) {
+    abandonner(calque);
+    calque.groupe.clearLayers();
+    calque.charge = null;
+    calque.origine = null;
+    calque.chargement = false;
+    calque.erreur = false;
+  }
+  afficherOrigineCalques();
+  rafraichirCalques();
+}
+const CLE_GRILLE_SERVEUR = "hike2gpx.maillesServeur";
+carte.createPane("maillesServeur").style.zIndex = 390;
+const grilleServeur = L.layerGroup();
+let grilleDonnees = null;
+let grilleErreur = "";
+let grilleChargement = false;
+let grilleChargeeA = 0;
+let grilleSequence = 0;
+function afficherStatutGrille() {
+  const statut = $("serverGridStatus");
+  if (!$("showServerGrid").checked) { statut.textContent = ""; return; }
+  statut.textContent = grilleChargement ? t("reglages.maillesChargement") : grilleErreur
+    ? grilleErreur : grilleDonnees?.length
+      ? t("reglages.maillesNombre", { nombre: grilleDonnees.length })
+      : t("reglages.maillesAbsentes");
+}
+function dessinerGrilleServeur(mailles) {
+  grilleServeur.clearLayers();
+  for (const cellule of mailles) {
+    const [i, j] = cellule.maille || [];
+    if (!Number.isInteger(i) || !Number.isInteger(j)) continue;
+    const itineraire = cellule.itineraires?.length > 0;
+    const couleur = itineraire ? "#23804f" : cellule.sources?.length ? "#2367d1" : "#697789";
+    L.rectangle([[i / 4, j / 4], [(i + 1) / 4, (j + 1) / 4]],
+      { pane: "maillesServeur", color: couleur, weight: 1.5, fillColor: couleur,
+        fillOpacity: 0.08, bubblingMouseEvents: false })
+      .bindPopup(() => {
+        const sources = (cellule.sources || []).map((s) => echapper(s.toUpperCase())).join(", ") || "—";
+        const routes = (cellule.itineraires || []).map((r) => echapper(r.source.toUpperCase())).join(", ") || "—";
+        return `<strong>${(i / 4).toFixed(2)}–${((i + 1) / 4).toFixed(2)}°, `
+          + `${(j / 4).toFixed(2)}–${((j + 1) / 4).toFixed(2)}°</strong><br>`
+          + `${t("mailles.osm")} : ${cellule.osm ? "✓" : "—"}<br>`
+          + `${t("mailles.nationaux")} : ${sources}<br>${t("mailles.itineraire")} : ${routes}`;
+      }).addTo(grilleServeur);
+  }
+}
+async function chargerGrilleServeur(force = false) {
+  if (!$("showServerGrid").checked) {
+    grilleServeur.remove();
+    afficherStatutGrille();
+    return;
+  }
+  if (!carte.hasLayer(grilleServeur)) grilleServeur.addTo(carte);
+  if (!force && (grilleChargement || Date.now() - grilleChargeeA < 60_000)) return;
+  const numero = ++grilleSequence;
+  if (force) grilleServeur.clearLayers();
+  grilleChargement = true;
+  grilleErreur = "";
+  afficherStatutGrille();
+  try {
+    const reponse = await api("mailles-disponibles");
+    if (numero !== grilleSequence) return;
+    if (reponse.erreur) throw new Error(reponse.erreur);
+    grilleDonnees = Array.isArray(reponse.mailles) ? reponse.mailles : [];
+    dessinerGrilleServeur(grilleDonnees);
+    grilleChargeeA = Date.now();
+  } catch (erreur) {
+    if (numero !== grilleSequence) return;
+    grilleErreur = erreur.message;
+    grilleDonnees = [];
+    grilleServeur.clearLayers();
+  } finally {
+    if (numero === grilleSequence) {
+      grilleChargement = false;
+      afficherStatutGrille();
+    }
+  }
+}
+$("showServerGrid").addEventListener("change", () => {
+  try { localStorage.setItem(CLE_GRILLE_SERVEUR, $("showServerGrid").checked ? "1" : "0"); }
+  catch (_) { /* réglage de carte non persistant */ }
+  chargerGrilleServeur(true);
+});
 for (const [cle, chemins] of Object.entries(CHEMINS_OFFICIELS)) {
   if (chemins.attribution) CALQUES[cle].groupe.getAttribution = () => chemins.attribution;
 }
@@ -987,6 +1123,12 @@ function arreterAuServeur(cles) {
 async function chargerCalque(cle, zone) {
   const calque = CALQUES[cle];
   abandonner(calque);
+  calque.groupe.clearLayers();
+  calque.charge = null;
+  calque.origine = null;
+  calque.chargement = true;
+  calque.erreur = false;
+  afficherOrigineCalques();
   const numero = calque.sequence;
   const annulation = calque.annulation = new AbortController();
   const nom = nomCalque(cle);
@@ -998,20 +1140,30 @@ async function chargerCalque(cle, zone) {
     donnees = await api(`${cle}?${parametres}`, undefined, annulation.signal);
   } catch (e) {
     finLecture(cle, numero);
-    if (numero === calque.sequence) noteCalques(`${nom} : ${e.message}`);
+    if (numero === calque.sequence) {
+      calque.chargement = false;
+      calque.erreur = true;
+      afficherOrigineCalques();
+      noteCalques(`${nom} : ${e.message}`);
+    }
     return;
   }
   const autres = finLecture(cle, numero);
   if (numero !== calque.sequence || !carte.hasLayer(calque.groupe)) return;
   calque.annulation = null;
+  calque.chargement = false;
+  calque.origine = donnees.origine_calque || null;
   if (donnees.extrait_en_cours) majExtrait();   // le serveur vient de lancer l'extrait de la région
   if (donnees.code === "vue_remplacee") {
     // Remplacée par la vue d'une autre page ouverte sur le même serveur : la
     // note ne reste pas sur un chargement qui ne viendra pas.
     if (!autres) noteCalques("");
+    afficherOrigineCalques();
     return;
   }
   if (donnees.erreur) {
+    calque.erreur = true;
+    afficherOrigineCalques();
     noteCalques(`${nom} : ${ts(donnees.erreur)}`);
     return;
   }
@@ -1020,12 +1172,14 @@ async function chargerCalque(cle, zone) {
   // Les tuiles lues débordent la vue : tant qu'elle y reste, rien à redemander.
   const [s, w, n, e] = donnees.bornes || [zone.s, zone.w, zone.n, zone.e];
   calque.charge = { s, w, n, e };
+  afficherOrigineCalques();
   // L'autre calque encore en lecture garde sa note, que son suivi met à jour.
   if (!autres) noteCalques("");
 }
 
 async function rafraichirCalques() {
   const actifs = Object.keys(CALQUES).filter((cle) => carte.hasLayer(CALQUES[cle].groupe));
+  afficherOrigineCalques();
   if (!actifs.length) { noteCalques(""); return; }
   if (carte.getZoom() < ZOOM_CALQUES) {
     // Vider plutôt que garder un morceau de réseau : de loin, il ferait
@@ -1034,7 +1188,10 @@ async function rafraichirCalques() {
     for (const cle of actifs) {
       CALQUES[cle].groupe.clearLayers();
       CALQUES[cle].charge = null;
+      CALQUES[cle].origine = null;
+      CALQUES[cle].chargement = false;
     }
+    afficherOrigineCalques();
     arreterAuServeur(interrompus);
     noteCalques(t("calque.zoom", { niveau: ZOOM_CALQUES }));
     return;
@@ -2065,6 +2222,7 @@ async function demarrer() {
     $("ouvrirDossierJournaux").hidden = Boolean(infos.mode_serveur);
     $("verifierMaj").hidden = Boolean(infos.mode_serveur);
     $("serverSettings").hidden = Boolean(infos.mode_serveur);
+    $("serverGridSettings").hidden = Boolean(infos.mode_serveur);
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
     etat.cleIgn = reglages.cle_ign || "";
     $("cleIgn").value = etat.cleIgn;
@@ -2076,6 +2234,8 @@ async function demarrer() {
     afficherStatut(() => t("serveur.injoignable", { message: e.message }), true);
   }
   restaurerCalques();     // avant le contrôle des fonds, pour que ses cases soient cochées
+  $("showServerGrid").checked = localStorage.getItem(CLE_GRILLE_SERVEUR) === "1";
+  if ($("showServerGrid").checked) chargerGrilleServeur(true);
   construireFonds();
   rafraichirCalques();
 }

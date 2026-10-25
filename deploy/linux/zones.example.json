@@ -1,0 +1,44 @@
+{
+  "zones": [
+    {
+      "id": "fr-gareoult",
+      "pays": "fr",
+      "source": "ign",
+      "zone": [43.30, 6.00, 43.35, 6.05],
+      "renouvellement_jours": 30,
+      "modes": ["strict"]
+    },
+    {
+      "id": "de-rosa",
+      "pays": "de",
+      "source": "atkis",
+      "zone": [50.70, 10.25, 50.75, 10.30],
+      "renouvellement_jours": 30,
+      "modes": ["strict"]
+    },
+    {
+      "id": "cz-srni",
+      "pays": "cz",
+      "source": "zabaged",
+      "zone": [49.10, 13.45, 49.15, 13.50],
+      "renouvellement_jours": 30,
+      "modes": ["strict"]
+    },
+    {
+      "id": "ch-vergeletto",
+      "pays": "ch",
+      "source": "swisstlm3d",
+      "zone": [46.20, 8.60, 46.25, 8.65],
+      "renouvellement_jours": 30,
+      "modes": ["strict"]
+    },
+    {
+      "id": "pl-jugow",
+      "pays": "pl",
+      "source": "bdot10k_ds",
+      "zone": [50.625, 16.455, 50.675, 16.505],
+      "renouvellement_jours": 30,
+      "modes": ["strict"]
+    }
+  ]
+}

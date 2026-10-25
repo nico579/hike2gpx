@@ -63,10 +63,24 @@ class Source:
     module: object
     calque: str
     borne: tuple | None = None  # sud, ouest, nord, est ; seulement si service régional
+    lecteur_local: object | None = None  # archive locale, si ce provider en offre une
 
     def disponible(self, zone):
         return self.borne is None or (zone[0] >= self.borne[0] and zone[1] >= self.borne[1]
                                       and zone[2] <= self.borne[2] and zone[3] <= self.borne[3])
+
+    def troncons_pour_job(self, zone, dossier, source_locale=None):
+        """Contrat commun du job serveur, indépendant du pays et du format brut."""
+        if source_locale is not None:
+            if self.lecteur_local is None:
+                raise ValueError(f"Source locale indisponible pour {self.nom}.")
+            return self.lecteur_local(source_locale, *zone)
+        return self.module.troncons_zone(*zone, dossier)
+
+    def chemins_pour_calque(self, troncons):
+        """Ne garde que les chemins affichables, selon les règles du provider."""
+        accepter = getattr(self.module, "chemin_affichable", None)
+        return [troncon for troncon in troncons if accepter is None or accepter(troncon)]
 
 
 class TuilesOfficielles:

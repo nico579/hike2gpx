@@ -159,6 +159,9 @@ body.profile-collapsed .map-activity{bottom:81px}
 .renouvellement-ligne{display:flex;align-items:center;gap:8px}
 .renouvellement-ligne input{flex:none;width:52px}
 .setting-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;margin:9px 0 14px}
+.server-grid-settings{margin:0 0 14px}
+.server-grid-settings .option{border:0;padding:4px 0}
+.server-grid-settings .note{margin:2px 0 0 26px;font-size:11px;color:#607287}
 .setting-row .ligne{margin:0;min-width:0}
 .ign-key-row{grid-template-columns:minmax(0,1fr) 148px}
 #afficherCle{display:grid;place-items:center;flex:none;width:36px;min-height:37px;padding:0}
@@ -210,6 +213,7 @@ body.hide-elevation .elevation-panel,body.hide-map-toolbar .map-widget-toolbar{d
 .bouton-plein-ecran{display:none}
 .map-widget-toolbar{position:absolute;top:66px;right:16px;z-index:1000;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .map-widget-heading{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.map-data-mode{max-width:288px;padding:4px 8px;border:1px solid #d9e5f1;border-radius:7px;background:rgb(255 255 255 / .88);box-shadow:0 2px 8px #243b5310;color:#31516f;font-size:11px;line-height:1.35;text-align:right}
 .map-providers-info-button{border:0;padding:0;font-family:inherit;line-height:1;text-decoration:none;cursor:pointer}
 .map-widget-button{height:38px;border:1px solid #e0e6ed;border-radius:8px;background:#fff;box-shadow:0 2px 8px #243b5310;color:#344860;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 11px;font-size:11px;cursor:pointer}
 .layers-trigger{border-color:#d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px)}

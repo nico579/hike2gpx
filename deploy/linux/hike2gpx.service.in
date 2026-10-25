@@ -1,0 +1,21 @@
+[Unit]
+Description=hike2gpx routing and map data server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hike2gpx
+Group=hike2gpx
+Environment=HIKE2GPX_HOME=/var/lib/hike2gpx
+ExecStart=/opt/hike2gpx/venv/bin/hike2gpx serve --mode-serveur --nom-hote @DOMAIN@ --port 8795
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/hike2gpx
+
+[Install]
+WantedBy=multi-user.target
