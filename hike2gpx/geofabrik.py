@@ -143,7 +143,8 @@ def _region(feature: dict) -> dict | None:
 def _a_garder(region: dict) -> dict:
     """Ce que la base d'un extrait garde de sa région : de quoi le renouveler
     sans index (voies_coupees : un extrait d'OSM France, osmfr.py)."""
-    return {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones", "voies_coupees") if k in region}
+    return {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones", "voies_coupees",
+                                   "taille_max_octets") if k in region}
 
 
 class Index:
@@ -614,17 +615,18 @@ def message(exc: BaseException) -> str:
     return str(exc)
 
 
-def _verifier_place(octets: int, dossier: Path) -> None:
+def _verifier_place(octets: int, dossier: Path, taille_max_octets: int = TAILLE_MAX) -> None:
     """Trois fois la taille de l'extrait : le fichier, la base et l'index des
     nœuds le temps de l'import."""
-    if octets > TAILLE_MAX:
+    if octets > taille_max_octets:
         raise ExtraitEcarte(f"extrait trop gros ({octets / 1024 ** 3:.1f} Go), Overpass reste la source")
     if shutil.disk_usage(dossier).free < 3 * octets:
         raise ExtraitEcarte(f"place disque insuffisante pour {octets / 1024 ** 2:.0f} Mo, "
                             "Overpass reste la source")
 
 
-def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=time.sleep, continuer=None) -> None:
+def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=time.sleep, continuer=None,
+                 taille_max_octets: int = TAILLE_MAX) -> None:
     """Le PBF, vérifié par le MD5 publié à côté du fichier daté vers lequel
     renvoie l'adresse « -latest » : une version parue entre-temps ne fait pas
     refuser le bon fichier, et un fichier qui ne correspond pas n'est jamais
@@ -651,7 +653,7 @@ def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=tim
             sortie.seek(recu)
             if not flux["total"]:
                 flux["total"] = recu + int(reponse.headers.get("Content-Length") or 0)
-                _verifier_place(flux["total"], cible.parent)
+                _verifier_place(flux["total"], cible.parent, taille_max_octets)
                 hote, _, fichier = flux["adresse"].split("//", 1)[-1].partition("/")
                 journal.info("%s : %s, %d Mo", hote, fichier.rsplit("/", 1)[-1], flux["total"] // 1024 ** 2)
             while bloc := reponse.read(1 << 20):
@@ -695,6 +697,7 @@ def installer(dossier, region: dict, *, suivi=None, ouvrir=None, continuer=None)
         _effacer(reste)
     try:
         _telecharger(region["pbf"], pbf, ouvrir=ouvrir, continuer=continuer,
+                     taille_max_octets=region.get("taille_max_octets", TAILLE_MAX),
                      suivi=(lambda f: suivi("telechargement", f)) if suivi else None)
         date = date_des_donnees(pbf) or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         compte = _importer_a_part(pbf, partielle, _a_garder(region),

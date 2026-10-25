@@ -432,6 +432,15 @@ def test_l_installation_efface_ce_qu_une_autre_a_laisse(tmp_path, monkeypatch):
     assert vus == [[False, False, False, False]]
 
 
+def test_un_grand_extrait_exige_une_limite_explicite_et_la_garde_pour_le_renouvellement(tmp_path):
+    taille = 3 * 1024**3
+    with pytest.raises(geofabrik.ExtraitEcarte):
+        geofabrik._verifier_place(taille, tmp_path)
+    geofabrik._verifier_place(taille, tmp_path, 5 * 1024**3)
+    region = {**REGION, "taille_max_octets": 5 * 1024**3}
+    assert geofabrik._a_garder(region)["taille_max_octets"] == 5 * 1024**3
+
+
 def test_un_import_abandonne_s_arrete_aussitot(tmp_path, monkeypatch):
     # Un vrai processus, muet comme l'import pendant la lecture des nœuds : il
     # s'arrête dès que la région ne sert plus, sans attendre sa sortie.
