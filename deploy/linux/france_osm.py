@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+from collections import Counter
 from pathlib import Path
 
 from hike2gpx import brouter, franchissements, geofabrik
+from shapely.geometry import Polygon, box
+from shapely.ops import unary_union
 
 
 def main(argv=None) -> int:
@@ -19,12 +22,28 @@ def main(argv=None) -> int:
     region = next((r for r in geofabrik._batir() if r["id"] == "france"), None)
     if region is None:
         parser.error("La région France est absente de l'index Geofabrik.")
+    contour = unary_union([Polygon(anneaux[0], anneaux[1:]) for anneaux in region["polygones"]])
+    rd5 = brouter.segments_zone(*region["bornes"])
+    touchees = []
+    for nom in rd5:
+        lon0 = int(nom.split("_")[0][1:]) * (-1 if nom.startswith("W") else 1)
+        latitude = nom.split("_")[1]
+        lat0 = int(latitude[1:]) * (-1 if latitude.startswith("S") else 1)
+        if contour.intersection(box(lon0, lat0, lon0 + 5, lat0 + 5)).area > 0:
+            touchees.append(nom)
     candidates = franchissements.tuiles_zone(*region["bornes"])
-    couvertes = sum(geofabrik.contient_tuile(region, i, j) for i, j in candidates)
-    print(f"France Geofabrik : {len(brouter.segments_zone(*region['bornes']))} RD5 possibles, "
+    par_rd5 = Counter()
+    for i, j in candidates:
+        if geofabrik.contient_tuile(region, i, j):
+            sud, ouest, _, _ = franchissements.bornes_tuile(i, j)
+            par_rd5[brouter.nom_segment(sud, ouest)] += 1
+    couvertes = sum(par_rd5.values())
+    print(f"France Geofabrik : {len(touchees)} RD5 touchées ({len(rd5)} dans le rectangle), "
           f"{len(candidates)} tuiles 0,05° dans le rectangle, "
           f"{couvertes} entièrement dans le contour.", flush=True)
     print(f"OSM : {region['pbf']}", flush=True)
+    for nom in touchees:
+        print(f"  {nom} : {par_rd5[nom]} tuiles entièrement couvertes", flush=True)
     if args.installer:
         args.dossier.mkdir(parents=True, exist_ok=True)
         libres = shutil.disk_usage(args.dossier).free

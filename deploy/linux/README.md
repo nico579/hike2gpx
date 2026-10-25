@@ -1,5 +1,8 @@
 # Serveur Linux
 
+Le découpage des RD5 et des données de calque est décrit dans
+[Mailles calculées et téléchargées](../../docs/architecture/05-mailles-telechargeables.md).
+
 Pré-requis : Ubuntu 24.04 x86_64, nom DNS public pointant vers le serveur, ports 80 et 443 ouverts, accès SSH pour l'administration. L'API de lecture ne demande aucun mot de passe. La gestion reste exclusivement sur le serveur via SSH et systemd.
 
 ```bash
@@ -41,5 +44,14 @@ HIKE2GPX_HOME=/var/lib/hike2gpx /opt/hike2gpx/venv/bin/python /opt/hike2gpx/fran
 ```
 
 Cet outil compte les tuiles sans téléchargement lorsqu'on omet `--installer`. La limite ordinaire de 2 Gio des extraits automatiques reste en vigueur ; l'outil autorise explicitement l'extrait France et conserve ce plafond pour son renouvellement.
+
+Pour inspecter les dernières archives BD TOPO et préparer une région à la fois :
+
+```bash
+/opt/hike2gpx/venv/bin/python /opt/hike2gpx/ign_catalogue.py
+/opt/hike2gpx/venv/bin/python /opt/hike2gpx/ign_archive.py --zone R93 --dossier /var/lib/hike2gpx/ign-import
+```
+
+Le téléchargement régional reprend après coupure et vérifie la taille et le MD5 publiés par l'IGN. L'extraction des tronçons et la suppression automatique de l'archive sont encore à implémenter ; ne pas lancer les treize régions en parallèle.
 
 Avec accès sudo sur cette VM Ubuntu 26.04, Caddy 2.6.2 a été installé et la configuration de filtrage a été validée. Une instance HTTP locale de Caddy a relayé les mêmes contrôles (`vm_smoke.py --prepared --route`) vers un service `hike2gpx-vmtest` lancé par systemd : paquet réel, réponse HTTP `206`, 34 franchissements et calcul de secours de 419 m. Le service de test utilise les répertoires et l'utilisateur de la VM ; il n'exerce donc pas l'isolation `ProtectHome` du modèle de production. L'installateur refuse correctement Ubuntu 26.04. La VM n'a ni nom DNS public ni certificat HTTPS ; l'installation complète et TLS restent à valider sur Ubuntu 24.04.
