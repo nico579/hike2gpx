@@ -6,27 +6,28 @@ BRouter ouvre une **RD5 nommée par une case de 5° × 5°**. Il sait calculer u
 itinéraire qui traverse plusieurs RD5. À l'intérieur d'une RD5, son index
 contient **25 sous-cases de 1° × 1°** ; chacune contient une grille de
 **32 × 32 microcaches** (pas de 0,03125°). Le moteur lit les données par
-microcache. Ces trois niveaux ont des rôles différents :
+microcache. Ces niveaux ont des rôles différents :
 
 | Niveau | Usage prévu |
 | --- | --- |
 | 5° | Nom de fichier et couverture que BRouter reconnaît ; fabrication au plus d'une RD5 par job serveur. |
-| 1° | Premier lot de distribution et de cache sur l'appareil ; assemblage local en RD5. |
-| 0,03125° | Plus petite unité binaire ; candidat à une distribution ultérieure si les requêtes et l'assemblage restent efficaces. |
+| 1° | Sous-index natif de la RD5, utile pour assembler et vérifier. |
+| 0,25° | **Lot de distribution retenu pour le prototype** : 8 × 8 microcaches, 16 lots par sous-case de 1°. |
+| 0,03125° | Plus petite unité binaire ; une requête par microcache multiplierait les fichiers et les appels réseau. |
 
-Une RD5 recomposée avec certaines sous-cases absentes est techniquement lisible,
-mais BRouter traite ces sous-cases comme vides. **Le manifeste doit donc
+Une RD5 recomposée avec certaines mailles absentes est techniquement lisible,
+mais BRouter traite ces mailles comme vides. **Le manifeste doit donc
 enregistrer la couverture réellement téléchargée et le client doit refuser un
 calcul qui pourrait sortir de cette couverture.** Une marge fixe autour des
 points ne garantit pas tous les détours possibles. En ligne, le client pourra
-charger les sous-cases manquantes et recommencer ; hors ligne il devra annoncer
+charger les mailles manquantes et recommencer ; hors ligne il devra annoncer
 que les données du parcours sont insuffisantes. L'affichage ne doit jamais
 présenter une absence de données comme une absence de chemin.
 
 ## Même grille pour les sources et les calques
 
-Le serveur affecte chaque tronçon et chaque franchissement à une sous-case de
-1° selon une règle d'appartenance stable. Il lit également une **couronne de
+Le serveur affecte chaque tronçon et chaque franchissement à une maille de
+0,25° selon une règle d'appartenance stable. Il lit également une **couronne de
 voisinage** lors de la fusion, pour résoudre les raccords et les obstacles à la
 limite ; les objets publiés ne sont attribués qu'une fois. Tous les pays
 passent par le contrat commun des providers : extraction des chemins officiels,
@@ -40,8 +41,14 @@ IGN régionale testée dans la VM est un **GeoPackage**, couche
 Les autres pays ne doivent pas être présumés identiques : chaque provider
 convertit sa source vers le modèle commun. Le GeoPackage PACA extrait occupe
 9,73 Gio et n'est pas un format de téléchargement adapté à l'application.
+La lecture locale du provider IGN (`bdtopo.troncons_gpkg`) utilise l'index RTree,
+reprojette en WGS84 et produit le même modèle de tronçon que le WFS. Sur la
+maille de Garéoult `[43,25 ; 6 ; 43,50 ; 6,25]`, elle trouve **30 408 tronçons** :
+11 294 857 octets JSON, **2 212 076 octets gzip**. Ce JSON compressé mesure le
+volume de la source ; le produit final pour l'application reste à indexer et
+à mesurer.
 
-Pour l'application, un lot de 1° contiendra deux produits de la même édition :
+Pour l'application, un lot de 0,25° contiendra deux produits de la même édition :
 
 1. Le fragment binaire RD5, assemblé dans une RD5 locale pour le calcul.
 2. Un fichier de données **indexé spatialement**, contenant chemins OSM,
@@ -52,7 +59,7 @@ Pour l'application, un lot de 1° contiendra deux produits de la même édition 
 
 Une seule RD5 ne suffit pas : elle ne conserve pas directement la distinction
 des sources ni les attributs d'affichage et de franchissement dont l'application
-a besoin. Un seul **paquet logique** par 1° peut toutefois référencer les deux
+a besoin. Un seul **paquet logique** par 0,25° peut toutefois référencer les deux
 fichiers et leurs empreintes SHA-256. Les fonds de carte gardent leur propre
 système de tuiles et ne sont pas inclus dans ce paquet.
 
@@ -64,8 +71,16 @@ Le script `deploy/linux/rd5_shards.py` l'a découpée puis reconstituée : le
 SHA-256 du résultat est identique à celui de la RD5 d'origine
 (`842dc85e462bb1739041b1f6306d44b300e6413d5c41c311ae5a2eee0f8342e9`).
 Une recomposition avec quatre sous-cases pèse 23 841 378 octets. Cela prouve le
-découpage et l'indexation binaire ; le routage sur une RD5 incomplète et la
-politique de couverture demandent encore des essais.
+découpage et l'indexation binaire.
+
+Le prototype `deploy/linux/rd5_quarts.py` descend au **quart de degré** :
+200 lots non vides sur 400 positions, le plus gros faisant **1 941 006
+octets**. La recomposition de tous les lots donne encore exactement le même
+SHA-256 que la RD5 d'origine. La RD5 reconstruite avec le seul lot contenant
+Garéoult fait **546 946 octets**, et le BRouter réel a calculé le trajet témoin
+dans cette maille. Un essai vers un point hors de sa couverture a rendu « point
+d'arrivée isolé » : le contrôle préalable de couverture est une condition
+fonctionnelle, pas seulement une optimisation.
 
 La tentative `osmium extract --strategy complete_ways` de la France vers
 `E5_N40` a dépassé la RAM de la VM (3,3 Gio disponibles, aucun swap initial).
@@ -84,10 +99,9 @@ sans recommencer les autres cases.
 2. Tester un itinéraire qui franchit deux sous-cases puis deux RD5, vérifier
    que le nombre de chemins et les franchissements ne changent pas après
    découpage et assemblage.
-3. Mesurer la taille de l'index de calques par 1° et la durée de téléchargement
-   sur mobile. Étudier des paquets plus fins (par exemple 0,25°) seulement si
-   l'économie de bande passante dépasse le coût des requêtes et du nouvel
-   assemblage des microcaches.
+3. Mesurer la taille de l'index de calques par 0,25° et la durée de
+   téléchargement sur mobile. Grouper les téléchargements des mailles voisines
+   pour limiter le nombre de requêtes ; conserver l'assemblage local atomique.
 4. Publier un manifeste de version commun aux RD5, calques et franchissements,
    avec couverture, empreintes et état `complet`. Ne rendre visible que la
    version entièrement préparée ; garder l'ancienne pendant le remplacement.
