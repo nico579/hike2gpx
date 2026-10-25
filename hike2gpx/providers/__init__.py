@@ -7,7 +7,7 @@ from .core import Source, TuilesOfficielles
 
 
 SOURCES = {
-    "ign": Source("ign", "fr", "IGN", bdtopo, "bdtopo"),
+    "ign": Source("ign", "fr", "IGN", bdtopo, "bdtopo", lecteur_local=bdtopo.troncons_gpkg),
     "atkis": Source("atkis", "de", "ATKIS", atkis, "atkis"),
     "zabaged": Source("zabaged", "cz", "ZABAGED", TuilesOfficielles("zabaged", zabaged.lire), "zabaged"),
     "swisstlm3d": Source("swisstlm3d", "ch", "swissTLM3D", TuilesOfficielles("swisstlm3d", swisstlm3d.lire), "swisstlm3d"),

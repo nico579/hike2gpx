@@ -2,9 +2,10 @@
 import struct
 import tempfile
 import unittest
+import shutil
 from pathlib import Path
 
-from deploy.linux import rd5_quarts, rd5_shards
+from deploy.linux import rd5_mosaic, rd5_quarts, rd5_shards
 
 
 class Rd5QuartsTest(unittest.TestCase):
@@ -46,6 +47,14 @@ class Rd5QuartsTest(unittest.TestCase):
             self.assertEqual(sous_fins[9] - sous_fins[8], 0)
             self.assertEqual(struct.unpack_from(">I", sortie, fins[-1] + 8)[0],
                              rd5_shards._crc(sortie[:200]) ^ 2)
+
+            autre = racine / "autre_fabrication"
+            shutil.copytree(morceaux, autre)
+            mosaique = racine / "mosaique"
+            manifeste = rd5_mosaic.reunir(mosaique, [(morceaux, 8, 0, 0),
+                                                      (autre, 8, 1, 0)])
+            self.assertEqual(manifeste["couverture"], [[8, 0, 0], [8, 1, 0]])
+            self.assertEqual((mosaique / "E5_N40.rd5").read_bytes(), source.read_bytes())
 
 
 if __name__ == "__main__":

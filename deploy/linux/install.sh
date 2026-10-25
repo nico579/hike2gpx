@@ -57,6 +57,10 @@ install -m 0755 "$repo_dir/deploy/linux/ign_archive.py" /opt/hike2gpx/ign_archiv
 install -m 0755 "$repo_dir/deploy/linux/ign_gpkg.py" /opt/hike2gpx/ign_gpkg.py
 install -m 0755 "$repo_dir/deploy/linux/rd5_shards.py" /opt/hike2gpx/rd5_shards.py
 install -m 0755 "$repo_dir/deploy/linux/rd5_quarts.py" /opt/hike2gpx/rd5_quarts.py
+install -m 0755 "$repo_dir/deploy/linux/rd5_mosaic.py" /opt/hike2gpx/rd5_mosaic.py
+install -m 0755 "$repo_dir/deploy/linux/pilot_rd5.py" /opt/hike2gpx/pilot_rd5.py
+install -m 0755 "$repo_dir/deploy/linux/pilot_osm_index.py" /opt/hike2gpx/pilot_osm_index.py
+install -m 0755 "$repo_dir/deploy/linux/pilot_fusion_quart.py" /opt/hike2gpx/pilot_fusion_quart.py
 install -d -m 0755 /etc/hike2gpx
 if [[ ! -f /etc/hike2gpx/zones.json ]]; then
   install -m 0644 "$repo_dir/deploy/linux/zones.example.json" /etc/hike2gpx/zones.json
