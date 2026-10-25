@@ -24,7 +24,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, brouter, cloud, communes, franchissements, geofabrik, journaux, maison, osmfr, providers
+from . import __version__, brouter, cloud, communes, franchissements, geofabrik, journaux, mailles, maison, osmfr, providers
 
 journal = logging.getLogger(__name__)
 
@@ -733,7 +733,7 @@ class Application:
             # Seulement la sienne : une vue plus récente a peut-être déjà la place.
             if self._lectures.get(cle_lecture, {}).get("numero") == numero:
                 self._lectures.pop(cle_lecture, None)
-        return {**resultat, "bornes": franchissements.bornes_zone(*zone)}
+        return {"bornes": franchissements.bornes_zone(*zone), **resultat}
 
     def calque_osm(self, zone, vue=None) -> dict:
         # La vue d'abord : une vue déjà remplacée ne lance rien, pas même un
@@ -742,6 +742,10 @@ class Application:
         numero = self._prendre_vue("osm", vue)
         if numero is None:
             return self._calque("osm", zone, None, None)
+        if self.mode_serveur:
+            def lire(s, w, n, e, dossier, **options):
+                return mailles.calque("osm", (s, w, n, e), dossier, "osm", **options)
+            return self._calque("osm", zone, lire, numero)
         extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone else None
         resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
@@ -749,8 +753,10 @@ class Application:
     def calque_officiel(self, source, zone, vue=None) -> dict:
         fournisseur = providers.source(source)
         def lire(*bornes, **options):
-            if not fournisseur.disponible(bornes):
+            if not fournisseur.disponible(bornes[:4]):
                 return {"troncons": []}
+            if self.mode_serveur:
+                return mailles.calque(source, bornes[:4], bornes[4], "officiel", **options)
             return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
         return self._calque(fournisseur.calque, zone, lire,
                            self._prendre_vue(fournisseur.calque, vue))

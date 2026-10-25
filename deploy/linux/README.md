@@ -11,11 +11,15 @@ python /opt/hike2gpx/ign_gpkg.py PACA.gpkg 43.25 6 43.5 6.25 /var/lib/hike2gpx/m
 python /opt/hike2gpx/pilot_osm_index.py E5_N40.osm.pbf /var/lib/hike2gpx/mesures/E5_N40-osm.sqlite 40 5 45 10
 python /opt/hike2gpx/pilot_fusion_quart.py /var/lib/hike2gpx/mesures/E5_N40-osm.sqlite PACA.gpkg /var/lib/hike2gpx/mesures/gareoult /var/lib/hike2gpx 43.25 6
 python /opt/hike2gpx/rd5_mosaic.py /var/lib/hike2gpx/mesures/mosaique /var/lib/hike2gpx/mesures/gareoult/fragments:8:0:1 /var/lib/hike2gpx/mesures/est/fragments:8:1:1
+
+# Publier les calques OSM et nationaux à partir des sources locales d'une maille.
+python /opt/hike2gpx/publish_calques.py E5_N40-osm.sqlite PACA.gpkg franchissements.json /var/lib/hike2gpx 43.25 6 --source ign
 ```
 
-Ces sorties sont des preuves de découpage et de volume ; leur publication aux
-clients sera activée après validation de la couverture et du format indexé des
-calques.
+Le dernier script publie deux JSON gzip par maille sous `mailles/osm` et
+`mailles/<source>`. L'API `/api/osm` et `/api/<calque du provider>` lit seulement
+les mailles qui touchent la vue. Une maille manquante est signalée comme telle.
+L'installation de production des fragments RD5 de 0,25° reste à achever.
 
 Pré-requis : Ubuntu 24.04 x86_64, nom DNS public pointant vers le serveur, ports 80 et 443 ouverts, accès SSH pour l'administration. L'API de lecture ne demande aucun mot de passe. La gestion reste exclusivement sur le serveur via SSH et systemd.
 
@@ -69,3 +73,12 @@ Pour inspecter les dernières archives BD TOPO et préparer une région à la fo
 Le téléchargement régional reprend après coupure et vérifie la taille et le MD5 publiés par l'IGN. L'extraction des tronçons et la suppression automatique de l'archive sont encore à implémenter ; ne pas lancer les treize régions en parallèle.
 
 Avec accès sudo sur cette VM Ubuntu 26.04, Caddy 2.6.2 a été installé et la configuration de filtrage a été validée. Une instance HTTP locale de Caddy a relayé les mêmes contrôles (`vm_smoke.py --prepared --route`) vers un service `hike2gpx-vmtest` lancé par systemd : paquet réel, réponse HTTP `206`, 34 franchissements et calcul de secours de 419 m. Le service de test utilise les répertoires et l'utilisateur de la VM ; il n'exerce donc pas l'isolation `ProtectHome` du modèle de production. L'installateur refuse correctement Ubuntu 26.04. La VM n'a ni nom DNS public ni certificat HTTPS ; l'installation complète et TLS restent à valider sur Ubuntu 24.04.
+
+Pour tester les nouveaux calques sur le PC, le service `hike2gpx-vmtest`
+écoute dans la VM sur le port 8796. Créer un tunnel SSH local avec
+`ssh -N -L 127.0.0.1:8796:127.0.0.1:8796 -p 2222 vboxuser@127.0.0.1`,
+puis indiquer `http://127.0.0.1:8796` dans **Réglages → Serveur** de
+l'application de bureau. HTTP n'est accepté que pour `localhost` et
+`127.0.0.1` ; les autres adresses exigent HTTPS. Les mailles de test
+publiées couvrent `[43,25 ; 6,00 ; 43,50 ; 6,50]` près de Garéoult.
+Les chemins OSM et BD TOPO de cette zone sont servis depuis la VM.
