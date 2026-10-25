@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import gzip
 import hashlib
+import logging
 import os
 import secrets
 import shutil
@@ -16,9 +18,13 @@ from pathlib import Path
 from nico579_commons import atomique
 from . import providers, rd5_fragments
 
+journal = logging.getLogger(__name__)
+
 
 ROUTES_GET_ZONE = {"osm"} | {p.calque for p in providers.SOURCES.values()}
 ROUTES_CLOUD = ROUTES_GET_ZONE
+CACHE_CALQUES_S = 24 * 3600
+FORMAT_CALQUES_CACHE = 1
 
 
 class Indisponible(Exception):
@@ -75,6 +81,7 @@ class Client:
 
     @staticmethod
     def _requete(config, route, methode="GET", args=(), payload=None):
+        debut = time.monotonic()
         donnees = json.dumps(payload).encode("utf-8") if methode == "POST" else None
         entetes = {"Accept": "application/json"}
         if donnees is not None:
@@ -86,8 +93,12 @@ class Client:
                 corps = reponse.read(32 * 1024 * 1024 + 1)
                 if len(corps) > 32 * 1024 * 1024:
                     raise Indisponible("Réponse du serveur trop volumineuse.")
+                journal.info("Cloud HTTP %s %s : %d octets reçus en %.2f s",
+                             methode, route, len(corps), time.monotonic() - debut)
                 return json.loads(corps)
         except (OSError, ValueError) as exc:
+            journal.warning("Cloud HTTP %s %s : échec après %.2f s : %s",
+                            methode, route, time.monotonic() - debut, exc)
             raise Indisponible(str(exc)) from exc
 
     def etat(self, *, force=False):
@@ -118,6 +129,100 @@ class Client:
             self.invalider()
             raise
 
+    def calque(self, route, args=()):
+        """Conserve les calques distants dans cloud-paquets, par serveur et zone."""
+        if route not in ROUTES_GET_ZONE:
+            raise ValueError("Route de calque inconnue")
+        config = self._config()
+        adresse = config.get("serveur_url", "")
+        if not adresse:
+            raise Indisponible("Aucun serveur configuré.")
+        zone = args[0] if args else None
+        debut = time.monotonic()
+        racine = (self.preferences.parent / "cloud-paquets" / "calques"
+                  / hashlib.sha256(adresse.encode()).hexdigest()[:16] / route)
+        cache = None
+        cache_fichier = None
+        cache_octets = 0
+        if zone is not None and racine.is_dir():
+            for fichier in racine.glob("*.json.gz"):
+                try:
+                    if fichier.stat().st_size > 16 * 1024 * 1024:
+                        continue
+                    with gzip.open(fichier, "rb") as entree:
+                        brut = entree.read(32 * 1024 * 1024 + 1)
+                    if len(brut) > 32 * 1024 * 1024:
+                        continue
+                    candidat = json.loads(brut)
+                    if candidat.get("format") != FORMAT_CALQUES_CACHE:
+                        continue
+                    bornes = candidat["bornes"]
+                    if (not isinstance(candidat.get("fetched_at"), (int, float))
+                            or not isinstance(candidat.get("donnees"), dict)):
+                        continue
+                    if (len(bornes) != 4 or not (bornes[0] <= zone[0] and bornes[1] <= zone[1]
+                            and zone[2] <= bornes[2] and zone[3] <= bornes[3])):
+                        continue
+                    if cache is None or candidat["fetched_at"] > cache["fetched_at"]:
+                        cache = candidat
+                        cache_fichier = fichier
+                        cache_octets = fichier.stat().st_size
+                except (OSError, ValueError, KeyError, TypeError, IndexError):
+                    continue
+        if cache and time.time() - cache["fetched_at"] < CACHE_CALQUES_S:
+            journal.info("Calque %s : cache cloud %s lu en %.2f s (%d octets compressés), zone %s",
+                         route, cache_fichier, time.monotonic() - debut,
+                         cache_octets, zone)
+            return {**cache["donnees"], "origine_calque": "cloud"}
+        if not self.etat()["actif"]:
+            if cache:
+                journal.info("Calque %s : cache cloud hors connexion lu en %.2f s (%d octets), zone %s",
+                             route, time.monotonic() - debut, cache_octets, zone)
+                return {**cache["donnees"], "origine_calque": "cloud"}
+            journal.warning("Calque %s : serveur indisponible et cache cloud absent, zone %s",
+                            route, zone)
+            raise Indisponible("Calque absent du cache et serveur indisponible.")
+        try:
+            journal.info("Calque %s : téléchargement depuis le serveur cloud, zone %s", route, zone)
+            resultat = self.demander(route, "GET", args)
+        except Indisponible:
+            if cache:
+                journal.info("Calque %s : téléchargement échoué, cache cloud utilisé (%d octets), zone %s",
+                             route, cache_octets, zone)
+                return {**cache["donnees"], "origine_calque": "cloud"}
+            raise
+        bornes = resultat.get("bornes")
+        if not resultat.get("erreur") and isinstance(bornes, (list, tuple)) and len(bornes) == 4:
+            racine.mkdir(parents=True, exist_ok=True)
+            cle = hashlib.sha256(json.dumps(bornes).encode()).hexdigest()[:20]
+            cible = racine / f"{cle}.json.gz"
+            provisoire = cible.with_name(cible.name + ".part")
+            contenu = {"format": FORMAT_CALQUES_CACHE, "fetched_at": time.time(),
+                       "bornes": bornes, "donnees": resultat}
+            try:
+                with provisoire.open("wb") as sortie:
+                    with gzip.GzipFile(fileobj=sortie, mode="wb", mtime=0) as zippe:
+                        zippe.write(json.dumps(contenu, ensure_ascii=False,
+                                               separators=(",", ":")).encode("utf-8"))
+                    sortie.flush()
+                    os.fsync(sortie.fileno())
+                os.replace(provisoire, cible)
+            except OSError as exc:
+                raise Indisponible(f"Enregistrement du cache cloud impossible : {exc}") from exc
+            finally:
+                provisoire.unlink(missing_ok=True)
+            try:
+                with gzip.open(cible, "rt", encoding="utf-8") as entree:
+                    confirme = json.load(entree)
+                journal.info("Calque %s : serveur cloud reçu en %.2f s, cache %s (%d octets), zone %s",
+                             route, time.monotonic() - debut, cible, cible.stat().st_size, zone)
+                return {**confirme["donnees"], "origine_calque": "cloud"}
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                raise Indisponible(f"Lecture du cache cloud impossible : {exc}") from exc
+        journal.warning("Calque %s : réponse du serveur cloud sans données publiables, zone %s : %s",
+                        route, zone, resultat.get("erreur", "bornes absentes"))
+        return {**resultat, "origine_calque": "cloud"}
+
     def paquet(self, payload: dict, dossier: Path, zone) -> tuple[dict, Path]:
         """Télécharge un paquet vérifié une seule fois par zone et source.
 
@@ -142,6 +247,8 @@ class Client:
                             and (cible / cache["assemblage"].get("rd5", "")).is_file())))
         actif = self.etat()["actif"]
         if present and not actif:
+            journal.info("Paquet d'itinéraire : cache cloud hors connexion, %d octets, zone %s",
+                         sum(f["octets"] for f in cache["segments"] + cache["assets"]), zone)
             return cache, cible
         if not actif:
             raise Indisponible("Paquet de cette zone absent hors connexion.")
@@ -150,6 +257,7 @@ class Client:
                                                          payload.get("strict", True)))
         if not paquet.get("pret"):
             if present:
+                journal.info("Paquet d'itinéraire : aucun paquet serveur plus récent, cache cloud conservé, zone %s", zone)
                 return cache, cible
             raise Indisponible(paquet.get("erreur") or "Paquet de zone en préparation.")
         if paquet.get("format") not in (1, 2):
@@ -158,11 +266,16 @@ class Client:
                 and cache.get("segments") == paquet.get("segments")
                 and cache.get("assets") == paquet.get("assets")
                 and cache.get("assemblage") == paquet.get("assemblage")):
+            journal.info("Paquet d'itinéraire : cache cloud à jour, format %s, %d octets, zone %s",
+                         paquet["format"], sum(f["octets"] for f in cache["segments"] + cache["assets"]), zone)
             return cache, cible
+        journal.info("Paquet d'itinéraire : téléchargement cloud, format %s, %d segments, %d assets, zone %s",
+                     paquet["format"], len(paquet["segments"]), len(paquet["assets"]), zone)
         config = self._config()
         racine.mkdir(parents=True, exist_ok=True)
         provisoire = racine / f"{cle}-{secrets.token_hex(6)}"
         provisoire.mkdir()
+        debut_paquet = time.monotonic()
         try:
             for fichier in paquet["segments"] + paquet["assets"]:
                 nom, url = fichier["nom"], fichier["url"]
@@ -171,6 +284,7 @@ class Client:
                     raise Indisponible("Fichier du paquet invalide.")
                 empreinte = hashlib.sha256()
                 demande = urllib.request.Request(config["serveur_url"] + url)
+                debut_fichier = time.monotonic()
                 with urllib.request.urlopen(demande, timeout=120) as reponse, \
                         (provisoire / nom).open("wb") as sortie:
                     while bloc := reponse.read(1024 * 1024):
@@ -179,11 +293,15 @@ class Client:
                 if ((provisoire / nom).stat().st_size != fichier["octets"]
                         or empreinte.hexdigest() != fichier["sha256"]):
                     raise Indisponible(f"Empreinte inattendue pour {nom}.")
+                journal.info("Paquet d'itinéraire : %s reçu et vérifié, %d octets en %.2f s",
+                             nom, fichier["octets"], time.monotonic() - debut_fichier)
             if paquet["format"] == 2:
                 try:
                     assemblage = paquet["assemblage"]
                     rd5_fragments.assembler(assemblage, provisoire,
                                            provisoire / assemblage["rd5"])
+                    journal.info("Paquet d'itinéraire : RD5 assemblée localement %s (%d octets)",
+                                 assemblage["rd5"], (provisoire / assemblage["rd5"]).stat().st_size)
                 except (KeyError, OSError, ValueError, TypeError) as exc:
                     raise Indisponible(f"Assemblage RD5 invalide : {exc}") from exc
             paquet["telecharge_a"] = time.time()
@@ -196,6 +314,10 @@ class Client:
             os.replace(provisoire, cible)
             if ancien.exists():
                 shutil.rmtree(ancien)
+            journal.info("Paquet d'itinéraire : %d fichiers, %d octets en %.2f s, zone %s",
+                         len(paquet["segments"] + paquet["assets"]),
+                         sum(f["octets"] for f in paquet["segments"] + paquet["assets"]),
+                         time.monotonic() - debut_paquet, zone)
             return paquet, cible
         finally:
             if provisoire.exists():

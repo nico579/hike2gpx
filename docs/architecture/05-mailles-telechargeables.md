@@ -124,13 +124,24 @@ montre qu'une frontière entre **ces deux** fabrications se raccorde. Il reste
 quatre mailles, une limite de RD5 et les autres providers.
 
 Les calques de ces deux mailles ont ensuite été publiés directement depuis
-l'index OSM local et le GeoPackage IGN. Les fichiers OSM gzip font
-**1 452 101** et **1 682 730 octets** ; les fichiers IGN gzip **2 189 983** et
-**2 029 314 octets**. La vue `[43,30 ; 6,24 ; 43,31 ; 6,26]`, à cheval sur la
-limite, renvoie **1 035 chemins OSM**, **33 barrières**, **18 franchissements**
-et **2 756 tronçons IGN**. L'application de bureau a obtenu ces réponses du
-service de la VM par un tunnel SSH. Une maille absente produit une erreur
-explicite : elle ne donne pas un calque vide trompeur.
+l'index OSM local et le GeoPackage IGN. Une première publication contenait
+aussi les routes carrossables : **1 452 101** et **1 682 730 octets** gzip côté
+OSM, **2 189 983** et **2 029 314 octets** côté IGN. Les calques ont été
+épurés pour ne garder que les chemins et pistes OSM, les chemins, sentiers,
+escaliers et routes empierrées IGN, les barrières OSM et les franchissements
+bloquants ou à vérifier. Les routes restent disponibles dans les données RD5
+servant au calcul. Les fichiers réduits font **823 449** et **867 995 octets**
+pour OSM, **1 603 709** et **1 534 541 octets** pour IGN, soit une réduction
+de 24 à 48 % selon la source et la maille. Dans la première maille, cela
+représente 6 788 voies OSM (2 698 sentiers et 4 090 pistes), 278 barrières,
+253 franchissements et 16 971 chemins IGN (8 144 chemins, 5 080 routes
+empierrées, 3 657 sentiers, 90 escaliers). Les 253 franchissements sont
+conservés dans le fichier OSM pour générer les coupes BRouter ; la copie en
+double a été retirée du fichier IGN. La vue `[43,30 ; 6,24 ; 43,31 ; 6,26]`,
+à cheval sur la limite, renvoie **1 035 chemins OSM**, **33 barrières**,
+**18 franchissements** et uniquement les chemins IGN. L'application de bureau
+a obtenu ces réponses du service de la VM par un tunnel SSH. Une maille absente
+produit une erreur explicite : elle ne donne pas un calque vide trompeur.
 
 Le paquet de routage **format 2** distribue à présent les fragments `.rd5q`,
 un manifeste de 400 positions avec leurs empreintes, les franchissements
@@ -147,11 +158,23 @@ Le téléchargement partiel HTTP `Range` d'un fragment renvoie bien `206`.
 
 Le contour OSM France du Var touche **25 mailles** de 0,25° ; le contour
 Geofabrik de la France métropolitaine en touche **1 608**. Au volume mesuré
-sur les deux mailles témoins (environ 4,3 Mo par maille pour RD5q et calques
-compressés), cela représente **environ 110 Mo pour le Var et 6,9 Go pour la
-France** de produits distribuables. C'est une extrapolation, pas une mesure
+sur les deux mailles témoins (environ 3,04 Mo par maille pour RD5q et calques
+compressés après épuration), cela représente **environ 76 Mo pour le Var et
+4,9 Go pour la France** de produits distribuables. C'est une extrapolation, pas une mesure
 nationale : elle exclut les PBF/GeoPackage sources, les fichiers de secours
 et la variation de densité des chemins.
+
+Le bureau conserve les réponses des calques cloud dans
+`cloud-paquets/calques/<serveur>/<calque>/`. La zone reçue est comprimée en
+gzip et relue depuis ce cache avant affichage, y compris hors connexion.
+Elle est redemandée après 24 heures si le serveur répond ; les paquets RD5
+restent dans les autres sous-dossiers de `cloud-paquets`. Les caches locaux
+Overpass, des providers et BRouter restent séparés. Le fond cartographique
+utilise toujours le cache HTTP du navigateur. L'API
+`/api/mailles-disponibles` donne l'inventaire des quarts publiés (OSM,
+source nationale, itinéraire) ; une case des réglages dessine ce quadrillage
+sur la carte. L'indicateur de calque affiche la provenance effective
+`cloud` ou `local`, sans distinguer la lecture du cache cloud.
 
 ## Étapes de validation avant généralisation
 

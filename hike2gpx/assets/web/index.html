@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-11">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-37">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-39">
 </head>
 <body>
 <div class="app-header"><div class="brand"><img class="brand-icon" src="/favicon.ico" alt=""><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span class="readiness-group"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span id="readinessInfo" class="info-tooltip readiness-info" tabindex="0" aria-label="État des sources de calcul" aria-describedby="readinessInfoText">i<span id="readinessInfoText" role="tooltip"></span></span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
@@ -21,6 +21,7 @@
     </button>
     <a class="info-tooltip map-providers-info-button" id="providersInfoButton" href="/documentation/pays" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le rapport des pays pris en charge sur GitHub" title="Pays pris en charge sur GitHub">i</a>
     </div>
+    <div id="mapDataMode" class="map-data-mode" role="status" aria-live="polite" hidden></div>
   </div>
   <button type="button" class="map-widget-button map-expand-button leaflet-control" id="expandMapButton" aria-label="Mettre la carte en plein écran" aria-pressed="false" title="Mettre la carte en plein écran">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6"/></svg>
@@ -100,6 +101,7 @@
       <div class="setting-row renewal-row"><label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les données locales après</label><div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div></div>
       <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
       <div id="serverSettings" class="setting-row"><label class="setting-label" for="serverUrl" data-i18n="reglages.serveur">Adresse du serveur personnel</label><div class="ligne"><input id="serverUrl" type="url" inputmode="url" placeholder="https://rando.example.ts.net" autocomplete="url"><button id="saveServerUrl" type="button" data-i18n="reglages.serveurEnregistrer">Utiliser</button></div><p id="serverModeStatus" class="note" role="status"></p></div>
+      <div id="serverGridSettings" class="server-grid-settings"><label class="option"><input id="showServerGrid" type="checkbox"> <span data-i18n="reglages.maillesServeur">Afficher les mailles de 0,25° présentes sur le serveur</span></label><p id="serverGridStatus" class="note" role="status"></p></div>
       <div class="display-settings"><label class="option"><input id="hideMapToolbar" type="checkbox"> <span data-i18n="reglages.masquerCartes">Masquer le bandeau des cartes</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
       <div class="journal-settings"><button id="ouvrirDossierJournaux" type="button" data-i18n="reglages.ouvrirJournaux">Ouvrir le dossier des journaux</button><p id="erreurDossierJournaux" class="note" role="alert" hidden></p></div>
       <div class="journal-settings"><p id="versionApplication" class="note" hidden></p><button id="verifierMaj" type="button" data-i18n="reglages.verifierMaj">Vérifier les mises à jour</button><p id="statutMaj" class="note" role="status" hidden></p></div>
@@ -126,7 +128,7 @@
 <script src="/leaflet/leaflet.js"></script>
 <script src="/leaflet/Leaflet.VectorGrid.bundled.js"></script>
 <script src="/map-providers.js?v=8"></script>
-<script src="/app.js?v=desktop-49"></script>
+<script src="/app.js?v=desktop-52"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>

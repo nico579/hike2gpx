@@ -34,6 +34,11 @@ PAGES_MAX = 20
 TTL_S = 30 * 86400
 VERSION_CACHE = 1
 ATTRIBUTS = ("nature", "acces_pieton", "acces_vehicule_leger", "prive")
+NATURES_CHEMINS = {"Chemin", "Route empierrée", "Sentier", "Escalier"}
+
+
+def chemin_affichable(troncon):
+    return troncon.get("nature") in NATURES_CHEMINS
 
 _verrou_global = threading.Lock()
 _verrous = {}

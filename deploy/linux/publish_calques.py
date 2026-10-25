@@ -36,15 +36,17 @@ def main() -> None:
                 elements.append(element)
     osm = fr.voies_elements(elements)
     fournisseur = providers.source(args.source)
-    officiels = fournisseur.troncons_pour_job(zone, args.dossier_public, args.source_locale)
-    franchissements = json.loads(args.franchissements.read_text(encoding="utf-8"))
-    if not isinstance(franchissements, list):
+    officiels = fournisseur.chemins_pour_calque(
+        fournisseur.troncons_pour_job(zone, args.dossier_public, args.source_locale))
+    franchissements_bruts = json.loads(args.franchissements.read_text(encoding="utf-8"))
+    if not isinstance(franchissements_bruts, list):
         parser.error("Liste de franchissements invalide")
+    franchissements = [f for f in franchissements_bruts if f.get("statut") in ("blocked", "uncertain")]
     vide = {"voies": [], "barrieres": []}
     osm_fichier = mailles.publier(args.dossier_public, "osm", i, j, osm=osm,
                                  officiels=[], franchissements=franchissements)
     officiel_fichier = mailles.publier(args.dossier_public, args.source, i, j, osm=vide,
-                                      officiels=officiels, franchissements=franchissements)
+                                      officiels=officiels, franchissements=[])
     print(f"Maille {i}_{j} : {len(osm['voies'])} voies OSM, {len(osm['barrieres'])} barrières, "
           f"{len(officiels)} tronçons {fournisseur.nom}, {len(franchissements)} franchissements")
     print(f"OSM {osm_fichier.stat().st_size} octets ; {fournisseur.nom} "

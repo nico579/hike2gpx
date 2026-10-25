@@ -92,6 +92,11 @@ l'application de bureau. HTTP n'est accepté que pour `localhost` et
 publiées couvrent `[43,25 ; 6,00 ; 43,50 ; 6,50]` près de Garéoult.
 Les chemins OSM et BD TOPO de cette zone sont servis depuis la VM.
 Le paquet strict IGN de ces deux mailles est aussi disponible sur `/api/paquet-zone`.
+L'inventaire `GET /api/mailles-disponibles` annonce pour chaque maille les
+calques et paquets d'itinéraire publiés. La case « Afficher les mailles de
+0,25° présentes sur le serveur » dans les réglages du bureau les dessine sur
+la carte : vert pour le routage, bleu pour les chemins nationaux, gris pour
+OSM seul.
 La commande `vm_smoke_quarters.py http://127.0.0.1:8796 <installation-BRouter> <RD5-référence>`
 vérifie le téléchargement des deux RD5q, l'assemblage octet pour octet et
 un itinéraire local traversant leur limite.

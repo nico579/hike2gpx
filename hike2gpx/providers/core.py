@@ -77,6 +77,11 @@ class Source:
             return self.lecteur_local(source_locale, *zone)
         return self.module.troncons_zone(*zone, dossier)
 
+    def chemins_pour_calque(self, troncons):
+        """Ne garde que les chemins affichables, selon les règles du provider."""
+        accepter = getattr(self.module, "chemin_affichable", None)
+        return [troncon for troncon in troncons if accepter is None or accepter(troncon)]
+
 
 class TuilesOfficielles:
     """Cache et parcours de tuiles communs aux nouveaux services officiels."""
