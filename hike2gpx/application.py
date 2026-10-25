@@ -891,7 +891,7 @@ class Application:
             if not dossier.is_dir() or not re.fullmatch(r"[0-9a-f]{32}", dossier.name):
                 continue
             paquet = atomique.lire_json(dossier / "public.json", None)
-            if (isinstance(paquet, dict) and paquet.get("format") == 1
+            if (isinstance(paquet, dict) and paquet.get("format") in (1, 2)
                     and paquet.get("source") == cle and paquet.get("strict") is est_strict
                     and isinstance(paquet.get("couverture"), list)
                     and contient(paquet["couverture"], zone, marge_deg=0)):
@@ -901,7 +901,7 @@ class Application:
 
     def fichier_paquet(self, jeton: str, nom: str) -> Path | None:
         if not re.fullmatch(r"[0-9a-f]{32}", jeton) or not re.fullmatch(
-                r"(?:[EW]\d+_[NS]\d+\.rd5|lookups\.dat|hike2gpx\.brf|chemins-officiels\.json)", nom):
+                r"(?:[EW]\d+_[NS]\d+\.rd5|\d{2}_[0-3]_[0-3]\.rd5q|lookups\.dat|hike2gpx\.brf|chemins-officiels\.json)", nom):
             return None
         dossier = self.dossier / "paquets" / jeton
         manifest = atomique.lire_json(dossier / "manifest.json", {})

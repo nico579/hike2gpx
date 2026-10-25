@@ -62,6 +62,7 @@ install -m 0755 "$repo_dir/deploy/linux/pilot_rd5.py" /opt/hike2gpx/pilot_rd5.py
 install -m 0755 "$repo_dir/deploy/linux/pilot_osm_index.py" /opt/hike2gpx/pilot_osm_index.py
 install -m 0755 "$repo_dir/deploy/linux/pilot_fusion_quart.py" /opt/hike2gpx/pilot_fusion_quart.py
 install -m 0755 "$repo_dir/deploy/linux/publish_calques.py" /opt/hike2gpx/publish_calques.py
+install -m 0755 "$repo_dir/deploy/linux/publish_rd5_package.py" /opt/hike2gpx/publish_rd5_package.py
 install -d -m 0755 /etc/hike2gpx
 if [[ ! -f /etc/hike2gpx/zones.json ]]; then
   install -m 0644 "$repo_dir/deploy/linux/zones.example.json" /etc/hike2gpx/zones.json

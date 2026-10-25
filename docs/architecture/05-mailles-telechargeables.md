@@ -130,9 +130,28 @@ l'index OSM local et le GeoPackage IGN. Les fichiers OSM gzip font
 limite, renvoie **1 035 chemins OSM**, **33 barrières**, **18 franchissements**
 et **2 756 tronçons IGN**. L'application de bureau a obtenu ces réponses du
 service de la VM par un tunnel SSH. Une maille absente produit une erreur
-explicite : elle ne donne pas un calque vide trompeur. Pour le moment,
-l'itinéraire en mode cloud utilise encore les paquets RD5 du format initial ;
-les fragments RD5 de 0,25° ne sont pas encore distribués par l'API.
+explicite : elle ne donne pas un calque vide trompeur.
+
+Le paquet de routage **format 2** distribue à présent les fragments `.rd5q`,
+un manifeste de 400 positions avec leurs empreintes, les franchissements
+finalisés, le profil et les chemins officiels. La publication est effectuée
+par SSH à partir d'une mosaïque vérifiée et refuse les trous dans la couverture
+rectangulaire. Le serveur conserve une RD5 reconstruite pour le calcul de
+secours, mais l'API ne la livre pas au client. Bureau et Android téléchargent
+les seuls fragments du paquet, contrôlent SHA-256, puis recomposent localement
+une RD5 utilisable par BRouter. Le serveur ne fabrique rien sur requête.
+La VM a livré **deux fragments pour 1 245 096 octets** ; le client a reconstruit
+une RD5 de **1 248 993 octets**, identique octet pour octet à la référence, et
+calculé localement un itinéraire strict de **109 m** franchissant leur limite.
+Le téléchargement partiel HTTP `Range` d'un fragment renvoie bien `206`.
+
+Le contour OSM France du Var touche **25 mailles** de 0,25° ; le contour
+Geofabrik de la France métropolitaine en touche **1 608**. Au volume mesuré
+sur les deux mailles témoins (environ 4,3 Mo par maille pour RD5q et calques
+compressés), cela représente **environ 110 Mo pour le Var et 6,9 Go pour la
+France** de produits distribuables. C'est une extrapolation, pas une mesure
+nationale : elle exclut les PBF/GeoPackage sources, les fichiers de secours
+et la variation de densité des chemins.
 
 ## Étapes de validation avant généralisation
 
@@ -146,9 +165,10 @@ les fragments RD5 de 0,25° ne sont pas encore distribués par l'API.
 3. Mesurer la durée de téléchargement sur mobile et le coût de lecture des
    JSON gzip. Grouper les téléchargements des mailles voisines pour limiter
    le nombre de requêtes ; conserver l'assemblage local atomique.
-4. Publier un manifeste de version commun aux RD5, calques et franchissements,
-   avec couverture, empreintes et état `complet`. Ne rendre visible que la
-   version entièrement préparée ; garder l'ancienne pendant le remplacement.
+4. Relier les mailles publiées en paquets de couverture rectangulaire et
+   conserver l'historique lors du remplacement. Le format 2 actuel publie
+   atomiquement chaque paquet et contient les empreintes RD5q ; un catalogue
+   national commun aux calques et aux fragments reste à faire.
 
 Références : [format et génération des RD5](https://github.com/abrensch/brouter/blob/master/docs/developers/build_segments.md),
 [extraction OSM et coût mémoire](https://docs.osmcode.org/osmium/latest/osmium-extract.html).

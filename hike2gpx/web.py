@@ -67,7 +67,7 @@ class Handler(serveweb.Handler):
     def do_GET(self):
         chemin = self.path.split("?", 1)[0]
         paquet = re.fullmatch(r"/api/paquets/([0-9a-f]{32})/"
-                              r"([EW]\d+_[NS]\d+\.rd5|lookups\.dat|hike2gpx\.brf|chemins-officiels\.json)", chemin)
+                              r"([EW]\d+_[NS]\d+\.rd5|\d{2}_[0-3]_[0-3]\.rd5q|lookups\.dat|hike2gpx\.brf|chemins-officiels\.json)", chemin)
         if paquet and self.mode_serveur:
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)
