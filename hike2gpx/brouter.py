@@ -347,6 +347,13 @@ def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path) -> Path:
         if r.returncode:
             classe = next(e for e in etape if e.startswith("btools")).rsplit(".", 1)[-1]
             raise ErreurBRouter(f"Fabrication des tuiles impossible ({classe}) : {(r.stderr or r.stdout).strip()[-300:]}")
+    # Les fichiers de découpe peuvent dépasser de loin la RD5 finale. Seuls
+    # les segments sont nécessaires au calcul et au paquet publié.
+    for nom in ("nodetiles", "waytiles", "waytiles55", "nodes55", "unodes55", "srtm1", "srtm3",
+                "restrictions"):
+        shutil.rmtree(dossier / nom, ignore_errors=True)
+    for nom in ("bordernids.dat", "bordernodes.dat", "relations.dat", "restrictions.dat"):
+        (dossier / nom).unlink(missing_ok=True)
     return dossier / "segments"
 
 
