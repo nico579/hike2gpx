@@ -23,6 +23,7 @@ journal = logging.getLogger(__name__)
 
 ROUTES_GET_ZONE = {"osm"} | {p.calque for p in providers.SOURCES.values()}
 ROUTES_CLOUD = ROUTES_GET_ZONE
+ROUTES_AVEC_ZONE = ROUTES_GET_ZONE | {"disponibilite"}
 CACHE_CALQUES_S = 24 * 3600
 FORMAT_CALQUES_CACHE = 1
 
@@ -70,7 +71,7 @@ class Client:
             q = dict(zip(("s", "w", "n", "e"), zone))
             q.update(source=source, officiel=int(bool(officiel)), strict=int(bool(strict)))
             url += "?" + urllib.parse.urlencode(q)
-        elif route in ROUTES_GET_ZONE:
+        elif route in ROUTES_AVEC_ZONE:
             zone = args[0] if args else None
             if zone is not None:
                 q = dict(zip(("s", "w", "n", "e"), zone))

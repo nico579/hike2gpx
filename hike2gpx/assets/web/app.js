@@ -106,6 +106,7 @@ const TEXTES = {
     "disponibilite.attente.moteur": "Installation de BRouter en cours",
     "disponibilite.attente.segments": "Tuiles BRouter en cours de téléchargement",
     "disponibilite.attente.osm": "Données OSM ou Overpass en attente",
+    "disponibilite.attente.paquet": "Paquet de routage absent du serveur",
     "disponibilite.attente.source": "Chemins officiels indisponibles dans cette zone",
     "disponibilite.attente.zone": "Zone du parcours à préciser",
     "disponibilite.info.titre": "Sources du prochain calcul",
@@ -298,6 +299,7 @@ const TEXTES = {
     "disponibilite.attente.moteur": "BRouter installation in progress",
     "disponibilite.attente.segments": "BRouter tiles downloading",
     "disponibilite.attente.osm": "Waiting for OSM data or Overpass",
+    "disponibilite.attente.paquet": "Routing package is absent from the server",
     "disponibilite.attente.source": "Official paths unavailable in this area",
     "disponibilite.attente.zone": "Route area needs to be specified",
     "disponibilite.info.titre": "Sources for the next route",
@@ -729,7 +731,8 @@ function afficherDisponibilite(d) {
   $("readiness").classList.toggle("available", pret);
   $("readiness").classList.toggle("unavailable", !pret);
   $("readinessText").textContent = t(pret ? "disponibilite.oui" : "disponibilite.non");
-  $("readiness").title = pret ? `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`
+  $("readiness").title = pret ? (d.source === "paquet" ? "Paquet de routage serveur"
+    : `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`)
     : t(`disponibilite.attente.${d?.attente || "osm"}`);
   $("readinessInfo").setAttribute("aria-label", t("disponibilite.info.titre"));
   const details = d?.details;
@@ -760,6 +763,7 @@ async function actualiserDisponibilite() {
       points: etat.points.map((p) => [p.lat, p.lon]),
       ign: $("ign").checked && Boolean(FOURNISSEURS_CARTES[paysCarte]?.paths?.source),
       source: FOURNISSEURS_CARTES[paysCarte]?.paths?.source,
+      strict: $("strict").checked,
     }) : await api(`disponibilite?${parametres}`);
     if (numero === sequenceDisponibilite) afficherDisponibilite(d);
   } catch (e) {
