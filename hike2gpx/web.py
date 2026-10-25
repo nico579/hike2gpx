@@ -48,6 +48,8 @@ class Handler(serveweb.Handler):
     mode_serveur = False
     application = None
     fichiers_statiques = {**serveweb.FICHIERS_STATIQUES,
+                          "/hike2gpx.png": ("../hike2gpx.png", "image/png"),
+                          "/hike2gpx.ico": ("../hike2gpx.ico", "image/x-icon"),
                           "/presentation.js": ("presentation.js", "text/javascript; charset=utf-8"),
                           "/presentation.css": ("presentation.css", "text/css; charset=utf-8"),
                           "/leaflet/leaflet.js": ("leaflet/leaflet.js", "text/javascript; charset=utf-8"),

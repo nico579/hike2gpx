@@ -13,6 +13,7 @@ L'application de bureau peut utiliser un serveur personnel en lecture seule pour
 - Cache local des paquets cloud pour permettre de recalculer une zone déjà téléchargée hors connexion.
 - Refus des chemins d'administration et d'écriture depuis le client ; l'application cliente ne reçoit aucun mot de passe.
 - Adresse du serveur et état de connexion accessibles dans les réglages, avec retour au mode local en cas d'indisponibilité.
+- Icône du navigateur et logo de l'en-tête servis par des URL propres à hike2gpx, avec le PNG officiel dans la page. Cela évite qu'un favicon précédemment mis en cache pour une autre application réapparaisse.
 
 ## Vérifications
 
