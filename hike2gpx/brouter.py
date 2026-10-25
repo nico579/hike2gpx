@@ -347,6 +347,13 @@ def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path) -> Path:
         if r.returncode:
             classe = next(e for e in etape if e.startswith("btools")).rsplit(".", 1)[-1]
             raise ErreurBRouter(f"Fabrication des tuiles impossible ({classe}) : {(r.stderr or r.stdout).strip()[-300:]}")
+    # Les fichiers de découpe peuvent dépasser de loin la RD5 finale. Seuls
+    # les segments sont nécessaires au calcul et au paquet publié.
+    for nom in ("nodetiles", "waytiles", "waytiles55", "nodes55", "unodes55", "srtm1", "srtm3",
+                "restrictions"):
+        shutil.rmtree(dossier / nom, ignore_errors=True)
+    for nom in ("bordernids.dat", "bordernodes.dat", "relations.dat", "restrictions.dat"):
+        (dossier / nom).unlink(missing_ok=True)
     return dossier / "segments"
 
 
@@ -425,9 +432,8 @@ def _coupe(coupe, poids=None) -> str:
     return ",".join(valeurs)
 
 
-def requete(points, franchissements=(), *, strict: bool = False, profil: str = PROFIL,
-            poids: int = POIDS_A_VERIFIER) -> str:
-    """Chemin et paramètres d'une requête BRouter. points : [(lat, lon)].
+def coupes_parametre(franchissements=(), *, strict: bool = False, poids: int = POIDS_A_VERIFIER) -> str:
+    """Coupes BRouter finales pour une zone et un mode strict donnés.
     Un franchissement bloquant devient une coupe sans poids ; un
     franchissement à vérifier, une coupe pondérée, ou interdite en mode
     strict.
@@ -441,10 +447,17 @@ def requete(points, franchissements=(), *, strict: bool = False, profil: str = P
     lignes = [_coupe(c, None if interdite else poids)
               for interdite in (False, True)
               for f, i in zip(franchissements, interdites) if i == interdite for c in f["coupes"]]
+    return "|".join(lignes)
+
+
+def requete(points, franchissements=(), *, strict: bool = False, profil: str = PROFIL,
+            poids: int = POIDS_A_VERIFIER) -> str:
+    """Chemin et paramètres d'une requête BRouter. points : [(lat, lon)]."""
     parametres = {"lonlats": "|".join(f"{lon:.6f},{lat:.6f}" for lat, lon in points),
                   "profile": profil, "alternativeidx": "0", "format": "geojson"}
+    lignes = coupes_parametre(franchissements, strict=strict, poids=poids)
     if lignes:
-        parametres["polylines"] = "|".join(lignes)
+        parametres["polylines"] = lignes
     return "/brouter?" + urllib.parse.urlencode(parametres, safe=",|")
 
 

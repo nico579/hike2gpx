@@ -9,8 +9,11 @@ pour qu'aucun détour ne passe par une barrière jamais vérifiée.
 from __future__ import annotations
 
 import logging
+import hashlib
 import math
+import os
 import re
+import secrets
 import shutil
 import threading
 import time
@@ -21,7 +24,7 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, brouter, communes, franchissements, geofabrik, journaux, maison, osmfr, providers
+from . import __version__, brouter, cloud, communes, franchissements, geofabrik, journaux, maison, osmfr, providers
 
 journal = logging.getLogger(__name__)
 
@@ -219,11 +222,13 @@ def km_texte(metres) -> str:
 
 
 class Application:
-    def __init__(self, dossier: Path):
+    def __init__(self, dossier: Path, *, mode_serveur: bool = False):
         self.dossier = Path(dossier)
+        self.mode_serveur = mode_serveur
         self.installation = brouter.Installation(self.dossier)
         self.maison = maison.TuilesMaison(self.installation, self.dossier)
         self.preferences = self.dossier / "preferences.json"
+        self.cloud = None if mode_serveur else cloud.Client(self.preferences)
         self.serveur = None
         self.serveur_maison = None
         self._verrou_moteur = threading.Lock()
@@ -252,6 +257,23 @@ class Application:
         cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
         return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
                 "renouvellement_jours": geofabrik.jours_renouvellement(self.dossier)}
+
+    def etat_serveur(self) -> dict:
+        return self.cloud.etat(force=True) if self.cloud else {"actif": False, "raison": "mode_serveur"}
+
+    def enregistrer_serveur(self, payload) -> dict:
+        if self.cloud is None:
+            return {"erreur": "Le serveur ne peut pas se connecter à lui-même."}
+        try:
+            adresse = cloud.valider_adresse((payload or {}).get("adresse", ""))
+        except (ValueError, AttributeError) as exc:
+            return {"erreur": str(exc)}
+        prefs = atomique.lire_json(self.preferences, {})
+        prefs = prefs if isinstance(prefs, dict) else {}
+        prefs["serveur_url"] = adresse
+        atomique.ecrire_json(self.preferences, prefs)
+        self.cloud.invalider()
+        return self.etat_serveur()
 
     def enregistrer_reglages(self, payload) -> dict:
         payload = payload or {}
@@ -283,7 +305,8 @@ class Application:
     def etat(self) -> dict:
         segments = sorted(p.stem for p in self.installation.segments.glob("*.rd5")) \
             if self.installation.segments.is_dir() else []
-        return {"app": "hike2gpx", "version": __version__, "dossier": str(self.dossier),
+        return {"app": "hike2gpx", "version": __version__, "mode_serveur": self.mode_serveur,
+                **({} if self.mode_serveur else {"dossier": str(self.dossier)}),
                 "moteur_installe": self.installation.installee(), "segments": segments,
                 "brouter": brouter.VERSION, "poids_a_verifier": brouter.POIDS_A_VERIFIER}
 
@@ -406,8 +429,13 @@ class Application:
         """L'étape du calcul en cours, et l'avancement des calques en lecture :
         tuiles lues sur tant, depuis tant de secondes."""
         maintenant = time.monotonic()
-        calques = {cle: {"faites": l["faites"], "total": l["total"], "duree_s": round(maintenant - l["debut"], 1)}
-                   for cle, l in list(self._lectures.items())}
+        calques = {}
+        for identifiant, lecture in list(self._lectures.items()):
+            cle = identifiant.split(":", 1)[0] if self.mode_serveur else identifiant
+            if cle not in calques or lecture["debut"] > calques[cle]["debut"]:
+                calques[cle] = lecture
+        calques = {cle: {"faites": l["faites"], "total": l["total"],
+                         "duree_s": round(maintenant - l["debut"], 1)} for cle, l in calques.items()}
         return {**self._progression, "calques": calques}
 
     def lire_journal(self) -> dict:
@@ -467,6 +495,39 @@ class Application:
         if ign and not providers.source(source).disponible(zone):
             return {"erreur": f"Chemins {providers.source(source).nom} indisponibles dans cette zone.",
                     "code": "source_hors_zone"}
+        if self.mode_serveur:
+            # Le calcul distant est un secours sur données déjà publiées. Une
+            # requête cliente ne déclenche ni fusion, ni Overpass, ni création
+            # de RD5 : seule la commande SSH prépare ces données.
+            paquet = self.lire_paquet(zone, source, str(int(strict)), str(int(ign)))
+            if not paquet.get("pret"):
+                return {"erreur": "Paquet de zone non préparé sur le serveur.",
+                        "code": "zone_non_preparee"}
+            if not self.installation.installee():
+                return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True}
+            try:
+                fichier = paquet["segments"][0]["url"]
+                jeton = fichier.split("/")[3]
+                if not re.fullmatch(r"[0-9a-f]{32}", jeton):
+                    raise ValueError("Identifiant de paquet invalide.")
+                reponse = self._itineraire_paquet(points, zone, paquet,
+                                                   self.dossier / "paquets" / jeton, debut)
+                if "erreur" not in reponse:
+                    reponse["moteur"] = "serveur-secours"
+                return reponse
+            except (brouter.ErreurBRouter, OSError, ValueError, KeyError, IndexError) as exc:
+                return {"erreur": str(exc)}
+        # Un paquet vérifié reste utilisable lorsque le serveur ne répond plus.
+        if self.cloud and self.cloud.etat()["adresse"]:
+            try:
+                paquet, dossier = self.cloud.paquet({"source": source, "officiel": ign,
+                                                      "strict": strict}, self.dossier, zone)
+                if self.installation.installee():
+                    resultat = self._itineraire_paquet(points, zone, paquet, dossier, debut)
+                    if "erreur" not in resultat:
+                        return resultat
+            except (cloud.Indisponible, brouter.ErreurBRouter, OSError, ValueError) as exc:
+                journal.warning("Calcul sur paquet cloud indisponible : %s", exc)
         # Un calcul est un usage réel de la région : son extrait OSM part en
         # tâche de fond s'il manque, Overpass servant en attendant ; de même le
         # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
@@ -571,6 +632,35 @@ class Application:
         reponse["duree_s"] = round(time.monotonic() - debut, 2)
         return reponse
 
+    def _itineraire_paquet(self, points, zone, paquet, dossier, debut) -> dict:
+        """Calcule sur l'appareil avec les RD5 et les coupes finales du serveur."""
+        moteur = brouter.Serveur(self.installation, segments=dossier, profils=dossier)
+        try:
+            moteur.demarrer()
+            liste = paquet["franchissements"]
+            trace = brouter.calculer(moteur.port, points, liste, strict=paquet["strict"])
+        finally:
+            moteur.arreter()
+        coords = trace["geometry"]["coordinates"]
+        etendue = (min(c[1] for c in coords), min(c[0] for c in coords),
+                   max(c[1] for c in coords), max(c[0] for c in coords))
+        if not contient(paquet["couverture"], etendue):
+            return {"erreur": "Le tracé sort du paquet de zone."}
+        passages = sur_le_trace(coords, liste)
+        traverses = [f for f in passages if f["statut"] == "blocked" or paquet["strict"]]
+        if traverses:
+            return {"erreur": "Itinéraire refusé : franchissement interdit sur le tracé.",
+                    "code": "itineraire_refuse", "traverses": traverses}
+        portions = portions_ign(trace) if paquet["source"] != "osm" else []
+        return {"itineraire": trace, "zone": zone, "franchissements": liste,
+                "longueur_m": _nombre(trace["properties"], "track-length"),
+                "denivele_m": _nombre(trace["properties"], "filtered ascend"),
+                "sur_le_trace": sorted(passages + entrees_ign(portions), key=lambda f: f["distance_m"]),
+                "portions_ign": portions, "moteur": "cloud-local", "avertissement": None,
+                "avertissement_detail": None, "strict": paquet["strict"],
+                "source_officielle": paquet["source"],
+                "duree_s": round(time.monotonic() - debut, 2)}
+
     # ---------------------------------------------------------- dénivelé
 
     def denivele(self, payload) -> dict:
@@ -599,6 +689,11 @@ class Application:
         ce qui laissait la page sans réponse (calque figé, 2026-10-20). Sans
         date (essais), la vue suit la précédente."""
         with self._verrou_vues:
+            if self.mode_serveur:
+                # Identifiant unique seulement ; aucun client n'interrompt
+                # la lecture d'un autre dans _calque().
+                self._vues[cle] += 1
+                return self._vues[cle]
             if vue is None:
                 vue = self._vues[cle] + 1
             elif vue <= self._vues[cle]:
@@ -620,20 +715,24 @@ class Application:
             return {"erreur": "Zone trop grande : zoomez davantage."}
         debut = time.monotonic()
 
+        cle_lecture = f"{cle}:{numero}" if self.mode_serveur else cle
+
         def suivre(faites, total):
-            if self._vues[cle] == numero:
-                self._lectures[cle] = {"numero": numero, "faites": faites, "total": total, "debut": debut}
+            if self.mode_serveur or self._vues[cle] == numero:
+                self._lectures[cle_lecture] = {"numero": numero, "faites": faites,
+                                               "total": total, "debut": debut}
 
         try:
-            resultat = lire(*zone, self.dossier, continuer=lambda: self._vues[cle] == numero, suivi=suivre)
+            continuer = (lambda: True) if self.mode_serveur else lambda: self._vues[cle] == numero
+            resultat = lire(*zone, self.dossier, continuer=continuer, suivi=suivre)
         except franchissements.VueRemplacee:
             return {"erreur": "Vue remplacée par une autre.", "code": "vue_remplacee"}
         except franchissements.ErreurDonnees as exc:
             return {"erreur": str(exc)}
         finally:
             # Seulement la sienne : une vue plus récente a peut-être déjà la place.
-            if self._lectures.get(cle, {}).get("numero") == numero:
-                self._lectures.pop(cle, None)
+            if self._lectures.get(cle_lecture, {}).get("numero") == numero:
+                self._lectures.pop(cle_lecture, None)
         return {**resultat, "bornes": franchissements.bornes_zone(*zone)}
 
     def calque_osm(self, zone, vue=None) -> dict:
@@ -661,6 +760,8 @@ class Application:
         leurs lectures en cours s'arrêtent avant la tuile suivante. vue : la
         date de cette demande, qui remplace toute vue plus ancienne."""
         corps = corps or {}
+        if self.mode_serveur:
+            return {"arretes": []}
         demandes, vue = corps.get("calques"), corps.get("vue")
         cles = [c for c in self._vues if not isinstance(demandes, list) or c in demandes]
         with self._verrou_vues:
@@ -670,6 +771,138 @@ class Application:
                 else:
                     self._vues[cle] += 1
         return {"arretes": cles}
+
+    # ---------------------------------------------------------- paquet Android
+
+    def preparer_paquet(self, payload) -> dict:
+        """Rend un paquet de zone prêt pour BRouter : RD5, profil et coupes.
+
+        Les franchissements sont analysés ici, sur le réseau effectivement
+        contenu dans la tuile, et convertis au format final `polylines`.
+        Le téléphone n'a pas à relire les tags OSM ni à refaire la fusion.
+        """
+        if not self.mode_serveur:
+            return {"erreur": "Paquets de zone réservés au mode serveur."}
+        payload = payload if isinstance(payload, dict) else {}
+        if "zone" in payload:
+            zone = payload["zone"]
+            if (not isinstance(zone, (list, tuple)) or len(zone) != 4
+                    or any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in zone)
+                    or not -90 <= zone[0] < zone[2] <= 90
+                    or not -180 <= zone[1] < zone[3] <= 180):
+                return {"erreur": "Zone invalide."}
+        else:
+            try:
+                points = valider_points(payload.get("points"))
+            except ValueError as exc:
+                return {"erreur": str(exc)}
+            zone = zone_autour(points)
+        source = payload.get("source", "ign")
+        if source not in providers.SOURCES:
+            return {"erreur": "Source de chemins officiels inconnue."}
+        officiel, strict = bool(payload.get("officiel", True)), bool(payload.get("strict", True))
+        tuiles = franchissements.tuiles_zone(*zone)
+        if len(tuiles) > TUILES_MAX:
+            return {"erreur": "Zone trop étendue : découpez le parcours en étapes plus courtes."}
+        if officiel and not providers.source(source).disponible(zone):
+            return {"erreur": f"Chemins {providers.source(source).nom} indisponibles dans cette zone."}
+        segments_attendus = brouter.segments_zone(*zone)
+        if not self.installation.installee():
+            return {"pret": False, "brouter_en_cours": self._brouter_automatique(
+                [] if officiel else segments_attendus)}
+        if not officiel:
+            manquants = [nom for nom in segments_attendus if not self.installation.segment_present(nom)]
+            if manquants:
+                return {"pret": False, "brouter_en_cours": self._brouter_automatique(manquants)}
+        self._extrait_automatique(zone, "paquet Android")
+        try:
+            with self._verrou_calcul:
+                if officiel:
+                    dossier_segments, liste = self.maison.preparer(tuiles, source=source)
+                    profil = self.installation.profils_maison / f"{brouter.PROFIL}.brf"
+                else:
+                    dossier_segments = self.installation.segments
+                    liste = franchissements.franchissements_zone(*zone, self.dossier)
+                    profil = self.installation.profils / f"{brouter.PROFIL}.brf"
+                racine = self.dossier / "paquets"
+                racine.mkdir(parents=True, exist_ok=True)
+                jeton = secrets.token_hex(16)
+                dossier_paquet = racine / jeton
+                dossier_paquet.mkdir()
+                fichiers, assets = [], []
+                sources = [(dossier_segments / f"{nom}.rd5", fichiers) for nom in segments_attendus]
+                sources += [(profil, assets), (profil.parent / "lookups.dat", assets)]
+                if officiel:
+                    chemins = providers.source(source).module.troncons_zone(*zone, self.dossier)
+                    chemin_officiel = dossier_paquet / "chemins-officiels.json"
+                    atomique.ecrire_json(chemin_officiel, {"troncons": chemins}, indent=None)
+                    sources.append((chemin_officiel, assets))
+                for source_fichier, destination in sources:
+                    if not source_fichier.is_file():
+                        raise brouter.ErreurBRouter(f"Fichier BRouter {source_fichier.name} absent du paquet.")
+                    cible = dossier_paquet / source_fichier.name
+                    if source_fichier != cible:
+                        try:
+                            os.link(source_fichier, cible)
+                        except OSError:
+                            shutil.copy2(source_fichier, cible)
+                    empreinte = hashlib.sha256()
+                    with cible.open("rb") as entree:
+                        while bloc := entree.read(1024 * 1024):
+                            empreinte.update(bloc)
+                    destination.append({"nom": cible.name, "octets": cible.stat().st_size,
+                                     "sha256": empreinte.hexdigest(),
+                                     "url": f"/api/paquets/{jeton}/{cible.name}"})
+                atomique.ecrire_json(dossier_paquet / "manifest.json",
+                                    {"fichiers": [f["nom"] for f in fichiers + assets]})
+                profil_texte = profil.read_text(encoding="utf-8")
+        except (franchissements.ErreurDonnees, brouter.ErreurBRouter, OSError, ValueError) as exc:
+            return {"erreur": str(exc)}
+        reponse = {"pret": True, "format": 1, "source": source if officiel else "osm",
+                "zone": zone, "couverture": franchissements.bornes_zone(*zone),
+                "strict": strict, "profil": profil_texte,
+                "polylines": brouter.coupes_parametre(liste, strict=strict),
+                "franchissements": [{k: f.get(k) for k in
+                                      ("cle", "statut", "raison", "nature", "lat", "lon", "osm", "coupes")}
+                                     for f in liste if f["statut"] in ("blocked", "uncertain")],
+                "segments": fichiers, "assets": assets}
+        atomique.ecrire_json(dossier_paquet / "public.json", reponse)
+        return reponse
+
+    def lire_paquet(self, zone, source="ign", strict="1", officiel="1") -> dict:
+        """Lit le dernier paquet préparé par SSH couvrant toute la zone."""
+        if zone is None:
+            return {"pret": False, "raison": "zone_invalide"}
+        cle = source if officiel not in ("0", "false") else "osm"
+        if cle != "osm" and cle not in providers.SOURCES:
+            return {"pret": False, "raison": "source_inconnue"}
+        est_strict = strict not in ("0", "false")
+        racine = self.dossier / "paquets"
+        if not racine.is_dir():
+            return {"pret": False, "raison": "zone_non_preparee"}
+        disponibles = []
+        for dossier in racine.iterdir():
+            if not dossier.is_dir() or not re.fullmatch(r"[0-9a-f]{32}", dossier.name):
+                continue
+            paquet = atomique.lire_json(dossier / "public.json", None)
+            if (isinstance(paquet, dict) and paquet.get("format") == 1
+                    and paquet.get("source") == cle and paquet.get("strict") is est_strict
+                    and isinstance(paquet.get("couverture"), list)
+                    and contient(paquet["couverture"], zone, marge_deg=0)):
+                disponibles.append((dossier.stat().st_mtime, paquet))
+        return max(disponibles, key=lambda item: item[0])[1] if disponibles else {
+            "pret": False, "raison": "zone_non_preparee"}
+
+    def fichier_paquet(self, jeton: str, nom: str) -> Path | None:
+        if not re.fullmatch(r"[0-9a-f]{32}", jeton) or not re.fullmatch(
+                r"(?:[EW]\d+_[NS]\d+\.rd5|lookups\.dat|hike2gpx\.brf|chemins-officiels\.json)", nom):
+            return None
+        dossier = self.dossier / "paquets" / jeton
+        manifest = atomique.lire_json(dossier / "manifest.json", {})
+        if not isinstance(manifest, dict) or nom not in manifest.get("fichiers", []):
+            return None
+        chemin = dossier / nom
+        return chemin if chemin.is_file() else None
 
     # ---------------------------------------------------------- données OSM hors ligne
 
@@ -689,6 +922,12 @@ class Application:
         à la frontière. Rend {"id", "nom"} de l'extrait que la zone attend, ou
         None quand un extrait installé la couvre déjà, relais en préparation
         compris."""
+        # Les paquets serveur sont calculés par zone. Leur préparation ne doit
+        # pas télécharger et importer toute une région Geofabrik en arrière-plan
+        # pour quelques tuiles. Les franchissements utilisent le cache OSM de
+        # la zone ou Overpass ; un extrait préinstallé reste utilisable.
+        if self.mode_serveur:
+            return None
         i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
         installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
         if installe is not None and not installe.get("voies_coupees"):
@@ -991,6 +1230,18 @@ class Application:
             self._brouter_en_cours = {}
 
     def routes(self):
+        if self.mode_serveur:
+            # API pour les applications : lecture de données préparées et
+            # calcul de secours. Aucun réglage, journal ni effacement de cache.
+            return ({"init": self.etat, "etat": self.etat,
+                     "paquet-zone": self.lire_paquet,
+                     "osm": self.calque_osm,
+                     **{p.calque: (lambda zone, vue=None, cle=cle: self.calque_officiel(cle, zone, vue))
+                        for cle, p in providers.SOURCES.items()},
+                     "progression": self.progression, "disponibilite": self.disponibilite},
+                    {"itineraire": self.itineraire,
+                     "denivele": self.denivele, "communes": communes.chercher,
+                     "disponibilite": self.disponibilite_parcours})
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
         get_langue, post_langue = langue_commune.routes(self.lire_langue, self.ecrire_langue)
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
@@ -998,14 +1249,38 @@ class Application:
                **{p.calque: (lambda zone, vue=None, cle=cle: self.calque_officiel(cle, zone, vue))
                   for cle, p in providers.SOURCES.items()},
                "extrait": self.extrait,
-               "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
+               "progression": self.progression, "donnees": self.donnees,
                "disponibilite": self.disponibilite,
-               **get_langue}
+               **get_langue, **({} if self.mode_serveur else
+                               {"journal": self.lire_journal, "serveur": self.etat_serveur})}
         post = {"itineraire": self.itineraire, "disponibilite": self.disponibilite_parcours,
                 "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
-                "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux, **post_langue}
+                "donnees": self.agir_donnees, **post_langue,
+                "ouvrir_journaux": self.ouvrir_journaux, "serveur": self.enregistrer_serveur}
+        if self.cloud:
+            for route in cloud.ROUTES_CLOUD:
+                if route in get:
+                    locale = get[route]
+                    def avec_repli_get(*args, _route=route, _locale=locale):
+                        if self.cloud.etat()["actif"]:
+                            try:
+                                return self.cloud.demander(_route, "GET", args)
+                            except cloud.Indisponible:
+                                pass
+                        return _locale(*args)
+                    get[route] = avec_repli_get
+                if route in post:
+                    locale = post[route]
+                    def avec_repli_post(payload, _route=route, _locale=locale):
+                        if self.cloud.etat()["actif"]:
+                            try:
+                                return self.cloud.demander(_route, "POST", payload=payload)
+                            except cloud.Indisponible:
+                                pass
+                        return _locale(payload)
+                    post[route] = avec_repli_post
         return get, post
 
     def ouvrir_journaux(self, corps=None) -> dict:

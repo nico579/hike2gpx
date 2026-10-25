@@ -607,7 +607,23 @@ def test_routes_init_annonce_l_application(tmp_path):
     # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
     # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
     assert set(post) == {"itineraire", "disponibilite", "reglages", "moteur", "denivele", "communes", "langue",
-                         "arreter_calques", "donnees", "ouvrir_journaux"}
+                         "arreter_calques", "donnees", "ouvrir_journaux", "serveur"}
+
+
+def test_paquet_cloud_deja_telecharge_sert_hors_connexion(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(a.cloud, "etat", lambda **_: {"actif": False, "adresse": "https://rando.example.org"})
+    monkeypatch.setattr(a.cloud, "paquet", lambda *args: ({"pret": True}, tmp_path))
+    monkeypatch.setattr(a.installation, "installee", lambda: True)
+    monkeypatch.setattr(a, "_itineraire_paquet", lambda *args: {"moteur": "cloud-local"})
+    resultat = a._itineraire({"points": [[43.4, 6.0], [43.41, 6.01]], "source": "ign"})
+    assert resultat == {"moteur": "cloud-local"}
+
+
+def test_paquet_serveur_ne_lance_pas_un_extrait_osm_regional(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path, mode_serveur=True)
+    monkeypatch.setattr(geofabrik, "telechargements", lambda _: pytest.fail("extrait régional déclenché"))
+    assert a._extrait_automatique((43.30, 6.0, 43.35, 6.05), "paquet") is None
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):

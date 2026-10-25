@@ -90,6 +90,8 @@ def moteur(tmp_path_factory):
     reseau.ajouter_osm(elements)
     reseau.ecrire_pbf(dossier / "cas.osm.pbf")
     segments = brouter.fabriquer_tuiles(inst, dossier / "cas.osm.pbf", dossier / "tuiles")
+    assert any(segments.glob("*.rd5"))
+    assert not (dossier / "tuiles" / "waytiles").exists()
     serveur = brouter.Serveur(inst, segments=segments, profils=inst.profils_maison)
     serveur.demarrer()
     yield serveur.port, fr.analyser(elements)

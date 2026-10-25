@@ -26,15 +26,29 @@ def main(argv=None) -> int:
     serve.add_argument("--port", type=int, default=None)
     serve.add_argument("--sans-navigateur", action="store_true", help="ne pas ouvrir le navigateur")
     serve.add_argument("--sans-icone", action="store_true", help="pas d'icône dans la zone de notification")
+    serve.add_argument("--mode-serveur", action="store_true",
+                       help="serveur de données derrière un proxy HTTPS")
+    serve.add_argument("--nom-hote", help="nom DNS public attendu par le proxy en mode serveur")
     installer = sous.add_parser("installer", help="installe BRouter et des tuiles de données (E5_N40...)")
     installer.add_argument("segments", nargs="*", help="tuiles BRouter à télécharger")
     analyser = sous.add_parser("analyser", help="compte les franchissements d'une zone")
     for nom in ("sud", "ouest", "nord", "est"):
         analyser.add_argument(nom, type=float)
+    preparer = sous.add_parser("preparer-zone", help="prépare par SSH les tuiles et coupes Android d'une zone")
+    for nom in ("sud", "ouest", "nord", "est"):
+        preparer.add_argument(nom, type=float)
+    preparer.add_argument("--source", default="ign", help="source officielle du provider")
+    preparer.add_argument("--osm", action="store_true", help="réseau OSM seul")
+    preparer.add_argument("--non-strict", action="store_true", help="pondère les passages à vérifier")
     # Import d'un extrait Geofabrik, lancé par geofabrik.installer() dans un
     # processus à part (PBF, base, région en JSON, date des données).
     parser.add_argument("--importer-extrait", nargs=4, metavar="X", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.commande == "serve":
+        if args.mode_serveur and not args.nom_hote:
+            parser.error("--mode-serveur exige --nom-hote")
+        if args.nom_hote and not args.mode_serveur:
+            parser.error("--nom-hote exige --mode-serveur")
     if args.self_test_version:      # avant tout dossier : ne touche pas aux données
         from . import autotest
         return autotest.verifier(args.self_test_version)
@@ -64,9 +78,33 @@ def main(argv=None) -> int:
         for (statut, nature, raison), n in compte.most_common():
             print(f"{n:6d}  {statut:9s}  {nature:18s}  {raison}")
         return 0
+    if args.commande == "preparer-zone":
+        from .application import Application
+        from . import providers
+
+        if args.source not in providers.SOURCES:
+            parser.error("source officielle inconnue")
+        application = Application(dossier, mode_serveur=True)
+        if not application.installation.installee():
+            application.installation.installer()
+        if args.osm:
+            for nom in brouter.segments_zone(args.sud, args.ouest, args.nord, args.est):
+                if not application.installation.segment_present(nom):
+                    application.installation.telecharger_segment(nom)
+        resultat = application.preparer_paquet({"zone": [args.sud, args.ouest, args.nord, args.est],
+                                               "source": args.source, "officiel": not args.osm,
+                                               "strict": not args.non_strict})
+        if not resultat.get("pret"):
+            print(resultat.get("erreur") or "Données de zone encore indisponibles.", file=sys.stderr)
+            return 1
+        print(f"Paquet {resultat['source']} : {len(resultat['segments'])} tuile(s), "
+              f"{len(resultat['franchissements'])} franchissement(s), "
+              f"{sum(f['octets'] for f in resultat['segments'])} octets RD5")
+        return 0
     from . import web
     web.servir(dossier, getattr(args, "port", None) or web.PORT, not getattr(args, "sans_navigateur", False),
-               icone=not getattr(args, "sans_icone", False))
+               icone=not getattr(args, "sans_icone", False),
+               mode_serveur=getattr(args, "mode_serveur", False), nom_hote=getattr(args, "nom_hote", None))
     return 0
 
 

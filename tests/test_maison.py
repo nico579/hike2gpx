@@ -63,6 +63,7 @@ def test_fabrique_une_fois_puis_reprend_et_coupe_le_raccord(tuiles, tmp_path):
     ecrire_tuile(tmp_path, I, J, cloture_et_sentier(), sentier_ign_sud())
     segments, liste = tm.preparer([(I, J)])
     assert fabriquees == ["fabrication-1"] and segments == tm.racine / "fabrication-1" / "segments"
+    assert not (tm.racine / "zone.osm.pbf").exists()
     # Audit B16 : ni OSM seul ni le chemin IGN seul ne traversent la clôture,
     # leur raccord si ; l'analyse du réseau fusionné le voit.
     assert fr.analyser(cloture_et_sentier()) == []

@@ -290,6 +290,18 @@ The SCAN 25 is not open data: it needs an IGN key, entered in the page
 settings. Without a key, the map uses the IGN Plan, under the Licence Ouverte
 (the French open licence). The other base maps need no key.
 
+### Server mode
+
+`hike2gpx serve --mode-serveur --nom-hote rando.example.org --port 8795`
+prepares the national path data on the server and serves zone packages to the
+desktop and Android clients. Each package contains enriched BRouter RD5 files,
+the routing profile, and final crossing cuts. Clients can calculate routes
+locally after downloading a zone. The process listens **only on 127.0.0.1**:
+remote access requires an HTTPS reverse proxy configured for that DNS name.
+The public proxy exposes only read-only data endpoints and the route fallback;
+maintenance and zone generation run separately over SSH. No password is needed
+for the read-only API. Server mode does not open a browser or tray icon.
+
 ## Tests
 
 ```

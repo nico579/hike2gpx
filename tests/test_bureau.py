@@ -110,6 +110,142 @@ def test_la_page_charge_les_providers_depuis_leur_dossier(tmp_path):
         serveur.server_close()
 
 
+def test_mode_serveur_accepte_uniquement_le_domaine_du_proxy(tmp_path):
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    serveur, port = web.demarrer(application, port=8840, plage=20, nom_hote="rando.example.org")
+    try:
+        connexion = http.client.HTTPConnection(web.HOST, port, timeout=5)
+        try:
+            for hote, origine, attendu in [
+                ("rando.example.org", "https://rando.example.org", 200),
+                ("autre.example.org", "https://autre.example.org", 403),
+                ("rando.example.org", "https://autre.example.org", 403),
+            ]:
+                connexion.request("GET", "/api/etat", headers={"Host": hote, "Origin": origine})
+                reponse = connexion.getresponse()
+                assert reponse.status == attendu
+                reponse.read()
+        finally:
+            connexion.close()
+        assert serveur.server_address[0] == "127.0.0.1"
+    finally:
+        serveur.shutdown()
+        serveur.server_close()
+
+
+def test_mode_serveur_ecarte_les_actions_du_bureau(tmp_path):
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    get, post = application.routes()
+    assert "journal" not in get and "ouvrir_journaux" not in post
+    assert application.etat()["mode_serveur"] is True
+    assert "dossier" not in application.etat()
+    premiere = application._prendre_vue("osm", 100)
+    seconde = application._prendre_vue("osm", 100)
+    assert premiere != seconde
+    assert application.arreter_calques({"calques": ["osm"]}) == {"arretes": []}
+    assert "reglages" not in get and "donnees" not in get
+    assert "donnees" not in post and "paquet-zone" in get and "paquet-zone" not in post
+
+
+def test_calcul_serveur_ne_prepare_jamais_une_zone_depuis_une_requete(tmp_path, monkeypatch):
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    monkeypatch.setattr(application, "_extrait_automatique", lambda *_: pytest.fail("extrait lancé"))
+    monkeypatch.setattr(application.maison, "preparer", lambda *_args, **_kw: pytest.fail("fusion lancée"))
+    points = {"points": [[43.4, 6.0], [43.41, 6.01]], "source": "ign", "strict": True}
+    assert application._itineraire(points)["code"] == "zone_non_preparee"
+    jeton = "a" * 32
+    monkeypatch.setattr(application, "lire_paquet", lambda *_: {
+        "pret": True, "segments": [{"url": f"/api/paquets/{jeton}/E5_N40.rd5"}]})
+    monkeypatch.setattr(application.installation, "installee", lambda: True)
+    monkeypatch.setattr(application, "_itineraire_paquet", lambda *_: {"moteur": "cloud-local"})
+    assert application._itineraire(points)["moteur"] == "serveur-secours"
+
+
+def test_mode_serveur_exige_un_nom_dns(tmp_path):
+    from hike2gpx.application import Application
+
+    for nom in ("http://rando.example.org", "localhost", "rando.example.org:443"):
+        with pytest.raises(ValueError):
+            web.demarrer(Application(tmp_path), port=8840, plage=1, nom_hote=nom)
+
+
+def test_paquet_de_zone_fournit_tuiles_et_coupes_finales(tmp_path, monkeypatch):
+    from hike2gpx import brouter, franchissements
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    application.installation.segments.mkdir(parents=True)
+    (application.installation.segments / "E5_N40.rd5").write_bytes(b"tuile")
+    application.installation.profils.mkdir(parents=True)
+    (application.installation.profils / f"{brouter.PROFIL}.brf").write_text("profil", encoding="utf-8")
+    (application.installation.profils / "lookups.dat").write_text("tags", encoding="utf-8")
+    monkeypatch.setattr(application.installation, "installee", lambda: True)
+    monkeypatch.setattr(application.installation, "segment_present", lambda _: True)
+    monkeypatch.setattr(application, "_extrait_automatique", lambda *_: None)
+    monkeypatch.setattr(brouter, "segments_zone", lambda *_: ["E5_N40"])
+    franchissement = {"cle": "porte", "statut": "uncertain", "raison": "à vérifier",
+                      "nature": "Portail", "lat": 43.4, "lon": 6.0, "osm": "node/1",
+                      "coupes": [[[6.0, 43.4], [6.00001, 43.4]]]}
+    monkeypatch.setattr(franchissements, "franchissements_zone", lambda *a, **k: [franchissement])
+    paquet = application.preparer_paquet({"points": [[43.4, 6.0], [43.401, 6.001]],
+                                         "officiel": False, "strict": True})
+    assert paquet["pret"] and paquet["source"] == "osm" and paquet["profil"] == "profil"
+    assert paquet["polylines"] == "6.0000000,43.4000000,6.0000100,43.4000000"
+    assert paquet["segments"][0]["sha256"] and paquet["segments"][0]["octets"] == 5
+    assert {a["nom"] for a in paquet["assets"]} == {"hike2gpx.brf", "lookups.dat"}
+    assert paquet["franchissements"][0]["nature"] == "Portail"
+    assert application.lire_paquet((43.4, 6.0, 43.401, 6.001), "ign", "1", "0")["pret"]
+    assert application.lire_paquet(tuple(paquet["zone"]), "ign", "1", "0")["pret"]
+
+    serveur, port = web.demarrer(application, port=8840, plage=20, nom_hote="rando.example.org")
+    try:
+        connexion = http.client.HTTPConnection(web.HOST, port, timeout=5)
+        try:
+            connexion.request("GET", paquet["segments"][0]["url"],
+                              headers={"Host": "rando.example.org", "Range": "bytes=1-3"})
+            reponse = connexion.getresponse()
+            assert reponse.status == 206 and reponse.read() == b"uil"
+        finally:
+            connexion.close()
+    finally:
+        serveur.shutdown()
+        serveur.server_close()
+
+
+def test_paquet_officiel_contient_le_calque_hors_ligne(tmp_path, monkeypatch):
+    from hike2gpx import brouter, providers
+    from hike2gpx.application import Application
+
+    application = Application(tmp_path, mode_serveur=True)
+    installation = application.installation
+    installation.profils_maison.mkdir(parents=True)
+    (installation.profils_maison / f"{brouter.PROFIL}.brf").write_text("profil")
+    (installation.profils_maison / "lookups.dat").write_text("tags")
+    segments = tmp_path / "segments-prepares"
+    segments.mkdir()
+    (segments / "E5_N40.rd5").write_bytes(b"tuile")
+    monkeypatch.setattr(installation, "installee", lambda: True)
+    monkeypatch.setattr(application, "_extrait_automatique", lambda *_: None)
+    monkeypatch.setattr(application.maison, "preparer", lambda *a, **k: (segments, []))
+    monkeypatch.setattr(brouter, "segments_zone", lambda *_: ["E5_N40"])
+    fournisseur = providers.source("ign")
+    chemin = {"id": "test", "nature": "Sentier", "pts": [[43.4, 6.0], [43.401, 6.001]]}
+    monkeypatch.setattr(fournisseur.module, "troncons_zone", lambda *a, **k: [chemin])
+    paquet = application.preparer_paquet({"zone": [43.4, 6.0, 43.401, 6.001], "source": "ign"})
+
+    assert paquet["pret"]
+    asset = next(a for a in paquet["assets"] if a["nom"] == "chemins-officiels.json")
+    fichier = application.fichier_paquet(asset["url"].split("/")[3], asset["nom"])
+    assert fichier is not None
+    assert __import__("json").loads(fichier.read_text(encoding="utf-8")) == {"troncons": [chemin]}
+
+
 def test_l_archive_de_chaque_systeme_suit_la_convention_publiee():
     # Les noms que build.py publie (il les demande au commun) : la mise à jour
     # automatique cherche ces fichiers dans la release, cette racine dedans.

@@ -121,6 +121,7 @@ class TuilesMaison:
         self.racine.mkdir(parents=True, exist_ok=True)
         reseau.ecrire_pbf(pbf)
         segments = brouter.fabriquer_tuiles(self.installation, pbf, dossier)
+        pbf.unlink(missing_ok=True)
         temps["tuiles"] = time.monotonic() - debut - temps["fusion"]
         suivi("analyse", 0, 0)
         # Comme pour une tuile Overpass, seuls les franchissements situés dans
