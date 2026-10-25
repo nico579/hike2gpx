@@ -34,4 +34,4 @@ Sur une zone française de 0,05° préparée dans un dossier vierge, la VM a pro
 
 Le même paquet a été relu par l'API : manifeste, réponse HTTP `206` sur une plage de la RD5 et calcul de secours de 419 m avec BRouter local au serveur. Ce calcul n'a utilisé que le paquet déjà préparé.
 
-Cet essai ne remplace pas l'installation complète `install.sh` sur Ubuntu 24.04 : apt, Caddy, systemd et la préparation BRouter réelle restent à valider sur un système avec accès sudo.
+Avec accès sudo sur cette VM Ubuntu 26.04, Caddy 2.6.2 a été installé et la configuration de filtrage a été validée. Une instance HTTP locale de Caddy a relayé les mêmes contrôles (`vm_smoke.py --prepared --route`) vers un service `hike2gpx-vmtest` lancé par systemd : paquet réel, réponse HTTP `206`, 34 franchissements et calcul de secours de 419 m. Le service de test utilise les répertoires et l'utilisateur de la VM ; il n'exerce donc pas l'isolation `ProtectHome` du modèle de production. L'installateur refuse correctement Ubuntu 26.04. La VM n'a ni nom DNS public ni certificat HTTPS ; l'installation complète et TLS restent à valider sur Ubuntu 24.04.
