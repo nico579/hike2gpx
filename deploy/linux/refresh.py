@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import time
@@ -46,6 +48,37 @@ def zones_valides(configuration: dict) -> list[dict]:
         if not isinstance(zone.get("modes"), list) or not set(zone["modes"]) <= {"strict", "souple"} or not zone["modes"]:
             raise ValueError(f"Modes invalides : {zone['id']}")
     return zones
+
+
+def nettoyer_paquets(racine: Path, zones: list[dict], maintenant: float | None = None,
+                    grace_s: int = 86400) -> int:
+    """Retire les anciens paquets remplacés, après un délai pour les téléchargements en cours."""
+    maintenant = time.time() if maintenant is None else maintenant
+    attendues = {(z["source"], tuple(z["zone"]), mode == "strict")
+                 for z in zones for mode in z["modes"]}
+    paquets = racine / "paquets"
+    if not paquets.is_dir():
+        return 0
+    groupes: dict[tuple, list[Path]] = {}
+    for dossier in paquets.iterdir():
+        if (not dossier.is_dir() or dossier.is_symlink()
+                or not re.fullmatch(r"[0-9a-f]{32}", dossier.name)):
+            continue
+        try:
+            manifeste = json.loads((dossier / "public.json").read_text(encoding="utf-8"))
+            cle = (manifeste["source"], tuple(manifeste["zone"]), manifeste["strict"])
+            if cle in attendues and manifeste.get("pret") is True:
+                groupes.setdefault(cle, []).append(dossier)
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    supprimes = 0
+    for dossiers in groupes.values():
+        dossiers.sort(key=lambda d: d.stat().st_mtime, reverse=True)
+        for dossier in dossiers[1:]:
+            if maintenant - dossier.stat().st_mtime >= grace_s:
+                shutil.rmtree(dossier)
+                supprimes += 1
+    return supprimes
 
 
 def main(argv=None) -> int:
@@ -98,7 +131,16 @@ def main(argv=None) -> int:
                     etat[cle] = {"succes_a": time.time(), "duree_s": duree,
                                  "prochaine_a": time.time() + max(jours * 86400, 10 * duree)}
                 ecrire_json(etat_path, etat)
+                if resultat.returncode == 0:
+                    nettoyes = nettoyer_paquets(racine, zones)
+                    if nettoyes:
+                        print(f"{nettoyes} ancien(s) paquet(s) supprimé(s)", flush=True)
                 print(f"{cle} : code {resultat.returncode}, {duree} s", flush=True)
+        # Le timer quotidien purge également les paquets arrivés au délai de
+        # grâce lorsqu'aucune zone n'a besoin d'être recalculée ce jour-là.
+        nettoyes = nettoyer_paquets(racine, zones)
+        if nettoyes:
+            print(f"{nettoyes} ancien(s) paquet(s) supprimé(s)", flush=True)
         return 1 if erreurs else 0
 
 
