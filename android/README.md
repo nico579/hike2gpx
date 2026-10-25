@@ -20,10 +20,11 @@ python android/smoke/run.py CHEMIN_VERS_DONNEES/brouter CHEMIN_VERS_JDK
 
 Le test prépare un dossier temporaire, appelle le même `LocalRouter` que l'APK et exige un tracé GeoJSON réel.
 
-Le prototype `Rd5QuarterAssembler` reconstruit une RD5 locale depuis des lots
-de 0,25° vérifiés par SHA-256, sans modifier BRouter. La RD5 source a été
-reconstituée octet pour octet dans la VM, et un itinéraire témoin a fonctionné
-avec un seul lot de 547 Ko. Le téléchargement de ces lots et la vérification
-de couverture avant calcul ne sont pas encore branchés à l'interface Android :
-le format 1 de paquet complet reste utilisé jusque-là. La conception et les
+Le format 2 télécharge les fragments RD5 de 0,25° du paquet choisi, vérifie
+leurs SHA-256 et reconstruit atomiquement la RD5 locale. Les anciens paquets
+complets du format 1 restent lisibles. Le calcul vérifie que le tracé reste
+dans la couverture annoncée par le paquet, avec une marge de 0,002°. Sur la
+VM, deux fragments ont été téléchargés et assemblés octet pour octet avant
+un itinéraire local de 109 m. L'essai sur appareil Android, notamment en cas
+de coupure pendant le téléchargement, reste à faire. La conception et les
 mesures figurent dans [Mailles calculées et téléchargées](../docs/architecture/05-mailles-telechargeables.md).
