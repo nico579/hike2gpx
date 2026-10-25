@@ -1,4 +1,6 @@
 import logging
+import hashlib
+import json
 import os
 import time
 from pathlib import Path
@@ -618,6 +620,25 @@ def test_paquet_cloud_deja_telecharge_sert_hors_connexion(tmp_path, monkeypatch)
     monkeypatch.setattr(a, "_itineraire_paquet", lambda *args: {"moteur": "cloud-local"})
     resultat = a._itineraire({"points": [[43.4, 6.0], [43.41, 6.01]], "source": "ign"})
     assert resultat == {"moteur": "cloud-local"}
+
+
+def test_paquet_cloud_verifie_la_nouvelle_edition_meme_avec_un_cache_recent(tmp_path, monkeypatch):
+    from nico579_commons import atomique
+    from hike2gpx.cloud import Client
+
+    zone = (43.30, 6.24, 43.31, 6.26)
+    cle = hashlib.sha256(json.dumps([zone, "ign", True, True], sort_keys=True).encode()).hexdigest()[:24]
+    cible = tmp_path / "cloud-paquets" / cle
+    cible.mkdir(parents=True)
+    cache = {"format": 1, "pret": True, "source": "ign", "strict": True,
+             "segments": [], "assets": [], "telecharge_a": time.time()}
+    atomique.ecrire_json(cible / "manifest.json", cache)
+    client = Client(tmp_path / "preferences.json")
+    monkeypatch.setattr(client, "etat", lambda **_: {"actif": True, "adresse": "https://test.example"})
+    appels = []
+    monkeypatch.setattr(client, "demander", lambda *args, **kwargs: appels.append(args) or {"pret": False})
+    assert client.paquet({"source": "ign", "officiel": True, "strict": True}, tmp_path, zone)[0] == cache
+    assert len(appels) == 1
 
 
 def test_paquet_serveur_ne_lance_pas_un_extrait_osm_regional(tmp_path, monkeypatch):

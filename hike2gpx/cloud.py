@@ -140,18 +140,25 @@ class Client:
                    and (cache.get("format") != 2
                         or (isinstance(cache.get("assemblage"), dict)
                             and (cible / cache["assemblage"].get("rd5", "")).is_file())))
-        if present and (time.time() - cache.get("telecharge_a", 0) < 7 * 86400
-                        or not self.etat()["actif"]):
+        actif = self.etat()["actif"]
+        if present and not actif:
             return cache, cible
-        if not self.etat()["actif"]:
+        if not actif:
             raise Indisponible("Paquet de cette zone absent hors connexion.")
         paquet = self.demander("paquet-zone", "GET", args=(zone, payload.get("source", "ign"),
                                                          payload.get("officiel", True),
                                                          payload.get("strict", True)))
         if not paquet.get("pret"):
+            if present:
+                return cache, cible
             raise Indisponible(paquet.get("erreur") or "Paquet de zone en préparation.")
         if paquet.get("format") not in (1, 2):
             raise Indisponible("Format de paquet inconnu.")
+        if (present and cache.get("format") == paquet["format"]
+                and cache.get("segments") == paquet.get("segments")
+                and cache.get("assets") == paquet.get("assets")
+                and cache.get("assemblage") == paquet.get("assemblage")):
+            return cache, cible
         config = self._config()
         racine.mkdir(parents=True, exist_ok=True)
         provisoire = racine / f"{cle}-{secrets.token_hex(6)}"
