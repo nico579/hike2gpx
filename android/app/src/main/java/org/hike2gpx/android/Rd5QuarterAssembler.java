@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.Set;
 import java.util.zip.CRC32;
@@ -112,8 +113,8 @@ final class Rd5QuarterAssembler {
             result.write(header);
             result.getFD().sync();
         }
-        if (output.exists() && !output.delete()) throw new IOException("Cannot replace RD5");
-        if (!temporary.renameTo(output)) throw new IOException("Cannot publish RD5");
+        Files.move(temporary.toPath(), output.toPath(),
+                StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
     }
 
     private static int crc(byte[] value) {

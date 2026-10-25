@@ -14,7 +14,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -42,7 +44,8 @@ final class PackageStore {
             if (!dir.isDirectory() || !manifest.isFile()) continue;
             try {
                 JSONObject json = new JSONObject(new String(readAll(manifest), StandardCharsets.UTF_8));
-                if (json.optInt("format") == 1 && json.optBoolean("pret") && filesValid(dir, json))
+                if ((json.optInt("format") == 1 || json.optInt("format") == 2)
+                        && json.optBoolean("pret") && filesValid(dir, json))
                     found.add(new Zone(dir, json));
             } catch (Exception ignored) { /* paquet incomplet : les autres zones restent disponibles */ }
         }
@@ -57,7 +60,7 @@ final class PackageStore {
             if (!dir.isDirectory() || !file.isFile()) continue;
             try {
                 JSONObject json = new JSONObject(new String(readAll(file), StandardCharsets.UTF_8));
-                if (json.optInt("format") != 1 || !json.optBoolean("pret")
+                if ((json.optInt("format") != 1 && json.optInt("format") != 2) || !json.optBoolean("pret")
                         || !source.equals(json.optString("source")) || json.optBoolean("strict") != strict) continue;
                 JSONArray area = json.getJSONArray("couverture");
                 if (area.getDouble(0) <= bounds[0] && area.getDouble(1) <= bounds[1]
@@ -74,7 +77,7 @@ final class PackageStore {
                 "/api/paquet-zone?s=%.7f&w=%.7f&n=%.7f&e=%.7f&source=%s&strict=%d&officiel=1",
                 bounds[0], bounds[1], bounds[2], bounds[3], source, strict ? 1 : 0);
         JSONObject manifest = new JSONObject(new String(fetch(server + query), StandardCharsets.UTF_8));
-        if (!manifest.optBoolean("pret") || manifest.optInt("format") != 1) {
+        if (!manifest.optBoolean("pret") || (manifest.optInt("format") != 1 && manifest.optInt("format") != 2)) {
             throw new IllegalStateException("This zone has not been prepared on the server");
         }
         String id = hex(MessageDigest.getInstance("SHA-256").digest(query.getBytes(StandardCharsets.UTF_8))).substring(0, 24);
@@ -85,7 +88,7 @@ final class PackageStore {
             for (int i = 0; i < files.length(); i++) {
                 JSONObject file = files.getJSONObject(i);
                 String name = file.getString("nom"), path = file.getString("url");
-                if (!name.matches("(?:[EW][0-9]+_[NS][0-9]+\\.rd5|lookups\\.dat|hike2gpx\\.brf|chemins-officiels\\.json)")
+                if (!name.matches("(?:[EW][0-9]+_[NS][0-9]+\\.rd5|[0-9]{2}_[0-3]_[0-3]\\.rd5q|lookups\\.dat|hike2gpx\\.brf|chemins-officiels\\.json)")
                         || !path.matches("/api/paquets/[a-f0-9]{32}/" + java.util.regex.Pattern.quote(name))) {
                     throw new IllegalStateException("Invalid package file");
                 }
@@ -97,6 +100,19 @@ final class PackageStore {
                 if (target.exists() && !target.delete()) throw new IllegalStateException("Cannot replace " + name);
                 if (!part.renameTo(target)) throw new IllegalStateException("Cannot publish " + name);
             }
+        }
+        if (manifest.getInt("format") == 2) {
+            JSONObject assembly = manifest.getJSONObject("assemblage");
+            String rd5 = assembly.getString("rd5");
+            if (!rd5.matches("[EW][0-9]+_[NS][0-9]+\\.rd5"))
+                throw new IllegalStateException("Invalid RD5 name");
+            Set<String> selected = new HashSet<>();
+            JSONArray coverage = assembly.getJSONArray("couverture");
+            for (int i = 0; i < coverage.length(); i++) {
+                JSONArray quarter = coverage.getJSONArray(i);
+                selected.add(Rd5QuarterAssembler.key(quarter.getInt(0), quarter.getInt(1), quarter.getInt(2)));
+            }
+            Rd5QuarterAssembler.assemble(assembly, dir, new File(dir, rd5), selected);
         }
         File temp = new File(dir, "manifest.tmp");
         try (FileOutputStream out = new FileOutputStream(temp)) {
@@ -147,6 +163,11 @@ final class PackageStore {
     }
 
     private static boolean filesValid(File dir, JSONObject manifest) throws Exception {
+        if (manifest.optInt("format") == 2) {
+            String rd5 = manifest.getJSONObject("assemblage").getString("rd5");
+            if (!rd5.matches("[EW][0-9]+_[NS][0-9]+\\.rd5")
+                    || !new File(dir, rd5).isFile()) return false;
+        }
         for (String group : new String[]{"segments", "assets"}) {
             JSONArray files = manifest.getJSONArray(group);
             for (int i = 0; i < files.length(); i++) {
