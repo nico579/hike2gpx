@@ -144,3 +144,56 @@ def troncons_zone(sud: float, ouest: float, nord: float, est: float, dossier, *,
         if suivi:
             suivi(k + 1, len(tuiles))
     return resultat
+
+
+def troncons_gpkg(gpkg, sud: float, ouest: float, nord: float, est: float) -> list:
+    """Extrait local IGN par emprise : même format normalisé que le WFS.
+
+    Utilisé uniquement par le job serveur. Le RTree du GeoPackage borne la
+    lecture ; la reprojection et l'intersection exacte traitent les frontières
+    courbes et les tronçons à cheval sur deux mailles.
+    """
+    import sqlite3
+    from contextlib import closing
+    from shapely import from_wkb, transform
+    from shapely.geometry import box
+    from pyproj import Transformer
+
+    projecteur = Transformer.from_crs(4326, 2154, always_xy=True)
+    inverse = Transformer.from_crs(2154, 4326, always_xy=True)
+    points_bord = [(ouest + (est - ouest) * k / 8, lat)
+                   for lat in (sud, nord) for k in range(9)]
+    points_bord += [(lon, sud + (nord - sud) * k / 8)
+                    for lon in (ouest, est) for k in range(9)]
+    projetes = [projecteur.transform(lon, lat) for lon, lat in points_bord]
+    xs, ys = zip(*projetes)
+    emprise = box(ouest, sud, est, nord)
+    requete = """SELECT t.cleabs, t.nature, t.acces_pieton,
+                        t.acces_vehicule_leger, t.prive, t.geometrie
+                 FROM rtree_troncon_de_route_geometrie r
+                 JOIN troncon_de_route t ON t.fid = r.id
+                 WHERE r.minx <= ? AND r.maxx >= ? AND r.miny <= ? AND r.maxy >= ?"""
+    troncons = []
+    with closing(sqlite3.connect(f"file:{Path(gpkg).resolve().as_posix()}?mode=ro", uri=True)) as base:
+        for identifiant, nature, acces, vehicule, prive, blob in base.execute(
+                requete, (max(xs), min(xs), max(ys), min(ys))):
+            if not blob or blob[:2] != b"GP":
+                raise ErreurDonnees("Géométrie BD TOPO GeoPackage invalide.")
+            tailles = {0: 0, 1: 32, 2: 48, 3: 48, 4: 64}
+            taille = tailles.get((blob[3] >> 1) & 7)
+            if taille is None:
+                raise ErreurDonnees("Enveloppe GeoPackage inconnue.")
+            geometrie = transform(from_wkb(blob[8 + taille:]), inverse.transform,
+                                  interleaved=False)
+            if not geometrie.intersects(emprise):
+                continue
+            lignes = [geometrie] if geometrie.geom_type == "LineString" else list(geometrie.geoms)
+            for k, ligne in enumerate(lignes):
+                if ligne.geom_type != "LineString" or len(ligne.coords) < 2:
+                    continue
+                troncons.append({"id": f"{identifiant}-{k}", "nature": nature,
+                                 "acces_pieton": acces, "acces_vehicule_leger": vehicule,
+                                 "prive": prive,
+                                 "pts": [[round(point[1], 6), round(point[0], 6)]
+                                         for point in ligne.coords]})
+    return troncons

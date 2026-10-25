@@ -3,6 +3,17 @@
 Le découpage des RD5 et des données de calque est décrit dans
 [Mailles calculées et téléchargées](../../docs/architecture/05-mailles-telechargeables.md).
 
+Sur la VM de test, les scripts de mesure se lancent par SSH :
+
+```bash
+python /opt/hike2gpx/rd5_quarts.py decouper E5_N40.rd5 /var/lib/hike2gpx/mesures/E5_N40
+python /opt/hike2gpx/ign_gpkg.py PACA.gpkg 43.25 6 43.5 6.25 /var/lib/hike2gpx/mesures/ign-gareoult.json.gz
+```
+
+Ces sorties sont des preuves de découpage et de volume ; leur publication aux
+clients sera activée après validation de la couverture et du format indexé des
+calques.
+
 Pré-requis : Ubuntu 24.04 x86_64, nom DNS public pointant vers le serveur, ports 80 et 443 ouverts, accès SSH pour l'administration. L'API de lecture ne demande aucun mot de passe. La gestion reste exclusivement sur le serveur via SSH et systemd.
 
 ```bash

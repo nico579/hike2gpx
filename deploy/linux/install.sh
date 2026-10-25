@@ -49,10 +49,14 @@ if [[ ! -x /opt/hike2gpx/venv/bin/python ]]; then
 fi
 /opt/hike2gpx/venv/bin/python -m pip install --upgrade pip
 /opt/hike2gpx/venv/bin/python -m pip install --upgrade "$repo_dir"
+/opt/hike2gpx/venv/bin/python -m pip install 'pyproj>=3.7,<4'
 install -m 0755 "$repo_dir/deploy/linux/refresh.py" /opt/hike2gpx/refresh.py
 install -m 0755 "$repo_dir/deploy/linux/france_osm.py" /opt/hike2gpx/france_osm.py
 install -m 0755 "$repo_dir/deploy/linux/ign_catalogue.py" /opt/hike2gpx/ign_catalogue.py
 install -m 0755 "$repo_dir/deploy/linux/ign_archive.py" /opt/hike2gpx/ign_archive.py
+install -m 0755 "$repo_dir/deploy/linux/ign_gpkg.py" /opt/hike2gpx/ign_gpkg.py
+install -m 0755 "$repo_dir/deploy/linux/rd5_shards.py" /opt/hike2gpx/rd5_shards.py
+install -m 0755 "$repo_dir/deploy/linux/rd5_quarts.py" /opt/hike2gpx/rd5_quarts.py
 install -d -m 0755 /etc/hike2gpx
 if [[ ! -f /etc/hike2gpx/zones.json ]]; then
   install -m 0644 "$repo_dir/deploy/linux/zones.example.json" /etc/hike2gpx/zones.json
