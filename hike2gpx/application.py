@@ -9,6 +9,7 @@ pour qu'aucun détour ne passe par une barrière jamais vérifiée.
 from __future__ import annotations
 
 import logging
+import json
 import hashlib
 import math
 import os
@@ -728,12 +729,22 @@ class Application:
         except franchissements.VueRemplacee:
             return {"erreur": "Vue remplacée par une autre.", "code": "vue_remplacee"}
         except franchissements.ErreurDonnees as exc:
+            journal.warning("Calque %s (%s) : échec après %.2f s, zone %s : %s",
+                            cle, "serveur" if self.mode_serveur else "local",
+                            time.monotonic() - debut, zone, exc)
             return {"erreur": str(exc)}
         finally:
             # Seulement la sienne : une vue plus récente a peut-être déjà la place.
             if self._lectures.get(cle_lecture, {}).get("numero") == numero:
                 self._lectures.pop(cle_lecture, None)
-        return {"bornes": franchissements.bornes_zone(*zone), **resultat}
+        reponse = {"bornes": franchissements.bornes_zone(*zone), **resultat}
+        journal.info("Calque %s (%s) : %d octets JSON en %.2f s, zone %s, %d chemins, %d barrières, %d franchissements",
+                     cle, "serveur" if self.mode_serveur else "local",
+                     len(json.dumps(reponse, ensure_ascii=False).encode("utf-8")),
+                     time.monotonic() - debut, zone,
+                     len(reponse.get("voies", reponse.get("troncons", []))),
+                     len(reponse.get("barrieres", [])), len(reponse.get("franchissements", [])))
+        return reponse
 
     def calque_osm(self, zone, vue=None) -> dict:
         # La vue d'abord : une vue déjà remplacée ne lance rien, pas même un
@@ -757,7 +768,8 @@ class Application:
                 return {"troncons": []}
             if self.mode_serveur:
                 return mailles.calque(source, bornes[:4], bornes[4], "officiel", **options)
-            return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
+            return {"troncons": fournisseur.chemins_pour_calque(
+                fournisseur.module.troncons_zone(*bornes, **options))}
         return self._calque(fournisseur.calque, zone, lire,
                            self._prendre_vue(fournisseur.calque, vue))
 
@@ -898,6 +910,49 @@ class Application:
                 disponibles.append((dossier.stat().st_mtime, paquet))
         return max(disponibles, key=lambda item: item[0])[1] if disponibles else {
             "pret": False, "raison": "zone_non_preparee"}
+
+    def mailles_disponibles(self) -> dict:
+        """Inventaire public des quarts de degré effectivement publiés."""
+        if not self.mode_serveur:
+            if self.cloud is None or not self.cloud.etat()["actif"]:
+                return {"mailles": [], "erreur": "Serveur de données indisponible."}
+            try:
+                return self.cloud.demander("mailles-disponibles", "GET")
+            except cloud.Indisponible as exc:
+                return {"mailles": [], "erreur": str(exc)}
+        index = {}
+        for source in ("osm", *providers.SOURCES):
+            racine = self.dossier / "mailles" / source
+            for fichier in racine.glob("*.json.gz") if racine.is_dir() else []:
+                match = re.fullmatch(r"(-?\d+)_(-?\d+)\.json\.gz", fichier.name)
+                if not match:
+                    continue
+                cellule = (int(match[1]), int(match[2]))
+                info = index.setdefault(cellule, {"maille": list(cellule), "osm": False,
+                                                 "sources": [], "itineraires": []})
+                if source == "osm":
+                    info["osm"] = True
+                else:
+                    info["sources"].append(source)
+        racine = self.dossier / "paquets"
+        for dossier in racine.iterdir() if racine.is_dir() else []:
+            if not dossier.is_dir() or not re.fullmatch(r"[0-9a-f]{32}", dossier.name):
+                continue
+            paquet = atomique.lire_json(dossier / "public.json", None)
+            if (not isinstance(paquet, dict) or paquet.get("format") != 2
+                    or paquet.get("pret") is not True or paquet.get("source") not in providers.SOURCES):
+                continue
+            for brut in paquet.get("mailles", []):
+                if (not isinstance(brut, list) or len(brut) != 2
+                        or any(type(v) is not int for v in brut)):
+                    continue
+                cellule = tuple(brut)
+                info = index.setdefault(cellule, {"maille": list(cellule), "osm": False,
+                                                 "sources": [], "itineraires": []})
+                entree = {"source": paquet["source"], "strict": paquet.get("strict") is True}
+                if entree not in info["itineraires"]:
+                    info["itineraires"].append(entree)
+        return {"pas": 0.25, "mailles": [index[cle] for cle in sorted(index)]}
 
     def fichier_paquet(self, jeton: str, nom: str) -> Path | None:
         if not re.fullmatch(r"[0-9a-f]{32}", jeton) or not re.fullmatch(
@@ -1241,6 +1296,7 @@ class Application:
             # calcul de secours. Aucun réglage, journal ni effacement de cache.
             return ({"init": self.etat, "etat": self.etat,
                      "paquet-zone": self.lire_paquet,
+                     "mailles-disponibles": self.mailles_disponibles,
                      "osm": self.calque_osm,
                      **{p.calque: (lambda zone, vue=None, cle=cle: self.calque_officiel(cle, zone, vue))
                         for cle, p in providers.SOURCES.items()},
@@ -1251,6 +1307,7 @@ class Application:
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.
         get_langue, post_langue = langue_commune.routes(self.lire_langue, self.ecrire_langue)
         get = {"init": self.etat, "etat": self.etat, "reglages": self.reglages,
+               "mailles-disponibles": self.mailles_disponibles,
                "osm": self.calque_osm,
                **{p.calque: (lambda zone, vue=None, cle=cle: self.calque_officiel(cle, zone, vue))
                   for cle, p in providers.SOURCES.items()},
@@ -1270,12 +1327,15 @@ class Application:
                 if route in get:
                     locale = get[route]
                     def avec_repli_get(*args, _route=route, _locale=locale):
-                        if self.cloud.etat()["actif"]:
-                            try:
-                                return self.cloud.demander(_route, "GET", args)
-                            except cloud.Indisponible:
-                                pass
-                        return _locale(*args)
+                        try:
+                            return self.cloud.calque(_route, args)
+                        except cloud.Indisponible as exc:
+                            if self.cloud.etat(force=True)["actif"]:
+                                journal.warning("Calque %s : cache cloud indisponible, serveur joignable : %s",
+                                                _route, exc)
+                                return {"erreur": str(exc), "origine_calque": "cloud"}
+                            journal.info("Calque %s : repli sur les données locales : %s", _route, exc)
+                        return {**_locale(*args), "origine_calque": "local"}
                     get[route] = avec_repli_get
                 if route in post:
                     locale = post[route]

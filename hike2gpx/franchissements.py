@@ -798,8 +798,8 @@ def voies_elements(elements) -> dict:
             continue
         tags = e.get("tags", {})
         ligne = [[round(lat, 6), round(lon, 6)] for lat, lon in points]
-        if _praticable(tags):
-            voies[e["id"]] = {"id": e["id"], "genre": GENRES.get(tags["highway"], "route"), "pts": ligne}
+        if _praticable(tags) and tags["highway"] in GENRES:
+            voies[e["id"]] = {"id": e["id"], "genre": GENRES[tags["highway"]], "pts": ligne}
         elif "barrier" in tags and "highway" not in tags and regles.status(tags, MODE)[0] != "passable":
             barrieres[e["id"]] = {"id": e["id"], "nature": regles.LABELS.get(tags["barrier"], "Barrière"),
                                    "pts": ligne}

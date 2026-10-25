@@ -480,9 +480,10 @@ def test_calques_refusent_une_zone_trop_grande_ou_invalide(tmp_path, monkeypatch
 def test_calque_bdtopo_et_panne(tmp_path, monkeypatch):
     from hike2gpx.providers import bdtopo
     a = appli.Application(tmp_path)
-    monkeypatch.setattr(bdtopo, "troncons_zone", lambda *z, **o: [{"id": "A-0"}])
+    monkeypatch.setattr(bdtopo, "troncons_zone", lambda *z, **o: [
+        {"id": "A-0", "nature": "Chemin"}, {"id": "B-0", "nature": "Route à 1 chaussée"}])
     # Les bornes des tuiles lues, que la page n'a pas à redemander.
-    assert a.calque_officiel("ign", (43.31, 6.01, 43.34, 6.04)) == {"troncons": [{"id": "A-0"}],
+    assert a.calque_officiel("ign", (43.31, 6.01, 43.34, 6.04)) == {"troncons": [{"id": "A-0", "nature": "Chemin"}],
                                                           "bornes": (43.3, 6.0, 43.35, 6.05)}
 
     def panne(*z, **o):
@@ -639,6 +640,56 @@ def test_paquet_cloud_verifie_la_nouvelle_edition_meme_avec_un_cache_recent(tmp_
     monkeypatch.setattr(client, "demander", lambda *args, **kwargs: appels.append(args) or {"pret": False})
     assert client.paquet({"source": "ign", "officiel": True, "strict": True}, tmp_path, zone)[0] == cache
     assert len(appels) == 1
+
+
+def test_calque_annonce_la_source_reellement_utilisee(tmp_path, monkeypatch):
+    from nico579_commons import atomique
+    from hike2gpx.cloud import Indisponible
+
+    application = appli.Application(tmp_path)
+    atomique.ecrire_json(application.preferences, {"serveur_url": "https://test.example"})
+    monkeypatch.setattr(application.cloud, "etat", lambda **_: {"actif": True, "adresse": "https://test.example"})
+    monkeypatch.setattr(application, "calque_osm", lambda *args: {"voies": ["local"]})
+    routes, _ = application.routes()
+    monkeypatch.setattr(application.cloud, "demander", lambda *args: {"voies": ["cloud"]})
+    assert routes["osm"](None, None) == {"voies": ["cloud"], "origine_calque": "cloud"}
+
+    def indisponible(*args):
+        raise Indisponible("serveur arrêté")
+
+    monkeypatch.setattr(application.cloud, "demander", indisponible)
+    assert routes["osm"](None, None) == {"erreur": "serveur arrêté", "origine_calque": "cloud"}
+    monkeypatch.setattr(application.cloud, "etat", lambda **_: {"actif": False, "adresse": "https://test.example"})
+    assert routes["osm"](None, None) == {"voies": ["local"], "origine_calque": "local"}
+
+
+def test_calque_cloud_est_cache_dans_cloud_paquets_par_serveur(tmp_path, monkeypatch):
+    from nico579_commons import atomique
+    from hike2gpx.cloud import Client
+
+    preferences = tmp_path / "preferences.json"
+    atomique.ecrire_json(preferences, {"serveur_url": "https://a.example"})
+    client = Client(preferences)
+    monkeypatch.setattr(client, "etat", lambda **_: {"actif": True})
+    appels = []
+    def distant(*args):
+        appels.append(args)
+        return {"bornes": [43.3, 6.2, 43.35, 6.3], "voies": ["chemin"]}
+    monkeypatch.setattr(client, "demander", distant)
+    zone = (43.30, 6.24, 43.31, 6.26)
+    assert client.calque("osm", (zone, None))["origine_calque"] == "cloud"
+    assert client.calque("osm", (zone, None))["origine_calque"] == "cloud"
+    assert len(appels) == 1
+    assert list((tmp_path / "cloud-paquets" / "calques").rglob("*.json.gz"))
+
+    monkeypatch.setattr(client, "etat", lambda **_: {"actif": False})
+    assert client.calque("osm", (zone, None))["origine_calque"] == "cloud"
+    assert len(appels) == 1
+
+    atomique.ecrire_json(preferences, {"serveur_url": "https://b.example"})
+    monkeypatch.setattr(client, "etat", lambda **_: {"actif": True})
+    assert client.calque("osm", (zone, None))["origine_calque"] == "cloud"
+    assert len(appels) == 2
 
 
 def test_paquet_serveur_ne_lance_pas_un_extrait_osm_regional(tmp_path, monkeypatch):

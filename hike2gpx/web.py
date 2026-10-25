@@ -195,6 +195,9 @@ def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, ins
                                                 favicon=bureau.ICONE)
     if serveur is None:
         raise OSError("Aucun port disponible pour la page de hike2gpx.")
+    journal.info("Serveur HTTP %s prêt sur %s:%d, données %s",
+                 "de données" if application.mode_serveur else "de bureau",
+                 HOST, port, application.dossier)
     return serveur, port
 
 
