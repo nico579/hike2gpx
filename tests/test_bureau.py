@@ -127,6 +127,10 @@ def test_mode_serveur_accepte_uniquement_le_domaine_du_proxy(tmp_path):
                 reponse = connexion.getresponse()
                 assert reponse.status == attendu
                 reponse.read()
+            connexion.request("GET", "/", headers={"Host": "rando.example.org"})
+            accueil = connexion.getresponse()
+            assert accueil.status == 200
+            assert b"Serveur de donn" in accueil.read()
         finally:
             connexion.close()
         assert serveur.server_address[0] == "127.0.0.1"
