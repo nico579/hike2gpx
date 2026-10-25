@@ -34,4 +34,12 @@ Sur une zone française de 0,05° préparée dans un dossier vierge, la VM a pro
 
 Le même paquet a été relu par l'API : manifeste, réponse HTTP `206` sur une plage de la RD5 et calcul de secours de 419 m avec BRouter local au serveur. Ce calcul n'a utilisé que le paquet déjà préparé.
 
+Pour la préparation de la France métropolitaine entière, consulter [le plan et les mesures](../../docs/architecture/04-france-entiere.md). L'import OSM national est une opération explicite, exécutée par SSH et conditionnée à au moins 40 Gio libres :
+
+```bash
+HIKE2GPX_HOME=/var/lib/hike2gpx /opt/hike2gpx/venv/bin/python /opt/hike2gpx/france_osm.py --installer
+```
+
+Cet outil compte les tuiles sans téléchargement lorsqu'on omet `--installer`. La limite ordinaire de 2 Gio des extraits automatiques reste en vigueur ; l'outil autorise explicitement l'extrait France et conserve ce plafond pour son renouvellement.
+
 Avec accès sudo sur cette VM Ubuntu 26.04, Caddy 2.6.2 a été installé et la configuration de filtrage a été validée. Une instance HTTP locale de Caddy a relayé les mêmes contrôles (`vm_smoke.py --prepared --route`) vers un service `hike2gpx-vmtest` lancé par systemd : paquet réel, réponse HTTP `206`, 34 franchissements et calcul de secours de 419 m. Le service de test utilise les répertoires et l'utilisateur de la VM ; il n'exerce donc pas l'isolation `ProtectHome` du modèle de production. L'installateur refuse correctement Ubuntu 26.04. La VM n'a ni nom DNS public ni certificat HTTPS ; l'installation complète et TLS restent à valider sur Ubuntu 24.04.
