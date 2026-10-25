@@ -24,7 +24,7 @@ sudo journalctl -u hike2gpx-refresh.service -n 100
 sudo cat /var/lib/hike2gpx/refresh.json
 ```
 
-Le planificateur prend un verrou exclusif, prépare les zones l'une après l'autre et n'avance la prochaine échéance qu'après succès. Un échec garde le dernier paquet publié et sera retenté au prochain passage. Les durées sont consignées dans `refresh.json` et dans le journal systemd. Le stockage des anciens paquets doit être surveillé tant que la politique de rétention n'est pas en place.
+Le planificateur prend un verrou exclusif, prépare les zones l'une après l'autre et n'avance la prochaine échéance qu'après succès. Un échec garde le dernier paquet publié et sera retenté au prochain passage. Les durées sont consignées dans `refresh.json` et dans le journal systemd. Après publication d'un nouveau paquet, l'ancien reste disponible pendant 24 heures pour les téléchargements en cours, puis le timer le retire. Les fichiers intermédiaires de création des RD5 sont supprimés dès la fin de leur fabrication ; les caches IGN et OSM restent disponibles pour les renouvellements.
 
 ## Essai dans la VM VirtualBox locale
 
