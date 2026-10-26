@@ -173,6 +173,25 @@ const TEXTES = {
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
     "aide.titre": "Aide : le mode d'emploi (README)",
+    "reglages.casesHorsLigne": "Afficher les cases hors ligne (5°)",
+    "reglages.casesNombre": "{nombre} case(s) prête(s) · vert : prête, orange : en préparation, gris : à préparer",
+    "reglages.casesAucune": "Aucune case prête hors ligne. Cliquez une case de la carte pour la préparer.",
+    "horsLigne.case": "Case {nom}",
+    "horsLigne.prete": "Prête hors ligne : {taille}, OSM du {date}.",
+    "horsLigne.absente": "Pas encore disponible hors ligne.",
+    "horsLigne.enPreparation": "En préparation.",
+    "horsLigne.preparerVue": "Préparer la vue actuelle",
+    "horsLigne.preparerCase": "Préparer toute la case (environ une heure)",
+    "horsLigne.mettreAJour": "Mettre à jour",
+    "horsLigne.arreter": "Arrêter",
+    "horsLigne.avancement": "Préparation hors ligne de {nom} : {etape}{compte}, depuis {duree}",
+    "horsLigne.fini": "Case {nom} prête hors ligne.",
+    "horsLigne.erreur": "Préparation de {nom} interrompue : {erreur}",
+    "horsLigne.etape.debut": "démarrage",
+    "horsLigne.etape.rd5": "itinéraires BRouter",
+    "horsLigne.etape.extraits": "extraits OSM",
+    "horsLigne.etape.calques": "chemins et franchissements",
+    "horsLigne.etape.installation": "installation",
     "pleinEcran.entrer": "Plein écran",
     "pleinEcran.quitter": "Quitter le plein écran",
     "etape.debut": "Préparation du calcul",
@@ -348,6 +367,25 @@ const TEXTES = {
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
     "aide.titre": "Help: the user guide (README)",
+    "reglages.casesHorsLigne": "Show offline areas (5°)",
+    "reglages.casesNombre": "{nombre} area(s) ready · green: ready, orange: being prepared, gray: to prepare",
+    "reglages.casesAucune": "No area is ready offline yet. Click an area on the map to prepare it.",
+    "horsLigne.case": "Area {nom}",
+    "horsLigne.prete": "Ready offline: {taille}, OSM of {date}.",
+    "horsLigne.absente": "Not available offline yet.",
+    "horsLigne.enPreparation": "Being prepared.",
+    "horsLigne.preparerVue": "Prepare the current view",
+    "horsLigne.preparerCase": "Prepare the whole area (about an hour)",
+    "horsLigne.mettreAJour": "Update",
+    "horsLigne.arreter": "Stop",
+    "horsLigne.avancement": "Preparing {nom} for offline use: {etape}{compte}, for {duree}",
+    "horsLigne.fini": "Area {nom} ready offline.",
+    "horsLigne.erreur": "Preparation of {nom} interrupted: {erreur}",
+    "horsLigne.etape.debut": "starting",
+    "horsLigne.etape.rd5": "BRouter routing data",
+    "horsLigne.etape.extraits": "OSM extracts",
+    "horsLigne.etape.calques": "paths and crossings",
+    "horsLigne.etape.installation": "installation",
     "pleinEcran.entrer": "Full screen",
     "pleinEcran.quitter": "Exit full screen",
     "etape.debut": "Preparing the calculation",
@@ -1257,6 +1295,191 @@ function construireFonds() {
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
 }
 
+// ------------------------------------------------------------ hors ligne
+// Les cases BRouter de 5° prêtes hors ligne (lots installés), dessinées sur
+// la carte depuis les réglages comme les mailles du serveur. Un clic sur une
+// case la prépare : le serveur fabrique son lot en tâche de fond (lot_osm.py)
+// et la note de l'onglet Parcours en suit l'avancement.
+const CASE_DEG = 5;
+const CLE_CASES = "hike2gpx.casesHorsLigne";
+carte.createPane("casesHorsLigne").style.zIndex = 380;
+const grilleCases = L.layerGroup();
+let lotsInstalles = [];
+let lotEnCours = { actif: false };
+let minuterieLot = null;
+
+function nomCase(lat, lon) {
+  const la = Math.floor(lat / CASE_DEG) * CASE_DEG, lo = Math.floor(lon / CASE_DEG) * CASE_DEG;
+  return `${lo < 0 ? "W" : "E"}${Math.abs(lo)}_${la < 0 ? "S" : "N"}${Math.abs(la)}`;
+}
+
+function boiteCase(nom) {
+  const [, est, lon, nord, lat] = nom.match(/^([EW])(\d+)_([NS])(\d+)$/);
+  const o = Number(lon) * (est === "W" ? -1 : 1), s = Number(lat) * (nord === "S" ? -1 : 1);
+  return [s, o, s + CASE_DEG, o + CASE_DEG];
+}
+
+function casesVisibles() {
+  const b = carte.getBounds();
+  const noms = [];
+  for (let lat = Math.floor(b.getSouth() / CASE_DEG) * CASE_DEG; lat < b.getNorth(); lat += CASE_DEG) {
+    for (let lon = Math.floor(b.getWest() / CASE_DEG) * CASE_DEG; lon < b.getEast(); lon += CASE_DEG) {
+      noms.push(nomCase(lat, lon));
+    }
+  }
+  return noms.slice(0, 60);       // au plus 60 cases : au-delà, la carte est trop dézoomée pour choisir
+}
+
+function etatCase(nom) {
+  if (lotEnCours.actif && lotEnCours.case === nom) return "preparation";
+  return lotsInstalles.some((l) => l.case === nom) ? "prete" : "absente";
+}
+
+const STYLES_CASE = {
+  prete: { color: "#23804f", weight: 2, fillColor: "#23804f", fillOpacity: 0.08 },
+  preparation: { color: "#e07b00", weight: 2, dashArray: "6 4", fillColor: "#e07b00", fillOpacity: 0.08 },
+  absente: { color: "#697789", weight: 1, dashArray: "4 6", fill: false },
+};
+
+function tailleTexte(octets) {
+  return `${Math.round((octets || 0) / 1e6)} ${t("unite.mo")}`;
+}
+
+function dureeTexte(secondes) {
+  return secondes < 60 ? `${secondes} s` : `${Math.round(secondes / 60)} min`;
+}
+
+function bouton(texteBouton, action) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = texteBouton;
+  b.addEventListener("click", action);
+  return b;
+}
+
+function bulleCase(nom) {
+  const div = document.createElement("div");
+  div.className = "bulle";
+  div.append(paragraphe(t("horsLigne.case", { nom }), true));
+  const lotCase = lotsInstalles.find((l) => l.case === nom);
+  const etatActuel = etatCase(nom);
+  if (etatActuel === "preparation") {
+    div.append(paragraphe(t("horsLigne.enPreparation")), bouton(t("horsLigne.arreter"), arreterLot));
+    return div;
+  }
+  div.append(paragraphe(lotCase
+    ? t("horsLigne.prete", { taille: tailleTexte(lotCase.octets), date: (lotCase.sources?.osm || "").slice(0, 10) })
+    : t("horsLigne.absente")));
+  const [s, o, n, e] = boiteCase(nom);
+  const b = carte.getBounds();
+  const vueDansCase = b.getSouth() >= s && b.getNorth() <= n && b.getWest() >= o && b.getEast() <= e;
+  if (vueDansCase) {
+    div.append(bouton(t("horsLigne.preparerVue"), () => preparerCase(nom,
+      [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])));
+  }
+  div.append(bouton(lotCase ? t("horsLigne.mettreAJour") : t("horsLigne.preparerCase"), () => preparerCase(nom)));
+  return div;
+}
+
+function dessinerCases() {
+  grilleCases.clearLayers();
+  if (!$("showOfflineGrid").checked) return;
+  for (const nom of casesVisibles()) {
+    const [s, o, n, e] = boiteCase(nom);
+    L.rectangle([[s, o], [n, e]], { pane: "casesHorsLigne", bubblingMouseEvents: false,
+      ...STYLES_CASE[etatCase(nom)] })
+      .bindPopup(() => bulleCase(nom)).addTo(grilleCases);
+  }
+}
+
+function afficherStatutCases() {
+  const statut = $("offlineGridStatus");
+  if (!$("showOfflineGrid").checked) { statut.textContent = ""; return; }
+  statut.textContent = lotsInstalles.length
+    ? t("reglages.casesNombre", { nombre: lotsInstalles.length }) : t("reglages.casesAucune");
+}
+
+async function chargerLots() {
+  // Grille masquée : rien à lire, seulement à effacer.
+  if ($("showOfflineGrid").checked) {
+    try {
+      lotsInstalles = (await api("hors_ligne")).lots || [];
+    } catch (_) { /* serveur injoignable : la grille reste vide */ }
+  }
+  afficherStatutCases();
+  dessinerCases();
+}
+
+function basculerCases() {
+  try { localStorage.setItem(CLE_CASES, $("showOfflineGrid").checked ? "1" : "0"); }
+  catch (_) { /* réglage de carte non persistant */ }
+  if ($("showOfflineGrid").checked) grilleCases.addTo(carte); else grilleCases.remove();
+  chargerLots();
+}
+$("showOfflineGrid").addEventListener("change", basculerCases);
+carte.on("moveend", dessinerCases);
+
+function afficherLot(r) {
+  const nom = r.case || "";
+  let message = "";
+  if (r.actif) {
+    const compte = r.total ? ` ${r.faites}/${r.total}` : "";
+    message = t("horsLigne.avancement", { nom, etape: t(`horsLigne.etape.${r.etape}`), compte,
+      duree: dureeTexte(r.duree_s || 0) });
+  } else if (r.erreur) {
+    message = t("horsLigne.erreur", { nom, erreur: ts(r.erreur) });
+  } else if (r.etape === "fini") {
+    message = t("horsLigne.fini", { nom });
+  }
+  $("lotHorsLigneTexte").textContent = message;
+  $("lotHorsLigne").hidden = !message;
+  $("arreterLot").hidden = !r.actif;
+  majPiste("lotHorsLigne", r.actif ? (r.total ? r.faites / r.total : null) : undefined);
+}
+
+async function suivreLot() {
+  minuterieLot = null;
+  try {
+    lotEnCours = await api("lot_en_cours");
+  } catch (_) {
+    return;
+  }
+  afficherLot(lotEnCours);
+  if (lotEnCours.actif) {
+    minuterieLot = setTimeout(suivreLot, 2000);
+    dessinerCases();
+  } else {
+    await chargerLots();
+  }
+}
+
+async function preparerCase(nom, zone = null) {
+  carte.closePopup();
+  const reponse = await api("preparer_lot", zone ? { case: nom, zone } : { case: nom });
+  if (reponse.erreur) {
+    afficherLot({ case: nom, erreur: reponse.erreur });
+    return;
+  }
+  if (minuterieLot) clearTimeout(minuterieLot);
+  suivreLot();
+}
+
+async function arreterLot() {
+  carte.closePopup();
+  await api("arreter_lot", {});
+  if (minuterieLot) clearTimeout(minuterieLot);
+  suivreLot();
+}
+$("arreterLot").addEventListener("click", arreterLot);
+
+function restaurerCases() {
+  try { $("showOfflineGrid").checked = localStorage.getItem(CLE_CASES) === "1"; }
+  catch (_) { /* pas de préférence */ }
+  if ($("showOfflineGrid").checked) grilleCases.addTo(carte);
+  chargerLots();
+  suivreLot();
+}
+
 // ------------------------------------------------------------ points
 
 const couches = L.layerGroup().addTo(carte);
@@ -2046,6 +2269,7 @@ async function demarrer() {
   restaurerCalques();     // avant le contrôle des fonds, pour que ses cases soient cochées
   construireFonds();
   rafraichirCalques();
+  restaurerCases();       // lots installés, et fabrication en cours si la page a été rechargée
 }
 
 demarrer();

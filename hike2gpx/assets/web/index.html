@@ -86,6 +86,7 @@
     <p id="noteCalques" class="note" hidden><span id="noteCalquesTexte"></span><span id="noteCalquesPiste" class="piste" role="progressbar" hidden><span id="noteCalquesBarre" class="barre"></span></span></p>
     <p id="extraitOsm" class="note" hidden><span id="extraitTexte"></span><span id="extraitPiste" class="piste" role="progressbar" hidden><span id="extraitBarre" class="barre"></span></span></p>
     <p id="brouterEnCours" class="note" hidden><span id="brouterTexte"></span><span id="brouterPiste" class="piste indeterminee" role="progressbar"><span id="brouterBarre" class="barre"></span></span></p>
+    <p id="lotHorsLigne" class="note" hidden><span id="lotHorsLigneTexte"></span><span id="lotHorsLignePiste" class="piste" role="progressbar" hidden><span id="lotHorsLigneBarre" class="barre"></span></span><button id="arreterLot" type="button" hidden data-i18n="horsLigne.arreter">Arrêter</button></p>
     <div id="actions"></div>
     <section id="resultat" hidden>
       <p id="sourceDenivele" class="note"></p><p id="comparaison"></p>
@@ -100,6 +101,7 @@
       <div class="setting-row renewal-row"><label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les données locales après</label><div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div></div>
       <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
       <div class="display-settings"><label class="option"><input id="hideMapToolbar" type="checkbox"> <span data-i18n="reglages.masquerCartes">Masquer le bandeau des cartes</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
+      <div class="journal-settings offline-grid-settings"><label class="option"><input id="showOfflineGrid" type="checkbox"> <span data-i18n="reglages.casesHorsLigne">Afficher les cases hors ligne (5°)</span></label><p id="offlineGridStatus" class="note" role="status"></p></div>
       <div class="journal-settings"><button id="ouvrirDossierJournaux" type="button" data-i18n="reglages.ouvrirJournaux">Ouvrir le dossier des journaux</button><p id="erreurDossierJournaux" class="note" role="alert" hidden></p></div>
       <div class="journal-settings"><p id="versionApplication" class="note" hidden></p><button id="verifierMaj" type="button" data-i18n="reglages.verifierMaj">Vérifier les mises à jour</button><p id="statutMaj" class="note" role="status" hidden></p></div>
       <div id="donnees"></div>
@@ -125,7 +127,7 @@
 <script src="/leaflet/leaflet.js"></script>
 <script src="/leaflet/Leaflet.VectorGrid.bundled.js"></script>
 <script src="/map-providers.js?v=8"></script>
-<script src="/app.js?v=desktop-48"></script>
+<script src="/app.js?v=desktop-49"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
