@@ -7,7 +7,9 @@
 1. Découpe chaque extrait OSM à la case (voies entières) et les fusionne.
 2. Indexe le PBF de la case (base SQLite par tuiles de 0,05°, comme l'application).
 3. Fusionne les mailles de 0,25° de l'emprise avec les tronçons BD TOPO (case.Registre).
-4. Écrit le PBF enrichi, puis compile la RD5 de la case, enrichie et OSM seule.
+4. Fabrique les calques de la case en tuiles vectorielles (lot.Calques).
+5. Écrit le PBF enrichi, puis compile la RD5 de la case, enrichie et OSM seule.
+6. Range le lot dans DOSSIER/lot-CASE : RD5, franchissements, calques, manifeste.
 Les mesures vont dans DOSSIER/resultats.json ; les intermédiaires sont effacés.
 """
 from __future__ import annotations
@@ -16,6 +18,7 @@ import argparse
 import gzip
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -23,10 +26,13 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from hike2gpx import brouter, case, geofabrik
+from hike2gpx import brouter, case, geofabrik, lot
 
 # Mémoire de Java pour compiler une case de 5° dense ; 1 Go ne suffit pas.
 TAS_JAVA = "4500m"
+MARGE_LECTURE = 0.001       # degrés lus autour d'un bloc : plus que la marge d'une tuile du zoom 14
+ATTRIBUTION = ("© contributeurs OpenStreetMap (ODbL) ; BD TOPO © IGN (Licence Ouverte Etalab) ; "
+               "relief Mapterhorn (https://mapterhorn.com/attribution)")
 resultats: dict = {"etapes": {}, "mailles": []}
 
 
@@ -134,6 +140,22 @@ def main() -> None:
                      voies_osm_raccordees=len(registre.raccords),
                      franchissements=len(registre.franchissements),
                      franchissements_gz_octets=franchissements.stat().st_size)
+
+    dossier_lot = args.dossier / f"lot-{args.case}"
+    dossier_lot.mkdir(exist_ok=True)
+    calques = lot.Calques(dossier_lot / "calques.mbtiles", args.case, (sud, ouest, nord, est), ATTRIBUTION)
+    with mesurer("calques"):
+        sources = lot.Sources(base, args.gpkg, args.departement, emprise, list(registre.franchissements.values()))
+        tous = lot.blocs(sud, ouest, nord, est)
+        for k, (x10, y10) in enumerate(tous, 1):
+            o, s, e, n = lot.bornes_tuile(lot.ZOOM_BLOC, x10, y10)
+            calques.ajouter_bloc(x10, y10, sources.bloc(max(s, sud) - MARGE_LECTURE, max(o, ouest) - MARGE_LECTURE,
+                                                         min(n, nord) + MARGE_LECTURE, min(e, est) + MARGE_LECTURE))
+            if k % 25 == 0:
+                journal(f"  calques : {k}/{len(tous)} blocs, {calques.tuiles} tuiles")
+        sources.fermer()
+        calques.fermer()
+    resultats.update(calques_octets=calques.chemin.stat().st_size, calques_tuiles=calques.tuiles)
     base.unlink()
 
     inst = brouter.Installation(args.installation)
@@ -151,6 +173,24 @@ def main() -> None:
         shutil.rmtree(construction)
         (args.dossier / "resultats.json").write_text(json.dumps(resultats, indent=1, ensure_ascii=False))
     pbf_enrichi.unlink()
+
+    # Le lot : RD5 enrichie, franchissements, calques et manifeste.
+    rd5 = args.dossier / f"{args.case}-enrichie.rd5"
+    if rd5.exists():
+        shutil.move(rd5, dossier_lot / f"{args.case}.rd5")
+        shutil.move(franchissements, dossier_lot / "franchissements.json.gz")
+        edition_ign = re.search(r"ED(\d{4}-\d{2}-\d{2})", args.gpkg.name)
+        sources_lot = {
+            "osm": subprocess.run(["osmium", "fileinfo", "-g", "header.option.osmosis_replication_timestamp",
+                                   str(args.osm[0])], capture_output=True, text=True).stdout.strip(),
+            "bdtopo": edition_ign.group(1) if edition_ign else args.gpkg.name,
+            "relief": "Mapterhorn, zoom 12" if args.relief else None}
+        manifeste = lot.ecrire_manifeste(
+            dossier_lot, args.case,
+            [dossier_lot / f"{args.case}.rd5", dossier_lot / "franchissements.json.gz", dossier_lot / "calques.mbtiles"],
+            sources_lot, emprise_enrichie=list(emprise), departement=args.departement, attribution=ATTRIBUTION)
+        resultats["lot_octets"] = sum(f.stat().st_size for f in dossier_lot.iterdir())
+        journal(f"Lot : {dossier_lot} ({resultats['lot_octets'] / 1e6:.1f} Mo), manifeste {manifeste.name}")
     resultats["duree_totale_s"] = round(time.monotonic() - debut, 1)
     (args.dossier / "resultats.json").write_text(json.dumps(resultats, indent=1, ensure_ascii=False))
     journal(f"FIN : {json.dumps({k: v for k, v in resultats.items() if k != 'mailles'}, ensure_ascii=False)}")
