@@ -115,9 +115,11 @@ régional avant de passer à la suivante. Le disque ne porte jamais plus d'une
 région à la fois.
 
 **Les jonctions entre régions se règlent à l'import, par l'identifiant.**
-Chaque tronçon BD TOPO porte un identifiant national (`cleabs`). Qu'un
-tronçon frontalier soit livré par les deux régions ou coupé à la limite,
-l'ajout au fichier national dédoublonne sur cet identifiant. Une fois l'import
+Chaque tronçon BD TOPO porte un identifiant national (`cleabs`). Les
+livraisons régionales se chevauchent : celle de PACA (édition 2026-09, 1 593 561
+tronçons) en contient environ 93 000 rattachés aux départements voisins, dont
+44 475 dans la Drôme et 40 231 dans le Gard. Un même tronçon arrive donc par
+deux régions, et l'ajout au fichier national dédoublonne sur `cleabs`. Une fois l'import
 fini, il n'y a plus de régions, seulement une source continue.
 
 **La fabrication se fait par case RD5, puis par maille.** Chaque maille lit
