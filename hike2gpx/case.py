@@ -182,7 +182,7 @@ def troncons_gpkg(gpkg, sud: float, ouest: float, nord: float, est: float, depar
     bord = [(ouest + (est - ouest) * k / 8, la) for la in (sud, nord) for k in range(9)]
     bord += [(lo, sud + (nord - sud) * k / 8) for lo in (ouest, est) for k in range(9)]
     xs, ys = zip(*(vers_l93.transform(lo, la) for lo, la in bord))
-    requete = ("SELECT t.cleabs, t.nature, t.acces_pieton, t.geometrie "
+    requete = ("SELECT t.cleabs, t.nature, t.acces_pieton, t.prive, t.geometrie "
                "FROM rtree_troncon_de_route_geometrie r JOIN troncon_de_route t ON t.fid = r.id "
                "WHERE r.minx <= ? AND r.maxx >= ? AND r.miny <= ? AND r.maxy >= ?")
     valeurs = [max(xs), min(xs), max(ys), min(ys)]
@@ -192,12 +192,13 @@ def troncons_gpkg(gpkg, sud: float, ouest: float, nord: float, est: float, depar
     tailles = {0: 0, 1: 32, 2: 48, 3: 48, 4: 64}
     troncons = []
     with closing(sqlite3.connect(f"file:{Path(gpkg).resolve().as_posix()}?mode=ro", uri=True)) as base:
-        for cleabs, nature, acces, blob in base.execute(requete, valeurs):
+        for cleabs, nature, acces, prive, blob in base.execute(requete, valeurs):
             geometrie = transform(from_wkb(blob[8 + tailles[(blob[3] >> 1) & 7]:]), vers_wgs.transform,
                                   interleaved=False)
             lignes = [geometrie] if geometrie.geom_type == "LineString" else list(geometrie.geoms)
             for k, ligne in enumerate(lignes):
                 if len(ligne.coords) >= 2:
                     troncons.append({"id": f"{cleabs}-{k}", "nature": nature, "acces_pieton": acces,
+                                     "prive": bool(prive),
                                      "pts": [[round(p[1], 7), round(p[0], 7)] for p in ligne.coords]})
     return troncons

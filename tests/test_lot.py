@@ -80,26 +80,63 @@ def test_sources_lisent_l_index_osm_par_bloc(tmp_path):
         con.executescript(geofabrik.SCHEMA + geofabrik.INDEX_SQL)
         voies = {1: ({"highway": "path", "sac_scale": "hiking", "name": "x"}, [(43.30, 6.00), (43.31, 6.01)]),
                  2: ({"highway": "track", "tracktype": "grade3"}, [(43.30, 6.02), (43.30, 6.03)]),
-                 3: ({"highway": "primary"}, [(43.30, 6.00), (43.32, 6.00)])}
+                 3: ({"highway": "primary"}, [(43.30, 6.00), (43.32, 6.00)]),
+                 4: ({"barrier": "fence"}, [(43.305, 6.01), (43.305, 6.02)]),
+                 5: ({"barrier": "kerb"}, [(43.306, 6.01), (43.306, 6.02)]),
+                 6: ({"highway": "motorway"}, [(43.31, 6.0), (43.31, 6.03)])}
         for ident, (tags, pts) in voies.items():
             points = (np.array(pts) * 1e7).round().astype("<i4").tobytes()
             con.execute("INSERT INTO voies VALUES (?, ?, ?, ?)", (ident, json.dumps(tags), b"", points))
             for i, j in {fr.tuile_du_point(*p) for p in pts}:
                 con.execute("INSERT INTO tuiles VALUES (?, ?, ?)", (i, j, ident))
-        con.execute("INSERT INTO noeuds VALUES (9, 43.305, 6.005, ?)", (json.dumps({"barrier": "gate"}),))
-        con.execute("INSERT INTO noeuds VALUES (10, 43.305, 6.006, ?)", (json.dumps({"entrance": "yes"}),))
-    franchissement = {"lat": 43.301, "lon": 6.025, "statut": "blocked", "nature": "Clôture", "raison": "r"}
-    sources = lot.Sources(base, franchissements=[franchissement])
+    franchissements_fusion = [
+        {"cle": "a", "lat": 43.301, "lon": 6.025, "statut": "blocked", "nature": "Clôture", "raison": "r",
+         "osm": "way/4", "coupes": []},
+        {"cle": "b", "lat": 43.302, "lon": 6.025, "statut": "passable", "nature": "Portillon", "raison": "r"}]
+    sources = lot.Sources(base, franchissements=franchissements_fusion)
     couches = sources.bloc(43.29, 5.99, 43.33, 6.04)
-    assert sorted(p["genre"] for _, p in couches["chemins_osm"]) == ["piste", "sentier"]
-    sentier = next(p for _, p in couches["chemins_osm"] if p["genre"] == "sentier")
-    assert sentier == {"genre": "sentier", "osm": 1, "highway": "path", "sac_scale": "hiking"}
-    assert [p["barrier"] for _, p in couches["barrieres"]] == ["gate"]
-    assert [p["statut"] for _, p in couches["franchissements"]] == ["blocked"]
-    assert couches["chemins_officiels"] == []
+    # Les règles de la page (voies_affichables) : routes comprises, autoroute exclue.
+    assert sorted(p["genre"] for _, p in couches["voies"]) == ["piste", "route", "sentier"]
+    assert next(p for _, p in couches["voies"] if p["genre"] == "sentier") == {"id": 1, "genre": "sentier"}
+    # Une clôture gêne le piéton, une bordure non.
+    assert [p for _, p in couches["barrieres"]] == [{"id": 4, "nature": "Clôture"}]
+    assert [p for _, p in couches["franchissements"]] == [
+        {"cle": "a", "statut": "blocked", "raison": "r", "nature": "Clôture", "osm": "way/4"}]
+    assert couches["troncons"] == []
     loin = sources.bloc(44.0, 7.0, 44.1, 7.1)
     assert not any(loin.values())
     sources.fermer()
+
+
+def test_lire_calque_rend_le_format_de_la_page(tmp_path):
+    chemin = tmp_path / "calques.mbtiles"
+    case = (43.0, 5.0, 45.0, 10.0)
+    calques = lot.Calques(chemin, "E5_N40", case, "")
+    voie = shapely.LineString([(6.000, 43.300), (6.004, 43.302)])
+    troncon = shapely.LineString([(6.001, 43.301), (6.003, 43.301)])
+    franchi = shapely.Point(6.002, 43.3011)
+    couches = {"voies": [(voie, {"id": 1, "genre": "sentier"})],
+               "barrieres": [],
+               "troncons": [(troncon, {"id": "T-0", "nature": "Chemin", "prive": True})],
+               "franchissements": [(franchi, {"cle": "a", "statut": "blocked", "nature": "Clôture", "raison": "r"})]}
+    for x, y in lot.blocs(43.29, 5.99, 43.31, 6.01):
+        calques.ajouter_bloc(x, y, couches)
+    calques.fermer()
+    osm = lot.lire_calque(chemin, "osm", 43.299, 5.999, 43.303, 6.005)
+    assert set(osm) == {"voies", "barrieres", "franchissements"}
+    assert {v["genre"] for v in osm["voies"]} == {"sentier"} and osm["barrieres"] == []
+    debut = min((p for v in osm["voies"] for p in v["pts"]), key=lambda p: p[1])
+    assert debut[0] == pytest.approx(43.300, abs=1e-5) and debut[1] == pytest.approx(6.000, abs=1e-5)
+    [f] = osm["franchissements"]
+    assert f["cle"] == "a" and f["lat"] == pytest.approx(43.3011, abs=1e-5) and f["lon"] == pytest.approx(6.002, abs=1e-5)
+    bdtopo = lot.lire_calque(chemin, "bdtopo", 43.299, 5.999, 43.303, 6.005)
+    assert set(bdtopo) == {"troncons"} and bdtopo["troncons"][0]["nature"] == "Chemin"
+    assert bdtopo["troncons"][0]["prive"] is True
+
+
+def test_boite_case():
+    assert lot.boite_case("E5_N40") == (40, 5, 45, 10)
+    assert lot.boite_case("W5_N45") == (45, -5, 50, 0)
 
 
 def test_manifeste_decrit_chaque_fichier(tmp_path):

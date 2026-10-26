@@ -24,7 +24,9 @@ import mapbox_vector_tile
 import numpy as np
 import shapely
 
-FORMAT = 1                      # version du format de lot, lue par le téléphone et le PC
+# Version du format de lot, lue par le téléphone et le PC. 2 : les couches
+# reprennent celles de la page (voies, barrieres, troncons, franchissements).
+FORMAT = 2
 ZOOM = 14
 ZOOM_BLOC = 10                  # lecture des sources par blocs : 256 tuiles du zoom 14
 ETENDUE = 4096
@@ -155,29 +157,23 @@ class Calques:
         self.base.close()
 
 
-NATURES_OFFICIELLES = ("Chemin", "Sentier", "Escalier", "Route empierrée")
-ETIQUETTES_OSM = ("highway", "tracktype", "sac_scale", "access", "foot")
-
-
 class Sources:
-    """Ce que montrent les calques d'une case, lu bloc par bloc : chemins OSM de
-    l'index de la case (geofabrik.importer), chemins officiels du GeoPackage BD
-    TOPO sur l'emprise enrichie, barrières OSM et franchissements de la fusion."""
+    """Ce que montrent les calques d'une case, lu bloc par bloc, avec les règles
+    de la page (franchissements.voies_affichables) : les voies praticables OSM
+    et leur genre, les barrières linéaires qui gênent un piéton, les
+    franchissements bloquants ou à vérifier de la fusion, et les tronçons BD
+    TOPO de l'emprise enrichie. Les calques d'un lot s'affichent ainsi comme
+    ceux que l'application lit en ligne."""
 
     def __init__(self, base_osm: Path, gpkg: Path | None = None, departement: str | None = None,
                  emprise_officielle: tuple | None = None, franchissements: list = ()):
-        from . import franchissements as fr
-        self._fr = fr
+        from . import franchissements as fr, regles
+        self._fr, self._regles = fr, regles
         self.base = sqlite3.connect(f"file:{Path(base_osm).resolve().as_posix()}?mode=ro", uri=True)
         self.gpkg, self.departement, self.emprise_officielle = gpkg, departement, emprise_officielle
-        barrieres = []
-        for lat, lon, tags in self.base.execute("SELECT lat, lon, tags FROM noeuds WHERE tags LIKE '%\"barrier\"%'"):
-            tags = json.loads(tags)
-            barrieres.append((shapely.Point(lon, lat), {k: tags[k] for k in ("barrier", "access", "foot") if k in tags}))
-        self.barrieres = self._index(barrieres)
         self.franchissements = self._index(
-            [(shapely.Point(f["lon"], f["lat"]),
-              {"statut": f.get("statut"), "nature": f.get("nature"), "raison": f.get("raison")}) for f in franchissements])
+            [(shapely.Point(f["lon"], f["lat"]), {c: f.get(c) for c in ("cle", "statut", "raison", "nature", "osm")})
+             for f in franchissements if f.get("statut") in ("blocked", "uncertain")])
 
     @staticmethod
     def _index(objets: list) -> tuple:
@@ -189,21 +185,21 @@ class Sources:
         return [] if arbre is None else [objets[i] for i in arbre.query(boite)]
 
     def bloc(self, sud: float, ouest: float, nord: float, est: float) -> dict:
-        boite = shapely.box(ouest, sud, est, nord)
-        (i0, j0), (i1, j1) = self._fr.tuile_du_point(sud, ouest), self._fr.tuile_du_point(nord, est)
-        chemins = []
+        fr, regles = self._fr, self._regles
+        (i0, j0), (i1, j1) = fr.tuile_du_point(sud, ouest), fr.tuile_du_point(nord, est)
+        voies, barrieres = [], []
         for ident, tags, points in self.base.execute(
                 "SELECT DISTINCT v.id, v.tags, v.points FROM tuiles t JOIN voies v ON v.id = t.voie "
                 "WHERE t.i BETWEEN ? AND ? AND t.j BETWEEN ? AND ?", (i0, i1, j0, j1)):
             tags = json.loads(tags)
-            genre = self._fr.GENRES.get(tags.get("highway"))
-            if genre is None:
-                continue
             latlon = np.frombuffer(points, "<i4").reshape(-1, 2) / 1e7
             if len(latlon) < 2:
                 continue
-            chemins.append((shapely.LineString(latlon[:, ::-1]),
-                            {"genre": genre, "osm": ident, **{k: tags[k] for k in ETIQUETTES_OSM if k in tags}}))
+            ligne = shapely.LineString(latlon[:, ::-1])
+            if fr._praticable(tags):
+                voies.append((ligne, {"id": ident, "genre": fr.GENRES.get(tags["highway"], "route")}))
+            elif "barrier" in tags and "highway" not in tags and regles.status(tags, fr.MODE)[0] != "passable":
+                barrieres.append((ligne, {"id": ident, "nature": regles.LABELS.get(tags["barrier"], "Barrière")}))
         officiels = []
         if self.gpkg and self.emprise_officielle:
             es, eo, en, ee = self.emprise_officielle
@@ -212,15 +208,74 @@ class Sources:
                 vus = set()
                 for t in troncons_gpkg(self.gpkg, max(sud, es), max(ouest, eo), min(nord, en), min(est, ee),
                                        self.departement):
-                    if t["nature"] in NATURES_OFFICIELLES and t["id"] not in vus:
+                    if t["id"] not in vus:
                         vus.add(t["id"])
                         officiels.append((shapely.LineString([(lo, la) for la, lo in t["pts"]]),
-                                          {"nature": t["nature"], "source": "ign", "acces_pieton": t.get("acces_pieton")}))
-        return {"chemins_osm": chemins, "chemins_officiels": officiels,
-                "barrieres": self._dans(self.barrieres, boite), "franchissements": self._dans(self.franchissements, boite)}
+                                          {"id": t["id"], "nature": t["nature"],
+                                           "acces_pieton": t.get("acces_pieton"), "prive": t.get("prive")}))
+        return {"voies": voies, "barrieres": barrieres, "troncons": officiels,
+                "franchissements": self._dans(self.franchissements, shapely.box(ouest, sud, est, nord))}
 
     def fermer(self) -> None:
         self.base.close()
+
+
+def boite_case(nom: str) -> tuple:
+    """(sud, ouest, nord, est) d'une case BRouter nommée comme E5_N40 ou W5_N45."""
+    sep = nom.index("_")
+    lon = int(nom[1:sep]) * (-1 if nom[0] == "W" else 1)
+    lat = int(nom[sep + 2:]) * (-1 if nom[sep + 1] == "S" else 1)
+    return lat, lon, lat + 5, lon + 5
+
+
+# Calque de la page -> couches du lot qui le composent.
+CALQUES = {"osm": ("voies", "barrieres", "franchissements"), "bdtopo": ("troncons",)}
+
+
+def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: float, est: float) -> dict:
+    """Le calque de la vue lu dans les tuiles du lot, au format des routes de la
+    page : voies, barrières et tronçons avec leurs points [lat, lon], et les
+    franchissements avec leur position. Une ligne coupée par plusieurs tuiles
+    revient en morceaux, que la page dessine bout à bout : chacun est recoupé
+    aux bords de sa tuile, sans la marge, pour ne rien dessiner deux fois."""
+    couches = CALQUES[calque]
+    resultat = {c: [] for c in couches}
+    vus = set()
+    with sqlite3.connect(f"file:{Path(mbtiles).resolve().as_posix()}?mode=ro", uri=True) as base:
+        for x, y in tuiles_emprise(ZOOM, sud, ouest, nord, est):
+            ligne = base.execute("SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? "
+                                 "AND tile_row = ?", (ZOOM, x, 2 ** ZOOM - 1 - y)).fetchone()
+            if ligne is None:
+                continue
+            o, s, e, n = bornes_tuile(ZOOM, x, y)
+            mx0, my0 = mercator(o, s)
+            mx1, my1 = mercator(e, n)
+
+            def latlon(p):
+                my = my1 - p[1] / ETENDUE * (my1 - my0)
+                lat = math.degrees(2 * math.atan(math.exp(my / RAYON)) - math.pi / 2)
+                return [round(lat, 6), round(o + p[0] / ETENDUE * (e - o), 6)]
+
+            tuile = mapbox_vector_tile.decode(gzip.decompress(ligne[0]), default_options={"y_coord_down": True})
+            for nom in couches:
+                for objet in tuile.get(nom, {}).get("features", []):
+                    g, props = objet["geometry"], dict(objet["properties"])
+                    if g["type"] == "Point":
+                        if props.get("cle") in vus:
+                            continue
+                        vus.add(props.get("cle"))
+                        props["lat"], props["lon"] = latlon(g["coordinates"])
+                        resultat[nom].append(props)
+                        continue
+                    parties = [g["coordinates"]] if g["type"] == "LineString" else g["coordinates"]
+                    for partie in parties:
+                        ligne = shapely.LineString([latlon(p)[::-1] for p in partie])
+                        coupee = shapely.clip_by_rect(ligne, o, s, e, n)
+                        for morceau in shapely.get_parts(shapely.line_merge(coupee)) if not coupee.is_empty else []:
+                            if morceau.geom_type == "LineString" and len(morceau.coords) > 1:
+                                resultat[nom].append({**props, "pts": [[round(la, 6), round(lo, 6)]
+                                                                       for lo, la in morceau.coords]})
+    return resultat
 
 
 def blocs(sud: float, ouest: float, nord: float, est: float) -> list:
