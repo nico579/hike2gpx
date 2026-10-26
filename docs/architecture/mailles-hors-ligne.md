@@ -9,17 +9,19 @@ d'un besoin unique, vu d'ensemble.
 
 ## Le besoin
 
-Le serveur calcule par **pays entier** ce qui coûte cher : la fusion d'OSM et
-des chemins officiels (BD TOPO en France), les franchissements, les données de
-routage BRouter. L'application, sur le bureau comme sur Android, laisse
-l'utilisateur **choisir des mailles sur la carte** et rapatrie de quoi
-travailler sans réseau dans ces mailles : données de routage, calque OSM,
-calque des chemins officiels, fond de carte.
+Ce qui coûte cher se calcule à l'avance : la fusion d'OSM et des chemins
+officiels (BD TOPO en France), les franchissements, les données de routage
+BRouter. L'unité de ce calcul, de sa distribution et du choix de
+l'utilisateur est la **case RD5 de BRouter**, 5° × 5°. L'utilisateur coche des
+cases sur la carte et reçoit, pour chacune, un **lot** : la RD5 enrichie, les
+calques OSM et officiels, les franchissements, et un manifeste. Avec ce lot, il
+travaille sans réseau.
 
 Le fond de carte fait exception : il est fabriqué **sur l'appareil**, jamais
-sur le serveur. Il pèse lourd, et les licences ne permettent pas de le
-redistribuer (le SCAN 25 passe par la clé de l'utilisateur, les serveurs de
-tuiles OSM interdisent le téléchargement en masse).
+distribué, et choisi plus finement qu'une case. Une case au zoom 16 compterait
+un million de tuiles. Les licences ne permettent pas non plus de le
+redistribuer : le SCAN 25 passe par la clé de l'utilisateur, et les serveurs de
+tuiles OSM interdisent le téléchargement en masse.
 
 ## Trois données, trois formats standard
 
@@ -30,12 +32,21 @@ quels plutôt que d'en inventer un.
 
 BRouter range ses données dans des fichiers RD5 qui couvrent chacun une case
 de 5° × 5°. C'est l'unité que télécharge son application Android, et BRouter
-sait calculer un itinéraire à travers plusieurs cases. Le serveur publie donc
-une **RD5 complète et enrichie par case** : tout l'OSM de la case, y compris
-les parties étrangères, plus les chemins officiels qui manquent à OSM. La
-France métropolitaine touche neuf cases. Pour l'ordre de grandeur, la RD5 OSM
-seule de `E5_N40` (Provence, Alpes du Sud) pèse 69 Mo, ce qu'un téléphone
-accepte sans peine.
+sait calculer un itinéraire à travers plusieurs cases. BRouter ne lit qu'un
+fichier par case : une RD5 doit donc contenir **tout l'OSM de sa case**, y
+compris les parties étrangères (l'Italie dans `E5_N40`), sinon elle
+remplacerait la RD5 officielle par une version trouée.
+
+Pour l'OSM seul, on prend les **RD5 officielles de brouter.de**, refaites
+chaque nuit à partir de la planète : 805 Mo pour les huit cases qui touchent
+la France, sans aucun calcul. On ne fabrique que les cases **enrichies** par
+les chemins officiels. Une RD5 étant compilée, on ne peut pas y ajouter des
+chemins après coup : on recompile la case entière, à partir d'OSM et des
+chemins IGN déjà raccordés (`hike2gpx/case.py`).
+
+Une RD5 compilée par nos soins reçoit son **relief** de Mapterhorn : en
+France, le MNT LiDAR de l'IGN (`deploy/linux/relief_case.py`). Sans relief,
+le dénivelé calculé par BRouter est nul.
 
 PR #37 avait choisi un découpage au quart de degré, avec un format `.rd5q` et
 un réassembleur écrit deux fois, en Python et en Java. La preuve était solide
@@ -46,9 +57,11 @@ des cases entières, ce contrôle se réduit à une seule question : la case
 est-elle présente ? On abandonne donc `.rd5q`.
 
 Les franchissements interdits restent transmis à BRouter sous forme de coupes
-(`polylines`) au moment du calcul, comme aujourd'hui. Ils sont publiés à part,
-dans un petit fichier par maille, avec leurs coupes exactes : ils servent au
-calcul et au contrôle du tracé, pas seulement à l'affichage.
+(`polylines`) au moment du calcul, comme aujourd'hui. Ils sont livrés à part,
+dans un fichier par case, avec leurs coupes exactes : ils servent au calcul et
+au contrôle du tracé, pas seulement à l'affichage. Les graver dans la RD5
+imposerait le mode strict à tous, alors que le mode souple laisse passer les
+franchissements « à vérifier ».
 
 ### Calques OSM et chemins officiels : tuiles vectorielles en MBTiles
 
@@ -69,11 +82,12 @@ lire ce format : le provider espagnol affiche les sentiers FEDME avec
 il faudra une bibliothèque qui dessine les tuiles vectorielles, MapLibre étant
 la référence.
 
-La **maille est la tuile du zoom 10** (environ 28 × 29 km ici). Elle contient
-exactement 256 tuiles du zoom 14, ce qu'un découpage en degrés ne garantit pas :
-une tuile à cheval sur deux mailles appartiendrait aux deux. Le serveur publie
-un MBTiles par maille ; l'application verse les tuiles reçues dans **un seul
-MBTiles local** (`ATTACH` puis `INSERT`), sans conflit possible.
+Les calques suivent la case : **un MBTiles par case**, dont les objets sont
+coupés à ses bords. La limite d'une case ne tombe pas sur la grille des tuiles,
+si bien qu'une tuile de bord appartient à deux cases. On ne fusionne donc pas
+les MBTiles : l'application affiche un calque vectoriel par case présente,
+comme Leaflet et MapLibre savent le faire avec plusieurs sources, et les deux
+moitiés d'une tuile de bord se juxtaposent sans couture.
 
 Le serveur ne fabrique pas de format intermédiaire à lui. Il lit les sources
 telles qu'elles arrivent : le PBF d'OSM, et le GeoPackage dans lequel l'IGN
@@ -95,7 +109,7 @@ une table SQLite. C'est la norme de fait du hors ligne. osmdroid, la
 bibliothèque de carte de l'application Android, la lit directement, QGIS aussi.
 Sur le bureau, le serveur Python local sert ces tuiles à Leaflet.
 
-L'application remplit son MBTiles en demandant les tuiles des mailles choisies,
+L'application remplit son MBTiles en demandant les tuiles de la zone choisie,
 entre les niveaux de zoom utiles à la randonnée (à fixer, sans doute 12 à 16),
 avec les droits de l'utilisateur : Plan IGN, SCAN 25 avec sa clé, fonds
 nationaux dont la licence le permet. Le fond OSM standard n'est pas proposé au
@@ -122,32 +136,66 @@ tronçons) en contient environ 93 000 rattachés aux départements voisins, dont
 deux régions, et l'ajout au fichier national dédoublonne sur `cleabs`. Une fois l'import
 fini, il n'y a plus de régions, seulement une source continue.
 
-**La fabrication se fait par case RD5, puis par maille.** Chaque maille lit
-OSM et la source nationale avec une couronne de voisinage, et chaque objet
-n'est attribué qu'à une seule maille. Une maille à cheval sur deux régions,
-ou une case voisine d'une autre, ne voit donc aucune frontière. La RD5 d'une
-case et les calques de ses mailles sortent de la même fusion, ce qui garantit
-qu'on affiche le réseau sur lequel on calcule.
+**La fabrication se fait par case RD5, et en interne par maille de 0,25°**,
+pour tenir en mémoire. Chaque maille lit OSM et la source nationale avec une
+couronne de voisinage, et chaque tronçon n'est ajouté que par la maille de son
+premier point. Un registre commun à la case garde le réseau d'un seul tenant :
+identifiants uniques, bouts partagés aux limites, raccords réunis sur les voies
+OSM longues. Une maille à cheval sur deux régions ne voit donc aucune
+frontière. La RD5, les calques et les franchissements d'une case sortent de la
+même fusion : on affiche le réseau sur lequel on calcule.
 
-**Ce qui reste à demeure** : les produits publiés (RD5 par case, MBTiles et
-franchissements par maille, catalogue) et le fichier IGN allégé, qu'on
+**Ce qui reste à demeure** : les lots publiés (par case : RD5, calques,
+franchissements, manifeste), le catalogue, et le fichier IGN allégé, qu'on
 renouvelle à chaque édition de la BD TOPO. Les PBF Geofabrik se
 retéléchargent à chaque édition, puisqu'ils sont refaits chaque jour, et les
 intermédiaires sont effacés après succès.
 
 ## Le geste de l'utilisateur
 
-L'utilisateur coche des mailles (des tuiles du zoom 10) sur la carte.
-L'application en déduit trois listes : les cases RD5 qui les contiennent, les
-calques et franchissements de chaque maille, les tuiles de fond. Elle affiche
-la taille totale avant de télécharger, puis vérifie chaque fichier par son
-SHA-256. Une zone n'est déclarée utilisable hors ligne qu'une fois les trois
-listes complètes.
+L'utilisateur coche des cases RD5 sur la carte, puis, à l'intérieur, la zone
+dont il veut le fond. L'application affiche la taille totale, obtient le lot
+de chaque case et vérifie chaque fichier par son SHA-256. Une case n'est
+déclarée utilisable hors ligne qu'une fois son lot complet.
 
-Un **catalogue par pays**, petit fichier JSON publié par le serveur, décrit
-l'édition en cours : pour chaque case RD5 et chaque maille, le nom, la taille,
-l'empreinte et la date des sources. L'application compare ce catalogue à ce
-qu'elle détient et propose les mises à jour.
+Le **manifeste** d'un lot est le contrat commun : la liste des fichiers avec
+leurs tailles et empreintes, la version du format, et l'édition des sources
+(date d'OSM, édition de la BD TOPO, relief). Il est identique quel que soit le
+producteur. Un **catalogue**, petit fichier JSON, réunit les manifestes des
+cases disponibles ; l'application le compare à ce qu'elle détient et propose
+les mises à jour.
+
+## Qui fabrique, qui partage
+
+Le **même code** fabrique un lot sur le PC et sur le serveur. Les rôles :
+
+- le **serveur**, s'il existe, fabrique et publie les lots ; le PC et le
+  téléphone les téléchargent ;
+- le **PC** obtient une case en la téléchargeant au serveur, ou en la
+  fabriquant lui-même. Il la garde pour son propre mode hors ligne et la
+  partage au téléphone, et à lui seul ;
+- le **téléphone** ne fabrique jamais : il reçoit des lots du serveur ou du
+  PC, et calcule ses itinéraires avec BRouter embarqué.
+
+Le partage du PC au téléphone suit le schéma de LocalSend ou Syncthing. Le PC
+affiche un **QR code** qui porte son adresse sur le réseau local et un jeton
+à usage unique, valable quelques minutes. Le téléphone le scanne et télécharge
+le lot par le Wi-Fi, en vérifiant les empreintes du manifeste. Le serveur de
+l'application ne s'ouvre au réseau local que le temps du partage, et seulement
+pour les routes de lecture protégées par le jeton.
+
+En ligne, le PC garde aussi le mode actuel : la fusion à la volée autour du
+parcours (Overpass, WFS ou extraits locaux), sans rien préparer. Il cherche
+d'abord une case présente sur le disque, puis, faute de mieux, fusionne à la
+volée. Les deux donnent le même réseau, puisqu'ils passent par `fusion.py` ;
+seule la fraîcheur des sources diffère.
+
+Le **serveur est facultatif**. Pour un usage personnel, le PC suffit. Pour
+partager plus largement sans serveur de calcul, les lots fabriqués sur un PC
+peuvent être publiés comme fichiers statiques (par exemple en releases
+GitHub) : OSM (ODbL, attribution et partage à l'identique) et la BD TOPO
+(Licence Ouverte Etalab) le permettent. Un serveur de calcul ne se justifie
+que pour rafraîchir automatiquement les lots chaque semaine.
 
 ## Ce qu'on reprend des PR #36 à #38
 
@@ -218,7 +266,7 @@ de JSON. L'essai qui suit isole la part du format dans ce temps.
 
 La première PR à venir s'installe donc sur cette VM plutôt que de repartir de
 zéro. La bascule se fait case par case : la VM publie les nouveaux fichiers
-(RD5 complète, calques et franchissements par maille, catalogue) à côté des paquets actuels,
+(les lots par case et le catalogue) à côté des paquets actuels,
 puis les anciennes routes et les anciens paquets disparaissent quand le bureau
 lit le nouveau format.
 
@@ -276,6 +324,51 @@ seule ligne SQLite par tuile, et une précision de 0,5 m qui suffit à
 l'affichage. C'est ce qui a fait abandonner le GeoPackage, en distribution
 comme sur le serveur. Pour le Var, cela représente une trentaine de Mo de calques.
 
+## Mesures sur la case E5_N40, enrichie sur le Var
+
+Fabriquée le 26 octobre 2026 sur la VM (2 cœurs, 6 Go de mémoire, 8 Go de
+swap), à partir de six extraits Geofabrik du même instantané et du GeoPackage
+BD TOPO de PACA, filtré sur le département 83 :
+
+| Étape | Durée |
+| --- | ---: |
+| Découpe et fusion des extraits OSM à la case | 662 s |
+| Index OSM de la case | 302 s |
+| Fusion des 30 mailles du Var | 454 s |
+| Écriture du PBF enrichi | 501 s |
+| Relief Mapterhorn de la case (4 524 tuiles, 187 Mo) | 303 s |
+| Compilation de la RD5 | 176 à 187 s |
+
+La fusion ajoute 66 293 chemins IGN, raccorde 21 832 voies OSM et donne 20 035
+franchissements (1,1 Mo en JSON gzip). Une maille dense prend une demi-minute.
+
+| RD5 `E5_N40` | Taille |
+| --- | ---: |
+| OSM seule, sans relief | 55,97 Mo |
+| Enrichie, sans relief | 58,02 Mo |
+| **Enrichie, relief Mapterhorn** | **68,83 Mo** |
+| Officielle brouter.de | 69,3 Mo |
+
+L'enrichissement du Var coûte 3,7 %, et le relief près de 11 Mo.
+
+Ces chiffres ont été vérifiés avec BRouter, à l'aide de
+`deploy/linux/verifier_case.py`. Les trajets entre les extrémités de chemins
+IGN ajoutés les empruntent entièrement ; sans enrichissement, il faut des
+détours de 1,5 à 9 fois leur longueur. Les franchissements bloquants sont
+respectés : 10 sur 10 sur les chemins IGN, 10 sur 10 sur les voies OSM.
+
+Sur deux randonnées des Maures, le relief Mapterhorn donne les mêmes
+altitudes que le RGE ALTI de l'IGN, à environ 1 m près, comme la RD5
+officielle. Sans relief, l'écart dépasse 180 m et le dénivelé est nul. Sous ce
+maquis, qui suit des pistes, le LiDAR ne fait pas mieux que SRTM ; un
+avantage sous futaie haute reste à mesurer.
+
+Deux postes restent à réduire. L'écriture du PBF fait passer chaque objet en
+Python ; un petit fichier de corrections combiné par `osmium merge` serait bien
+plus rapide. La découpe OSM, elle, gagnerait à partir d'un extrait Europe tenu
+à jour par différences quotidiennes (`pyosmium-up-to-date`), découpé en une
+passe pour toutes les cases.
+
 ## Système du serveur public
 
 Le serveur public sera sous **Ubuntu 24.04 LTS**. La raison est concrète :
@@ -291,23 +384,29 @@ projet passera lui-même à Python 3.13 ou 3.14. La VM de test peut rester en
 
 ## Ordre des PR à venir
 
-1. **Serveur.** Fabriquer et publier pour la France les neuf RD5 complètes,
-   les MBTiles de calques et les franchissements par maille, et le catalogue.
-   Mesurer les tailles réelles, case par case.
-2. **Bureau, données.** Sélection des mailles sur la carte, téléchargement
-   vérifié, MBTiles local des calques servi à Leaflet, calcul sans réseau.
-3. **Bureau, fond.** Fabrication du MBTiles local du fond de carte.
-4. **Android.** Les mêmes formats, avec MapLibre pour les tuiles vectorielles
-   et BRouter embarqué.
+Chaque brique est fusionnée dès qu'elle est complète, testée et sans effet sur
+ce qui marche déjà.
+
+1. **Fabrication d'une case enrichie** : fait, #42.
+2. **Relief Mapterhorn et tas Java réglable** : #43.
+3. **Le lot d'une case** : manifeste, calques en tuiles vectorielles et
+   franchissements, fabriqués par le même code sur le PC et le serveur.
+4. **Bureau, hors ligne** : sélection des cases, fabrication ou
+   téléchargement, stockage, calcul sans réseau, partage par QR code.
+5. **Bureau, fond** : MBTiles local du fond de carte, sur une zone choisie.
+6. **Android** : les mêmes lots, avec MapLibre pour les tuiles vectorielles et
+   BRouter embarqué.
+7. **Serveur**, si l'usage le justifie : fabrication et publication planifiées.
+   Les PR #36 à #38 seront fermées quand la VM servira les nouveaux lots.
 
 ## Questions ouvertes
 
-- La taille réelle d'une RD5 enrichie de la BD TOPO, et celle des calques en
-  MBTiles dans les régions denses (les mesures actuelles viennent du Var).
+- La taille d'une case enrichie sur toute sa partie française (le Var n'en est
+  qu'un département), et celle de ses calques en MBTiles.
+- Le temps de fabrication d'une case sur un PC ordinaire, qui décidera si le
+  mode hors ligne fabrique à la demande ou télécharge d'abord.
 - Le choix de la bibliothèque de carte Android : MapLibre remplace-t-il
   osmdroid, ou s'y ajoute-t-il pour les seules tuiles vectorielles ?
-- Les sources OSM des parties étrangères des cases frontalières : extraits
-  Geofabrik voisins, ou extrait Europe borné à la case.
 - Les licences des autres fonds nationaux au hors ligne, à vérifier pays par
   pays avant de les proposer.
 - La durée de vie d'une édition : à quel rythme republier, et combien de
