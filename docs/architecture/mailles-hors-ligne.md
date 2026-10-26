@@ -126,17 +126,55 @@ référence pour reprendre du code.
 ## La VM Ubuntu en service
 
 La VM Ubuntu de #37 n'est pas un simple banc d'essai : elle sert déjà de
-serveur à l'application de bureau, par tunnel SSH, avec le code de la branche
-`feat/linux-server-deploy`. Elle reste en service tant que la nouvelle chaîne
-ne l'a pas remplacée, et les PR #36 à #38 ne seront fermées qu'à ce moment.
+serveur à l'application de bureau. Elle reste en service tant que la nouvelle
+chaîne ne l'a pas remplacée, et les PR #36 à #38 ne seront fermées qu'à ce
+moment. Voici ce qui y tourne, relevé le 26 octobre 2026.
 
-La première PR à venir s'appuie sur elle plutôt que de repartir de zéro. La VM
-détient déjà ce que la fabrication nationale demande : le PBF France de
-Geofabrik (4,8 Gio), le GeoPackage BD TOPO de PACA, l'index OSM de la case
-`E5_N40`, Caddy, systemd et le renouvellement planifié. La bascule se fait
-case par case : la VM publie les nouveaux fichiers (RD5 complète, GeoPackage
-de mailles, catalogue) à côté des paquets actuels, puis les anciennes routes et les
-anciens paquets disparaissent quand le bureau lit le nouveau format.
+**Le service.** La VM est sous Ubuntu 26.04, que l'installateur de #37 refuse
+(il vise 24.04) : il n'y a donc ni `/var/lib/hike2gpx`, ni Caddy en service, ni
+timer de renouvellement. Un seul service tourne, `hike2gpx-vmtest`, sous
+l'utilisateur `vboxuser`, sur le port 8796 de la VM. Le bureau l'atteint par un
+tunnel SSH (`127.0.0.1:2222` vers la VM, puis `127.0.0.1:8796`). Son
+environnement Python est une copie installée le 25 octobre depuis le dossier
+partagé `/media/sf_Documents/hike2gpx`, c'est-à-dire le checkout Windows. Pour
+les routes serveur, cette copie équivaut à la pointe de
+`feat/linux-server-deploy` ; elle ne diffère que par les replis du client
+cloud, que le serveur n'emprunte pas. Changer de branche sur le PC ne touche
+pas le service, une réinstallation si.
+
+**Les données servies** (`~/hike2gpx-data-clean`, 114 Mo) couvrent deux
+mailles près de Garéoult, `173_24` et `173_25`, soit `[43,25 ; 6,00 ; 43,50 ;
+6,50]`. Chacune a un calque OSM (environ 0,85 Mo gzip) et un calque IGN
+(environ 1,6 Mo gzip). Deux paquets de routage existent :
+
+- un paquet **format 1**, qui livre la RD5 OSM standard entière de `E5_N40`
+  (69 Mo), avec profil et franchissements. C'est déjà le mode de distribution
+  que retient cette note, moins l'enrichissement par la BD TOPO ;
+- un paquet **format 2** (IGN, strict), avec les deux fragments `.rd5q`
+  (0,6 Mo chacun) et un `chemins-officiels.json` de 23,9 Mo non compressé
+  pour ces deux seules mailles.
+
+**Les sources** (`~/hike2gpx-data-france`, 16 Go) sont celles dont la
+fabrication nationale aura besoin : le PBF France de Geofabrik (4,8 Go),
+l'archive BD TOPO de la région R93 (PACA) extraite en GeoPackage (9,8 Go),
+l'extrait OSM de `E5_N40` (373 Mo) et son index SQLite (347 Mo). Deux tâches
+lancées par `systemd-run` restent en échec dans la liste des services :
+l'index OSM national, arrêté le 25 octobre, et la première extraction de
+`E5_N40`, tuée faute de mémoire avant la seconde tentative, réussie avec du
+swap. Le disque a 61 Go libres sur 99.
+
+**Ce que les journaux apprennent sur le format.** Pour une vue de quelques
+centaines de mètres, le serveur met 1,2 à 3,3 s à répondre le calque IGN et
+renvoie 0,7 à 1,9 Mo de JSON : chaque requête décompresse et parcourt la
+maille entière. Une vue quatre fois plus petite rend les mêmes 1 417 chemins
+que la vue qui la contient. C'est ce coût qu'un GeoPackage interrogé par son
+index RTree fait disparaître, et l'argument concret du choix fait plus haut.
+
+La première PR à venir s'installe donc sur cette VM plutôt que de repartir de
+zéro. La bascule se fait case par case : la VM publie les nouveaux fichiers
+(RD5 complète, GeoPackage de mailles, catalogue) à côté des paquets actuels,
+puis les anciennes routes et les anciens paquets disparaissent quand le bureau
+lit le nouveau format.
 
 ## Ordre des PR à venir
 
