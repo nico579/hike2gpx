@@ -21,7 +21,8 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import __version__, brouter, communes, franchissements, geofabrik, journaux, maison, osmfr, providers
+from . import (__version__, brouter, communes, franchissements, geofabrik, hors_ligne, journaux, maison, osmfr,
+               providers)
 
 journal = logging.getLogger(__name__)
 
@@ -223,6 +224,7 @@ class Application:
         self.dossier = Path(dossier)
         self.installation = brouter.Installation(self.dossier)
         self.maison = maison.TuilesMaison(self.installation, self.dossier)
+        self.hors_ligne = hors_ligne.HorsLigne(self.dossier)
         self.preferences = self.dossier / "preferences.json"
         self.serveur = None
         self.serveur_maison = None
@@ -470,7 +472,9 @@ class Application:
         # Un calcul est un usage réel de la région : son extrait OSM part en
         # tâche de fond s'il manque, Overpass servant en attendant ; de même le
         # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
-        extrait = self._extrait_automatique(zone, "calcul d'itinéraire")
+        # Un lot installé qui couvre la zone suffit : rien à télécharger.
+        couvert = bool(ign and self.hors_ligne.lot_pour(zone, source))
+        extrait = None if couvert else self._extrait_automatique(zone, "calcul d'itinéraire")
         if not self.installation.installee():
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True,
                     "brouter_en_cours": self._brouter_automatique(brouter.segments_zone(*zone))}
@@ -486,13 +490,22 @@ class Application:
                     return {"erreur": f"Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus "
                                       f"{TUILES_MAX}. Découpez le parcours en étapes plus courtes.",
                             "code": "zone_trop_etendue", "valeurs": {"nombre": nombre, "max": TUILES_MAX}}
-                manquants = [n for n in brouter.segments_zone(*zone)
-                             if not self.installation.segment_present(n)]
+                lot_local = self.hors_ligne.lot_pour(zone, source) if ign else None
+                manquants = [] if lot_local else [n for n in brouter.segments_zone(*zone)
+                                                  if not self.installation.segment_present(n)]
                 if manquants:
                     return {"erreur": "Données BRouter absentes pour cette zone.",
                             "segments_manquants": manquants, "brouter_en_cours": self._brouter_automatique(manquants)}
                 trace, moteur_utilise = None, "standard"
-                if ign:
+                if lot_local:
+                    # Lot installé (hors_ligne.py) : sa RD5 enrichie et ses
+                    # franchissements, sans réseau ni fabrication.
+                    liste = self.hors_ligne.franchissements(lot_local, zone)
+                    self._avancer("itineraire", 0.82, passe=passe)
+                    trace = brouter.calculer(self.moteur_maison(self.hors_ligne.segments), points, liste,
+                                             strict=strict)
+                    moteur_utilise = "lot"
+                elif ign:
                     # Tuiles maison : OSM plus les chemins officiels qui y manquent, avec
                     # les franchissements du réseau fusionné. Si elles ne peuvent se
                     # faire, le moteur standard calcule sur OSM seul ; un itinéraire
@@ -550,7 +563,7 @@ class Application:
                     "code": "itineraire_refuse",
                     "valeurs": {"nature": f["nature"], "statut": f["statut"], "distance_m": f["distance_m"]},
                     "traverses": traverses}
-        portions = portions_ign(trace) if moteur_utilise == "maison" else []
+        portions = portions_ign(trace) if moteur_utilise in ("maison", "lot") else []
         reponse = {"itineraire": trace, "zone": zone, "franchissements": liste,
                    "longueur_m": _nombre(trace["properties"], "track-length"),
                    "denivele_m": _nombre(trace["properties"], "filtered ascend"),
@@ -999,14 +1012,35 @@ class Application:
                   for cle, p in providers.SOURCES.items()},
                "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
-               "disponibilite": self.disponibilite,
+               "disponibilite": self.disponibilite, "hors_ligne": self.lots_hors_ligne,
                **get_langue}
         post = {"itineraire": self.itineraire, "disponibilite": self.disponibilite_parcours,
                 "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
-                "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux, **post_langue}
+                "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux,
+                "installer_lot": self.installer_lot, **post_langue}
         return get, post
+
+    def lots_hors_ligne(self) -> dict:
+        """Lots installés : case, sources, emprise enrichie et taille."""
+        return {"lots": [{"case": m["case"], "sources": m.get("sources", {}),
+                          "emprise_enrichie": m.get("emprise_enrichie"),
+                          "octets": sum(f["octets"] for f in m.get("fichiers", []))}
+                         for m in self.hors_ligne.lots()]}
+
+    def installer_lot(self, corps) -> dict:
+        """Installe le lot d'un dossier local, vérifié contre son manifeste."""
+        chemin = (corps or {}).get("chemin")
+        if not isinstance(chemin, str) or not chemin:
+            return {"erreur": "Dossier du lot manquant."}
+        try:
+            manifeste = self.hors_ligne.installer(Path(chemin))
+        except (hors_ligne.ErreurLot, OSError) as exc:
+            journal.warning("Lot non installé depuis %s : %s", chemin, exc)
+            return {"erreur": str(exc)}
+        journal.info("Lot %s installé depuis %s", manifeste["case"], chemin)
+        return {"installe": manifeste["case"], **self.lots_hors_ligne()}
 
     def ouvrir_journaux(self, corps=None) -> dict:
         """Ouvre uniquement le dossier des journaux de cette installation."""
