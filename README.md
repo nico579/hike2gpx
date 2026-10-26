@@ -30,7 +30,8 @@ hike2gpx simply opens the page of the new version.
 ## What hike2gpx does
 
 Everything happens in a local page, opened in the browser, and in the menu of
-a tray icon.
+a tray icon. The "?" button, next to FR/EN, opens this guide in the language
+of the page, for the installed version.
 
 **The map.** It follows the country at its center, including when you move it
 by hand, and offers that country's base maps; each country remembers the last
