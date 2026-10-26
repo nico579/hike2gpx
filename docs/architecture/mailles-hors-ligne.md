@@ -70,9 +70,9 @@ relie entre eux. Le GeoPackage garde les objets avec leurs attributs (le
 contrôle des franchissements en a besoin), se lit par morceaux et s'ouvre dans
 QGIS pour vérifier un résultat.
 
-Les mesures de #37 donnent un ordre de grandeur : 1,5 à 2,5 Mo par maille
-après épuration, calques OSM et officiels réunis. Le Var touche 25 mailles,
-soit environ 50 Mo de calques.
+Ce choix a un prix, mesuré plus bas : à contenu égal, un GeoPackage pèse
+environ quatre fois le JSON gzip sur disque et deux fois au téléchargement. En
+échange, une vue se lit cent à mille fois plus vite.
 
 ### Fond de carte : MBTiles
 
@@ -163,18 +163,69 @@ l'index OSM national, arrêté le 25 octobre, et la première extraction de
 `E5_N40`, tuée faute de mémoire avant la seconde tentative, réussie avec du
 swap. Le disque a 61 Go libres sur 99.
 
-**Ce que les journaux apprennent sur le format.** Pour une vue de quelques
-centaines de mètres, le serveur met 1,2 à 3,3 s à répondre le calque IGN et
-renvoie 0,7 à 1,9 Mo de JSON : chaque requête décompresse et parcourt la
-maille entière. Une vue quatre fois plus petite rend les mêmes 1 417 chemins
-que la vue qui la contient. C'est ce coût qu'un GeoPackage interrogé par son
-index RTree fait disparaître, et l'argument concret du choix fait plus haut.
+**Ce que disent les journaux.** Pour une vue de quelques centaines de mètres,
+le service met 1,2 à 3,3 s à répondre le calque IGN et renvoie 0,7 à 1,9 Mo
+de JSON. L'essai qui suit isole la part du format dans ce temps.
 
 La première PR à venir s'installe donc sur cette VM plutôt que de repartir de
 zéro. La bascule se fait case par case : la VM publie les nouveaux fichiers
 (RD5 complète, GeoPackage de mailles, catalogue) à côté des paquets actuels,
 puis les anciennes routes et les anciens paquets disparaissent quand le bureau
 lit le nouveau format.
+
+## Premier essai du GeoPackage
+
+Le 26 octobre, les calques des deux mailles servies par la VM (`173_24` et
+`173_25`) ont été convertis tels quels en GeoPackage, avec GDAL 3.12 par
+pyogrio et un index RTree par table. Les scripts sont dans
+`tools/essai_geopackage/`. La lecture d'une vue passe par le seul `sqlite3`
+de Python et son index, comme le ferait un client, puis par un test
+d'intersection exact. On la compare à ce que fait le service : décompresser
+les JSON des mailles touchées et garder les objets dont un point tombe dans
+la vue. Les vues sont celles des journaux ; on retient le meilleur de cinq
+essais.
+
+| Vue (degrés) | Calque | JSON gzip | GeoPackage | Objets |
+| --- | --- | ---: | ---: | ---: |
+| 0,024 × 0,073 | IGN | 926 ms | 7,5 ms | 512 |
+| 0,006 × 0,018 | IGN | 895 ms | 1,0 ms | 40 |
+| 0,0015 × 0,0046 | IGN | 1 100 ms | 0,3 ms | 5 |
+| 0,024 × 0,073 | OSM | 420 ms | 2,0 ms | 166 |
+| 0,006 × 0,018 | OSM | 533 ms | 0,3 ms | 12 |
+
+Les deux méthodes trouvent le même nombre d'objets. Le JSON coûte près d'une seconde
+quelle que soit la vue, puisqu'il faut tout décompresser ; le GeoPackage ne
+lit que ce que l'index désigne.
+
+La taille va dans l'autre sens. La maille `173_24` fait 10,7 Mo en
+GeoPackage et 5,4 Mo une fois gzippée, contre 2,4 Mo pour ses deux JSON
+gzip. Les géométries occupent 7,3 Mo de ce total : le format WKB de la norme
+range chaque point en deux nombres de 8 octets, qui se compressent mal, alors
+que le texte « 43.385359 » se compresse très bien. L'index RTree pèse 1,3 Mo
+et il n'y a pas d'espace libre à récupérer.
+
+Le levier standard est de simplifier les tracés destinés à l'affichage
+(Douglas-Peucker, `shapely.simplify`). Avec une tolérance de 2 m, invisible
+puisqu'un pixel du zoom 16 couvre déjà 1,7 m à cette latitude, on garde 65 %
+des points OSM et 43 % des points IGN. Le GeoPackage reviendrait alors autour
+de la moitié de sa taille, soit environ 5 à 6 Mo par maille, ou 150 Mo pour
+le Var. Ces calques ne servent qu'à l'affichage : le routage lit la RD5, et
+les franchissements gardent leurs coupes exactes. C'est donc une bonne
+affaire, et le fond de carte du même département, au zoom 12 à 16, pèsera de
+toute façon bien davantage.
+
+## Système du serveur public
+
+Le serveur public sera sous **Ubuntu 24.04 LTS**. La raison est concrète :
+`pyproject.toml` fixe `requires-python = ">=3.12,<3.13"`, le build tourne en
+3.12, et Ubuntu 24.04 livre Python 3.12 dans ses paquets. L'installateur peut
+donc s'en tenir à `apt` et au fichier de verrouillage. Ubuntu 26.04 livre
+Python 3.14 et plus de paquet `python3.12`. Pour faire tourner le service, la
+VM de test a dû recevoir un Python 3.12 installé à part par `uv`, que
+l'installateur devrait reproduire. Les hébergeurs proposent les deux versions,
+et la 24.04 reste maintenue jusqu'en 2029. On passera à la 26.04 le jour où le
+projet passera lui-même à Python 3.13 ou 3.14. La VM de test peut rester en
+26.04 : elle ne sert qu'à fabriquer et à essayer.
 
 ## Ordre des PR à venir
 
@@ -191,7 +242,7 @@ lit le nouveau format.
 ## Questions ouvertes
 
 - La taille réelle d'une RD5 enrichie de la BD TOPO, et celle des GeoPackage
-  dans les régions denses (les mesures actuelles viennent du Var).
+  simplifiés dans les régions denses (les mesures actuelles viennent du Var).
 - Les sources OSM des parties étrangères des cases frontalières : extraits
   Geofabrik voisins, ou extrait Europe borné à la case.
 - Les licences des autres fonds nationaux au hors ligne, à vérifier pays par
