@@ -101,6 +101,38 @@ avec les droits de l'utilisateur : Plan IGN, SCAN 25 avec sa clé, fonds
 nationaux dont la licence le permet. Le fond OSM standard n'est pas proposé au
 hors ligne.
 
+## Traiter la France : importer par région, fabriquer par case
+
+Le serveur garde le moins de fichiers possible. L'IGN livre la BD TOPO en
+treize archives régionales (21 Go compressés ; PACA seule fait 9,8 Go une
+fois extraite). On sépare donc deux étapes qui n'ont pas la même unité.
+
+**L'import se fait région par région.** Pour chaque archive, on la
+télécharge, on en tire avec `ogr2ogr` les seuls tronçons utiles (chemins,
+sentiers, escaliers, routes empierrées) qu'on ajoute à un **fichier national
+allégé**, dans le format de l'IGN, puis on efface l'archive et le GeoPackage
+régional avant de passer à la suivante. Le disque ne porte jamais plus d'une
+région à la fois.
+
+**Les jonctions entre régions se règlent à l'import, par l'identifiant.**
+Chaque tronçon BD TOPO porte un identifiant national (`cleabs`). Qu'un
+tronçon frontalier soit livré par les deux régions ou coupé à la limite,
+l'ajout au fichier national dédoublonne sur cet identifiant. Une fois l'import
+fini, il n'y a plus de régions, seulement une source continue.
+
+**La fabrication se fait par case RD5, puis par maille.** Chaque maille lit
+OSM et la source nationale avec une couronne de voisinage, et chaque objet
+n'est attribué qu'à une seule maille. Une maille à cheval sur deux régions,
+ou une case voisine d'une autre, ne voit donc aucune frontière. La RD5 d'une
+case et les calques de ses mailles sortent de la même fusion, ce qui garantit
+qu'on affiche le réseau sur lequel on calcule.
+
+**Ce qui reste à demeure** : les produits publiés (RD5 par case, MBTiles et
+franchissements par maille, catalogue) et le fichier IGN allégé, qu'on
+renouvelle à chaque édition de la BD TOPO. Les PBF Geofabrik se
+retéléchargent à chaque édition, puisqu'ils sont refaits chaque jour, et les
+intermédiaires sont effacés après succès.
+
 ## Le geste de l'utilisateur
 
 L'utilisateur coche des mailles (des tuiles du zoom 10) sur la carte.
