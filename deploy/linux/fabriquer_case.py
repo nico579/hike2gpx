@@ -25,9 +25,8 @@ from pathlib import Path
 
 from hike2gpx import brouter, case, geofabrik
 
-# brouter.py borne Java à 1 Go, assez pour une petite zone mais pas pour une
-# case dense ; _JAVA_OPTIONS l'emporte sur la ligne de commande.
-TAS_JAVA = "-Xmx4500m"
+# Mémoire de Java pour compiler une case de 5° dense ; 1 Go ne suffit pas.
+TAS_JAVA = "4500m"
 resultats: dict = {"etapes": {}, "mailles": []}
 
 
@@ -59,9 +58,8 @@ def maxid(pbf: Path, genre: str) -> int:
     return int(sortie.strip())
 
 
-def compiler(nom: str, pbf: Path, dossier: Path, inst: brouter.Installation) -> int | None:
-    os.environ["_JAVA_OPTIONS"] = TAS_JAVA
-    segments = brouter.fabriquer_tuiles(inst, pbf, dossier)
+def compiler(nom: str, pbf: Path, dossier: Path, inst: brouter.Installation, relief: Path | None) -> int | None:
+    segments = brouter.fabriquer_tuiles(inst, pbf, dossier, relief=relief, tas=TAS_JAVA)
     produits = {f.name: f.stat().st_size for f in segments.glob("*.rd5")}
     journal(f"  RD5 produites : {produits}")
     rd5 = segments / f"{nom}.rd5"
@@ -77,6 +75,8 @@ def main() -> None:
     parser.add_argument("--case", default="E5_N40")
     parser.add_argument("--emprise", type=float, nargs=4, metavar=("SUD", "OUEST", "NORD", "EST"))
     parser.add_argument("--departement")
+    parser.add_argument("--relief", type=Path, help="dossier du .bef de la case (relief_case.py)")
+    parser.add_argument("--sans-osm-seule", action="store_true", help="ne pas compiler la RD5 OSM seule")
     args = parser.parse_args()
     sud, ouest, nord, est = boite_case(args.case)
     emprise = args.emprise or (sud, ouest, nord, est)
@@ -138,11 +138,13 @@ def main() -> None:
 
     inst = brouter.Installation(args.installation)
     inst.preparer_maison()
-    for nom_etape, pbf, cle in (("compilation RD5 enrichie", pbf_enrichi, "rd5_enrichie_octets"),
-                                ("compilation RD5 OSM seule", pbf_case, "rd5_osm_octets")):
+    compilations = [("compilation RD5 enrichie", pbf_enrichi, "rd5_enrichie_octets")]
+    if not args.sans_osm_seule:
+        compilations.append(("compilation RD5 OSM seule", pbf_case, "rd5_osm_octets"))
+    for nom_etape, pbf, cle in compilations:
         construction = args.dossier / "construction"
         with mesurer(nom_etape):
-            resultats[cle] = compiler(args.case, pbf, construction, inst)
+            resultats[cle] = compiler(args.case, pbf, construction, inst, args.relief)
         if resultats[cle]:
             nom = "enrichie" if pbf is pbf_enrichi else "osm"
             shutil.move(construction / "segments" / f"{args.case}.rd5", args.dossier / f"{args.case}-{nom}.rd5")
