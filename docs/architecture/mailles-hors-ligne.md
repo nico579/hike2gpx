@@ -123,6 +123,21 @@ On abandonne :
 Les trois PR seront fermées sans supprimer leurs branches, qui restent la
 référence pour reprendre du code.
 
+## La VM Ubuntu en service
+
+La VM Ubuntu de #37 n'est pas un simple banc d'essai : elle sert déjà de
+serveur à l'application de bureau, par tunnel SSH, avec le code de la branche
+`feat/linux-server-deploy`. Elle reste en service tant que la nouvelle chaîne
+ne l'a pas remplacée, et les PR #36 à #38 ne seront fermées qu'à ce moment.
+
+La première PR à venir s'appuie sur elle plutôt que de repartir de zéro. La VM
+détient déjà ce que la fabrication nationale demande : le PBF France de
+Geofabrik (4,8 Gio), le GeoPackage BD TOPO de PACA, l'index OSM de la case
+`E5_N40`, Caddy, systemd et le renouvellement planifié. La bascule se fait
+case par case : la VM publie les nouveaux fichiers (RD5 complète, GeoPackage
+de mailles, catalogue) à côté des paquets actuels, puis les anciennes routes et les
+anciens paquets disparaissent quand le bureau lit le nouveau format.
+
 ## Ordre des PR à venir
 
 1. **Serveur.** Fabriquer et publier pour la France les neuf RD5 complètes,
