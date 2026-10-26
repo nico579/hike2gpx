@@ -31,6 +31,9 @@ class HorsLigne:
     def __init__(self, dossier: Path):
         self.racine = Path(dossier) / "hors-ligne"
         self.segments = self.racine / "segments"
+        # RD5 officielles des lots OSM : la table de tags standard de BRouter,
+        # pas celle des RD5 enrichies ; un dossier à part pour ne pas les mêler.
+        self.segments_osm = self.racine / "segments-osm"
         self._franchissements = {}      # case -> liste, lue une fois
 
     def lots(self) -> list:
@@ -62,7 +65,8 @@ class HorsLigne:
         if rd5 not in {f["nom"] for f in manifeste["fichiers"]}:
             raise ErreurLot(f"Le lot ne contient pas {rd5}.")
         # Copie à côté, puis remplacement : un lot à moitié copié n'est jamais lu.
-        self.segments.mkdir(parents=True, exist_ok=True)
+        segments = self.segments_osm if manifeste.get("type") == "osm" else self.segments
+        segments.mkdir(parents=True, exist_ok=True)
         provisoire = self.racine / f".{case}.part"
         shutil.rmtree(provisoire, ignore_errors=True)
         provisoire.mkdir(parents=True)
@@ -70,10 +74,10 @@ class HorsLigne:
             if f["nom"] != rd5:
                 shutil.copy2(source / f["nom"], provisoire / f["nom"])
         shutil.copy2(source / "manifest.json", provisoire / "manifest.json")
-        shutil.copy2(source / rd5, self.segments / f".{rd5}.part")
+        shutil.copy2(source / rd5, segments / f".{rd5}.part")
         shutil.rmtree(self.racine / case, ignore_errors=True)
         provisoire.replace(self.racine / case)
-        (self.segments / f".{rd5}.part").replace(self.segments / rd5)
+        (segments / f".{rd5}.part").replace(segments / rd5)
         self._franchissements.pop(case, None)
         return manifeste
 
@@ -98,7 +102,8 @@ class HorsLigne:
         sud, ouest, nord, est = zone
         for manifeste in self.lots():
             if calque == "osm":
-                bs, bo, bn, be = lot.boite_case(manifeste["case"])
+                # Un lot OSM peut ne couvrir qu'une partie de sa case (zone).
+                bs, bo, bn, be = manifeste.get("zone") or lot.boite_case(manifeste["case"])
             elif calque in SOURCE_DU_LOT.values() and manifeste.get("sources", {}).get(calque):
                 bs, bo, bn, be = manifeste.get("emprise_enrichie") or (0, 0, 0, 0)
             else:

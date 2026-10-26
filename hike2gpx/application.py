@@ -21,8 +21,8 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import (__version__, brouter, communes, franchissements, geofabrik, hors_ligne, journaux, maison, osmfr,
-               providers)
+from . import (__version__, brouter, communes, franchissements, geofabrik, hors_ligne, journaux, lot_osm, maison,
+               osmfr, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -225,6 +225,10 @@ class Application:
         self.installation = brouter.Installation(self.dossier)
         self.maison = maison.TuilesMaison(self.installation, self.dossier)
         self.hors_ligne = hors_ligne.HorsLigne(self.dossier)
+        # Fabrication d'un lot OSM en tâche de fond (lot_osm.py), une à la fois.
+        self._verrou_lot = threading.Lock()
+        self._lot = {"actif": False}
+        self._fil_lot = None
         self.preferences = self.dossier / "preferences.json"
         self.serveur = None
         self.serveur_maison = None
@@ -1027,14 +1031,74 @@ class Application:
                "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
                "disponibilite": self.disponibilite, "hors_ligne": self.lots_hors_ligne,
+               "lot_en_cours": self.lot_en_cours,
                **get_langue}
         post = {"itineraire": self.itineraire, "disponibilite": self.disponibilite_parcours,
                 "reglages": self.enregistrer_reglages,
                 "moteur": self.installer_moteur, "denivele": self.denivele,
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
                 "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux,
-                "installer_lot": self.installer_lot, **post_langue}
+                "installer_lot": self.installer_lot, "preparer_lot": self.preparer_lot,
+                "arreter_lot": self.arreter_lot, **post_langue}
         return get, post
+
+    def preparer_lot(self, corps) -> dict:
+        """Fabrique en tâche de fond le lot OSM d'une case (lot_osm.py), puis
+        l'installe. corps : {"case": "E5_N40", "zone": [sud, ouest, nord, est]}
+        (zone facultative, dans la case)."""
+        corps = corps or {}
+        case = corps.get("case")
+        if not isinstance(case, str) or not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", case):
+            return {"erreur": "Case BRouter invalide."}
+        zone = corps.get("zone")
+        if zone is not None and not (isinstance(zone, list) and len(zone) == 4
+                                     and all(isinstance(v, (int, float)) for v in zone)):
+            return {"erreur": "Zone invalide."}
+        with self._verrou_lot:
+            if self._fil_lot is not None and self._fil_lot.is_alive():
+                return {"erreur": "Un lot se prépare déjà.", "lot_en_cours": dict(self._lot)}
+            self._lot = {"actif": True, "case": case, "zone": zone, "etape": "debut", "faites": 0, "total": 0,
+                         "debut": time.time(), "arreter": False}
+            self._fil_lot = threading.Thread(target=self._fabriquer_lot, args=(case, zone), daemon=True,
+                                             name=f"lot-{case}")
+            self._fil_lot.start()
+        return {"lot_en_cours": self.lot_en_cours()}
+
+    def _fabriquer_lot(self, case, zone) -> None:
+        travail = self.hors_ligne.racine / f".fabrication-{case}"
+        debut = time.monotonic()
+
+        def suivi(etape, faites, total):
+            self._lot.update(etape=etape, faites=faites, total=total)
+
+        try:
+            lot_osm.nettoyer(travail)
+            lot_osm.fabriquer(self.dossier, self.installation, case, travail, zone=tuple(zone) if zone else None,
+                              suivi=suivi, continuer=lambda: not self._lot.get("arreter"))
+            self._lot["etape"] = "installation"
+            self.hors_ligne.installer(travail)
+        except lot_osm.Abandon:
+            journal.info("Lot %s : fabrication arrêtée après %.0f s", case, time.monotonic() - debut)
+            self._lot.update(actif=False, erreur="Fabrication arrêtée.")
+        except Exception as exc:          # réseau, disque, BRouter : la page l'affiche
+            journal.exception("Lot %s : fabrication en erreur après %.0f s", case, time.monotonic() - debut)
+            self._lot.update(actif=False, erreur=str(exc))
+        else:
+            journal.info("Lot %s : fabriqué et installé en %.0f s", case, time.monotonic() - debut)
+            self._lot.update(actif=False, etape="fini")
+        finally:
+            lot_osm.nettoyer(travail)
+
+    def lot_en_cours(self) -> dict:
+        """État de la fabrication en cours ou de la dernière : étape, avancement, durée."""
+        etat = {k: v for k, v in self._lot.items() if k != "arreter"}
+        if "debut" in etat:
+            etat["duree_s"] = round(time.time() - etat.pop("debut"))
+        return etat
+
+    def arreter_lot(self, corps=None) -> dict:
+        self._lot["arreter"] = True
+        return {"lot_en_cours": self.lot_en_cours()}
 
     def lots_hors_ligne(self) -> dict:
         """Lots installés : case, sources, emprise enrichie et taille."""
