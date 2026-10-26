@@ -92,6 +92,25 @@ class HorsLigne:
                 return manifeste
         return None
 
+    def lot_du_calque(self, zone: tuple, calque: str) -> dict | None:
+        """Le lot qui sait afficher ce calque de la page sur toute la zone : la
+        case entière pour OSM, l'emprise enrichie pour les chemins officiels."""
+        sud, ouest, nord, est = zone
+        for manifeste in self.lots():
+            if calque == "osm":
+                bs, bo, bn, be = lot.boite_case(manifeste["case"])
+            elif calque in SOURCE_DU_LOT.values() and manifeste.get("sources", {}).get(calque):
+                bs, bo, bn, be = manifeste.get("emprise_enrichie") or (0, 0, 0, 0)
+            else:
+                continue
+            if bs <= sud and bo <= ouest and nord <= bn and est <= be \
+                    and (self.racine / manifeste["case"] / "calques.mbtiles").is_file():
+                return manifeste
+        return None
+
+    def calque(self, manifeste: dict, calque: str, zone: tuple) -> dict:
+        return lot.lire_calque(self.racine / manifeste["case"] / "calques.mbtiles", calque, *zone)
+
     def franchissements(self, manifeste: dict, zone: tuple) -> list:
         """Les franchissements du lot qui tombent dans la zone."""
         case = manifeste["case"]

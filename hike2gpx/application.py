@@ -656,6 +656,10 @@ class Application:
         numero = self._prendre_vue("osm", vue)
         if numero is None:
             return self._calque("osm", zone, None, None)
+        # Un lot installé qui couvre la vue la montre seul, sans réseau ni extrait.
+        lire_lot = self._lecture_du_lot(zone, "osm")
+        if lire_lot:
+            return self._calque("osm", zone, lire_lot, numero)
         extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone else None
         resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
@@ -666,8 +670,18 @@ class Application:
             if not fournisseur.disponible(bornes):
                 return {"troncons": []}
             return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
-        return self._calque(fournisseur.calque, zone, lire,
+        return self._calque(fournisseur.calque, zone, self._lecture_du_lot(zone, fournisseur.calque) or lire,
                            self._prendre_vue(fournisseur.calque, vue))
+
+    def _lecture_du_lot(self, zone, calque):
+        """Lecture du calque dans un lot installé qui couvre la zone, ou None.
+        Le lot lit toutes les tuiles de 0,05° de la vue, celles dont _calque
+        renvoie les bornes : la page ne redemande rien tant qu'elle y reste."""
+        manifeste = self.hors_ligne.lot_du_calque(franchissements.bornes_zone(*zone), calque) if zone else None
+        if manifeste is None:
+            return None
+        return lambda *bornes, **options: self.hors_ligne.calque(
+            manifeste, calque, franchissements.bornes_zone(*bornes[:4]))
 
     def arreter_calques(self, corps=None) -> dict:
         """La page n'affiche plus ces calques (zoom trop faible, calque masqué) :

@@ -2,6 +2,7 @@ import gzip
 import json
 
 import pytest
+import shapely
 
 from hike2gpx import application as appli, brouter, franchissements, hors_ligne, lot
 
@@ -19,7 +20,16 @@ def fabriquer_lot(dossier, case="E5_N40", rd5=b"rd5 de la case", **sources):
     (dossier / f"{case}.rd5").write_bytes(rd5)
     with gzip.open(dossier / "franchissements.json.gz", "wt", encoding="utf-8") as f:
         json.dump(FRANCHISSEMENTS, f)
-    (dossier / "calques.mbtiles").write_bytes(b"tuiles")
+    # De vraies tuiles : un sentier OSM et un chemin IGN près de Garéoult.
+    calques = lot.Calques(dossier / "calques.mbtiles", case, lot.boite_case(case), "")
+    couches = {"voies": [(shapely.LineString([(6.000, 43.300), (6.004, 43.302)]), {"id": 1, "genre": "sentier"}),
+                         # Dans la même tuile de 0,05° que la vue des essais, mais hors de la vue.
+                         (shapely.LineString([(6.040, 43.340), (6.044, 43.342)]), {"id": 2, "genre": "piste"})],
+               "troncons": [(shapely.LineString([(6.001, 43.301), (6.003, 43.301)]),
+                             {"id": "T-0", "nature": "Chemin"})]}
+    for x, y in lot.blocs(43.29, 5.99, 43.36, 6.06):
+        calques.ajouter_bloc(x, y, couches)
+    calques.fermer()
     lot.ecrire_manifeste(dossier, case, [dossier / f"{case}.rd5", dossier / "franchissements.json.gz",
                                          dossier / "calques.mbtiles"],
                          sources or {"osm": "2026-10-25T21:21:21Z", "bdtopo": "2026-09-15"},
@@ -40,7 +50,9 @@ def test_installer_range_la_rd5_avec_les_segments(tmp_path):
 
 def test_un_lot_altere_n_est_pas_installe(tmp_path):
     source = fabriquer_lot(tmp_path / "lot")
-    (source / "calques.mbtiles").write_bytes(b"tuileS")             # même taille, autre contenu
+    contenu = bytearray((source / "calques.mbtiles").read_bytes())
+    contenu[-1] ^= 0xFF                                             # même taille, autre contenu
+    (source / "calques.mbtiles").write_bytes(bytes(contenu))
     h = hors_ligne.HorsLigne(tmp_path / "donnees")
     with pytest.raises(hors_ligne.ErreurLot, match="SHA-256"):
         h.installer(source)
@@ -99,6 +111,26 @@ def test_itineraire_hors_ligne_sans_reseau_ni_rd5_officielle(tmp_path, monkeypat
     assert resultat["moteur"] == "lot" and "erreur" not in resultat
     assert segments_lances == [a.hors_ligne.segments]
     assert appels == [(7, ["a"])], "les franchissements du lot, filtrés sur la zone"
+
+
+def test_calques_de_la_page_lus_dans_le_lot(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path / "donnees")
+    a.hors_ligne.installer(fabriquer_lot(tmp_path / "lot"))
+
+    def interdit(*args, **options):
+        raise AssertionError("ni lecture en ligne ni extrait quand un lot couvre la vue")
+    monkeypatch.setattr(a, "_extrait_automatique", interdit)
+    monkeypatch.setattr(franchissements, "voies_affichables", interdit)
+    zone = (43.299, 5.999, 43.303, 6.005)
+    osm = a.calque_osm(zone)
+    # La page ne redemande rien dans les bornes annoncées : le lot les lit en entier.
+    assert osm["bornes"] == franchissements.bornes_zone(*zone)
+    assert {v["genre"] for v in osm["voies"]} == {"sentier", "piste"}
+    officiel = a.calque_officiel("ign", zone)
+    assert {t["nature"] for t in officiel["troncons"]} == {"Chemin"}
+    # Hors de l'emprise enrichie, les chemins officiels ne viennent pas du lot.
+    assert a.hors_ligne.lot_du_calque((44.5, 7.5, 44.51, 7.51), "bdtopo") is None
+    assert a.hors_ligne.lot_du_calque((44.5, 7.5, 44.51, 7.51), "osm")["case"] == "E5_N40"
 
 
 def test_routes_des_lots(tmp_path):
