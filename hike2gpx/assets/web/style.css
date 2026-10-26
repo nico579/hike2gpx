@@ -85,10 +85,6 @@ dd { margin: 0; font-weight: 600; }
 .trait.ign { border-top: 4px dashed var(--verifier); }
 .trait.osm { border-top: 3px dashed #7b1fa2; }
 .trait.barriere { border-top: 3px solid #e53935; }
-.trait.bdtopo { border-top: 3px dashed #00897b; }
-.trait.senderos { border-image: linear-gradient(90deg, #d32f2f 0 33%, #e6a000 33% 66%, #29935d 66%) 1; }
-.trait.suisse-sentiers { border-top: 3px dashed #e8a619; }
-.trait.usgs-sentiers { border-top: 3px solid #d22f2f; }
 #noteCalques { margin: 0 0 6px; }
 .pastille { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff;
             box-shadow: 0 0 0 1px #0004; }

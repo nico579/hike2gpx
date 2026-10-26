@@ -4,7 +4,8 @@ import time
 import pytest
 from nico579_commons import atomique
 
-from hike2gpx import bdtopo, brouter, franchissements as fr, maison
+from hike2gpx import brouter, franchissements as fr, maison
+from hike2gpx.providers import atkis, bdtopo
 
 I, J = 866, 120             # tuile 43,30-43,35 N, 6,00-6,05 E
 LAT0, LON0 = 43.32, 6.02
@@ -109,3 +110,15 @@ def test_bdtopo_absente_hors_ligne(tuiles, tmp_path):
     with pytest.raises(fr.ErreurDonnees):
         tm.preparer([(I, J)], en_ligne=False)
     assert fabriquees == []
+
+
+def test_tuiles_atkis_ne_se_melangent_pas_aux_tuiles_ign(tuiles, tmp_path):
+    tm, fabriquees = tuiles
+    ecrire_tuile(tmp_path, I, J, cloture_et_sentier(), sentier_ign_sud())
+    atomique.ecrire_json(tmp_path / "atkis" / f"v{atkis.VERSION_CACHE}_{I}_{J}.json",
+                         {"version": atkis.VERSION_CACHE, "fetched_at": time.time(),
+                          "troncons": [{**sentier_ign_sud()[0], "id": "TH:1", "nature": "Weg/Pfad/Steig"}]})
+    tm.preparer([(I, J)], en_ligne=False, source="atkis")
+    assert tm.etat()["source"] == "atkis" and tm.etat()["chemins_ign"] == 1
+    tm.preparer([(I, J)], en_ligne=False, source="ign")
+    assert tm.etat()["source"] == "ign" and fabriquees == ["fabrication-1", "fabrication-2"]

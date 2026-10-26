@@ -4,13 +4,15 @@ des autres applications de nico579."""
 from __future__ import annotations
 
 import logging
+import subprocess
 import threading
 import webbrowser
 from pathlib import Path
+from urllib.parse import parse_qs, quote, urlsplit
 
 from nico579_commons import maj, serveweb
 
-from . import __version__, bureau, geofabrik, osmfr
+from . import __version__, bureau, geofabrik, osmfr, providers
 from .application import Application, configurer_journal, lire_vue, lire_zone
 
 journal = logging.getLogger(__name__)
@@ -20,6 +22,24 @@ PORT = 8795
 PLAGE = 10
 GUI = Path(__file__).parent / "assets" / "web"
 PROVIDERS = GUI / "providers"
+RAPPORT_GITHUB = "https://github.com/nico579/hike2gpx/blob/{ref}/{document}"
+
+
+def url_couverture_pays(langue: str = "fr") -> str:
+    """Pointe vers la branche de travail en source, vers main en version publiée."""
+    ref = "main"
+    racine = Path(__file__).resolve().parent.parent
+    if (racine / ".git").exists():
+        try:
+            resultat = subprocess.run(["git", "branch", "--show-current"], cwd=racine,
+                                      capture_output=True, text=True, timeout=2, check=False)
+            if resultat.returncode == 0 and resultat.stdout.strip():
+                ref = resultat.stdout.strip()
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    document = ("COUNTRY_COVERAGE.md#supported-countries" if langue == "en"
+                else "RAPPORT_SOURCES_CHEMINS_BROUTER.md#pays-pris-en-charge")
+    return RAPPORT_GITHUB.format(ref=quote(ref, safe="/"), document=document)
 
 
 class Handler(serveweb.Handler):
@@ -32,11 +52,23 @@ class Handler(serveweb.Handler):
                            ("leaflet/Leaflet.VectorGrid.bundled.js", "text/javascript; charset=utf-8")}
     # Les calques et l'extrait hors ligne lisent la zone de la vue :
     # ?s=&w=&n=&e= (None si invalide) ; les calques aussi sa date, &vue=.
-    arguments_get = {"osm": lambda q: (lire_zone(q), lire_vue(q)), "bdtopo": lambda q: (lire_zone(q), lire_vue(q)),
+    arguments_get = {"osm": lambda q: (lire_zone(q), lire_vue(q)),
+                     **{p.calque: (lambda q: (lire_zone(q), lire_vue(q))) for p in providers.SOURCES.values()},
                      "extrait": lambda q: (lire_zone(q),), "disponibilite": lambda q: (lire_zone(q),)}
 
     def do_GET(self):
         chemin = self.path.split("?", 1)[0]
+        if chemin == "/documentation/pays":
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            self.send_response(302)
+            langue = parse_qs(urlsplit(self.path).query).get("lang", ["fr"])[0]
+            self.send_header("Location", url_couverture_pays(langue))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if chemin == "/map-providers.js":
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)

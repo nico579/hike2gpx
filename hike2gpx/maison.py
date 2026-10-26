@@ -1,6 +1,6 @@
 """Tuiles maison : la tuile BRouter refaite au fil des zones consultées, à
-partir des tuiles Overpass et BD TOPO déjà gardées en cache, avec les
-chemins IGN qui manquent à OSM (fusion.py).
+partir des tuiles Overpass et de la source officielle (BD TOPO ou ATKIS)
+gardées en cache, avec les chemins qui manquent à OSM (fusion.py).
 
 Elle n'est refaite que si une zone nouvelle s'ajoute, ou si l'une des
 tuiles Overpass ou BD TOPO qui la composent a été relue depuis ; elle
@@ -23,11 +23,15 @@ from pathlib import Path
 
 from nico579_commons import atomique
 
-from . import bdtopo, brouter, franchissements as fr, fusion
+from . import brouter, franchissements as fr, fusion, providers
 
 journal = logging.getLogger(__name__)
 
-VERSION = 4     # format de l'état, règles de fusion ou d'analyse : l'augmenter refait la tuile
+VERSION = 6     # format de l'état, règles de fusion ou d'analyse : l'augmenter refait la tuile
+
+
+def _source(source):
+    return providers.source(source).module
 
 
 class TuilesMaison:
@@ -45,64 +49,68 @@ class TuilesMaison:
         if isinstance(etat, dict) and etat.get("version") == VERSION and isinstance(etat.get("tuiles"), dict) \
                 and isinstance(etat.get("fabrication"), str):
             return etat
-        return {"version": VERSION, "fabrication": "", "tuiles": {}}
+        return {"version": VERSION, "source": "ign", "fabrication": "", "tuiles": {}}
 
-    def _dates(self, i, j, *, en_ligne):
-        """Dates de lecture des tuiles Overpass et BD TOPO (None si absentes),
+    def _dates(self, i, j, *, en_ligne, source="ign"):
+        """Dates de lecture des tuiles Overpass et officielles (None si absentes),
         relues sur le réseau seulement si en_ligne."""
+        module = _source(source)
         try:
             osm = fr.charger_tuile(i, j, self.dossier, en_ligne=en_ligne)["fetched_at"]
         except fr.ErreurDonnees:
             return None
         if en_ligne:
-            bdtopo.charger_tuile(i, j, self.dossier)
-        ign = bdtopo.lire_cache(i, j, self.dossier)
+            module.charger_tuile(i, j, self.dossier)
+        ign = module.lire_cache(i, j, self.dossier)
         return [osm, ign["fetched_at"]] if ign else None
 
-    def preparer(self, tuiles, *, en_ligne: bool = True, suivi=None):
+    def preparer(self, tuiles, *, en_ligne: bool = True, suivi=None, source="ign"):
         """(dossier des tuiles .rd5, franchissements du réseau fusionné) pour
         ces tuiles de 0,05°, en refaisant la fabrication si besoin. Les
         franchissements rendus sont ceux de ces tuiles seulement. suivi(étape,
         faites, total) annonce la lecture des tuiles puis chaque étape de la
         fabrication, pour la barre de progression de la page."""
         suivi = suivi or (lambda *_: None)
+        _source(source)
         with self._verrou:
             demandees = {}
             suivi("donnees", 0, len(tuiles))
             for k, (i, j) in enumerate(tuiles):
-                dates = self._dates(i, j, en_ligne=en_ligne)
+                dates = self._dates(i, j, en_ligne=en_ligne, source=source)
                 if dates is None:
-                    raise fr.ErreurDonnees("Données OSM ou BD TOPO de la zone indisponibles.")
+                    raise fr.ErreurDonnees("Données OSM ou chemins officiels de la zone indisponibles.")
                 demandees[f"{i}_{j}"] = dates
                 suivi("donnees", k + 1, len(tuiles))
             etat = self.etat()
+            if etat.get("source", "ign") != source:
+                etat = {"version": VERSION, "source": source, "fabrication": "", "tuiles": {}}
             dossier = self.racine / etat["fabrication"] if etat["fabrication"] else None
             if dossier is not None and (dossier / "segments").is_dir() \
                     and all(etat["tuiles"].get(cle) == dates for cle, dates in demandees.items()):
                 segments, liste = dossier / "segments", self._franchissements(dossier)
             else:
                 union = {**etat["tuiles"], **demandees}
-                segments, liste = self._fabriquer(union if len(union) <= self.UNION_MAX else demandees, suivi)
+                segments, liste = self._fabriquer(union if len(union) <= self.UNION_MAX else demandees, suivi, source)
             voulues = set(tuiles)
             return segments, [f for f in liste if fr.tuile_du_point(f["lat"], f["lon"]) in voulues]
 
-    def _fabriquer(self, tuiles: dict, suivi=lambda *_: None):
+    def _fabriquer(self, tuiles: dict, suivi=lambda *_: None, source="ign"):
         temps, debut = {}, time.monotonic()
         suivi("fusion", 0, 0)
         reseau, troncons, vus = fusion.Reseau(), [], set()
         retenues = {}
         for cle in sorted(tuiles):
             i, j = (int(v) for v in cle.split("_"))
-            dates = self._dates(i, j, en_ligne=False)
+            dates = self._dates(i, j, en_ligne=False, source=source)
             if dates is None:           # cache effacé depuis : la zone sort de la tuile
                 continue
             retenues[cle] = dates
             reseau.ajouter_osm(fr.charger_tuile(i, j, self.dossier, en_ligne=False)["elements"])
-            for t in bdtopo.charger_tuile(i, j, self.dossier, en_ligne=False):
+            for t in _source(source).charger_tuile(i, j, self.dossier, en_ligne=False):
                 if t["id"] not in vus:
                     vus.add(t["id"])
                     troncons.append(t)
-        reseau.ajouter_ign(troncons)
+        reseau.ajouter_ign(troncons, source=source)
         temps["fusion"] = time.monotonic() - debut
         suivi("tuiles", 0, 0)
         self.installation.preparer_maison()
@@ -120,11 +128,12 @@ class TuilesMaison:
         liste = [f for f in fr.analyser(reseau.elements())
                  if "{}_{}".format(*fr.tuile_du_point(f["lat"], f["lon"])) in retenues]
         atomique.ecrire_json(dossier / "franchissements.json", liste, indent=None)
-        atomique.ecrire_json(self.chemin_etat, {"version": VERSION, "fabrication": dossier.name, "tuiles": retenues,
+        atomique.ecrire_json(self.chemin_etat, {"version": VERSION, "source": source,
+                                                "fabrication": dossier.name, "tuiles": retenues,
                                                 "chemins_ign": len(reseau.ign)})
         self._nettoyer(dossier.name)
-        journal.info("Tuile maison %s : %d tuiles, %d chemins IGN, %d franchissements ; fusion %.1f s, "
-                     "PBF et BRouter %.1f s, analyse %.1f s", dossier.name, len(retenues), len(reseau.ign),
+        journal.info("Tuile maison %s : %d tuiles, %d chemins %s, %d franchissements ; fusion %.1f s, "
+                     "PBF et BRouter %.1f s, analyse %.1f s", dossier.name, len(retenues), len(reseau.ign), source,
                      len(liste), temps["fusion"], temps["tuiles"],
                      time.monotonic() - debut - temps["fusion"] - temps["tuiles"])
         return segments, liste
