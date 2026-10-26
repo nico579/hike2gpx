@@ -84,12 +84,15 @@ class IndexVoies:
 
 
 class Reseau:
-    def __init__(self):
+    def __init__(self, identifiants=None):
         self.noeuds = {}        # id -> [lat, lon, tags]
         self.voies = {}         # id -> [ids de nœuds, tags]
         self.relations = {}     # id -> [membres, tags]
         self.ign = []           # voies officielles ajoutées, nom historique
         self._prochain_noeud = self._prochaine_voie = None
+        # Fabrication d'une case maille par maille (case.py) : les identifiants
+        # des objets ajoutés viennent d'un compteur commun, uniques dans la case.
+        self._identifiants = identifiants
 
     # ------------------------------------------------------------ OSM
 
@@ -115,13 +118,18 @@ class Reseau:
     # ------------------------------------------------------------ IGN
 
     def _nouveau_noeud(self, lat, lon) -> int:
-        if self._prochain_noeud is None:
-            self._prochain_noeud = max(self.noeuds, default=0) + 1
-        nid, self._prochain_noeud = self._prochain_noeud, self._prochain_noeud + 1
+        if self._identifiants is not None:
+            nid = self._identifiants.noeud()
+        else:
+            if self._prochain_noeud is None:
+                self._prochain_noeud = max(self.noeuds, default=0) + 1
+            nid, self._prochain_noeud = self._prochain_noeud, self._prochain_noeud + 1
         self.noeuds[nid] = [lat, lon, {}]
         return nid
 
     def _nouvelle_voie(self) -> int:
+        if self._identifiants is not None:
+            return self._identifiants.voie()
         if self._prochaine_voie is None:
             self._prochaine_voie = max(self.voies, default=0) + 1
         wid, self._prochaine_voie = self._prochaine_voie, self._prochaine_voie + 1
@@ -163,13 +171,18 @@ class Reseau:
                 for ids, tags in self.voies.values() if fr._praticable(tags) and not fr._hors_sol(tags)
                 for k in range(len(ids) - 1)]
 
-    def ajouter_ign(self, troncons, source="ign") -> int:
-        """Ajoute les tronçons officiels absents d'OSM ; rend leur nombre."""
+    def ajouter_ign(self, troncons, source="ign", bouts=None) -> int:
+        """Ajoute les tronçons officiels absents d'OSM ; rend leur nombre.
+
+        bouts : point (arrondi au 1e-7) -> nœud commun des tronçons IGN. Partagé
+        entre les mailles d'une case, il garde à un même point le même nœud,
+        déjà raccordé : deux tronçons qui se touchent à la limite restent liés."""
         from .providers import source as fournisseur
         fournisseur(source)
         index = self.index()
         self._liens = []
-        bouts = {}                  # point (arrondi au 1e-7) -> nœud commun des tronçons IGN
+        bouts = {} if bouts is None else bouts
+        crees = set()               # bouts nés ici, les seuls à raccorder
         bords_vectoriels = defaultdict(list)  # extrémités découpées par basemap.de
         ajoutes = 0
         candidats = [t for t in troncons if t.get("nature") not in NATURES_EXCLUES and len(t.get("pts") or []) >= 2]
@@ -199,9 +212,12 @@ class Reseau:
                         if nid is None:
                             nid = self._nouveau_noeud(lat, lon)
                         bouts[cle] = nid
+                        crees.add(nid)
                         if bord:
                             bords_vectoriels[case].append((lat, lon, nid, t["land"],
                                                            t.get("niveau", 0), t["id"]))
+                    # Bout venu d'une autre maille : son nœud peut manquer ici.
+                    self.noeuds.setdefault(bouts[cle], [lat, lon, {}])
                     ids.append(bouts[cle])
                 else:
                     ids.append(self._nouveau_noeud(lat, lon))
@@ -213,7 +229,7 @@ class Reseau:
             self.voies[wid] = [ids, tags]
             self.ign.append(wid)
             ajoutes += 1
-        for nid in set(bouts.values()):
+        for nid in crees:
             self._raccorder_osm(nid, index)
         # Un bout raccordé à un nœud OSM voisin ne garde qu'un nœud : le sien
         # devient celui de la voie OSM, partout où il apparaît.
@@ -221,8 +237,12 @@ class Reseau:
         for wid in self.ign:
             ids = self.voies[wid][0]
             self.voies[wid][0] = [remplace.get(n, n) for n in ids]
-        for nid in remplace:
-            self.noeuds.pop(nid, None)
+        for cle, nid in bouts.items():
+            if nid in remplace:
+                bouts[cle] = remplace[nid]
+        for nid, cible in remplace.items():
+            if nid != cible:
+                self.noeuds.pop(nid, None)
         return ajoutes
 
     # ------------------------------------------------------------ sorties
