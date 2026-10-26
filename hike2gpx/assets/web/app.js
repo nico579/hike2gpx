@@ -21,6 +21,10 @@ const $ = (id) => document.getElementById(id);
 // applique alors ce dictionnaire. Les éléments fixes portent data-i18n.
 const TEXTES = {
   fr: {
+    "page.titre": "hike2gpx — tracer un parcours",
+    "onglets.titre": "Outils de randonnée",
+    "onglets.parcours": "Parcours",
+    "onglets.reglages": "Réglages",
     "aide": "Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.",
     "bouton.retirerDernier": "Retirer",
     "bouton.retirerDernierInfo": "Retire le dernier point ajouté au parcours.",
@@ -35,7 +39,6 @@ const TEXTES = {
     "gpx.invalide": "fichier GPX invalide ou sans tracé.",
     "gpx.tropGrand": "fichier trop volumineux (20 Mo maximum).",
     "option.strict": "Mode strict : éviter aussi les passages à vérifier",
-    "option.ign": "Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)",
     "option.cheminsRoutables": "Emprunter aussi les {nom} absents d’OSM (à vérifier sur place)",
     "option.cheminsAffichage": "{nom} : affichage seul, calcul sur les chemins OSM",
     "option.comparer": "Montrer le tracé qui ignore les barrières",
@@ -44,13 +47,17 @@ const TEXTES = {
 "resultat.altitudeMaxMin": "Altitude max/min",
     "resultat.denivele": "Dénivelé",
     "resume.parcours": "Votre parcours",
-"resume.dureeInfo": "Modèle de Tobler sur le profil gpx2elev lissé : v = 6 × exp(−3,5 × |pente + 0,05|) km/h. La pente est calculée tous les 20 m dans le sens du parcours ; les durées sont additionnées sans pauses. Le facteur 0,6 ne s'applique qu'aux portions identifiées hors sentier ; les chemins IGN restent des chemins.",
-"recherche.label": "Rechercher une ville",
-"recherche.placeholder": "Rechercher une ville…",
+"resume.dureeInfo": "Modèle de Tobler sur le profil gpx2elev lissé : v = 6 × exp(−3,5 × |pente + 0,05|) km/h. La pente est calculée tous les 20 m dans le sens du parcours ; les durées sont additionnées sans pauses. Le facteur 0,6 ne s'applique qu'aux portions identifiées hors sentier ; les chemins officiels restent des chemins.",
+"recherche.label": "Rechercher une ville ou des coordonnées GPS",
+"recherche.placeholder": "Ville ou coordonnées (lat, lon)…",
 "recherche.bouton": "Chercher",
 "recherche.attente": "Recherche en cours…",
 "recherche.aucun": "Aucune ville trouvée.",
 "recherche.erreur": "Recherche indisponible : {message}",
+    "menu.coordonnees": "Coordonnées GPS (latitude, longitude)",
+    "menu.copier": "Copier les coordonnées",
+    "menu.copie": "Coordonnées copiées",
+    "menu.selection": "Coordonnées sélectionnées : copiez-les avec Ctrl+C.",
     "resume.deniveleInfo": "gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.",
     "profil.titre": "Le relief du parcours",
     "profil.depart": "Départ",
@@ -60,16 +67,11 @@ const TEXTES = {
     "resultat.aucun": "Aucun franchissement connu sur ce tracé.",
     "legende.titre": "Légende",
     "legende.itineraire": "itinéraire hike2gpx",
-    "legende.ign": "portion sur un chemin IGN absent d'OSM, à vérifier",
     "legende.naif": "tracé standard, qui ignore les barrières",
     "legende.bloque": "franchissement bloquant",
     "legende.verifier": "franchissement à vérifier",
     "legende.osm": "chemins OSM (tirets : sentiers)",
     "legende.barriere": "clôtures et murs connus d'OSM",
-    "legende.bdtopo": "chemins BD TOPO de l'IGN",
-    "legende.senderos": "sentiers balisés espagnols (GR rouge, PR jaune, SL vert)",
-    "legende.suisseSentiers": "sentiers de randonnée swisstopo",
-    "legende.usgsSentiers": "sentiers recensés par l’USGS",
     "legende.gpx": "GPX chargé",
     "reglages.titre": "Réglages",
     "reglages.cle": "Clé IGN pour le SCAN 25",
@@ -89,11 +91,31 @@ const TEXTES = {
     "reglages.majImpossible": "Vérification impossible (réseau ?).",
     "disponibilite.oui": "Tracé disponible",
     "disponibilite.non": "Tracé indisponible",
+    "disponibilite.attente.moteur": "Installation de BRouter en cours",
+    "disponibilite.attente.segments": "Tuiles BRouter en cours de téléchargement",
+    "disponibilite.attente.osm": "Données OSM ou Overpass en attente",
+    "disponibilite.attente.source": "Chemins officiels indisponibles dans cette zone",
+    "disponibilite.attente.zone": "Zone du parcours à préciser",
+    "disponibilite.info.titre": "Sources du prochain calcul",
+    "disponibilite.info.verification": "Vérification des données en cours…",
+    "disponibilite.info.overpass": "Overpass",
+    "disponibilite.info.local": "Extrait OSM local",
+    "disponibilite.info.regional": "Extrait OSM régional",
+    "disponibilite.info.brouter": "BRouter",
+    "disponibilite.info.pret": "prêt",
+    "disponibilite.info.attente": "en attente",
+    "disponibilite.etat.oui": "répond",
+    "disponibilite.etat.non": "ne répond pas",
+    "disponibilite.etat.verification": "vérification en cours",
+    "disponibilite.etat.disponible": "disponible",
+    "disponibilite.etat.absent": "absent",
+    "disponibilite.etat.telechargement": "téléchargement en cours",
+    "disponibilite.etat.import": "import en cours",
+    "disponibilite.etat.non_applicable": "sans objet",
     "statut.donneesIndisponibles": "Données OSM indisponibles pour ce tracé. Nouvelle tentative automatique après téléchargement.",
     "donnees.titre": "Données téléchargées",
     "donnees.note": "Tout se retélécharge de soi-même au besoin : vider ou supprimer libère de la place, actualiser donne des données fraîches.",
     "donnees.osm": "Chemins OSM lus sur Overpass : {n} tuiles, {taille}",
-    "donnees.bdtopo": "Chemins BD TOPO : {n} tuiles, {taille}",
     "donnees.extrait": "Extrait {nom} du {date}, {taille}",
     "donnees.extrait.provisoire": "Extrait {nom} du {date}, {taille}, en attendant sa région",
     "donnees.brouter": "Tuiles BRouter {noms} : {taille}",
@@ -105,15 +127,16 @@ const TEXTES = {
     "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
     "donnees.viderTout": "Vider le cache",
     "donnees.aideCache": "Détail des caches vidés",
-    "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins BD TOPO de l'IGN, les extraits OSM téléchargés (départements et régions), les données BRouter (moteur et tuiles de routage) et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte IGN et OSM, conservées dans le cache du navigateur, ne sont pas effacées.",
+    "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins officiels, les extraits OSM téléchargés, les données BRouter et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte, conservées dans le cache du navigateur, ne sont pas effacées.",
     "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter ? Elles seront retéléchargées au besoin. Les tuiles de fond de carte restent dans le cache du navigateur.",
     "donnees.vide": "Cache local vidé. Les tuiles du fond de carte restent gérées par le navigateur.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
     "unite.mo": "Mo",
-    "pied": "Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins BD TOPO et cartes © IGN, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.",
+    "pied": "Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins et cartes officiels selon le pays, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.",
     "statut.deuxiemePoint": "Posez un deuxième point.",
     "statut.calcul": "Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute",
-    "statut.calculIgn": ", puis la fusion avec les chemins IGN quelques secondes.",
+    "statut.calculOfficiel": ", puis la fusion avec les chemins {nom} quelques secondes.",
+    "avertissement.officiel": "Chemins {nom} indisponibles, calcul sur OSM seul : {detail}",
     "statut.erreur": "Erreur : {message}",
     "statut.bilan": "Calculé en {duree} s ; franchissements connus dans la zone examinée : {total}.",
     "comparaison.traverse": "Le tracé standard (profil Randonnée de BRouter, sans les barrières) mesure {km} ; franchissements bloquants traversés : {n}.",
@@ -132,10 +155,6 @@ const TEXTES = {
     "denivele.indisponible": "Dénivelé indisponible : gpx2elev, {erreur}",
     "denivele.source": "Source des altitudes du parcours : {modele} · calcul gpx2elev (pas 5 m, lissage 20 m, seuil 2 m).",
     "calque.osm": "Chemins OSM",
-    "calque.bdtopo": "Chemins BD TOPO (IGN)",
-    "calque.senderos": "Sentiers balisés GR/PR/SL (IGN Espagne)",
-    "calque.suisseSentiers": "Sentiers de randonnée (swisstopo)",
-    "calque.usgsSentiers": "Sentiers recensés par l’USGS",
     "calque.chargement": "Chargement des {nom}… (la première fois, jusqu'à une minute)",
     "calque.avancement": "Chargement des {nom}… {faites} sur {total} tuiles · {duree} s",
     "liaison.et": " et ",
@@ -147,24 +166,9 @@ const TEXTES = {
     "extrait.installe": "Données OSM hors ligne : extrait {nom} du {date}, renouvelé tous les {jours} jours.",
     "extrait.erreur": "Extrait {nom} non installé : {message}",
     "extrait.attente": "Overpass ne répond pas ; l'extrait OSM {nom} se télécharge, le calcul reprendra de lui-même.",
-    "bdtopo.troncon": "Tronçon",
-    "bdtopo.acces": "accès piéton : {valeur}",
-    "bdtopo.prive": "privé",
-    "fond.scan25": "SCAN 25 (IGN)",
-    "fond.plan": "Plan IGN",
-    "fond.photos": "Photos aériennes (IGN)",
     "fond.osmRando": "OSM rando",
     "fond.osm": "OSM",
-    "fond.osmVelo": "OSM vélo",
     "fond.satellite": "Satellite",
-    "fond.reliefLidar": "Relief LiDAR HD (IGN)",
-    "fond.espagne": "Carte topographique (IGN Espagne)",
-    "fond.suisse": "Carte nationale (swisstopo)",
-    "fond.autriche": "Carte officielle (basemap.at)",
-    "fond.paysBas": "Carte topographique (PDOK)",
-    "fond.norvege": "Carte de randonnée (Kartverket)",
-    "fond.luxembourg": "Carte topographique (Luxembourg)",
-    "fond.etatsUnis": "Carte topographique (USGS)",
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
@@ -173,7 +177,7 @@ const TEXTES = {
     "pleinEcran.quitter": "Quitter le plein écran",
     "etape.debut": "Préparation du calcul",
     "etape.donnees": "Lecture des données de la zone : {faites} / {total} tuiles",
-    "etape.fusion": "Fusion avec les chemins IGN",
+    "etape.fusion": "Fusion avec les chemins officiels",
     "etape.tuiles": "Fabrication de la tuile BRouter",
     "etape.analyse": "Analyse des franchissements",
     "etape.itineraire": "Calcul de l'itinéraire",
@@ -181,20 +185,21 @@ const TEXTES = {
     "etape.elargie": " (zone élargie)",
     "icone.depart": "D",
     "icone.arrivee": "A",
-    "ign.nature": "Chemin IGN de {m} m",
     "gpx.deniveleIndisponible": "dénivelé gpx2elev indisponible",
     "gpx.description": "Distance {km}, {denivele}, passages à vérifier : {n}. ",
     "gpx.barrieres": "Barrières © contributeurs OpenStreetMap",
-    "gpx.bdtopo": ", chemins BD TOPO © IGN",
     "gpx.trace": " ; tracé hike2gpx.",
     "gpx.aVerifier": "À vérifier : {nature}",
     "erreur.zone_trop_etendue": "Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus {max}. Découpez le parcours en étapes plus courtes.",
     "erreur.itineraire_refuse": "Itinéraire refusé : le tracé passe un franchissement {mot} ({nature}, à {distance} du départ).",
     "mot.bloquant": "bloquant",
     "mot.strict": "à vérifier, en mode strict",
-    "avertissement.ign": "Chemins IGN indisponibles, calcul sur OSM seul : {detail}",
   },
   en: {
+    "page.titre": "hike2gpx — plan a route",
+    "onglets.titre": "Hiking tools",
+    "onglets.parcours": "Route",
+    "onglets.reglages": "Settings",
     "aide": "Click the map to place the start, then the waypoints and the finish. Drag a point to move it; “Back to start” closes a loop.",
     "bouton.retirerDernier": "Remove",
     "bouton.retirerDernierInfo": "Removes the last point added to the route.",
@@ -209,7 +214,6 @@ const TEXTES = {
     "gpx.invalide": "invalid GPX file or no track found.",
     "gpx.tropGrand": "file too large (20 MB maximum).",
     "option.strict": "Strict mode: also avoid crossings to check",
-    "option.ign": "Also use IGN paths missing from OSM (to check on site)",
     "option.cheminsRoutables": "Also use {nom} missing from OSM (check on site)",
     "option.cheminsAffichage": "{nom}: map display only; routing uses OSM paths",
     "option.comparer": "Show the route that ignores barriers",
@@ -218,13 +222,17 @@ const TEXTES = {
 "resultat.altitudeMaxMin": "Max/min altitude",
     "resultat.denivele": "Elevation",
     "resume.parcours": "Your route",
-"resume.dureeInfo": "Tobler's model on the smoothed gpx2elev profile: v = 6 × exp(−3.5 × |slope + 0.05|) km/h. Slope is measured every 20 m in travel direction; segment times are added without breaks. The 0.6 factor applies only to identified off-path sections; IGN paths remain paths.",
-"recherche.label": "Search for a town",
-"recherche.placeholder": "Search for a town…",
+"resume.dureeInfo": "Tobler's model on the smoothed gpx2elev profile: v = 6 × exp(−3.5 × |slope + 0.05|) km/h. Slope is measured every 20 m in travel direction; segment times are added without breaks. The 0.6 factor applies only to identified off-path sections; official paths remain paths.",
+"recherche.label": "Search for a town or GPS coordinates",
+"recherche.placeholder": "Town or coordinates (lat, lon)…",
 "recherche.bouton": "Search",
 "recherche.attente": "Searching…",
 "recherche.aucun": "No town found.",
 "recherche.erreur": "Search unavailable: {message}",
+    "menu.coordonnees": "GPS coordinates (latitude, longitude)",
+    "menu.copier": "Copy coordinates",
+    "menu.copie": "Coordinates copied",
+    "menu.selection": "Coordinates selected: copy them with Ctrl+C.",
     "resume.deniveleInfo": "gpx2elev samples elevation every 5 m. It selects the best model covering the whole route: IGN LiDAR HD first, then Mapterhorn, FABDEM, Copernicus GLO-30 or SRTM. It smooths the profile over 20 m and calculates ascent/descent with a 2 m threshold. The selected model appears on the profile. If none is available, elevation remains unavailable; the BRouter estimate is not substituted.",
     "profil.titre": "Route elevation",
     "profil.depart": "Start",
@@ -234,16 +242,11 @@ const TEXTES = {
     "resultat.aucun": "No known crossing on this route.",
     "legende.titre": "Legend",
     "legende.itineraire": "hike2gpx route",
-    "legende.ign": "section on an IGN path missing from OSM, to check",
     "legende.naif": "standard route, ignoring barriers",
     "legende.bloque": "blocking crossing",
     "legende.verifier": "crossing to check",
     "legende.osm": "OSM paths (dashed: footpaths)",
     "legende.barriere": "fences and walls known to OSM",
-    "legende.bdtopo": "IGN BD TOPO paths",
-    "legende.senderos": "Spanish waymarked trails (GR red, PR yellow, SL green)",
-    "legende.suisseSentiers": "swisstopo hiking trails",
-    "legende.usgsSentiers": "trails mapped by USGS",
     "legende.gpx": "Loaded GPX",
     "reglages.titre": "Settings",
     "reglages.cle": "IGN key for SCAN 25",
@@ -263,11 +266,31 @@ const TEXTES = {
     "reglages.majImpossible": "Could not check (network?).",
     "disponibilite.oui": "Routing available",
     "disponibilite.non": "Routing unavailable",
+    "disponibilite.attente.moteur": "BRouter installation in progress",
+    "disponibilite.attente.segments": "BRouter tiles downloading",
+    "disponibilite.attente.osm": "Waiting for OSM data or Overpass",
+    "disponibilite.attente.source": "Official paths unavailable in this area",
+    "disponibilite.attente.zone": "Route area needs to be specified",
+    "disponibilite.info.titre": "Sources for the next route",
+    "disponibilite.info.verification": "Checking data…",
+    "disponibilite.info.overpass": "Overpass",
+    "disponibilite.info.local": "Local OSM extract",
+    "disponibilite.info.regional": "Regional OSM extract",
+    "disponibilite.info.brouter": "BRouter",
+    "disponibilite.info.pret": "ready",
+    "disponibilite.info.attente": "waiting",
+    "disponibilite.etat.oui": "responding",
+    "disponibilite.etat.non": "not responding",
+    "disponibilite.etat.verification": "checking",
+    "disponibilite.etat.disponible": "available",
+    "disponibilite.etat.absent": "absent",
+    "disponibilite.etat.telechargement": "downloading",
+    "disponibilite.etat.import": "importing",
+    "disponibilite.etat.non_applicable": "not applicable",
     "statut.donneesIndisponibles": "OSM data unavailable for this route. Automatic retry after download.",
     "donnees.titre": "Downloaded data",
     "donnees.note": "Everything downloads again by itself when needed: clearing or deleting frees space, refreshing brings fresh data.",
     "donnees.osm": "OSM paths read from Overpass: {n} tiles, {taille}",
-    "donnees.bdtopo": "BD TOPO paths: {n} tiles, {taille}",
     "donnees.extrait": "{nom} extract of {date}, {taille}",
     "donnees.extrait.provisoire": "{nom} extract of {date}, {taille}, until its region arrives",
     "donnees.brouter": "BRouter tiles {noms}: {taille}",
@@ -279,15 +302,16 @@ const TEXTES = {
     "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
     "donnees.viderTout": "Clear cache",
     "donnees.aideCache": "Details of cleared caches",
-    "donnees.detailCache": "This clears Overpass responses and OSM crossings, IGN BD TOPO paths, downloaded OSM extracts (departments and regions), BRouter data (engine and routing tiles), and gpx2elev elevation models. They are downloaded again when needed. IGN and OSM background map tiles held in the browser cache are not cleared.",
+    "donnees.detailCache": "This clears Overpass responses and OSM crossings, official paths, downloaded OSM extracts, BRouter data and gpx2elev elevation models. They are downloaded again when needed. Background map tiles held in the browser cache are not cleared.",
     "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data? It will download again when needed. Background map tiles remain in the browser cache.",
     "donnees.vide": "Local cache cleared. Background map tiles remain managed by the browser.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
     "unite.mo": "MB",
-    "pied": "Barriers and paths © OpenStreetMap contributors (ODbL), BD TOPO paths and maps © IGN, routing by BRouter. A barrier missing from OpenStreetMap cannot be avoided: the ground always has the last word.",
+    "pied": "Barriers and paths © OpenStreetMap contributors (ODbL), official paths and maps according to the country, routing by BRouter. A barrier missing from OpenStreetMap cannot be avoided: the ground always has the last word.",
     "statut.deuxiemePoint": "Place a second point.",
     "statut.calcul": "Calculating… The first time in an area, reading the OSM barriers takes up to a minute",
-    "statut.calculIgn": ", then merging the IGN paths a few seconds.",
+    "statut.calculOfficiel": ", then merging {nom} paths takes a few seconds.",
+    "avertissement.officiel": "{nom} paths unavailable, routing on OSM only: {detail}",
     "statut.erreur": "Error: {message}",
     "statut.bilan": "Calculated in {duree} s; known crossings in the examined area: {total}.",
     "comparaison.traverse": "The standard route (BRouter hiking profile, without the barriers) is {km} long; blocking crossings passed: {n}.",
@@ -306,10 +330,6 @@ const TEXTES = {
     "denivele.indisponible": "Elevation unavailable: gpx2elev, {erreur}",
     "denivele.source": "Route elevation source: {modele} · gpx2elev calculation (5 m sampling, 20 m smoothing, 2 m threshold).",
     "calque.osm": "OSM paths",
-    "calque.bdtopo": "BD TOPO paths (IGN)",
-    "calque.senderos": "Waymarked GR/PR/SL trails (Spanish IGN)",
-    "calque.suisseSentiers": "Hiking trails (swisstopo)",
-    "calque.usgsSentiers": "Trails mapped by USGS",
     "calque.chargement": "Loading the {nom}… (the first time, up to a minute)",
     "calque.avancement": "Loading the {nom}… {faites} of {total} tiles · {duree} s",
     "liaison.et": " and ",
@@ -321,24 +341,9 @@ const TEXTES = {
     "extrait.installe": "Offline OSM data: {nom} extract of {date}, renewed every {jours} days.",
     "extrait.erreur": "{nom} extract not installed: {message}",
     "extrait.attente": "Overpass is not responding; the {nom} OSM extract is downloading, the calculation will resume by itself.",
-    "bdtopo.troncon": "Section",
-    "bdtopo.acces": "pedestrian access: {valeur}",
-    "bdtopo.prive": "private",
-    "fond.scan25": "SCAN 25 (IGN)",
-    "fond.plan": "Plan IGN",
-    "fond.photos": "Aerial photos (IGN)",
     "fond.osmRando": "OSM hiking",
     "fond.osm": "OSM",
-    "fond.osmVelo": "OSM cycling",
     "fond.satellite": "Satellite",
-    "fond.reliefLidar": "LiDAR HD terrain relief (IGN)",
-    "fond.espagne": "Topographic map (Spanish IGN)",
-    "fond.suisse": "National map (swisstopo)",
-    "fond.autriche": "Official map (basemap.at)",
-    "fond.paysBas": "Topographic map (PDOK)",
-    "fond.norvege": "Hiking map (Kartverket)",
-    "fond.luxembourg": "Topographic map (Luxembourg)",
-    "fond.etatsUnis": "Topographic map (USGS)",
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
@@ -347,7 +352,7 @@ const TEXTES = {
     "pleinEcran.quitter": "Exit full screen",
     "etape.debut": "Preparing the calculation",
     "etape.donnees": "Reading the area's data: {faites} / {total} tiles",
-    "etape.fusion": "Merging the IGN paths",
+    "etape.fusion": "Merging official paths",
     "etape.tuiles": "Building the BRouter tile",
     "etape.analyse": "Analysing the crossings",
     "etape.itineraire": "Calculating the route",
@@ -355,18 +360,15 @@ const TEXTES = {
     "etape.elargie": " (area enlarged)",
     "icone.depart": "S",
     "icone.arrivee": "F",
-    "ign.nature": "IGN path, {m} m",
     "gpx.deniveleIndisponible": "gpx2elev elevation unavailable",
     "gpx.description": "Distance {km}, {denivele}, crossings to check: {n}. ",
     "gpx.barrieres": "Barriers © OpenStreetMap contributors",
-    "gpx.bdtopo": ", BD TOPO paths © IGN",
     "gpx.trace": "; route by hike2gpx.",
     "gpx.aVerifier": "To check: {nature}",
     "erreur.zone_trop_etendue": "Area too large: {nombre} tiles of 0.05° to examine, {max} at most. Split the route into shorter stages.",
     "erreur.itineraire_refuse": "Route refused: it passes a {mot} crossing ({nature}, {distance} from the start).",
     "mot.bloquant": "blocking",
     "mot.strict": "to-check (strict mode)",
-    "avertissement.ign": "IGN paths unavailable, routing on OSM only: {detail}",
   },
 };
 
@@ -392,7 +394,6 @@ const SERVEUR_EN = {
   "Franchissement à vérifier sur place": "Crossing to check on site",
   "Sentier balisé : passage probable, à vérifier": "Marked trail: passage likely, to check",
   "Niveau de franchissement à confirmer": "Crossing level to confirm",
-  "Chemin de la BD TOPO absent d'OpenStreetMap : existence et accès à vérifier": "BD TOPO path missing from OpenStreetMap: existence and access to check",
   "Clôture": "Fence", "Mur": "Wall", "Haie": "Hedge", "Portail": "Gate", "Barrière levante": "Lift gate",
   "Barrière pivotante": "Swing gate", "Échalier": "Stile", "Portillon": "Kissing gate", "Borne": "Bollard",
   "Chicane": "Cycle barrier", "Bloc": "Block", "Chaîne": "Chain", "Passage": "Passage", "Ouverture": "Opening",
@@ -410,9 +411,8 @@ const SERVEUR_EN = {
   "Il faut entre 2 et 50 points.": "Between 2 and 50 points are needed.",
   "Nom de tuile invalide.": "Invalid tile name.",
   "Clé IGN invalide : lettres, chiffres, _ et - seulement.": "Invalid IGN key: letters, digits, _ and - only.",
-  "Données OSM ou BD TOPO de la zone indisponibles.": "OSM or BD TOPO data for this area unavailable.",
+  "Données OSM ou chemins officiels de la zone indisponibles.": "OSM or official path data for this area unavailable.",
   "Hors connexion : les barrières de cette zone n'ont jamais été chargées.": "Offline: the barriers of this area were never loaded.",
-  "Hors connexion : chemins BD TOPO de cette zone jamais chargés.": "Offline: the BD TOPO paths of this area were never loaded.",
   "Réponse Overpass trop volumineuse : barrières non vérifiées.": "Overpass response too large: barriers not checked.",
   "Extrait inconnu.": "Unknown extract.",
   "Cet extrait se télécharge déjà.": "This extract is already downloading.",
@@ -425,13 +425,18 @@ const SERVEUR_EN = {
 let langue = "fr";
 
 function t(cle, valeurs = {}) {
-  let s = TEXTES[langue][cle] ?? TEXTES.fr[cle] ?? cle;
+  const providers = Object.values(window.HIKE2GPX_MAP_PROVIDERS || {});
+  const texteProvider = providers.map((p) => p.texts?.[langue]?.[cle]).find((s) => s !== undefined);
+  let s = texteProvider ?? TEXTES[langue][cle] ?? TEXTES.fr[cle] ?? cle;
   for (const [k, v] of Object.entries(valeurs)) s = s.split(`{${k}}`).join(v);
   return s;
 }
 
 function ts(texte) {
-  return langue === "en" && texte in SERVEUR_EN ? SERVEUR_EN[texte] : texte;
+  if (langue !== "en") return texte;
+  const traduit = Object.values(window.HIKE2GPX_MAP_PROVIDERS || {})
+    .map((p) => p.serverTexts?.[texte]).find((s) => s !== undefined);
+  return traduit ?? SERVEUR_EN[texte] ?? texte;
 }
 
 function decimal(valeur, chiffres) {
@@ -459,15 +464,24 @@ function texteErreur(r) {
 }
 
 function natureDe(f) {
-  return String(f.cle || "").startsWith("ign-") ? t("ign.nature", { m: f.longueur_m }) : ts(f.nature);
+  const cle = String(f.cle || "");
+  const fournisseur = Object.values(FOURNISSEURS_CARTES).find((p) =>
+    p.paths?.source && cle.startsWith(`${p.paths.source}-`));
+  if (fournisseur) {
+    return langue === "en" ? `${fournisseur.paths.label} path, ${f.longueur_m} m`
+      : `Chemin ${fournisseur.paths.label} de ${f.longueur_m} m`;
+  }
+  return ts(f.nature);
 }
 
 function appliquerLangue(code) {
   langue = code === "en" ? "en" : "fr";
   document.documentElement.lang = langue;
+  document.title = t("page.titre");
+  $("panelTabs").setAttribute("aria-label", t("onglets.titre"));
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
   lienAide();
-  afficherOptionChemins();
+  afficherOptionsIgn();
   $("cityQuery").placeholder = t("recherche.placeholder");
   if ($("pleinEcran")) {
     $("pleinEcran").title = t(document.body.classList.contains("plein-ecran") ? "pleinEcran.quitter" : "pleinEcran.entrer");
@@ -479,6 +493,7 @@ function appliquerLangue(code) {
   afficherDonnees();
   afficherStatut(...etat.statut);
   if (etat.dernier) ecrireResultat(etat.dernier);
+  afficherDisponibilite(derniereDisponibilite);
   actualiserDisponibilite();
 }
 
@@ -529,8 +544,58 @@ let paysCarte = Object.hasOwn(window.HIKE2GPX_MAP_PROVIDERS, vueInitiale.pays)
   ? vueInitiale.pays : (vueInitiale.hors_france === true ? "autre" : "fr");
 let horsFrance = paysCarte !== "fr";
 const carte = L.map("carte").setView([vueInitiale.lat, vueInitiale.lon], vueInitiale.zoom);
+carte.on("contextmenu", (evenement) => {
+  const { lat, lng } = evenement.latlng;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  const coordonnees = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  const contenu = document.createElement("div");
+  contenu.className = "map-coordinates-menu";
+  const titre = document.createElement("label");
+  titre.textContent = t("menu.coordonnees");
+  const champ = document.createElement("input");
+  champ.type = "text";
+  champ.readOnly = true;
+  champ.value = coordonnees;
+  titre.append(champ);
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.textContent = t("menu.copier");
+  const retour = document.createElement("span");
+  retour.setAttribute("role", "status");
+  bouton.addEventListener("click", async () => {
+    let copie = false;
+    try {
+      if (globalThis.navigator?.clipboard?.writeText) {
+        await globalThis.navigator.clipboard.writeText(coordonnees);
+        copie = true;
+      }
+    } catch (_) { /* le champ reste sélectionnable */ }
+    if (!copie) {
+      champ.focus();
+      champ.select();
+      copie = Boolean(document.execCommand?.("copy"));
+    }
+    retour.textContent = t(copie ? "menu.copie" : "menu.selection");
+  });
+  contenu.append(titre, bouton, retour);
+  L.DomEvent.disableClickPropagation(contenu);
+  L.popup({ className: "map-coordinates-popup", minWidth: 230 })
+    .setLatLng(evenement.latlng).setContent(contenu).openOn(carte);
+});
 let sequenceRecherche = 0;
 const resultatsVilles = $("cityResults");
+function lireCoordonnees(recherche) {
+  // Deux décimaux séparés par un point-virgule, une virgule ou un espace.
+  // Le point-virgule permet aussi la virgule décimale française.
+  const points = recherche.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)\s*$/);
+  const parties = points ? [points[1], points[2]] : recherche.includes(";") ? recherche.split(";")
+    : recherche.trim().split(/\s+/);
+  if (parties.length !== 2) return null;
+  if (!parties.every((p) => /^[+-]?\d+(?:[.,]\d+)?$/.test(p.trim()))) return null;
+  const nombres = parties.map((p) => Number(p.trim().replace(",", ".")));
+  return nombres.every(Number.isFinite) && Math.abs(nombres[0]) <= 90 && Math.abs(nombres[1]) <= 180
+    ? nombres : null;
+}
 $("cityQuery").addEventListener("input", () => {
   sequenceRecherche++;
   resultatsVilles.hidden = true;
@@ -543,6 +608,15 @@ $("citySearch").addEventListener("submit", async (e) => {
   e.preventDefault();
   const recherche = $("cityQuery").value.trim();
   if (recherche.length < 2) return;
+  const coordonnees = lireCoordonnees(recherche);
+  if (coordonnees) {
+    ++sequenceRecherche;
+    const [lat, lon] = coordonnees;
+    carte.setView([lat, lon], 14);
+    memoriserVue(lat, lon, 14);
+    resultatsVilles.hidden = true;
+    return;
+  }
   const numero = ++sequenceRecherche;
   resultatsVilles.replaceChildren();
   resultatsVilles.textContent = t("recherche.attente");
@@ -588,20 +662,45 @@ carte.on("moveend", () => {
 });
 
 let sequenceDisponibilite = 0;
+let derniereDisponibilite = null;
 function afficherDisponibilite(d) {
+  derniereDisponibilite = d;
   const pret = Boolean(d?.pret);
   $("readiness").classList.toggle("available", pret);
   $("readiness").classList.toggle("unavailable", !pret);
   $("readinessText").textContent = t(pret ? "disponibilite.oui" : "disponibilite.non");
-  $("readiness").title = pret ? `OSM : ${d.source === "extrait" ? d.nom : "Overpass"}`
-    : d?.verification ? "Vérification d'Overpass…" : "Aucune source OSM disponible dans cette zone";
+  $("readiness").title = pret ? `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`
+    : t(`disponibilite.attente.${d?.attente || "osm"}`);
+  $("readinessInfo").setAttribute("aria-label", t("disponibilite.info.titre"));
+  const details = d?.details;
+  if (!details) {
+    $("readinessInfoText").textContent = t("disponibilite.info.verification");
+    return;
+  }
+  const extrait = (cle) => {
+    const source = details[cle] || { etat: "non_applicable" };
+    return `${t(`disponibilite.info.${cle}`)}${source.nom ? ` (${source.nom})` : ""} : `
+      + t(`disponibilite.etat.${source.etat}`);
+  };
+  $("readinessInfoText").textContent = [t("disponibilite.info.titre"),
+    `${t("disponibilite.info.overpass")} : ${t(`disponibilite.etat.${details.overpass}`)}`,
+    extrait("local"), extrait("regional"),
+    `${t("disponibilite.info.brouter")} : ${t(d.attente === "moteur" || d.attente === "segments"
+      ? "disponibilite.info.attente" : "disponibilite.info.pret")}`].join("\n");
 }
 
 async function actualiserDisponibilite() {
   const numero = ++sequenceDisponibilite;
-  const parametres = new URLSearchParams(Object.entries(zoneVue()).map(([k, v]) => [k, v.toFixed(5)]));
+  const centre = etat.points[0] || { lat: carte.getCenter().lat, lon: carte.getCenter().lng };
+  const parametres = new URLSearchParams({ s: (centre.lat - 0.00001).toFixed(6),
+    w: (centre.lon - 0.00001).toFixed(6), n: (centre.lat + 0.00001).toFixed(6),
+    e: (centre.lon + 0.00001).toFixed(6) });
   try {
-    const d = await api(`disponibilite?${parametres}`);
+    const d = etat.points.length >= 2 ? await api("disponibilite", {
+      points: etat.points.map((p) => [p.lat, p.lon]),
+      ign: $("ign").checked && Boolean(FOURNISSEURS_CARTES[paysCarte]?.paths?.source),
+      source: FOURNISSEURS_CARTES[paysCarte]?.paths?.source,
+    }) : await api(`disponibilite?${parametres}`);
     if (numero === sequenceDisponibilite) afficherDisponibilite(d);
   } catch (e) {
     if (numero === sequenceDisponibilite) afficherDisponibilite(null);
@@ -609,15 +708,50 @@ async function actualiserDisponibilite() {
 }
 setInterval(actualiserDisponibilite, 10000);
 
-function tuileIgn(couche, format, cle, matrices = "PM") {
-  const base = cle ? "https://data.geopf.fr/private/wmts" : "https://data.geopf.fr/wmts";
-  return `${base}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${couche}&STYLE=normal`
-    + `&TILEMATRIXSET=${matrices}&FORMAT=${format}&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}`
-    + (cle ? `&apikey=${encodeURIComponent(cle)}` : "");
-}
-
 const CLE_FOND = "hike2gpx.fond";
 const FOURNISSEURS_CARTES = window.HIKE2GPX_MAP_PROVIDERS;
+const CHEMINS_OFFICIELS = Object.fromEntries(Object.values(FOURNISSEURS_CARTES)
+  .filter((fournisseur) => fournisseur.paths?.overlay)
+  .map((fournisseur) => [fournisseur.paths.overlay, fournisseur.paths]));
+const NOMS_CALQUES = Object.assign({}, ...Object.values(FOURNISSEURS_CARTES)
+  .map((fournisseur) => ({ ...fournisseur.overlayNames,
+    ...(fournisseur.paths?.overlay ? { [fournisseur.paths.overlay]: fournisseur.paths.name } : {}) })));
+function nomCalque(cle) {
+  return NOMS_CALQUES[cle]?.[langue] || t(`calque.${cle}`);
+}
+function nomFond(cle) {
+  return FOURNISSEURS_CARTES[paysCarte]?.baseNames?.[cle]?.[langue] || t(`fond.${cle}`);
+}
+const LEGENDES_PROVIDERS = new Map();
+for (const fournisseur of Object.values(FOURNISSEURS_CARTES)) {
+  const entrees = [
+    ...(fournisseur.paths?.overlay ? [[fournisseur.paths.overlay, fournisseur.paths.name,
+      fournisseur.paths.legendStyle]] : []),
+    ...(fournisseur.overlays || []).map((cle) => [cle, fournisseur.overlayNames?.[cle],
+      fournisseur.overlayLegendStyles?.[cle]]),
+  ];
+  for (const [cle, noms, style] of entrees) {
+    if (LEGENDES_PROVIDERS.has(cle)) continue;
+    const ligne = document.createElement("li");
+    ligne.dataset.mapOverlay = cle;
+    ligne.hidden = true;
+    const trait = document.createElement("span");
+    trait.className = "trait";
+    Object.assign(trait.style, style || { borderTop: "3px dashed #8650ac" });
+    const libelle = document.createElement("span");
+    libelle.textContent = ` ${noms?.fr || cle}`;
+    ligne.append(trait, libelle);
+    $("legendRows").append(ligne);
+    LEGENDES_PROVIDERS.set(cle, { ligne, libelle, noms });
+  }
+}
+function cheminsDisponibles(chemins, points = []) {
+  if (!chemins?.bounds) return Boolean(chemins);
+  const [s, w, n, e] = chemins.bounds;
+  const positions = points.length ? points : [carte.getCenter()];
+  return positions.every((p) => (p.lat ?? p[0]) >= s && (p.lat ?? p[0]) <= n
+    && (p.lng ?? p.lon ?? p[1]) >= w && (p.lng ?? p.lon ?? p[1]) <= e);
+}
 let controleFonds = null;
 let fondActif = null;
 let couchesFonds = {};      // clé -> fond de carte Leaflet
@@ -641,22 +775,27 @@ carte.on("baselayerchange", (e) => {
 carte.createPane("trace").style.zIndex = 450;
 carte.createPane("sensTrace").style.zIndex = 451;
 carte.createPane("gpxImporte").style.zIndex = 449;
+carte.createPane("obstaclesOsm").style.zIndex = 452;
 const traceGpxImporte = L.layerGroup();
 let nomGpxImporte = null;
 let sequenceImportGpx = 0;
 const rendu = L.canvas({ padding: 0.2 });
+const renduObstacles = L.canvas({ padding: 0.2, pane: "obstaclesOsm" });
 const ZOOM_CALQUES = 14;
 const CLE_CALQUES = "hike2gpx.calques";
 // charge : bornes des tuiles déjà dessinées ; annulation : la requête en cours.
-const CALQUES = {
-  osm: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
-  bdtopo: { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null },
-};
+const CALQUES = Object.fromEntries(["osm", ...Object.keys(CHEMINS_OFFICIELS)]
+  .map((cle) => [cle, { groupe: L.layerGroup(), charge: null, sequence: 0, annulation: null }]));
+for (const [cle, chemins] of Object.entries(CHEMINS_OFFICIELS)) {
+  if (chemins.attribution) CALQUES[cle].groupe.getAttribution = () => chemins.attribution;
+}
 const CALQUES_PAYS = Object.fromEntries(Object.values(FOURNISSEURS_CARTES)
   .flatMap((fournisseur) => Object.entries(fournisseur.calques || {})
     .map(([cle, creer]) => [cle, creer(L)])));
 function calquesDuPays() {
-  return FOURNISSEURS_CARTES[paysCarte]?.overlays || [];
+  const fournisseur = FOURNISSEURS_CARTES[paysCarte];
+  return [...(fournisseur?.overlays || []), ...(cheminsDisponibles(fournisseur?.paths)
+    ? [fournisseur.paths.overlay] : [])];
 }
 function coucheCalque(cle) {
   return CALQUES[cle]?.groupe || CALQUES_PAYS[cle];
@@ -666,12 +805,16 @@ function cochesCalques() {
   try {
     const sauves = JSON.parse(localStorage.getItem(CLE_CALQUES) || "null");
     if (Array.isArray(sauves)) {
-      // L'ancien calque NPS coché devient le calque USGS, plus complet.
-      if (sauves.includes("npsSentiers") && !sauves.includes("usgsSentiers")) sauves.push("usgsSentiers");
+      for (const fournisseur of Object.values(FOURNISSEURS_CARTES)) {
+        for (const [ancien, nouveau] of Object.entries(fournisseur.legacyOverlays || {})) {
+          if (sauves.includes(ancien) && !sauves.includes(nouveau)) sauves.push(nouveau);
+        }
+      }
       return sauves;
     }
   } catch (e) { /* préférence illisible */ }
-  return ["osm", ...Object.values(FOURNISSEURS_CARTES).flatMap((fournisseur) => fournisseur.overlays)];
+  return ["osm", ...Object.values(FOURNISSEURS_CARTES).flatMap((fournisseur) =>
+    [...(fournisseur.overlays || []), ...(fournisseur.paths?.overlay ? [fournisseur.paths.overlay] : [])])];
 }
 function memoriserCalques() {
   if (changementPays) return;
@@ -690,12 +833,6 @@ const STYLES_OSM = {
   route: { color: "#7b1fa2", weight: 2, opacity: 0.45 },
 };
 
-function styleBdtopo(nature) {
-  if (["Sentier", "Chemin", "Escalier"].includes(nature)) return { color: "#00897b", weight: 3, dashArray: "4 4" };
-  if (nature === "Route empierrée") return { color: "#00897b", weight: 3 };
-  return { color: "#00897b", weight: 2, opacity: 0.45 };
-}
-
 function texte(contenu) {
   return document.createTextNode(contenu);   // jamais d'étiquette OSM ou IGN interprétée en HTML
 }
@@ -709,17 +846,16 @@ const DESSINS = {
       L.polyline(b.pts, { color: "#e53935", weight: 3, renderer: rendu })
         .bindTooltip(texte(`${ts(b.nature)} (OSM)`), { sticky: true }).addTo(groupe);
     }
-  },
-  bdtopo(groupe, donnees) {
-    for (const t2 of donnees.troncons) {
-      const details = [t2.nature || t("bdtopo.troncon")];
-      if (t2.acces_pieton) details.push(t("bdtopo.acces", { valeur: t2.acces_pieton }));
-      if (t2.prive) details.push(t("bdtopo.prive"));
-      L.polyline(t2.pts, { ...styleBdtopo(t2.nature), renderer: rendu })
-        .bindTooltip(texte(`${details.join(", ")} (BD TOPO)`), { sticky: true }).addTo(groupe);
+    for (const f of donnees.franchissements || []) {
+      L.circleMarker([f.lat, f.lon], { radius: 6, weight: 2, color: "#fff", fillOpacity: 1,
+        fillColor: COULEURS[f.statut], renderer: renduObstacles, pane: "obstaclesOsm" })
+        .bindPopup(() => bulleFranchissement(f)).addTo(groupe);
     }
   },
 };
+for (const [cle, chemins] of Object.entries(CHEMINS_OFFICIELS)) {
+  DESSINS[cle] = (groupe, donnees) => chemins.draw({ L, groupe, donnees, rendu, texte, t });
+}
 
 // Barre d'une note du panneau (préfixe de ses identifiants : noteCalques,
 // extrait, brouter) : fraction de 0 à 1, null sans fraction connue (un
@@ -824,7 +960,7 @@ async function chargerCalque(cle, zone) {
   abandonner(calque);
   const numero = calque.sequence;
   const annulation = calque.annulation = new AbortController();
-  const nom = t(`calque.${cle}`);
+  const nom = nomCalque(cle);
   const parametres = new URLSearchParams([...Object.entries(zone).map(([k, v]) => [k, v.toFixed(5)]),
     ["vue", dateDeVue().toFixed(3)]]);
   debutLecture(cle, numero, `${nom.charAt(0).toLowerCase()}${nom.slice(1)}`);
@@ -880,7 +1016,25 @@ async function rafraichirCalques() {
 }
 
 let minuterieCalques = null;
+let cheminRegionalVisible = null;
 carte.on("moveend", () => {
+  const chemins = FOURNISSEURS_CARTES[paysCarte]?.paths;
+  if (chemins?.bounds) {
+    const visible = cheminsDisponibles(chemins);
+    if (cheminRegionalVisible !== visible) {
+      cheminRegionalVisible = visible;
+      if (!visible) {
+        const calque = CALQUES[chemins.overlay];
+        calque.groupe.remove();
+        if (abandonner(calque)) arreterAuServeur([chemins.overlay]);
+        calque.groupe.clearLayers();
+        calque.charge = null;
+      } else restaurerCalques();
+      construireFonds();
+      afficherOptionsIgn();
+    }
+  }
+  afficherOptionChemins();
   clearTimeout(minuterieCalques);
   minuterieCalques = setTimeout(rafraichirCalques, 400);
 });
@@ -911,13 +1065,16 @@ function choisirPays(pays) {
   ++sequenceExtrait;
   changementPays = true;
   // Les retraits automatiques de calques ne changent pas leurs préférences.
-  const bdtopo = CALQUES.bdtopo;
-  bdtopo.groupe.remove();
-  if (abandonner(bdtopo)) arreterAuServeur(["bdtopo"]);
-  bdtopo.groupe.clearLayers();
-  bdtopo.charge = null;
+  for (const cle of Object.keys(CHEMINS_OFFICIELS)) {
+    const calque = CALQUES[cle];
+    calque.groupe.remove();
+    if (abandonner(calque)) arreterAuServeur([cle]);
+    calque.groupe.clearLayers();
+    calque.charge = null;
+  }
   for (const couche of Object.values(CALQUES_PAYS)) couche.remove();
   paysCarte = pays;
+  cheminRegionalVisible = cheminsDisponibles(FOURNISSEURS_CARTES[paysCarte]?.paths);
   horsFrance = pays !== "fr";
   afficherOptionsIgn();
   restaurerCalques();
@@ -926,22 +1083,26 @@ function choisirPays(pays) {
 }
 
 function afficherOptionsIgn() {
-  $("legendIgn").hidden = horsFrance;
+  const chemins = FOURNISSEURS_CARTES[paysCarte]?.paths;
+  $("legendIgn").hidden = !chemins?.source;
+  if (chemins?.legend) $("legendOfficielTexte").textContent = chemins.legend[langue];
   afficherOptionChemins();
-  for (const element of document.querySelectorAll("[data-map-overlay]")) {
-    element.hidden = !calquesDuPays().includes(element.dataset.mapOverlay);
+  for (const [cle, { ligne, libelle, noms }] of LEGENDES_PROVIDERS) {
+    ligne.hidden = !calquesDuPays().includes(cle);
+    libelle.textContent = ` ${noms?.[langue] || cle}`;
   }
 }
 
 function afficherOptionChemins() {
   const fournisseur = FOURNISSEURS_CARTES[paysCarte];
-  const couche = fournisseur?.routableOverlay || fournisseur?.overlays?.[0];
+  const disponible = cheminsDisponibles(fournisseur?.paths);
+  const couche = (disponible && fournisseur?.paths?.overlay) || fournisseur?.overlays?.[0];
   $("ignOption").hidden = !couche;
-  const routable = Boolean(fournisseur?.routableOverlay);
+  const routable = Boolean(disponible && fournisseur?.paths?.source);
   $("ign").disabled = !routable;
   $("ign").checked = routable && choixIgn;
   if (couche) $("ignOptionTexte").textContent = t(routable ? "option.cheminsRoutables" : "option.cheminsAffichage",
-    { nom: routable ? fournisseur.routableName[langue] : t(`calque.${couche}`) });
+    { nom: routable ? (fournisseur.paths.routeName || fournisseur.paths.name)[langue] : nomCalque(couche) });
 }
 
 // ------------------------------------------------------------ données OSM hors ligne
@@ -1003,8 +1164,9 @@ async function majExtrait(forcer = false) {
 
 function afficherExtrait(r) {
   const avant = extraitActif(etat.extrait) ? etat.extrait.en_cours.id : null;
+  const avantInstalle = Boolean(etat.extrait?.installe);
   etat.extrait = r;
-  if (r?.installe) afficherDisponibilite({ pret: true, source: "extrait", nom: r.installe.nom });
+  if (r?.installe && !avantInstalle) actualiserDisponibilite();
   const e = r?.en_cours;
   const actif = extraitActif(r);
   // L'extrait suivi jusqu'ici a fini, même si la région de Geofabrik part
@@ -1063,7 +1225,7 @@ function construireFonds() {
       || (paysCarte === "fr" ? localStorage.getItem(CLE_FOND) : null);
   } catch (erreur) { /* fond par défaut */ }
   couchesFonds = {};
-  Object.assign(couchesFonds, FOURNISSEURS_CARTES[paysCarte].bases({ L, cleIgn: etat.cleIgn, tuileIgn }));
+  Object.assign(couchesFonds, FOURNISSEURS_CARTES[paysCarte].bases({ L, cleIgn: etat.cleIgn }));
   couchesFonds.osmRando = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 17, maxZoom: 19,
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM '
@@ -1071,10 +1233,6 @@ function construireFonds() {
   couchesFonds.osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: `© <a href="https://www.openstreetmap.org/copyright">${t("attribution.osm")}</a>` });
-  couchesFonds.osmVelo = L.tileLayer("https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
-    { maxNativeZoom: 18, maxZoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
-        + '· <a href="https://www.cyclosm.org/">CyclOSM</a>' });
   couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
@@ -1088,12 +1246,12 @@ function construireFonds() {
   const choix = (clePreferee && couchesFonds[clePreferee]) ? clePreferee : defaut;
   fondActif = (couchesFonds[choix] || couchesFonds.plan || couchesFonds.osm).addTo(carte);
   ajusterRecouvrementTuiles();
-  const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [t(`fond.${cle}`), couche]));
+  const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [nomFond(cle), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES)
-    .filter(([cle]) => !horsFrance || cle === "osm")
-    .map(([cle, c]) => [t(`calque.${cle}`), c.groupe]));
+    .filter(([cle]) => cle === "osm" || calquesDuPays().includes(cle))
+    .map(([cle, c]) => [nomCalque(cle), c.groupe]));
   for (const cle of calquesDuPays()) {
-    if (CALQUES_PAYS[cle]) calques[t(`calque.${cle}`)] = CALQUES_PAYS[cle];
+    if (CALQUES_PAYS[cle]) calques[nomCalque(cle)] = CALQUES_PAYS[cle];
   }
   if (nomGpxImporte) calques[echapper(nomGpxImporte)] = traceGpxImporte;
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
@@ -1222,6 +1380,8 @@ function planifierCalcul() {
   } catch (e) { /* le parcours reste utilisable si le stockage est indisponible */ }
   etat.sequence++;
   etat.dernier = null;
+  afficherDisponibilite(null);
+  actualiserDisponibilite();
   $("exporter").disabled = true;
   etat.minuterie = setTimeout(calculer, DELAI_CALCUL_MS);
 }
@@ -1233,6 +1393,7 @@ function effacerResultat() {
   cacherMarqueurProfil();
   profilRoute = null;
   etat.dernier = null;
+  actualiserDisponibilite();
   $("resultat").hidden = true;
   $("exporter").disabled = true;
 }
@@ -1276,8 +1437,10 @@ async function calculer() {
     afficherStatut(etat.points.length ? () => t("statut.deuxiemePoint") : "");
     return;
   }
-  const ign = Boolean(FOURNISSEURS_CARTES[paysCarte]?.routableOverlay && $("ign").checked);
-  afficherStatut(() => t("statut.calcul") + (ign ? t("statut.calculIgn") : "."));
+  const fournisseur = FOURNISSEURS_CARTES[paysCarte]?.paths;
+  const source = cheminsDisponibles(fournisseur, etat.points) ? fournisseur?.source : null;
+  const ign = Boolean(source && $("ign").checked);
+  afficherStatut(() => t("statut.calcul") + (ign ? t("statut.calculOfficiel", { nom: fournisseur.label }) : "."));
   occupe(true);
   let reponse;
   try {
@@ -1285,6 +1448,7 @@ async function calculer() {
       points: etat.points.map((p) => [p.lat, p.lon]),
       strict: $("strict").checked,
       ign,
+      source: source || "ign",
       comparer: $("comparer").checked,
     });
   } catch (e) {
@@ -1473,11 +1637,14 @@ function afficher(r) {
   $("resultat").hidden = false;
   $("exporter").disabled = false;
   actualiserDisponibilite();
-  // Repli sur OSM seul : les chemins IGN demandés n'ont pas pu servir, il faut le voir.
+  // Repli sur OSM seul : les chemins officiels demandés n'ont pas pu servir, il faut le voir.
   afficherStatut(() => {
     const bilan = t("statut.bilan", { duree: decimal(r.duree_s, 2), total: r.franchissements.length });
     if (!r.avertissement) return bilan;
-    const avertissement = langue === "en" ? t("avertissement.ign", { detail: r.avertissement_detail }) : r.avertissement;
+    const nom = Object.values(FOURNISSEURS_CARTES).find((p) => p.paths?.source === r.source_officielle)?.paths.label
+      || r.source_officielle;
+    const avertissement = langue === "en"
+      ? t("avertissement.officiel", { nom, detail: r.avertissement_detail }) : r.avertissement;
     return `${avertissement} ${bilan}`;
   }, Boolean(r.avertissement));
 }
@@ -1562,7 +1729,9 @@ function descriptionGpx(r) {
     ? `D+ ${r.denivele.montee_m} m, D- ${r.denivele.descente_m} m (gpx2elev, ${r.denivele.modele})`
     : t("gpx.deniveleIndisponible");
   return t("gpx.description", { km: km(r.longueur_m), denivele, n: r.sur_le_trace.length })
-    + t("gpx.barrieres") + ((r.portions_ign || []).length ? t("gpx.bdtopo") : "") + t("gpx.trace");
+    + t("gpx.barrieres") + ((r.portions_ign || []).length
+      ? Object.values(FOURNISSEURS_CARTES).find((f) => f.paths?.source === r.source_officielle)?.paths.gpx?.[langue] || "" : "")
+    + t("gpx.trace");
 }
 
 function gpx(r) {

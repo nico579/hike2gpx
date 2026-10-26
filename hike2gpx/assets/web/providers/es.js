@@ -1,6 +1,12 @@
 window.HIKE2GPX_MAP_PROVIDERS.es = {
   defaultBase: "espagne",
+  infoBase: { fr: "Carte topographique IGN Espagne", en: "Spanish IGN topographic map" },
+  baseNames: { espagne: { fr: "Carte topographique (IGN Espagne)", en: "Topographic map (Spanish IGN)" } },
   overlays: ["senderos"],
+  overlayNames: { senderos: { fr: "Sentiers balisés GR/PR/SL (IGN Espagne)",
+    en: "Waymarked GR/PR/SL trails (Spanish IGN)" } },
+  overlayLegendStyles: { senderos: { borderTop: "3px solid transparent",
+    borderImage: "linear-gradient(90deg, #d32f2f 0 33%, #e6a000 33% 66%, #29935d 66%) 1" } },
   bases({ L }) {
     return { espagne: L.tileLayer(
       "https://www.ign.es/wmts/mapa-raster?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=MTN&STYLE=default&TILEMATRIXSET=GoogleMapsCompatible&FORMAT=image/jpeg&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}",

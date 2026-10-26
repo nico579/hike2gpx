@@ -74,7 +74,8 @@ def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
         return {"id": identifiant, "bornes": (sud, ouest, nord, est), "polygones": [[anneau]]}
 
     zones = [region("spain", 36, -10, 44, 4), region("switzerland", 45, 5, 48, 11),
-             region("austria", 46, 9, 49, 17), region("netherlands", 50, 3, 54, 8),
+             region("austria", 46, 9, 49, 17), region("germany", 50, 10, 54, 14),
+             region("netherlands", 50, 3, 54, 8),
              region("norway", 58, 9, 62, 12), region("luxembourg", 49, 5, 50, 7),
              region("us", 36, -121, 38, -118)]
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: zones)
@@ -82,11 +83,12 @@ def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
     assert app.extrait((40.4, -3.8, 40.5, -3.6))["pays"] == "es"
     assert app.extrait((46.7, 7.9, 46.9, 8.1))["pays"] == "ch"
     assert app.extrait((48.1, 16.3, 48.3, 16.5))["pays"] == "at"
+    assert app.extrait((52.0, 11.0, 52.2, 11.2))["pays"] == "de"
     assert app.extrait((52.0, 5.0, 52.2, 5.2))["pays"] == "nl"
     assert app.extrait((59.9, 10.7, 60.0, 10.8))["pays"] == "no"
     assert app.extrait((49.6, 6.1, 49.7, 6.2))["pays"] == "lu"
     assert app.extrait((37.7, -119.7, 37.8, -119.5))["pays"] == "us"
-    assert "pays" not in app.extrait((52, 12, 52.1, 12.1))
+    assert "pays" not in app.extrait((52, 20, 52.1, 20.1))
 
 
 @pytest.fixture
@@ -139,6 +141,35 @@ def test_portions_ign_lues_dans_les_messages():
     [p] = appli.portions_ign(t)
     assert (p["debut_m"], p["longueur_m"], len(p["coords"])) == (0, 624, 3)
     assert appli.portions_ign(trace(*DETOUR)) == []
+
+
+def test_portions_atkis_sont_signalees_a_verifier():
+    t = trace_messages(DETOUR, [(1, 300, "highway=path"),
+                                (2, 324, "highway=path hike2gpx=atkis"),
+                                (3, 300, "highway=track")])
+    [portion] = appli.portions_ign(t)
+    assert portion["source"] == "atkis" and portion["longueur_m"] == 324
+    [entree] = appli.entrees_ign([portion])
+    assert entree["cle"] == "atkis-0"
+    assert "ATKIS" in entree["nature"] and "accès à vérifier" in entree["raison"]
+
+
+def test_itineraire_demande_les_tuiles_atkis(simulee, monkeypatch):
+    a, _, _, _ = simulee
+    sources = []
+    def preparer(tuiles, **options):
+        sources.append(options["source"])
+        return "segments-maison", []
+    monkeypatch.setattr(a.maison, "preparer", preparer)
+    monkeypatch.setattr(a, "moteur_maison", lambda segments: 2)
+    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **options:
+                        trace_messages(DETOUR, [(1, 300, "highway=path"),
+                                                (2, 324, "highway=path hike2gpx=atkis"),
+                                                (3, 300, "highway=track")]))
+    resultat = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]],
+                            "source": "atkis", "comparer": False})
+    assert sources == ["atkis"]
+    assert resultat["moteur"] == "maison" and resultat["portions_ign"][0]["source"] == "atkis"
 
 
 def test_itineraire_sur_les_tuiles_maison(simulee, monkeypatch):
@@ -445,18 +476,18 @@ def test_calques_refusent_une_zone_trop_grande_ou_invalide(tmp_path, monkeypatch
 
 
 def test_calque_bdtopo_et_panne(tmp_path, monkeypatch):
-    from hike2gpx import bdtopo
+    from hike2gpx.providers import bdtopo
     a = appli.Application(tmp_path)
     monkeypatch.setattr(bdtopo, "troncons_zone", lambda *z, **o: [{"id": "A-0"}])
     # Les bornes des tuiles lues, que la page n'a pas à redemander.
-    assert a.calque_bdtopo((43.31, 6.01, 43.34, 6.04)) == {"troncons": [{"id": "A-0"}],
+    assert a.calque_officiel("ign", (43.31, 6.01, 43.34, 6.04)) == {"troncons": [{"id": "A-0"}],
                                                           "bornes": (43.3, 6.0, 43.35, 6.05)}
 
     def panne(*z, **o):
         raise franchissements.ErreurDonnees("BD TOPO indisponible (hors ligne).")
 
     monkeypatch.setattr(bdtopo, "troncons_zone", panne)
-    assert a.calque_bdtopo((43.3, 6.0, 43.35, 6.05)) == {"erreur": "BD TOPO indisponible (hors ligne)."}
+    assert a.calque_officiel("ign", (43.3, 6.0, 43.35, 6.05)) == {"erreur": "BD TOPO indisponible (hors ligne)."}
 
 
 def test_une_nouvelle_vue_arrete_la_lecture_de_la_precedente(tmp_path, monkeypatch):
@@ -508,8 +539,8 @@ def test_une_vue_plus_ancienne_arrivee_apres_est_refusee_d_emblee(tmp_path, monk
 def test_arreter_calques_ne_touche_que_ceux_que_la_page_masque(tmp_path):
     a = appli.Application(tmp_path)
     assert a.arreter_calques({"calques": ["bdtopo"]}) == {"arretes": ["bdtopo"]}
-    assert a._vues == {"osm": 0, "bdtopo": 1}
-    assert a.arreter_calques({}) == {"arretes": ["osm", "bdtopo"]}
+    assert a._vues["bdtopo"] == 1 and all(v == 0 for k, v in a._vues.items() if k != "bdtopo")
+    assert set(a.arreter_calques({})["arretes"]) == set(a._vues)
 
 
 def test_route_denivele(tmp_path, monkeypatch):
@@ -528,14 +559,44 @@ def test_route_denivele(tmp_path, monkeypatch):
 def test_disponibilite_depuis_extrait_ou_overpass(tmp_path, monkeypatch):
     a = appli.Application(tmp_path)
     zone = (43.3, 6.0, 43.31, 6.01)
+    monkeypatch.setattr(a.installation, "installee", lambda: True)
+    monkeypatch.setattr(a.installation, "segment_present", lambda nom: True)
+    monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: False)
+    monkeypatch.setattr(a, "_detail_sources_osm", lambda zone, overpass: {"overpass": "non"})
     monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: {"nom": "Var"})
     monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
-    assert a.disponibilite(zone) == {"pret": True, "source": "extrait", "nom": "Var"}
+    assert a.disponibilite(zone) == {"pret": True, "source": "extrait", "nom": "Var",
+                                    "details": {"overpass": "non"}}
     monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: None)
+    monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: True)
+    assert a.disponibilite(zone) == {"pret": True, "source": "cache", "details": {"overpass": "non"}}
+    monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: False)
     monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: True)
     assert a.disponibilite(zone)["pret"] is True
     monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
     assert a.disponibilite(zone)["pret"] is False
+    monkeypatch.setattr(a.installation, "segment_present", lambda nom: False)
+    assert a.disponibilite(zone)["attente"] == "segments"
+    monkeypatch.setattr(a.installation, "installee", lambda: False)
+    assert a.disponibilite(zone)["attente"] == "moteur"
+    assert a.disponibilite_parcours({"points": [[43.3, 6], [43.31, 6.01]]})["attente"] == "moteur"
+
+
+def test_detail_disponibilite_distingue_extraits_local_et_regional(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path)
+    local = {"id": "fr-var", "nom": "Var", "genre": "departement"}
+    regional = {"id": "provence-alpes-cote-d-azur", "nom": "Provence-Alpes-Côte d’Azur"}
+    monkeypatch.setattr(osmfr, "regions", lambda dossier: [local])
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [regional])
+    monkeypatch.setattr(geofabrik, "region_de_tuile", lambda regions, i, j: regions[0] if regions else None)
+    monkeypatch.setattr(geofabrik, "installes", lambda dossier: [local])
+    class Telechargements:
+        def etat(self):
+            return {"id": regional["id"], "etape": "import"}
+    monkeypatch.setattr(geofabrik, "telechargements", lambda dossier: Telechargements())
+    details = a._detail_sources_osm((43.3, 6.0, 43.31, 6.01), True)
+    assert details == {"overpass": "oui", "local": {"nom": "Var", "etat": "disponible"},
+                       "regional": {"nom": "Provence-Alpes-Côte d’Azur", "etat": "import"}}
 
 
 
@@ -545,7 +606,7 @@ def test_routes_init_annonce_l_application(tmp_path):
     assert {"osm", "bdtopo", "extrait"} <= set(get)
     # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
     # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
-    assert set(post) == {"itineraire", "reglages", "moteur", "denivele", "communes", "langue",
+    assert set(post) == {"itineraire", "disponibilite", "reglages", "moteur", "denivele", "communes", "langue",
                          "arreter_calques", "donnees", "ouvrir_journaux"}
 
 

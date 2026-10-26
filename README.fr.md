@@ -38,26 +38,39 @@ installée.
 à la main, et propose les fonds de ce pays ; chaque pays garde son dernier
 fond choisi.
 
-- **Partout** : OpenStreetMap, OSM rando (OpenTopoMap), OSM vélo (CyclOSM) et
-  une vue satellite (Esri). Un calque à cocher, à partir du zoom 14, montre les
-  chemins d'OpenStreetMap (les sentiers en tirets), avec les clôtures et murs
-  qu'il cartographie.
+- **Partout** : OpenStreetMap, OSM rando (OpenTopoMap) et une vue satellite
+  (Esri). Un calque à cocher, à partir du zoom 14, montre les
+  chemins d'OpenStreetMap (les sentiers en tirets), avec les clôtures, murs et
+  franchissements bloquants ou à vérifier qu'il cartographie. Ces obstacles
+  restent visibles même sans itinéraire tracé.
 - **En France** : les fonds de l'IGN, SCAN 25 (avec une clé IGN, voir plus
   bas), Plan IGN, photos aériennes, et le relief du LiDAR HD là où l'IGN l'a
   publié. Un second calque montre les chemins de la BD TOPO de l'IGN ; mis à
   côté de celui d'OpenStreetMap, il montre d'un coup d'œil les sentiers qu'une
   source ignore.
-- **Dans sept autres pays** : la carte nationale de l'Espagne, de la Suisse, de
-  l'Autriche, des Pays-Bas, du Luxembourg, de la Norvège et des États-Unis.
-  L'Espagne, la Suisse et les États-Unis y ajoutent leurs sentiers officiels,
-  pour l'affichage seulement. Le bouton ⓘ, à côté du choix des fonds, liste ces
-  pays.
+- **Dans dix autres pays** : la carte nationale de l'Espagne, de la Suisse, de
+  l'Allemagne (BKG TopPlusOpen), de l'Autriche, des Pays-Bas, du Luxembourg,
+  de la Norvège, de la Pologne (Geoportal), de la Tchéquie et des États-Unis.
+  Le lien ⓘ, à côté du choix des fonds, ouvre sur GitHub le
+  [tableau des pays pris en charge](RAPPORT_SOURCES_CHEMINS_BROUTER.md#pays-pris-en-charge).
+  Ses colonnes « fond », « chemins » et « itinéraire » sont générées depuis
+  les fichiers providers avec `node tools/generer_couverture_pays.cjs`.
+
+Les fichiers `hike2gpx/assets/web/providers/<pays>.js` regroupent les fonds,
+les calques, leurs styles et leurs libellés. Les sources de chemins utilisées
+par BRouter ont en plus un lecteur dans `hike2gpx/providers/` (BD TOPO, ATKIS,
+ZABAGED, swissTLM3D ou BDOT10k). Le registre de ce dossier relie les pays aux
+sources ; la lecture par zone et l'affichage suivent ensuite le même mécanisme.
 
 Une recherche de ville recentre la carte : les communes françaises par l'API
 Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
-d'OpenStreetMap. Un bouton passe la carte en plein écran. Un voyant dit si le
-tracé est possible tout de suite, grâce à un extrait OSM déjà installé ou à
-Overpass.
+d'OpenStreetMap. Un bouton passe la carte en plein écran. Un voyant indique
+si le prochain calcul dispose du moteur et des tuiles BRouter ainsi que des
+données OSM de la zone (extrait, cache ou Overpass). Son « i » jaune détaille
+l'état d'Overpass et des extraits OSM local et régional, par exemple le Var
+et la PACA.
+Un clic droit sur la carte affiche les coordonnées GPS du point choisi et
+permet de les copier.
 
 **Le tracé.** Un clic pose le départ, puis les étapes et l'arrivée ; un point
 se déplace en le faisant glisser et se retire depuis sa bulle. « Revenir »
@@ -68,12 +81,12 @@ règlent :
 
 - **Mode strict** : éviter aussi les passages « à vérifier », pas seulement
   les bloquants ;
-- **Chemins IGN** (en France) : laisser BRouter emprunter aussi les chemins de
-  la BD TOPO absents d'OpenStreetMap. Ils s'affichent en tirets orange et
-  rejoignent les points à vérifier, car rien ne garantit qu'ils existent encore
-  ni qu'on y passe. Hors de France, la case est inactive et le calcul se fait
-  sur OpenStreetMap ; en Espagne, en Suisse et aux États-Unis, elle nomme les
-  sentiers officiels du pays et précise qu'ils ne servent qu'à l'affichage ;
+- **Chemins officiels** (France et Allemagne) : laisser BRouter
+  emprunter aussi les chemins BD TOPO ou ATKIS absents d'OpenStreetMap. Ils
+  s'affichent en tirets orange et rejoignent les points à vérifier, car rien
+  ne garantit qu'ils existent encore ni qu'on y passe. En Espagne, en Suisse
+  et aux États-Unis, la case nomme les sentiers officiels du pays et précise
+  qu'ils ne servent qu'à l'affichage ;
 - **Comparaison** : montrer en pointillé le tracé standard, celui qui ignore
   les barrières, avec sa longueur et les franchissements bloquants qu'il
   traverserait.
@@ -146,7 +159,7 @@ Le calcul passe par cinq pièces.
    SRTM. Le chiffre de BRouter, tiré d'un modèle mondial plus grossier, ne sert
    que d'estimation en attendant ; si aucun modèle ne couvre le parcours, le
    dénivelé est dit indisponible plutôt que remplacé par ce chiffre.
-5. **Les chemins IGN, en France.** Un sentier que la BD TOPO connaît et
+5. **Les chemins officiels, en France et en Allemagne.** Un sentier que la BD TOPO connaît et
    qu'OpenStreetMap ignore n'existe pas pour BRouter, qui ne voit que ses
    tuiles. hike2gpx fabrique donc sa propre tuile BRouter à partir des données
    déjà lues : les voies d'OpenStreetMap, plus les tronçons de la BD TOPO qui
@@ -161,10 +174,19 @@ Le calcul passe par cinq pièces.
    qu'ils existent encore ni qu'on y passe ; un accès piéton restreint dans la
    BD TOPO les ferme. Une case permet de s'en passer, et si la fabrication
    échoue, le calcul se fait sur OpenStreetMap seul, avec un avertissement.
-   Le gain est réel : sur les tuiles les plus riches en sentiers, la BD TOPO
-   agrandit le réseau de 18 à 100 %, et de 21 à 72 % dans le Var. Hors de
-   France, les sources officielles mesurées (États-Unis, Suisse, Pays-Bas)
-   n'ajoutent que 0 à 12 % : le calcul y reste sur OSM seul. Mesure et analyse
+   En Allemagne, le calque ATKIS et le calcul reprennent le même chargement
+   par zone, sans téléchargement préalable de tout un Land. La Bavière et la
+   Thuringe utilisent leurs WFS natifs ; les quatorze autres Länder utilisent
+   les petites tuiles vectorielles officielles de [basemap.de](https://basemap.de/produkte-und-dienste/web-vektor/),
+   dérivées de l'ATKIS Basis-DLM. Ces dernières sont des géométries de
+   présentation, dont la précision et les raccordements restent à vérifier.
+   Tous les chemins ATKIS ajoutés sont pénalisés et signalés « à vérifier ».
+   Sur la tuile du centre de Rosa, 76,6 km de voies ATKIS étudiées manquent à
+   OSM selon la règle de fusion, contre 96,8 km de voies OSM ; ce gain de
+   longueur potentiel ne prouve pas l'accès à pied. La BD TOPO française
+   ajoute de 18 à 100 % selon les zones mesurées. Aux États-Unis, en Suisse
+   et aux Pays-Bas, les sources officielles étudiées ajoutent 0 à 12 % :
+   le calcul y reste sur OSM seul. Mesure et analyse
    dans [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
 
 Ce que hike2gpx ajoute aux règles de gpx2elev, parce qu'il examine un réseau
@@ -232,9 +254,11 @@ ajoutée à OpenStreetMap est respectée par hike2gpx dès que son cache de la
 zone se renouvelle ; les moteurs des autres planificateurs, eux, continuent de
 l'ignorer.
 
-Hors de France, le calcul ne connaît que les chemins d'OpenStreetMap : un
-sentier absent d'OSM n'existe pas pour lui, même si la carte nationale le
-dessine.
+En dehors de la France et de l'Allemagne, le calcul ne connaît que les chemins
+d'OpenStreetMap : un sentier absent d'OSM n'existe pas pour lui, même si la
+carte nationale le dessine. En Allemagne, les chemins ATKIS intégrés n'ont
+pas de droit de passage piéton explicite : les portions empruntées restent
+à vérifier sur place.
 
 Un calcul examine au plus 100 tuiles de 0,05°, soit environ 55 × 40 km : la
 première lecture d'une zone plus grande prendrait des dizaines de minutes. Un

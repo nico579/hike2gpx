@@ -1,6 +1,7 @@
 """Intégration au bureau par le commun : relance, raccourci, menu de l'icône,
 instance unique."""
 import sys
+import http.client
 import urllib.request
 from pathlib import Path
 
@@ -73,6 +74,10 @@ def test_onglet_de_la_page_porte_l_icone(tmp_path):
         with urllib.request.urlopen(f"http://{web.HOST}:{port}/favicon.ico", timeout=5) as reponse:
             assert reponse.headers["Content-Type"] == "image/x-icon"
             assert reponse.read() == bureau.ICONE.read_bytes()
+        with urllib.request.urlopen(f"http://{web.HOST}:{port}/", timeout=5) as reponse:
+            page = reponse.read().decode("utf-8")
+            assert '<link rel="icon" href="/favicon.ico"' in page
+            assert '<img class="brand-icon" src="/favicon.ico"' in page
     finally:
         serveur.shutdown()
         serveur.server_close()
@@ -87,6 +92,19 @@ def test_la_page_charge_les_providers_depuis_leur_dossier(tmp_path):
             assert reponse.headers["Content-Type"].startswith("text/javascript")
         for code in ("fr", "es", "ch", "at", "nl", "no", "lu", "us"):
             assert f"HIKE2GPX_MAP_PROVIDERS.{code} =" in script
+        connexion = http.client.HTTPConnection(web.HOST, port, timeout=5)
+        try:
+            connexion.request("GET", "/documentation/pays")
+            reponse = connexion.getresponse()
+            assert reponse.status == 302
+            assert reponse.getheader("Location") == web.url_couverture_pays()
+            reponse.read()
+            connexion.request("GET", "/documentation/pays?lang=en")
+            reponse = connexion.getresponse()
+            assert reponse.status == 302
+            assert reponse.getheader("Location") == web.url_couverture_pays("en")
+        finally:
+            connexion.close()
     finally:
         serveur.shutdown()
         serveur.server_close()

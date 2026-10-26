@@ -31,7 +31,8 @@ from pathlib import Path
 import osmium
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from hike2gpx import bdtopo, brouter, franchissements as fr  # noqa: E402
+from hike2gpx import brouter, franchissements as fr  # noqa: E402
+from hike2gpx.providers import bdtopo  # noqa: E402
 from hike2gpx.__main__ import DOSSIERS  # noqa: E402
 
 DOSSIER = DOSSIERS.dossier_etat()

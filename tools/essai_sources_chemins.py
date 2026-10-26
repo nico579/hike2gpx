@@ -18,10 +18,12 @@ import tempfile
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from hike2gpx import __version__, bdtopo, fusion     # noqa: E402
+from hike2gpx import __version__, fusion     # noqa: E402
+from hike2gpx.providers import bdtopo  # noqa: E402
 from hike2gpx import franchissements as fr           # noqa: E402
 
 CACHE = Path(tempfile.gettempdir()) / "hike2gpx-essai-sources"
@@ -44,12 +46,41 @@ ZONES = [
     ("US", "Gila National Forest", 33.20, -108.25),
     ("CH", "Zermatt", 46.01, 7.74),
     ("CH", "Emmental, Napf", 47.00, 7.94),
+    ("CH", "Jura, Franches-Montagnes", 47.23, 7.02),
+    ("CH", "Tessin, Vallemaggia", 46.30, 8.62),
+    ("CH", "Grisons, Surselva", 46.77, 9.08),
+    ("CH", "Tessin, Val Bavona", 46.38, 8.49),
+    ("CH", "Tessin, Val Onsernone", 46.20, 8.58),
+    ("CH", "Uri, Schächental", 46.88, 8.76),
     ("NL", "Veluwe", 52.07, 5.85),
+    ("DE", "Bavière, Allgäu", 47.55, 10.25),
+    ("DE", "Bavière, Berchtesgaden", 47.62, 12.98),
+    ("DE", "Bavière, forêt bavaroise", 48.91, 13.31),
+    ("DE", "Bavière, forêt franconienne", 50.32, 11.49),
+    ("DE-TH", "Rosa, Thuringe", 50.717, 10.250),
+    ("CA", "Banff", 51.18, -115.57),
+    ("CA", "Yoho", 51.40, -116.50),
+    ("NZ", "Tongariro", -39.20, 175.50),
+    ("NZ", "Kepler", -45.42, 167.65),
+    ("NZ", "Routeburn", -44.72, 168.15),
+    ("CZ", "Šumava", 49.06, 13.50),
+    ("CZ", "Krkonoše", 50.72, 15.72),
+    ("CZ", "České Švýcarsko", 50.87, 14.36),
+    ("CZ", "Moravský kras", 49.37, 16.73),
+    ("PL-DS", "Karkonosze, versant polonais", 50.80, 15.62),
+    ("PL-DS", "Góry Stołowe", 50.45, 16.25),
+    ("PL-DS", "Góry Sowie", 50.65, 16.48),
 ]
 VOISINES = {"FR": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "US": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
             "CH": [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)],
-            "NL": [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)]}
+            "NL": [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)],
+            "DE": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "DE-TH": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "CA": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "NZ": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "CZ": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)],
+            "PL-DS": [(a, b) for a in (-1, 0, 1) for b in (-1, 0, 1)]}
 CHEMINS_FR = {"Sentier", "Chemin", "Escalier"}
 
 
@@ -128,9 +159,12 @@ def source_ch(s, w, n, e, i, j):
     def lire():
         vus, lignes, decalage = set(), [], 0
         while True:
+            # Le service choisit les géométries selon l'échelle : sans ces
+            # paramètres, certains chemins détaillés manquent au résultat.
             q = {"geometry": f"{w},{s},{e},{n}", "geometryType": "esriGeometryEnvelope", "sr": 4326,
                  "layers": "all:ch.swisstopo.swisstlm3d-strassen", "tolerance": 0, "returnGeometry": "true",
-                 "geometryFormat": "geojson", "limit": 200, "offset": decalage}
+                 "geometryFormat": "geojson", "limit": 200, "offset": decalage,
+                 "mapExtent": f"{w},{s},{e},{n}", "imageDisplay": "1024,1024,96"}
             d = lire_json("https://api3.geo.admin.ch/rest/services/api/MapServer/identify?" + urllib.parse.urlencode(q))
             nouveaux = 0
             for f in d.get("results", []):
@@ -144,7 +178,7 @@ def source_ch(s, w, n, e, i, j):
             if not nouveaux:
                 return lignes
             decalage += 200
-    return [(pts, c) for pts, c in en_cache(f"ch_{i}_{j}", lire)]
+    return [(pts, c) for pts, c in en_cache(f"ch_v2_{i}_{j}", lire)]
 
 
 def source_nl(s, w, n, e, i, j):
@@ -162,11 +196,161 @@ def source_nl(s, w, n, e, i, j):
     return [(pts, c) for pts, c in en_cache(f"nl_{i}_{j}", lire)]
 
 
+def source_de(s, w, n, e, i, j):
+    """Chemins et voies agricoles du Basis-DLM bavarois, par emprise WFS.
+
+    Le BBOX KVP du service échoue sur le préfixe de ``adv:position`` ; un
+    filtre FES explicite avec le namespace adv fonctionne. Les coordonnées
+    GML demandées en EPSG:4326 sont dans l'ordre latitude, longitude.
+    """
+    def lire():
+        lignes = []
+        filtre = ("<fes:Filter xmlns:fes='http://www.opengis.net/fes/2.0' "
+                  "xmlns:gml='http://www.opengis.net/gml/3.2' "
+                  "xmlns:adv='http://www.adv-online.de/namespaces/adv/gid/7.1'>"
+                  "<fes:BBOX><fes:ValueReference>adv:position</fes:ValueReference>"
+                  "<gml:Envelope srsName='urn:ogc:def:crs:EPSG::4326'>"
+                  f"<gml:lowerCorner>{s} {w}</gml:lowerCorner>"
+                  f"<gml:upperCorner>{n} {e}</gml:upperCorner>"
+                  "</gml:Envelope></fes:BBOX></fes:Filter>")
+        for nom, classe in (("AX_WegPfadSteig", "Weg/Pfad/Steig"),
+                            ("AX_Fahrwegachse", "Wirtschaftsweg")):
+            for depart in range(0, 20_000, 1000):
+                q = {"SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature",
+                     "TYPENAMES": f"adv:{nom}", "SRSNAME": "EPSG:4326",
+                     "FILTER": filtre, "COUNT": 1000, "STARTINDEX": depart}
+                url = "https://geoservices.bayern.de/wfs/v1/ogc_atkis_basisdlm.cgi?" + urllib.parse.urlencode(q)
+                with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120) as r:
+                    racine = ET.fromstring(r.read())
+                if racine.tag.endswith("ExceptionReport"):
+                    raise RuntimeError("WFS bavarois : " + " ".join(racine.itertext()))
+                membres = racine.findall("{http://www.opengis.net/wfs/2.0}member")
+                for membre in membres:
+                    for pos in membre.findall(".//{http://www.opengis.net/gml/3.2}posList"):
+                        valeurs = [float(v) for v in pos.text.split()]
+                        pts = [[valeurs[k], valeurs[k + 1]] for k in range(0, len(valeurs), 2)]
+                        if len(pts) >= 2:
+                            lignes.append([pts, classe])
+                if len(membres) < 1000:
+                    break
+            else:
+                raise RuntimeError("WFS bavarois : plus de 20 000 tronçons dans une tuile")
+        return lignes
+    return [(pts, c) for pts, c in en_cache(f"de_by_{i}_{j}", lire)]
+
+
+def source_de_th(s, w, n, e, i, j):
+    """Weg/Pfad/Steig et Fahrwegachse du Basis-DLM de Thuringe par emprise."""
+    def lire():
+        lignes = []
+        filtre = ("<fes:Filter xmlns:fes='http://www.opengis.net/fes/2.0' "
+                  "xmlns:gml='http://www.opengis.net/gml/3.2' "
+                  "xmlns:dlm='http://www.adv-online.de/namespaces/adv/gid/7.1/dlm'>"
+                  "<fes:BBOX><fes:ValueReference>dlm:geom</fes:ValueReference>"
+                  "<gml:Envelope srsName='EPSG:4326'>"
+                  f"<gml:lowerCorner>{w} {s}</gml:lowerCorner>"
+                  f"<gml:upperCorner>{e} {n}</gml:upperCorner>"
+                  "</gml:Envelope></fes:BBOX></fes:Filter>")
+        for nom, classe in (("AX_WEGPFADSTEIG", "Weg/Pfad/Steig"),
+                            ("AX_FAHRWEGACHSE", "Wirtschaftsweg")):
+            for depart in range(0, 20_000, 1000):
+                q = {"SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature",
+                     "TYPENAMES": f"dlm:{nom}", "SRSNAME": "EPSG:4326",
+                     "FILTER": filtre, "COUNT": 1000, "STARTINDEX": depart}
+                url = "https://www.geoproxy.geoportal-th.de/geoproxy/services/adv_atkis_wfs?" + urllib.parse.urlencode(q)
+                with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120) as r:
+                    racine = ET.fromstring(r.read())
+                if racine.tag.endswith("ExceptionReport"):
+                    raise RuntimeError("WFS de Thuringe : " + " ".join(racine.itertext()))
+                membres = racine.findall("{http://www.opengis.net/wfs/2.0}member")
+                for membre in membres:
+                    for pos in membre.findall(".//{http://www.opengis.net/gml/3.2}posList"):
+                        valeurs = [float(v) for v in pos.text.split()]
+                        pts = [[valeurs[k + 1], valeurs[k]] for k in range(0, len(valeurs), 2)]
+                        if len(pts) >= 2:
+                            lignes.append([pts, classe])
+                if len(membres) < 1000:
+                    break
+            else:
+                raise RuntimeError("WFS de Thuringe : plus de 20 000 tronçons dans une tuile")
+        return lignes
+    return [(pts, c) for pts, c in en_cache(f"de_th_{i}_{j}", lire)]
+
+
+def _arcgis_trails(url, s, w, n, e, *, geojson, condition="1=1"):
+    """Tronçons d'un service ArcGIS officiel, paginés et bornés par emprise."""
+    lignes = []
+    for depart in range(0, 100_000, 2000):
+        q = {"where": condition, "geometry": f"{w},{s},{e},{n}",
+             "geometryType": "esriGeometryEnvelope", "inSR": 4326,
+             "spatialRel": "esriSpatialRelIntersects", "outSR": 4326,
+             "outFields": "*", "f": "geojson" if geojson else "json",
+             "resultRecordCount": 2000, "resultOffset": depart}
+        donnees = lire_json(url + "/query?" + urllib.parse.urlencode(q))
+        if "error" in donnees:
+            raise RuntimeError(f"ArcGIS : {donnees['error']}")
+        objets = donnees.get("features", [])
+        for objet in objets:
+            if geojson:
+                geom = objet.get("geometry") or {}
+                lignes_geo = ([geom.get("coordinates", [])] if geom.get("type") == "LineString"
+                              else geom.get("coordinates", []) if geom.get("type") == "MultiLineString" else [])
+                classe = objet.get("properties", {}).get("General_Activity", "sentier")
+            else:
+                lignes_geo = (objet.get("geometry") or {}).get("paths", [])
+                classe = objet.get("attributes", {}).get("difficulty", "sentier")
+            for points in lignes_geo:
+                if len(points) >= 2:
+                    lignes.append(([[lat, lon] for lon, lat in points], classe))
+        if len(objets) < 2000:
+            return lignes
+    raise RuntimeError("ArcGIS : plus de 100 000 objets dans cette tuile")
+
+
+def source_ca(s, w, n, e, i, j):
+    """Sentiers officiels ouverts en été de Parcs Canada."""
+    url = ("https://services2.arcgis.com/wCOMu5IS7YdSyPNx/arcgis/rest/services/"
+           "vw_Trails_Sentiers_APCA_V2_FGP/FeatureServer/0")
+    return [(pts, c) for pts, c in en_cache(f"ca_{i}_{j}",
+        lambda: _arcgis_trails(url, s, w, n, e, geojson=True,
+                               condition="Official_Officiel=1 AND Restr_Sum_Ete_Interd=0"))]
+
+
+def source_nz(s, w, n, e, i, j):
+    """Itinéraires de marche entretenus par le DOC néo-zélandais."""
+    url = ("https://services1.arcgis.com/3JjYDyG3oajxU6HO/ArcGIS/rest/services/"
+           "DOC_Walking_Experiences/FeatureServer/1")
+    return [(pts, c) for pts, c in en_cache(f"nz_{i}_{j}",
+        lambda: _arcgis_trails(url, s, w, n, e, geojson=False))]
+
+
+def source_cz(s, w, n, e, i, j):
+    """Sentiers et chemins ZABAGED du service national tchèque."""
+    racine = "https://ags.cuzk.gov.cz/arcgis/rest/services/ZABAGED_POLOHOPIS/MapServer"
+    def lire():
+        lignes = []
+        for couche, classe in ((82, "Pěšina"), (83, "Cesta")):
+            lignes.extend((pts, classe) for pts, _ in _arcgis_trails(
+                f"{racine}/{couche}", s, w, n, e, geojson=False))
+        return lignes
+    return [(pts, c) for pts, c in en_cache(f"cz_{i}_{j}", lire)]
+
+
+def source_pl_ds(s, w, n, e, i, j):
+    """Voies piétonnes et cyclables BDOT10k de Basse-Silésie."""
+    url = "https://geoportal.dolnyslask.pl/gisserver1/rest/services/BDOT10k/FeatureServer/18"
+    return [(pts, "SKRP") for pts, _ in en_cache(f"pl_ds_{i}_{j}",
+        lambda: _arcgis_trails(url, s, w, n, e, geojson=False))]
+
+
 def fr_lignes(geometrie):
     return bdtopo._lignes(geometrie)
 
 
-SOURCES = {"FR": source_fr, "US": source_us, "CH": source_ch, "NL": source_nl}
+SOURCES = {"FR": source_fr, "US": source_us, "CH": source_ch, "NL": source_nl,
+           "DE": source_de, "DE-TH": source_de_th,
+           "CA": source_ca, "NZ": source_nz, "CZ": source_cz,
+           "PL-DS": source_pl_ds}
 
 
 # ------------------------------------------------------------------ mesure
@@ -229,6 +413,6 @@ if __name__ == "__main__":
             r = {"pays": pays, "zone": nom, "erreur": repr(exc)}
         r["duree_s"] = round(time.monotonic() - debut)
         resultats.append(r)
-        print(json.dumps(r, ensure_ascii=False), flush=True)
+        print(json.dumps(r, ensure_ascii=True), flush=True)
     (CACHE / f"resultats_{'_'.join(choix or ['tous'])}.json").write_text(
         json.dumps(resultats, ensure_ascii=False, indent=1), encoding="utf-8")

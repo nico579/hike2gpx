@@ -81,6 +81,20 @@ def test_deux_troncons_ign_partagent_leur_point_commun():
     assert b[-1] not in {n for w, (ids, _) in r.voies.items() if w not in r.ign for n in ids}
 
 
+def test_troncons_vectoriels_se_rejoignent_aux_bords_des_tuiles():
+    r = fusion.Reseau()
+    premier = troncon((0, 0), (100, 0), ident="BM:1", land="SN", niveau=0,
+                      bords=[False, True])
+    second = troncon((100.6, 0), (200, 0), ident="BM:2", land="SN", niveau=0,
+                     bords=[True, False])
+    autre_niveau = troncon((100, 0), (200, 50), ident="BM:3", land="SN", niveau=1,
+                           bords=[True, False])
+    assert r.ajouter_ign([premier, second, autre_niveau], source="atkis") == 3
+    a, b, c = (r.voies[wid][0] for wid in r.ign)
+    assert a[-1] == b[0]
+    assert a[-1] != c[0]
+
+
 def test_autoroute_et_bac_exclus():
     osm = Osm()
     osm.voie((0, 0), (500, 0))

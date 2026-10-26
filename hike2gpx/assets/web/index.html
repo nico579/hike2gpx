@@ -4,12 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>hike2gpx — tracer un parcours</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=desktop-9">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-33">
+  <link rel="stylesheet" href="/style.css?v=desktop-11">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-38">
 </head>
 <body>
-<div class="app-header"><div class="brand"><span class="brand-icon">⌃</span><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><a id="aide" class="bouton-langue bouton-aide" href="https://github.com/nico579/hike2gpx/blob/main/README.fr.md" target="_blank" rel="noopener" title="Aide : le mode d'emploi (README)" aria-label="Aide : le mode d'emploi (README)">?</a><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
+<div class="app-header"><div class="brand"><img class="brand-icon" src="/favicon.ico" alt=""><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span class="readiness-group"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span id="readinessInfo" class="info-tooltip readiness-info" tabindex="0" aria-label="État des sources de calcul" aria-describedby="readinessInfoText">i<span id="readinessInfoText" role="tooltip"></span></span></span><a id="aide" class="bouton-langue bouton-aide" href="https://github.com/nico579/hike2gpx/blob/main/README.fr.md" target="_blank" rel="noopener" title="Aide : le mode d'emploi (README)" aria-label="Aide : le mode d'emploi (README)">?</a><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
 <div id="carte" aria-label="Carte interactive">
   <div class="map-widget-toolbar">
     <div class="map-widget-heading">
@@ -18,9 +19,8 @@
       <span id="baseLabel">Plan IGN</span>
       <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg>
     </button>
-    <button type="button" class="info-tooltip map-providers-info-button" id="providersInfoButton" aria-label="Pays couverts en plus d’OSM (monde entier)" aria-expanded="false" aria-controls="providersInfoPanel" title="Pays couverts en plus d’OSM (monde entier)">i</button>
+    <a class="info-tooltip map-providers-info-button" id="providersInfoButton" href="/documentation/pays" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le rapport des pays pris en charge sur GitHub" title="Pays pris en charge sur GitHub">i</a>
     </div>
-    <section id="providersInfoPanel" class="map-providers-info" aria-label="Pays couverts en plus d’OSM (monde entier)" hidden></section>
   </div>
   <button type="button" class="map-widget-button map-expand-button leaflet-control" id="expandMapButton" aria-label="Mettre la carte en plein écran" aria-pressed="false" title="Mettre la carte en plein écran">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6"/></svg>
@@ -58,9 +58,9 @@
       <div class="summary-relief"><dt class="elevation-label"><span data-i18n="resultat.denivele">Dénivelé</span><span class="info-tooltip" tabindex="0" aria-label="Calcul du dénivelé">i<span role="tooltip" data-i18n="resume.deniveleInfo">gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.</span></span></dt><dd id="denivele" class="summary-values"></dd></div>
     </dl>
   </section>
-  <nav class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
-    <button type="button" role="tab" id="tab-trace" data-pane="trace" aria-controls="pane-trace" aria-selected="true">Parcours</button>
-    <button type="button" role="tab" id="tab-reglages" data-pane="reglages" aria-controls="pane-reglages" aria-selected="false" tabindex="-1">Réglages</button>
+  <nav id="panelTabs" class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
+    <button type="button" role="tab" id="tab-trace" data-pane="trace" data-i18n="onglets.parcours" aria-controls="pane-trace" aria-selected="true">Parcours</button>
+    <button type="button" role="tab" id="tab-reglages" data-pane="reglages" data-i18n="onglets.reglages" aria-controls="pane-reglages" aria-selected="false" tabindex="-1">Réglages</button>
   </nav>
   <div class="panel-scroll">
   <section id="pane-trace" class="pane" role="tabpanel" aria-labelledby="tab-trace">
@@ -79,8 +79,8 @@
       </div>
     </div>
     <h2 class="section-title">Votre façon de marcher</h2>
-    <label class="option"><input type="checkbox" id="strict"> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
-    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte" data-i18n="option.ign">Emprunter aussi les chemins IGN absents d'OSM (à vérifier sur place)</span></label>
+    <label class="option"><input type="checkbox" id="strict" checked> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
+    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte">Emprunter aussi les chemins officiels absents d'OSM (à vérifier sur place)</span></label>
     <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
     <p id="statut" role="status"></p>
     <p id="noteCalques" class="note" hidden><span id="noteCalquesTexte"></span><span id="noteCalquesPiste" class="piste" role="progressbar" hidden><span id="noteCalquesBarre" class="barre"></span></span></p>
@@ -111,28 +111,24 @@
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg>
 </button>
 <section id="mapLegend" class="legende" aria-label="Légende de la carte" hidden>
-  <h3 data-i18n="legende.titre">Légende</h3><ul>
+  <h3 data-i18n="legende.titre">Légende</h3><ul id="legendRows">
     <li id="legendGpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">GPX chargé</span></li>
     <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
-    <li id="legendIgn"><span class="trait ign"></span> <span data-i18n="legende.ign">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
+    <li id="legendIgn"><span class="trait ign"></span> <span id="legendOfficielTexte">portion sur un chemin officiel absent d'OSM, à vérifier</span></li>
     <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
     <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
     <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
     <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
     <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
-    <li id="legendBdtopo" data-map-overlay="bdtopo"><span class="trait bdtopo"></span> <span data-i18n="legende.bdtopo">chemins BD TOPO de l'IGN</span></li>
-    <li data-map-overlay="senderos" hidden><span class="trait senderos"></span> <span data-i18n="legende.senderos">sentiers balisés espagnols (GR rouge, PR jaune, SL vert)</span></li>
-    <li data-map-overlay="suisseSentiers" hidden><span class="trait suisse-sentiers"></span> <span data-i18n="legende.suisseSentiers">sentiers de randonnée swisstopo</span></li>
-    <li data-map-overlay="usgsSentiers" hidden><span class="trait usgs-sentiers"></span> <span data-i18n="legende.usgsSentiers">sentiers recensés par l’USGS</span></li>
   </ul>
 </section>
 <script src="/leaflet/leaflet.js"></script>
 <script src="/leaflet/Leaflet.VectorGrid.bundled.js"></script>
-<script src="/map-providers.js?v=3"></script>
-<script src="/app.js?v=desktop-39"></script>
+<script src="/map-providers.js?v=8"></script>
+<script src="/app.js?v=desktop-48"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-17"></script>
+<script src="/presentation.js?v=desktop-21"></script>
 </body>
 </html>
