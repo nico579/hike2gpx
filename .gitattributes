@@ -1,0 +1,3 @@
+# Les Markdown restent en LF sur toutes les plateformes : le test de la page
+# compare le tableau de couverture généré (en \n) au contenu des fichiers.
+*.md text eol=lf
