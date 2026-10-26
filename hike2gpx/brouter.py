@@ -319,24 +319,31 @@ def port_libre() -> int:
         return s.getsockname()[1]
 
 
-def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path) -> Path:
+def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path, *, relief: Path | None = None,
+                     tas: str = "1g") -> Path:
     """Tuiles .rd5 d'un fichier OSM (PBF) par le créateur de tuiles de BRouter,
     dans dossier/segments. Options du script officiel, plus avoidMapPolling :
-    sans elle, le lecteur attend 10 s par tour que le fichier grossisse."""
+    sans elle, le lecteur attend 10 s par tour que le fichier grossisse.
+
+    relief : dossier des altitudes .bef à 1 seconde d'arc (srtm_x_y.bef, voir
+    deploy/linux/relief_case.py) ; sans lui, les tuiles n'ont pas d'altitude.
+    tas : mémoire de Java ; 1 Go suffit à une petite zone, une case de 5°
+    dense en demande quatre ou cinq."""
     librairies = sorted((inst.programme / "lib").glob("*.jar"))
     if not librairies:
         raise ErreurBRouter("BRouter incomplet pour fabriquer des tuiles : réinstallez-le.")
     shutil.rmtree(dossier, ignore_errors=True)
     for d in ("nodetiles", "waytiles", "waytiles55", "nodes55", "unodes55", "segments", "srtm1", "srtm3"):
         (dossier / d).mkdir(parents=True)
-    commande = [java(), "-Xmx1g", "-DuseDenseMaps=true", "-DavoidMapPolling=true",
+    commande = [java(), f"-Xmx{tas}", "-DuseDenseMaps=true", "-DavoidMapPolling=true",
                 "-cp", os.pathsep.join(str(p) for p in [inst.jar, *librairies])]
     creation = inst.creation
     etapes = [
         ["btools.mapcreator.OsmFastCutter", str(creation / "lookups.dat"), "nodetiles", "waytiles", "nodes55",
          "waytiles55", "bordernids.dat", "relations.dat", "restrictions.dat", str(creation / "all.brf"),
          str(creation / "trekking.brf"), str(creation / "softaccess.brf"), str(pbf)],
-        ["btools.mapcreator.PosUnifier", "nodes55", "unodes55", "bordernids.dat", "bordernodes.dat", "srtm1", "srtm3"],
+        ["btools.mapcreator.PosUnifier", "nodes55", "unodes55", "bordernids.dat", "bordernodes.dat",
+         str(relief) if relief else "srtm1", "srtm3"],
         ["-DskipEncodingCheck=true", "btools.mapcreator.WayLinker", "unodes55", "waytiles55", "bordernodes.dat",
          "restrictions.dat", str(creation / "lookups.dat"), str(creation / "all.brf"), "segments", "rd5"],
     ]
