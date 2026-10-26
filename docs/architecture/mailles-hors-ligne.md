@@ -46,33 +46,47 @@ des cases entières, ce contrôle se réduit à une seule question : la case
 est-elle présente ? On abandonne donc `.rd5q`.
 
 Les franchissements interdits restent transmis à BRouter sous forme de coupes
-(`polylines`) au moment du calcul, comme aujourd'hui. Ils sont lus dans le
-calque de la case, décrit plus bas.
+(`polylines`) au moment du calcul, comme aujourd'hui. Ils sont publiés à part,
+dans un petit fichier par maille, avec leurs coupes exactes : ils servent au
+calcul et au contrôle du tracé, pas seulement à l'affichage.
 
-### Calques OSM et chemins officiels : GeoPackage
+### Calques OSM et chemins officiels : tuiles vectorielles en MBTiles
 
-Un GeoPackage est un fichier SQLite normalisé par l'OGC (2014). Il contient
-des tables d'objets géographiques et un index spatial RTree. QGIS et GDAL le
-lisent, tout comme le `sqlite3` de Python (RTree compris) et le SQLite
-d'Android. La BD TOPO arrive déjà sur le serveur sous cette forme.
+La RD5 est compacte parce qu'elle range des coordonnées entières, codées en
+écart par rapport au point précédent, puis compressées. On ne peut pas y loger
+les calques : seul le code Java de BRouter la lit, elle ne garde que les
+étiquettes utiles au routage, et les franchissements n'y ont pas de place. Mais
+l'affichage a son format standard construit sur la même idée : la **tuile
+vectorielle MVT** (Mapbox, 2014). Les coordonnées y sont entières dans la
+tuile, codées en écarts, en protobuf. Rangées dans un **MBTiles**, ces tuiles
+forment un fichier SQLite où chaque tuile se lit d'une seule requête.
 
-Le serveur publie un GeoPackage **par maille de 0,25°**, fichier statique
-servi tel quel. Il contient trois tables : `chemins_osm`, `chemins_officiels`
-(avec leur source) et `franchissements`. Chaque objet appartient à une seule
-maille, selon la règle déjà définie dans #37 ; la fusion lit une couronne de
-voisinage pour résoudre les raccords. L'application verse les mailles reçues
-dans **un seul GeoPackage local** (`ATTACH` puis `INSERT`). Elle y interroge la
-vue courante par l'index RTree, en ligne comme hors ligne.
+Le serveur fabrique les tuiles du **zoom 14** (précision d'environ 0,5 m),
+avec trois couches : `chemins_osm`, `chemins_officiels` (avec leur source) et
+`barrieres`. L'affichage les agrandit au-delà du zoom 14. La page sait déjà
+lire ce format : le provider espagnol affiche les sentiers FEDME avec
+`L.vectorGrid.protobuf`. Sur Android, osmdroid ne lit que des tuiles d'image ;
+il faudra une bibliothèque qui dessine les tuiles vectorielles, MapLibre étant
+la référence.
 
-Pourquoi pas les JSON gzip de #37 ? Ils conviennent au transport, mais il faut
-les décompresser et les parcourir en entier pour chaque vue, et rien ne les
-relie entre eux. Le GeoPackage garde les objets avec leurs attributs (le
-contrôle des franchissements en a besoin), se lit par morceaux et s'ouvre dans
-QGIS pour vérifier un résultat.
+La **maille est la tuile du zoom 10** (environ 28 × 29 km ici). Elle contient
+exactement 256 tuiles du zoom 14, ce qu'un découpage en degrés ne garantit pas :
+une tuile à cheval sur deux mailles appartiendrait aux deux. Le serveur publie
+un MBTiles par maille ; l'application verse les tuiles reçues dans **un seul
+MBTiles local** (`ATTACH` puis `INSERT`), sans conflit possible.
 
-Ce choix a un prix, mesuré plus bas : à contenu égal, un GeoPackage pèse
-environ quatre fois le JSON gzip sur disque et deux fois au téléchargement. En
-échange, une vue se lit cent à mille fois plus vite.
+Le serveur ne fabrique pas de format intermédiaire à lui. Il lit les sources
+telles qu'elles arrivent : le PBF d'OSM, et le GeoPackage dans lequel l'IGN
+livre la BD TOPO, par son index RTree. La fusion se fait en mémoire et écrit
+trois sorties : un PBF pour le créateur de RD5 de BRouter, du GeoJSON ligne à
+ligne pour les tuiles, et les franchissements. Les tuiles sortent de
+tippecanoe (Mapbox, aujourd'hui maintenu par Felt), l'outil standard qui prend
+ce GeoJSON en entrée. Pour vérifier un résultat, QGIS ouvre aussi bien le
+MBTiles vectoriel que ce GeoJSON.
+
+Les mesures, plus bas, justifient ce choix : pour une maille, les tuiles
+pèsent deux fois moins que le JSON gzip de #37 et huit fois moins qu'un
+GeoPackage, et une vue ne lit que les quelques tuiles qu'elle couvre.
 
 ### Fond de carte : MBTiles
 
@@ -89,11 +103,12 @@ hors ligne.
 
 ## Le geste de l'utilisateur
 
-L'utilisateur dessine ou coche des mailles sur la carte. L'application en
-déduit trois listes : les cases RD5 qui les contiennent, les GeoPackage de
-mailles, les tuiles de fond. Elle affiche la taille totale avant de télécharger,
-puis vérifie chaque fichier par son SHA-256. Une zone n'est déclarée
-utilisable hors ligne qu'une fois les trois listes complètes.
+L'utilisateur coche des mailles (des tuiles du zoom 10) sur la carte.
+L'application en déduit trois listes : les cases RD5 qui les contiennent, les
+calques et franchissements de chaque maille, les tuiles de fond. Elle affiche
+la taille totale avant de télécharger, puis vérifie chaque fichier par son
+SHA-256. Une zone n'est déclarée utilisable hors ligne qu'une fois les trois
+listes complètes.
 
 Un **catalogue par pays**, petit fichier JSON publié par le serveur, décrit
 l'édition en cours : pour chaque case RD5 et chaque maille, le nom, la taille,
@@ -169,11 +184,11 @@ de JSON. L'essai qui suit isole la part du format dans ce temps.
 
 La première PR à venir s'installe donc sur cette VM plutôt que de repartir de
 zéro. La bascule se fait case par case : la VM publie les nouveaux fichiers
-(RD5 complète, GeoPackage de mailles, catalogue) à côté des paquets actuels,
+(RD5 complète, calques et franchissements par maille, catalogue) à côté des paquets actuels,
 puis les anciennes routes et les anciens paquets disparaissent quand le bureau
 lit le nouveau format.
 
-## Premier essai du GeoPackage
+## Essais de format des calques
 
 Le 26 octobre, les calques des deux mailles servies par la VM (`173_24` et
 `173_25`) ont été convertis tels quels en GeoPackage, avec GDAL 3.12 par
@@ -208,11 +223,24 @@ Le levier standard est de simplifier les tracés destinés à l'affichage
 (Douglas-Peucker, `shapely.simplify`). Avec une tolérance de 2 m, invisible
 puisqu'un pixel du zoom 16 couvre déjà 1,7 m à cette latitude, on garde 65 %
 des points OSM et 43 % des points IGN. Le GeoPackage reviendrait alors autour
-de la moitié de sa taille, soit environ 5 à 6 Mo par maille, ou 150 Mo pour
-le Var. Ces calques ne servent qu'à l'affichage : le routage lit la RD5, et
-les franchissements gardent leurs coupes exactes. C'est donc une bonne
-affaire, et le fond de carte du même département, au zoom 12 à 16, pèsera de
-toute façon bien davantage.
+de la moitié de sa taille, soit environ 5 à 6 Mo par maille.
+
+La même maille a ensuite été découpée en tuiles vectorielles MVT
+(`mapbox-vector-tile`, grille de 4096 par tuile, chaque tuile gzippée comme
+dans un MBTiles), sans simplification préalable :
+
+| Format, maille `173_24` | Taille |
+| --- | ---: |
+| GeoPackage | 10,7 Mo |
+| GeoPackage gzippé | 5,4 Mo |
+| JSON gzip de #37 (OSM + IGN) | 2,4 Mo |
+| MVT zoom 15 (1 148 tuiles) | 1,8 Mo |
+| **MVT zoom 14** (315 tuiles d'environ 4 Ko) | **1,3 Mo** |
+
+Le zoom 14 l'emporte sur tous les plans : le plus petit, une lecture d'une
+seule ligne SQLite par tuile, et une précision de 0,5 m qui suffit à
+l'affichage. C'est ce qui a fait abandonner le GeoPackage, en distribution
+comme sur le serveur. Pour le Var, cela représente une trentaine de Mo de calques.
 
 ## Système du serveur public
 
@@ -230,19 +258,20 @@ projet passera lui-même à Python 3.13 ou 3.14. La VM de test peut rester en
 ## Ordre des PR à venir
 
 1. **Serveur.** Fabriquer et publier pour la France les neuf RD5 complètes,
-   les GeoPackage de mailles et le catalogue. Mesurer les tailles réelles, case
-   par case.
+   les MBTiles de calques et les franchissements par maille, et le catalogue.
+   Mesurer les tailles réelles, case par case.
 2. **Bureau, données.** Sélection des mailles sur la carte, téléchargement
-   vérifié, GeoPackage local, lecture des calques et calcul sans réseau.
-3. **Bureau, fond.** Fabrication du MBTiles local et service des tuiles à
-   Leaflet.
-4. **Android.** Les mêmes trois formats, lus par osmdroid, SQLite et BRouter
-   embarqué.
+   vérifié, MBTiles local des calques servi à Leaflet, calcul sans réseau.
+3. **Bureau, fond.** Fabrication du MBTiles local du fond de carte.
+4. **Android.** Les mêmes formats, avec MapLibre pour les tuiles vectorielles
+   et BRouter embarqué.
 
 ## Questions ouvertes
 
-- La taille réelle d'une RD5 enrichie de la BD TOPO, et celle des GeoPackage
-  simplifiés dans les régions denses (les mesures actuelles viennent du Var).
+- La taille réelle d'une RD5 enrichie de la BD TOPO, et celle des calques en
+  MBTiles dans les régions denses (les mesures actuelles viennent du Var).
+- Le choix de la bibliothèque de carte Android : MapLibre remplace-t-il
+  osmdroid, ou s'y ajoute-t-il pour les seules tuiles vectorielles ?
 - Les sources OSM des parties étrangères des cases frontalières : extraits
   Geofabrik voisins, ou extrait Europe borné à la case.
 - Les licences des autres fonds nationaux au hors ligne, à vérifier pays par
