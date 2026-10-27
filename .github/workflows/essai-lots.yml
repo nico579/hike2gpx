@@ -1,0 +1,78 @@
+# Essai, pas production : GitHub Actions peut-il tenir le rôle du serveur et
+# fabriquer une case entière par « hike2gpx bundles » ? La tâche relève la
+# durée et, toutes les 30 s, la mémoire et le disque utilisés, puis garde le
+# lot trois jours pour l'examiner. Déclenchée par un push sur sa branche
+# d'essai, ou à la main pour une autre case.
+name: Essai lots (mesure)
+
+on:
+  push:
+    branches: [essai/actions-lots]
+  workflow_dispatch:
+    inputs:
+      case:
+        description: Case BRouter à fabriquer
+        default: E5_N40
+
+permissions:
+  contents: read
+
+jobs:
+  case:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355            # la limite d'une tâche est de 6 h
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - name: Ressources de la machine
+        run: |
+          nproc; free -m; df -h / "$RUNNER_TEMP"; java -version 2>&1 | head -1
+
+      - name: Mesures en fond
+        run: |
+          # Mémoire utilisée et disque occupé, en Mo, toutes les 30 s jusqu'à
+          # la fin de la tâche (GitHub arrête ce processus avec elle).
+          nohup bash -c 'while true; do
+            echo "$(date +%s) $(free -m | awk "/Mem/{print \$3}") $(df -m --output=used / | tail -1)"
+            sleep 30
+          done' > "$RUNNER_TEMP/mesures.txt" 2>&1 &
+
+      - name: Fabriquer la case
+        env:
+          HIKE2GPX_HOME: ${{ runner.temp }}/donnees
+          CASE: ${{ inputs.case || 'E5_N40' }}
+        run: |
+          debut=$(date +%s)
+          python -m hike2gpx bundles "$CASE" --output "$RUNNER_TEMP/lots"
+          echo "Durée totale : $(( $(date +%s) - debut )) s"
+
+      - name: Bilan
+        if: always()
+        run: |
+          awk 'NR == 1 {m0 = $2; d0 = $3} {if ($2 > m) m = $2; if ($3 > d) d = $3}
+               END {print "Mémoire : pic", m, "Mo (", m0, "au départ)";
+                    print "Disque : pic", d, "Mo occupés (", d0, "au départ, soit +", d - d0, "Mo)"}' \
+              "$RUNNER_TEMP/mesures.txt"
+          du -sh "$RUNNER_TEMP"/donnees/* 2>/dev/null || true
+          ls -la "$RUNNER_TEMP"/lots/* 2>/dev/null || true
+          cat "$RUNNER_TEMP"/lots/*/manifest.json 2>/dev/null || true
+
+      - name: Garder le lot
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lot-${{ inputs.case || 'E5_N40' }}
+          path: ${{ runner.temp }}/lots
+          retention-days: 3
