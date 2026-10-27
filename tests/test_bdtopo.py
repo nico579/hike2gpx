@@ -83,9 +83,53 @@ def test_un_troncon_a_cheval_sur_deux_tuiles_n_est_rendu_qu_une_fois(tmp_path):
 
 
 def test_reponse_inattendue(monkeypatch):
+    essais = []
+
     def refuser(demande, timeout):
+        essais.append(1)
         raise urllib.error.URLError("hors ligne")
 
+    from hike2gpx.providers import core
+    monkeypatch.setattr(core, "PAUSE_S", 0)
     monkeypatch.setattr(bdtopo.urllib.request, "urlopen", refuser)
     with pytest.raises(ErreurDonnees, match="BD TOPO indisponible"):
         bdtopo.interroger({"SERVICE": "WFS"})
+    assert len(essais) == 3, "une panne passagère a droit à trois essais"
+
+
+def test_une_reponse_coupee_est_relue(monkeypatch):
+    # Essai GitHub Actions du 2026-10-27 : après 47 min de fusion, une réponse
+    # du WFS coupée en route (IncompleteRead) faisait échouer le lot entier.
+    import http.client
+    import io
+    from hike2gpx.providers import core
+    reponses = [http.client.IncompleteRead(b"x" * 10), b'{"features": []}']
+
+    class Reponse(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def lire(demande, timeout):
+        r = reponses.pop(0)
+        if isinstance(r, Exception):
+            raise r
+        return Reponse(r)
+    monkeypatch.setattr(core, "PAUSE_S", 0)
+    monkeypatch.setattr(bdtopo.urllib.request, "urlopen", lire)
+    assert bdtopo.interroger({"SERVICE": "WFS"}) == {"features": []}
+
+
+def test_une_erreur_4xx_n_est_pas_reessayee(monkeypatch):
+    essais = []
+
+    def refuser(demande, timeout):
+        essais.append(1)
+        raise urllib.error.HTTPError(demande.full_url, 400, "Bad Request", {}, None)
+
+    monkeypatch.setattr(bdtopo.urllib.request, "urlopen", refuser)
+    with pytest.raises(ErreurDonnees):
+        bdtopo.interroger({"SERVICE": "WFS"})
+    assert len(essais) == 1

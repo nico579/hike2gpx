@@ -403,12 +403,15 @@ def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, rac
                 ecrire(f"{case} : à jour")
                 continue
             nettoyer(travail)
-            derniere = [None]
+            derniere = [None, 0]        # étape, dixième déjà annoncé
 
             def suivi(etape, faites, total):
-                if etape != derniere[0]:
-                    ecrire(f"{case} : {etape} ({time.monotonic() - debut:.0f} s)")
-                    derniere[0] = etape
+                # Chaque étape, puis chaque dixième d'une longue étape : une fusion
+                # de case entière dure près d'une heure.
+                dixieme = faites * 10 // total if total else 0
+                if etape != derniere[0] or dixieme > derniere[1]:
+                    ecrire(f"{case} : {etape} {faites}/{total} ({time.monotonic() - debut:.0f} s)")
+                    derniere[:] = [etape, dixieme]
             fabriquer(dossier, installation, case, travail, zone=None if utile == boite else utile,
                       fournisseurs=de_la_case, troncons=troncons, editions=editions, suivi=suivi)
             _mettre_en_place(travail, racine / case)
