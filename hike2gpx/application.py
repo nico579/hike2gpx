@@ -232,6 +232,7 @@ class Application:
         self.preferences = self.dossier / "preferences.json"
         self.serveur = None
         self.serveur_maison = None
+        self.serveur_lot_osm = None
         self._verrou_moteur = threading.Lock()
         self._verrou_calcul = threading.Lock()
         self._verrou_denivele = threading.Lock()
@@ -306,22 +307,29 @@ class Application:
     def moteur_maison(self, segments) -> int:
         """Serveur BRouter sur les tuiles maison, relancé quand elles changent
         de dossier (une nouvelle fabrication)."""
+        return self._moteur("serveur_maison", segments, self.installation.profils_maison)
+
+    def moteur_lot_osm(self) -> int:
+        """Serveur BRouter sur les RD5 officielles des lots OSM, profils standard."""
+        return self._moteur("serveur_lot_osm", self.hors_ligne.segments_osm, None)
+
+    def _moteur(self, attribut, segments, profils) -> int:
         with self._verrou_moteur:
-            s = self.serveur_maison
+            s = getattr(self, attribut)
             if s is None or s.segments != segments or s.processus is None or s.processus.poll() is not None:
                 if s is not None:
                     s.arreter()
-                s = brouter.Serveur(self.installation, segments=segments, profils=self.installation.profils_maison)
+                s = brouter.Serveur(self.installation, segments=segments, profils=profils)
                 s.demarrer()
-                self.serveur_maison = s
+                setattr(self, attribut, s)
             return s.port
 
     def arreter(self) -> None:
         with self._verrou_moteur:
-            for serveur in (self.serveur, self.serveur_maison):
+            for serveur in (self.serveur, self.serveur_maison, self.serveur_lot_osm):
                 if serveur is not None:
                     serveur.arreter()
-            self.serveur = self.serveur_maison = None
+            self.serveur = self.serveur_maison = self.serveur_lot_osm = None
 
     def installer_moteur(self, _payload=None) -> dict:
         """Installe le moteur absent ou renouvelle les tuiles périmées en fond."""
@@ -477,7 +485,7 @@ class Application:
         # tâche de fond s'il manque, Overpass servant en attendant ; de même le
         # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
         # Un lot installé qui couvre la zone suffit : rien à télécharger.
-        couvert = bool(ign and self.hors_ligne.lot_pour(zone, source))
+        couvert = bool(self.hors_ligne.lot_couvrant(zone))
         extrait = None if couvert else self._extrait_automatique(zone, "calcul d'itinéraire")
         if not self.installation.installee():
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True,
@@ -494,7 +502,9 @@ class Application:
                     return {"erreur": f"Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus "
                                       f"{TUILES_MAX}. Découpez le parcours en étapes plus courtes.",
                             "code": "zone_trop_etendue", "valeurs": {"nombre": nombre, "max": TUILES_MAX}}
-                lot_local = self.hors_ligne.lot_pour(zone, source) if ign else None
+                # Règle unique : un lot qui couvre la zone sert seul (hors_ligne.py),
+                # sans réseau ni fabrication ; sinon, le calcul à la volée.
+                lot_local = self.hors_ligne.lot_couvrant(zone)
                 manquants = [] if lot_local else [n for n in brouter.segments_zone(*zone)
                                                   if not self.installation.segment_present(n)]
                 if manquants:
@@ -502,12 +512,20 @@ class Application:
                             "segments_manquants": manquants, "brouter_en_cours": self._brouter_automatique(manquants)}
                 trace, moteur_utilise = None, "standard"
                 if lot_local:
-                    # Lot installé (hors_ligne.py) : sa RD5 enrichie et ses
-                    # franchissements, sans réseau ni fabrication.
                     liste = self.hors_ligne.franchissements(lot_local, zone)
                     self._avancer("itineraire", 0.82, passe=passe)
-                    trace = brouter.calculer(self.moteur_maison(self.hors_ligne.segments), points, liste,
-                                             strict=strict)
+                    if lot_local.get("type") == "osm":
+                        # RD5 officielle : table de tags et profil standards de BRouter.
+                        trace = brouter.calculer(self.moteur_lot_osm(), points, liste, strict=strict)
+                        if ign:
+                            nom_source = providers.source(source).nom
+                            detail_avertissement = f"lot {lot_local['case']} sans chemins officiels"
+                            avertissement = f"Chemins {nom_source} indisponibles, calcul sur OSM seul : "                                             f"{detail_avertissement}"
+                    else:
+                        # RD5 enrichie : la coche autorise ou interdit ses chemins
+                        # officiels par le profil, sans autre lot.
+                        trace = brouter.calculer(self.moteur_maison(self.hors_ligne.segments), points, liste,
+                                                 strict=strict, officiels=ign)
                     moteur_utilise = "lot"
                 elif ign:
                     # Tuiles maison : OSM plus les chemins officiels qui y manquent, avec
@@ -574,7 +592,7 @@ class Application:
                    "sur_le_trace": sorted(passages + entrees_ign(portions), key=lambda f: f["distance_m"]),
                    "portions_ign": portions, "moteur": moteur_utilise, "avertissement": avertissement,
                    "avertissement_detail": detail_avertissement, "strict": strict,
-                   "source_officielle": source}
+                   "source_officielle": source, "lot": self._lot_resume(lot_local) if lot_local else None}
         if comparer:
             self._avancer("comparaison", 0.92)
             try:
@@ -1101,11 +1119,15 @@ class Application:
         return {"lot_en_cours": self.lot_en_cours()}
 
     def lots_hors_ligne(self) -> dict:
-        """Lots installés : case, sources, emprise enrichie et taille."""
-        return {"lots": [{"case": m["case"], "sources": m.get("sources", {}),
-                          "emprise_enrichie": m.get("emprise_enrichie"),
-                          "octets": sum(f["octets"] for f in m.get("fichiers", []))}
-                         for m in self.hors_ligne.lots()]}
+        """Lots installés : case, type, couverture, sources, taille et péremption."""
+        return {"lots": [self._lot_resume(m) for m in self.hors_ligne.lots()]}
+
+    def _lot_resume(self, m) -> dict:
+        limite = time.time() - self.reglages()["renouvellement_jours"] * 86400
+        return {"case": m["case"], "type": m.get("type", "enrichi"), "zone": m.get("zone"),
+                "sources": m.get("sources", {}), "emprise_enrichie": m.get("emprise_enrichie"),
+                "octets": sum(f["octets"] for f in m.get("fichiers", [])),
+                "perime": self.hors_ligne.date_du_lot(m) < limite}
 
     def installer_lot(self, corps) -> dict:
         """Installe le lot d'un dossier local, vérifié contre son manifeste."""

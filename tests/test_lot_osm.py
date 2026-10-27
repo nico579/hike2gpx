@@ -63,7 +63,8 @@ def test_lot_osm_installe_a_part_des_lots_enrichis(tmp_path, mode_en_ligne):
     h = hors_ligne.HorsLigne(tmp_path / "donnees")
     h.installer(tmp_path / "lot")
     assert (h.segments_osm / "E5_N40.rd5").is_file() and not (h.segments / "E5_N40.rd5").exists()
-    assert h.lot_pour(ZONE) is None, "pas d'emprise enrichie : le calcul enrichi n'en dépend pas"
+    assert h.lot_couvrant(ZONE)["type"] == "osm", "sa zone suffit pour le calcul"
+    assert h.lot_couvrant((43.40, 6.01, 43.42, 6.03)) is None, "hors de la zone fabriquée"
     assert h.lot_du_calque((43.31, 6.01, 43.33, 6.03), "osm")["type"] == "osm"
     assert h.lot_du_calque((43.40, 6.01, 43.42, 6.03), "osm") is None, "hors de la zone fabriquée"
 

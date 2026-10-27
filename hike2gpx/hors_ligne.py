@@ -8,14 +8,16 @@ et le reste dans le dossier de la case :
   hors-ligne/segments/E5_N40.rd5
   hors-ligne/E5_N40/manifest.json, franchissements.json.gz, calques.mbtiles
 
-Un parcours dont la zone tient dans l'emprise enrichie d'un lot se calcule
-alors sur ces fichiers seuls, sans Overpass, WFS ni RD5 officielle.
+Règle unique : un parcours dont la zone tient dans un lot (l'emprise enrichie
+d'un lot enrichi, la zone d'un lot OSM) se calcule et s'affiche sur ce lot
+seul, sans Overpass, WFS ni RD5 téléchargée ; sinon, tout se fait à la volée.
 """
 from __future__ import annotations
 
 import gzip
 import json
 import shutil
+from datetime import datetime
 from pathlib import Path
 
 from . import lot
@@ -81,20 +83,32 @@ class HorsLigne:
         self._franchissements.pop(case, None)
         return manifeste
 
-    def lot_pour(self, zone: tuple, source: str = "ign") -> dict | None:
-        """Le lot installé dont l'emprise enrichie contient toute la zone (sud,
-        ouest, nord, est), pour cette source de chemins officiels."""
-        cle = SOURCE_DU_LOT.get(source)
+    def lot_couvrant(self, zone: tuple) -> dict | None:
+        """Le lot installé qui couvre toute la zone (sud, ouest, nord, est) :
+        règle unique, un lot qui couvre la zone sert seul, calcul et calques.
+        Un lot enrichi couvre son emprise enrichie, un lot OSM sa zone ; à
+        égalité, l'enrichi passe d'abord."""
         sud, ouest, nord, est = zone
+        candidats = []
         for manifeste in self.lots():
-            emprise = manifeste.get("emprise_enrichie")
-            if not emprise or not cle or not manifeste.get("sources", {}).get(cle):
+            osm = manifeste.get("type") == "osm"
+            couverture = manifeste.get("zone") if osm else manifeste.get("emprise_enrichie")
+            segments = self.segments_osm if osm else self.segments
+            if not couverture or not (segments / f"{manifeste['case']}.rd5").is_file():
                 continue
-            es, eo, en, ee = emprise
-            if es <= sud and eo <= ouest and nord <= en and est <= ee \
-                    and (self.segments / f"{manifeste['case']}.rd5").is_file():
-                return manifeste
-        return None
+            cs, co, cn, ce = couverture
+            if cs <= sud and co <= ouest and nord <= cn and est <= ce:
+                candidats.append((osm, manifeste))
+        return min(candidats, key=lambda c: c[0])[1] if candidats else None
+
+    def date_du_lot(self, manifeste: dict) -> float:
+        """Date des données du lot (horodatage) : l'édition de l'extrait OSM,
+        sinon le jour de son installation. Un lot plus vieux que le délai de
+        renouvellement des réglages fait poser la question de sa mise à jour."""
+        try:
+            return datetime.fromisoformat(manifeste["sources"]["osm"].replace("Z", "+00:00")).timestamp()
+        except (KeyError, TypeError, AttributeError, ValueError):
+            return (self.racine / manifeste["case"] / "manifest.json").stat().st_mtime
 
     def lot_du_calque(self, zone: tuple, calque: str) -> dict | None:
         """Le lot qui sait afficher ce calque de la page sur toute la zone : la

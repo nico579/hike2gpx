@@ -1,5 +1,6 @@
 import gzip
 import json
+import time
 
 import pytest
 import shapely
@@ -77,19 +78,45 @@ def test_une_nouvelle_edition_remplace_l_ancienne(tmp_path):
     assert len(h.lots()) == 1
 
 
-def test_lot_pour_une_zone_dans_l_emprise_enrichie(tmp_path):
+def test_lot_couvrant_une_zone_dans_l_emprise_enrichie(tmp_path):
     h = hors_ligne.HorsLigne(tmp_path / "donnees")
     h.installer(fabriquer_lot(tmp_path / "lot"))
-    assert h.lot_pour((43.28, 5.99, 43.32, 6.03))["case"] == "E5_N40"
-    assert h.lot_pour((43.7, 6.9, 43.9, 7.0)) is None, "déborde du Var"
-    assert h.lot_pour((43.28, 5.99, 43.32, 6.03), source="atkis") is None
+    assert h.lot_couvrant((43.28, 5.99, 43.32, 6.03))["case"] == "E5_N40"
+    assert h.lot_couvrant((43.7, 6.9, 43.9, 7.0)) is None, "déborde du Var"
     zone = (43.28, 5.99, 43.32, 6.03)
-    assert [f["cle"] for f in h.franchissements(h.lot_pour(zone), zone)] == ["a"]
+    assert [f["cle"] for f in h.franchissements(h.lot_couvrant(zone), zone)] == ["a"]
 
 
-def test_itineraire_hors_ligne_sans_reseau_ni_rd5_officielle(tmp_path, monkeypatch):
+def lot_osm(dossier, case="E5_N40", zone=(43.0, 5.0, 45.0, 10.0), date="2026-10-25T21:21:21Z"):
+    """Un lot OSM installable : RD5 officielle, sans emprise enrichie."""
+    fabriquer_lot(dossier, case=case)
+    (dossier / "manifest.json").unlink()
+    lot.ecrire_manifeste(dossier, case, [dossier / f"{case}.rd5", dossier / "franchissements.json.gz",
+                                         dossier / "calques.mbtiles"], {"osm": date}, type="osm", zone=list(zone))
+    return dossier
+
+
+def test_un_lot_enrichi_passe_devant_un_lot_osm(tmp_path):
+    h = hors_ligne.HorsLigne(tmp_path / "donnees")
+    h.installer(lot_osm(tmp_path / "osm", case="E5_N45", zone=(43.0, 5.0, 45.0, 10.0)))
+    assert h.lot_couvrant((43.28, 5.99, 43.32, 6.03))["type"] == "osm"
+    h.installer(fabriquer_lot(tmp_path / "enrichi"))
+    assert h.lot_couvrant((43.28, 5.99, 43.32, 6.03))["case"] == "E5_N40"
+    assert h.lot_couvrant((44.5, 8.0, 44.6, 8.1))["type"] == "osm", "hors de l'emprise enrichie"
+
+
+def test_date_du_lot_et_peremption(tmp_path):
     a = appli.Application(tmp_path / "donnees")
-    a.hors_ligne.installer(fabriquer_lot(tmp_path / "lot"))
+    a.hors_ligne.installer(lot_osm(tmp_path / "vieux", date="2020-01-01T00:00:00Z"))
+    assert a.hors_ligne.date_du_lot(a.hors_ligne.lots()[0]) == 1577836800
+    assert [(l["type"], l["perime"]) for l in a.lots_hors_ligne()["lots"]] == [("osm", True)]
+    a.hors_ligne.installer(lot_osm(tmp_path / "frais", date=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
+    assert [l["perime"] for l in a.lots_hors_ligne()["lots"]] == [False]
+
+
+def sans_reseau(a, monkeypatch):
+    """L'application avec un lot installé : tout accès réseau ou fabrication
+    échoue, et chaque calcul BRouter est noté (port, franchissements, options)."""
     monkeypatch.setattr(a.installation, "installee", lambda: True)
     monkeypatch.setattr(a.installation, "segment_present", lambda nom: False)    # aucune RD5 officielle
 
@@ -98,19 +125,43 @@ def test_itineraire_hors_ligne_sans_reseau_ni_rd5_officielle(tmp_path, monkeypat
     monkeypatch.setattr(a, "_extrait_automatique", interdit)
     monkeypatch.setattr(a.maison, "preparer", interdit)
     monkeypatch.setattr(franchissements, "franchissements_zone", interdit)
-    segments_lances = []
-    monkeypatch.setattr(a, "moteur_maison", lambda segments: segments_lances.append(segments) or 7)
     appels = []
 
     def calculer(port, points, liste=(), **options):
-        appels.append((port, [f["cle"] for f in liste]))
+        appels.append((port, [f["cle"] for f in liste], options))
         return {"type": "Feature", "properties": {"track-length": "900", "filtered ascend": "40"},
                 "geometry": {"type": "LineString", "coordinates": [[6.0, 43.302, 0], [6.01, 43.302, 0]]}}
     monkeypatch.setattr(brouter, "calculer", calculer)
-    resultat = a.itineraire({"points": [[43.302, 6.0], [43.302, 6.01]], "comparer": False})
+    return appels
+
+
+@pytest.mark.parametrize("ign", [True, False])
+def test_itineraire_hors_ligne_sans_reseau_ni_rd5_officielle(tmp_path, monkeypatch, ign):
+    a = appli.Application(tmp_path / "donnees")
+    a.hors_ligne.installer(fabriquer_lot(tmp_path / "lot"))
+    appels = sans_reseau(a, monkeypatch)
+    segments_lances = []
+    monkeypatch.setattr(a, "moteur_maison", lambda segments: segments_lances.append(segments) or 7)
+    resultat = a.itineraire({"points": [[43.302, 6.0], [43.302, 6.01]], "comparer": False, "ign": ign})
     assert resultat["moteur"] == "lot" and "erreur" not in resultat
+    assert resultat["lot"]["case"] == "E5_N40" and not resultat["avertissement"]
     assert segments_lances == [a.hors_ligne.segments]
-    assert appels == [(7, ["a"])], "les franchissements du lot, filtrés sur la zone"
+    assert [(port, cles, o["officiels"]) for port, cles, o in appels] == [(7, ["a"], ign)], \
+        "les franchissements du lot, filtrés sur la zone, et la coche passée au profil"
+
+
+def test_itineraire_sur_un_lot_osm(tmp_path, monkeypatch):
+    a = appli.Application(tmp_path / "donnees")
+    a.hors_ligne.installer(lot_osm(tmp_path / "lot"))
+    appels = sans_reseau(a, monkeypatch)
+    monkeypatch.setattr(a, "moteur_maison", lambda segments: pytest.fail("pas le profil maison sur une RD5 officielle"))
+    monkeypatch.setattr(a, "moteur_lot_osm", lambda: 9)
+    resultat = a.itineraire({"points": [[43.302, 6.0], [43.302, 6.01]], "comparer": False})
+    assert resultat["moteur"] == "lot" and [port for port, *_ in appels] == [9]
+    assert resultat["lot"]["type"] == "osm"
+    assert "sans chemins officiels" in resultat["avertissement"], "la coche demandait des chemins absents du lot"
+    sans = a.itineraire({"points": [[43.302, 6.0], [43.302, 6.01]], "comparer": False, "ign": False})
+    assert not sans["avertissement"]
 
 
 def test_calques_de_la_page_lus_dans_le_lot(tmp_path, monkeypatch):
