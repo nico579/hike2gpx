@@ -214,6 +214,17 @@ class Index:
                 return []
             return self._charge["regions"]
 
+    def attendre(self, dossier, delai_s: float = 180.0) -> list:
+        """Les régions, quitte à attendre l'index s'il est absent : une
+        fabrication de lot, contrairement à la page, ne peut pas se contenter
+        d'une liste vide (aucun fournisseur, aucun extrait)."""
+        if not self.chemin(dossier).is_file():
+            self.preparer(dossier)
+            fil = self._fil
+            if fil is not None:
+                fil.join(delai_s)
+        return self.regions(dossier)
+
     def preparer(self, dossier, *, ouvrir=None) -> None:
         with self._verrou:
             if self._fil is not None and self._fil.is_alive():
@@ -261,6 +272,12 @@ INDEX = Index("de Geofabrik", "geofabrik-v1.json", _batir)
 def regions(dossier, **options) -> list:
     """Les régions de Geofabrik, sans jamais attendre son serveur (Index)."""
     return INDEX.regions(dossier, **options)
+
+
+def regions_attendues(dossier) -> list:
+    """Les régions de Geofabrik, quitte à attendre l'index sur une machine
+    neuve : pour la fabrication des lots, pas pour la page."""
+    return INDEX.attendre(dossier)
 
 
 # ------------------------------------------------------------------ extraits installés

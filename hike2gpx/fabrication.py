@@ -20,6 +20,7 @@ from __future__ import annotations
 import functools
 import gzip
 import json
+import logging
 import shutil
 import time
 from pathlib import Path
@@ -28,6 +29,7 @@ import shapely
 
 from . import brouter, case as cases, franchissements as fr, geofabrik, lot, providers, relief
 
+journal = logging.getLogger(__name__)
 ATTRIBUTION = "© contributeurs OpenStreetMap (ODbL) ; itinéraires BRouter (brouter.de)"
 MARGE_LECTURE = 0.001       # degrés lus autour d'un bloc, plus que la marge d'une tuile du zoom 14
 # Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° dense
@@ -46,7 +48,7 @@ def _tuiles(zone: tuple) -> list:
 
 def regions_a_installer(dossier, zone: tuple) -> list:
     """Extraits Geofabrik qui couvrent les tuiles de la zone et manquent encore."""
-    regions = geofabrik.regions(dossier)
+    regions = geofabrik.regions_attendues(dossier)
     installes = {r["id"] for r in geofabrik.installes(dossier)}
     besoins = {}
     for i, j in _tuiles(zone):
@@ -71,7 +73,7 @@ def couvertures(dossier) -> dict:
     """Ce que couvre chaque fournisseur national : le contour de son pays dans
     l'index Geofabrik (PAYS_CARTES), réduit à sa borne s'il est régional."""
     pays = {code: nom for nom, code in providers.PAYS_CARTES.items()}
-    regions = {r["id"]: r for r in geofabrik.regions(dossier)}
+    regions = {r["id"]: r for r in geofabrik.regions_attendues(dossier)}
     resultat = {}
     for cle, fournisseur in providers.SOURCES.items():
         region = regions.get(pays.get(fournisseur.pays))
@@ -142,6 +144,10 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
             geofabrik.installer(dossier, region, continuer=continuer)
         except geofabrik.Abandon as exc:    # l'arrêt demandé pendant l'extrait arrête le lot
             raise Abandon() from exc
+        except geofabrik.ExtraitEcarte as exc:
+            # Une tuile en pleine mer n'est contenue que par un continent (l'Europe,
+            # 33 Go) : sans voie à lire, elle reste sans extrait, comme la mer.
+            journal.warning("Lot %s : extrait %s écarté (%s)", case, region["id"], exc)
     suivi("extraits", len(manquantes), len(manquantes))
 
     if not fournisseurs:
