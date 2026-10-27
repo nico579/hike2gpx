@@ -163,10 +163,12 @@ test("une case absente se prépare sur la vue actuelle ou en entier", async () =
     ["Préparer la vue actuelle", "Préparer toute la case (environ une heure)"]);
   boutons[0].click();
   const vue = requetes.findLast((r) => r.url === "/api/preparer_lot");
-  assert.deepEqual(JSON.parse(vue.options.body), { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });
+  // Le fournisseur national du pays affiché (la France : IGN) accompagne la demande.
+  assert.deepEqual(JSON.parse(vue.options.body),
+    { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04], source: "ign" });
   boutons[1].click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_lot").options.body),
-    { case: "E5_N40" });
+    { case: "E5_N40", source: "ign" });
 });
 
 test("la note suit la préparation hors ligne, puis la case est prête", async () => {

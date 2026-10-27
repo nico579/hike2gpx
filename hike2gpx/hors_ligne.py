@@ -22,8 +22,6 @@ from pathlib import Path
 
 from . import lot
 
-SOURCE_DU_LOT = {"ign": "bdtopo"}       # source de l'application -> clé des sources du manifeste
-
 
 class ErreurLot(ValueError):
     pass
@@ -118,7 +116,7 @@ class HorsLigne:
             if calque == "osm":
                 # Un lot OSM peut ne couvrir qu'une partie de sa case (zone).
                 bs, bo, bn, be = manifeste.get("zone") or lot.boite_case(manifeste["case"])
-            elif calque in SOURCE_DU_LOT.values() and manifeste.get("sources", {}).get(calque):
+            elif manifeste.get("sources", {}).get(calque):      # bdtopo, atkis… : le fournisseur du lot
                 bs, bo, bn, be = manifeste.get("emprise_enrichie") or (0, 0, 0, 0)
             else:
                 continue

@@ -194,6 +194,10 @@ const TEXTES = {
     "horsLigne.etape.extraits": "extraits OSM",
     "horsLigne.etape.calques": "chemins et franchissements",
     "horsLigne.etape.installation": "installation",
+    "horsLigne.etape.osm": "lecture d'OSM",
+    "horsLigne.etape.fusion": "fusion des chemins officiels",
+    "horsLigne.etape.relief": "relief",
+    "horsLigne.etape.compilation": "itinéraires BRouter",
     "pleinEcran.entrer": "Plein écran",
     "pleinEcran.quitter": "Quitter le plein écran",
     "etape.debut": "Préparation du calcul",
@@ -390,6 +394,10 @@ const TEXTES = {
     "horsLigne.etape.extraits": "OSM extracts",
     "horsLigne.etape.calques": "paths and crossings",
     "horsLigne.etape.installation": "installation",
+    "horsLigne.etape.osm": "reading OSM",
+    "horsLigne.etape.fusion": "merging official paths",
+    "horsLigne.etape.relief": "elevation",
+    "horsLigne.etape.compilation": "BRouter routing data",
     "pleinEcran.entrer": "Full screen",
     "pleinEcran.quitter": "Exit full screen",
     "etape.debut": "Preparing the calculation",
@@ -1302,7 +1310,7 @@ function construireFonds() {
 // ------------------------------------------------------------ hors ligne
 // Les cases BRouter de 5° prêtes hors ligne (lots installés), dessinées sur
 // la carte depuis les réglages comme les mailles du serveur. Un clic sur une
-// case la prépare : le serveur fabrique son lot en tâche de fond (lot_osm.py)
+// case la prépare : le serveur fabrique son lot en tâche de fond (fabrication.py)
 // et la note de l'onglet Parcours en suit l'avancement.
 const CASE_DEG = 5;
 const CLE_CASES = "hike2gpx.casesHorsLigne";
@@ -1491,7 +1499,9 @@ async function suivreLot() {
 
 async function preparerCase(nom, zone = null) {
   carte.closePopup();
-  const reponse = await api("preparer_lot", zone ? { case: nom, zone } : { case: nom });
+  // Le fournisseur national du pays affiché entre au lot s'il couvre la zone.
+  const source = FOURNISSEURS_CARTES[paysCarte]?.paths?.source;
+  const reponse = await api("preparer_lot", { case: nom, ...(zone ? { zone } : {}), ...(source ? { source } : {}) });
   if (reponse.erreur) {
     afficherLot({ case: nom, erreur: reponse.erreur });
     return;

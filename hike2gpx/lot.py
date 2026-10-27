@@ -233,8 +233,10 @@ def boite_case(nom: str) -> tuple:
     return lat, lon, lat + 5, lon + 5
 
 
-# Calque de la page -> couches du lot qui le composent.
-CALQUES = {"osm": ("voies", "barrieres", "franchissements"), "bdtopo": ("troncons",)}
+# Calque de la page -> couches du lot qui le composent ; le calque d'un
+# fournisseur national (bdtopo, atkis…) est la couche des tronçons.
+CALQUES = {"osm": ("voies", "barrieres", "franchissements")}
+OFFICIELS = ("troncons",)
 
 
 def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: float, est: float) -> dict:
@@ -243,7 +245,7 @@ def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: floa
     franchissements avec leur position. Une ligne coupée par plusieurs tuiles
     revient en morceaux, que la page dessine bout à bout : chacun est recoupé
     aux bords de sa tuile, sans la marge, pour ne rien dessiner deux fois."""
-    couches = CALQUES[calque]
+    couches = CALQUES.get(calque, OFFICIELS)
     resultat = {c: [] for c in couches}
     vus = set()
     with sqlite3.connect(f"file:{Path(mbtiles).resolve().as_posix()}?mode=ro", uri=True) as base:

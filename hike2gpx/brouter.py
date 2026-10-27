@@ -333,7 +333,7 @@ def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path, *, relief: Pa
     sans elle, le lecteur attend 10 s par tour que le fichier grossisse.
 
     relief : dossier des altitudes .bef à 1 seconde d'arc (srtm_x_y.bef, voir
-    deploy/linux/relief_case.py) ; sans lui, les tuiles n'ont pas d'altitude.
+    relief.py) ; sans lui, les tuiles n'ont pas d'altitude.
     tas : mémoire de Java ; 1 Go suffit à une petite zone, une case de 5°
     dense en demande quatre ou cinq."""
     librairies = sorted((inst.programme / "lib").glob("*.jar"))
