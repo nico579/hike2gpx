@@ -186,6 +186,8 @@ const TEXTES = {
     "horsLigne.arreter": "Arrêter",
     "horsLigne.avancement": "Préparation hors ligne de {nom} : {etape}{compte}, depuis {duree}",
     "horsLigne.fini": "Case {nom} prête hors ligne.",
+    "horsLigne.perime": "Le lot hors ligne de {nom} date du {date}, au-delà du délai de renouvellement. Le mettre à jour ?",
+    "horsLigne.plusTard": "Plus tard",
     "horsLigne.erreur": "Préparation de {nom} interrompue : {erreur}",
     "horsLigne.etape.debut": "démarrage",
     "horsLigne.etape.rd5": "itinéraires BRouter",
@@ -380,6 +382,8 @@ const TEXTES = {
     "horsLigne.arreter": "Stop",
     "horsLigne.avancement": "Preparing {nom} for offline use: {etape}{compte}, for {duree}",
     "horsLigne.fini": "Area {nom} ready offline.",
+    "horsLigne.perime": "The offline data of {nom} dates from {date}, past the refresh delay. Update it?",
+    "horsLigne.plusTard": "Later",
     "horsLigne.erreur": "Preparation of {nom} interrupted: {erreur}",
     "horsLigne.etape.debut": "starting",
     "horsLigne.etape.rd5": "BRouter routing data",
@@ -1440,8 +1444,34 @@ function afficherLot(r) {
   $("lotHorsLigneTexte").textContent = message;
   $("lotHorsLigne").hidden = !message;
   $("arreterLot").hidden = !r.actif;
+  $("majLot").hidden = $("plusTardLot").hidden = true;
   majPiste("lotHorsLigne", r.actif ? (r.total ? r.faites / r.total : null) : undefined);
 }
+
+// Règle unique : un lot qui couvre la zone sert seul. Trop vieux, il ne se
+// renouvelle pas tout seul comme les caches : on demande. « Plus tard » vaut
+// pour la séance. Seul un lot OSM sait aujourd'hui se refaire sur ce PC.
+const lotsReportes = new Set();
+let lotPerime = null;
+
+function proposerMiseAJour(lotUtilise) {
+  if (!lotUtilise?.perime || lotUtilise.type !== "osm" || lotsReportes.has(lotUtilise.case)
+      || lotEnCours?.actif) return;
+  lotPerime = lotUtilise;
+  $("lotHorsLigneTexte").textContent = t("horsLigne.perime",
+    { nom: lotUtilise.case, date: (lotUtilise.sources?.osm || "").slice(0, 10) });
+  $("lotHorsLigne").hidden = false;
+  $("arreterLot").hidden = true;
+  $("majLot").hidden = $("plusTardLot").hidden = false;
+}
+
+$("majLot").addEventListener("click", () => {
+  if (lotPerime) preparerCase(lotPerime.case, lotPerime.zone);
+});
+$("plusTardLot").addEventListener("click", () => {
+  if (lotPerime) lotsReportes.add(lotPerime.case);
+  $("lotHorsLigne").hidden = true;
+});
 
 async function suivreLot() {
   minuterieLot = null;
@@ -1863,6 +1893,7 @@ function afficher(r) {
   }
   ecrireResultat(r);
   calculerDenivele(r);
+  proposerMiseAJour(r.lot);
   $("resultat").hidden = false;
   $("exporter").disabled = false;
   actualiserDisponibilite();

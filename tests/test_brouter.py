@@ -93,10 +93,18 @@ def test_lookups_ign_ajoute_la_cle_au_contexte_des_voies():
 
 def test_profil_maison_rend_les_chemins_ign_plus_couteux():
     profil = brouter.profil_maison(brouter.profil_hike2gpx(REFERENCE.read_text(encoding="utf-8")))
-    assert f"assign ign_penalty switch hike2gpx={'|'.join(brouter.SOURCES_OFFICIELLES)} {brouter.PENALITE_IGN} 0" in profil
+    assert (f"assign ign_penalty switch hike2gpx={'|'.join(brouter.SOURCES_OFFICIELLES)} "
+            f"switch chemins_officiels {brouter.PENALITE_IGN} 10000 0") in profil
     assert "assign costfactor\nadd ign_penalty\nadd town_penalty" in profil
+    # Variable de profil réglable par requête : elle doit vivre dans le contexte global.
+    assert profil.index("assign chemins_officiels = 1") < profil.index("---context:way")
     with pytest.raises(ValueError):
         brouter.profil_maison("assign dummy 0\n")
+
+
+def test_requete_interdit_les_chemins_officiels_sans_la_coche():
+    assert "profile:chemins_officiels" not in brouter.requete([(43.0, 6.0), (43.5, 6.5)])
+    assert "profile:chemins_officiels=0" in brouter.requete([(43.0, 6.0), (43.5, 6.5)], officiels=False)
 
 
 def test_archive_reprise_si_intacte(tmp_path, monkeypatch):

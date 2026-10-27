@@ -74,8 +74,15 @@ REMPLACEMENTS = (
 # fois et demie plus coûteux qu'un chemin OSM équivalent.
 CLE_IGN = "hike2gpx;0000000001 " + "\nhike2gpx;0000000001 ".join(SOURCES_OFFICIELLES) + "\n\n"
 PENALITE_IGN = 0.5
+# Une requête peut interdire ces chemins sans changer de tuiles : profile:
+# chemins_officiels=0 (calculer(officiels=False)). BRouter remplace alors la
+# première affectation de la variable (BExpression.parse) ; la valeur doit être
+# un nombre. Un coût de 10000 rend la voie impraticable.
+REMPLACEMENT_GLOBAL = ("---context:global",
+                       "---context:global\n\nassign chemins_officiels = 1   # 0 : chemins officiels interdits\n")
 REMPLACEMENT_IGN = ("assign costfactor\nadd town_penalty",
-                    f"assign ign_penalty switch hike2gpx={'|'.join(SOURCES_OFFICIELLES)} {PENALITE_IGN} 0\n\n"
+                    f"assign ign_penalty switch hike2gpx={'|'.join(SOURCES_OFFICIELLES)} "
+                    f"switch chemins_officiels {PENALITE_IGN} 10000 0\n\n"
                     "assign costfactor\nadd ign_penalty\nadd town_penalty")
 # Profils que lit le créateur de tuiles, absents de l'archive : pris dans le
 # dépôt de BRouter, au tag de la version installée, et vérifiés.
@@ -115,9 +122,9 @@ def lookups_ign(source: str) -> str:
 
 def profil_maison(source: str) -> str:
     """Profil hike2gpx des tuiles maison : les chemins IGN coûtent davantage."""
-    if source.count(REMPLACEMENT_IGN[0]) != 1:
+    if source.count(REMPLACEMENT_IGN[0]) != 1 or source.count(REMPLACEMENT_GLOBAL[0]) != 1:
         raise ValueError("Profil BRouter inattendu : assemblage du coût introuvable.")
-    return source.replace(*REMPLACEMENT_IGN)
+    return source.replace(*REMPLACEMENT_GLOBAL).replace(*REMPLACEMENT_IGN)
 
 
 def nom_segment(lat: float, lon: float) -> str:
@@ -433,7 +440,7 @@ def _coupe(coupe, poids=None) -> str:
 
 
 def requete(points, franchissements=(), *, strict: bool = False, profil: str = PROFIL,
-            poids: int = POIDS_A_VERIFIER) -> str:
+            poids: int = POIDS_A_VERIFIER, officiels: bool = True) -> str:
     """Chemin et paramètres d'une requête BRouter. points : [(lat, lon)].
     Un franchissement bloquant devient une coupe sans poids ; un
     franchissement à vérifier, une coupe pondérée, ou interdite en mode
@@ -443,7 +450,10 @@ def requete(points, franchissements=(), *, strict: bool = False, profil: str = P
     dernière de la liste (RoutingContext.calcDistance) : une coupe pondérée
     placée après une coupe interdite rendait le segment franchissable (audit
     B10, vérifié par le vrai BRouter). Les coupes interdites passent donc en
-    dernier."""
+    dernier.
+
+    officiels=False interdit les chemins officiels d'une RD5 enrichie (variable
+    chemins_officiels du profil maison) : le même lot sert les deux réglages."""
     interdites = [f["statut"] == "blocked" or strict for f in franchissements]
     lignes = [_coupe(c, None if interdite else poids)
               for interdite in (False, True)
@@ -452,7 +462,9 @@ def requete(points, franchissements=(), *, strict: bool = False, profil: str = P
                   "profile": profil, "alternativeidx": "0", "format": "geojson"}
     if lignes:
         parametres["polylines"] = "|".join(lignes)
-    return "/brouter?" + urllib.parse.urlencode(parametres, safe=",|")
+    if not officiels:
+        parametres["profile:chemins_officiels"] = "0"
+    return "/brouter?" + urllib.parse.urlencode(parametres, safe=",|:")
 
 
 def calculer(port: int, points, franchissements=(), **options) -> dict:
