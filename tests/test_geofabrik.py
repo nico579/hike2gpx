@@ -550,3 +550,39 @@ def test_le_departement_installe_sa_region_part_aussitot(tmp_path, monkeypatch):
                              "relais": True, "date": DATE}
     # Un autre usage a pris la place entre-temps : la suite ne part pas.
     assert not taches.lancer(paca, apres=taches._numero - 1)
+
+
+# Une tuile de 0,05° coupée par la frontière franco-suisse : ni Rhône-Alpes ni
+# la Suisse ne la contiennent entière, les Alpes si (2,2 Go, refusées).
+FRONTIERE = fr.tuile_du_point(46.03, 6.97)
+_S, _O, _N, _E = fr.bornes_tuile(*FRONTIERE)
+
+
+def _carre(ident, ouest, est, sud=40.0, nord=50.0):
+    return {"id": ident, "bornes": (sud, ouest, nord, est),
+            "polygones": [[[(ouest, sud), (est, sud), (est, nord), (ouest, nord), (ouest, sud)]]]}
+
+
+def test_une_tuile_frontaliere_est_servie_par_les_deux_regions_voisines():
+    rhone_alpes = _carre("rhone-alpes", 4.0, (_O + _E) / 2 + 0.001, 44.0, 47.0)
+    suisse = _carre("switzerland", (_O + _E) / 2 - 0.001, 10.5, 45.8, 47.8)
+    alpes = _carre("alps", 4.8, 16.8, 42.7, 48.4)
+    regions = [alpes, rhone_alpes, suisse]
+    assert geofabrik.region_de_tuile(regions, *FRONTIERE)["id"] == "alps"
+    assert sorted(r["id"] for r in geofabrik.regions_de_tuile(regions, *FRONTIERE)) == ["rhone-alpes", "switzerland"]
+    assert [r["id"] for r in geofabrik.regions_de_tuile(regions, *fr.tuile_du_point(45.5, 6.0))] == ["rhone-alpes"], \
+        "une tuile intérieure garde son seul extrait"
+    assert [r["id"] for r in geofabrik.regions_de_tuile([alpes, rhone_alpes], *FRONTIERE)] == ["alps"], \
+        "sans la Suisse, rien de plus petit ne couvre la tuile"
+
+
+def test_les_elements_de_deux_extraits_sont_reunis_sans_doublon(monkeypatch):
+    voie = {"type": "way", "id": 1, "nodes": [1, 2], "tags": {"highway": "path"}, "geometry": []}
+    lus = {"a": [{"type": "node", "id": 1, "lat": 46.0, "lon": 6.9, "tags": {}}, voie],
+           "b": [{"type": "node", "id": 1, "lat": 46.0, "lon": 6.9, "tags": {"barrier": "gate"}}, voie,
+                 {"type": "way", "id": 2, "nodes": [2, 3], "tags": {"highway": "track"}, "geometry": []}]}
+    monkeypatch.setattr(geofabrik, "elements_tuile", lambda extrait, i, j: lus[extrait["id"]])
+    elements = geofabrik.elements_des_extraits([{"id": "a"}, {"id": "b"}], *FRONTIERE)
+    assert sorted((e["type"], e["id"]) for e in elements) == [("node", 1), ("way", 1), ("way", 2)]
+    assert next(e for e in elements if e["type"] == "node")["tags"] == {"barrier": "gate"}, "le nœud qui a ses tags"
+

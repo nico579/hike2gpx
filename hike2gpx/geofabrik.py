@@ -127,6 +127,31 @@ def region_de_tuile(regions: list, i: int, j: int) -> dict | None:
     return min(candidates, key=_surface) if candidates else None
 
 
+def regions_de_tuile(regions: list, i: int, j: int) -> list:
+    """Les extraits qui servent la tuile : le plus petit qui la contient toute
+    entière, sauf si de plus petits la couvrent ensemble. Une tuile coupée par
+    une frontière n'est contenue que par un grand extrait (les Alpes, 2,2 Go,
+    au-delà de TAILLE_MAX) ; Rhône-Alpes et la Suisse la couvrent à deux, leurs
+    contours se chevauchant à la frontière."""
+    seule = region_de_tuile(regions, i, j)
+    sud, ouest, nord, est = fr.bornes_tuile(i, j)
+    reste = {(la, lo) for la in (sud, (sud + nord) / 2, nord) for lo in (ouest, (ouest + est) / 2, est)}
+    choisies = []
+    for r in sorted(regions, key=_surface):
+        if seule is not None and _surface(r) >= _surface(seule):
+            break
+        s, w, n, e = r["bornes"]
+        if s > nord or n < sud or w > est or e < ouest:
+            continue
+        dedans = {p for p in reste if _dans(*p, r["polygones"])}
+        if dedans:
+            choisies.append(r)
+            reste -= dedans
+            if not reste:
+                return choisies
+    return [seule] if seule else []
+
+
 def _region(feature: dict) -> dict | None:
     proprietes, geometrie = feature.get("properties") or {}, feature.get("geometry") or {}
     pbf = (proprietes.get("urls") or {}).get("pbf")
@@ -292,6 +317,29 @@ def extrait_de_tuile(dossier, i: int, j: int) -> dict | None:
     ne pas avoir de pb aux frontières »)."""
     liste = installes(dossier)
     return region_de_tuile([r for r in liste if not r.get("voies_coupees")], i, j) or region_de_tuile(liste, i, j)
+
+
+def extraits_de_tuile(dossier, i: int, j: int) -> list:
+    """Les extraits installés qui servent la tuile (regions_de_tuile) : un seul
+    d'ordinaire, deux ou trois pour une tuile coupée par une frontière ; [] si
+    rien ne la couvre. Aux voies entières d'abord, comme extrait_de_tuile."""
+    liste = installes(dossier)
+    return regions_de_tuile([r for r in liste if not r.get("voies_coupees")], i, j) \
+        or regions_de_tuile(liste, i, j)
+
+
+def elements_des_extraits(extraits: list, i: int, j: int) -> list:
+    """Les éléments de la tuile lus dans ces extraits, réunis sans doublon :
+    une voie qui passe la frontière est dans les deux, entière."""
+    if len(extraits) == 1:
+        return elements_tuile(extraits[0], i, j)
+    vus = {}
+    for extrait in extraits:
+        for e in elements_tuile(extrait, i, j):
+            cle = (e["type"], e["id"])
+            if cle not in vus or (e["type"] == "node" and e.get("tags") and not vus[cle].get("tags")):
+                vus[cle] = e
+    return list(vus.values())
 
 
 def _morceaux(valeurs: list, taille: int = 900):

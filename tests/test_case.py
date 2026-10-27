@@ -81,3 +81,19 @@ def test_pbf_de_la_case_corrige_osm_et_ajoute_les_chemins(tmp_path):
     assert sum(1 for g, i, _ in objets if g == "w" and i >= 1000) == 4
     noeuds = {i for g, i, _ in objets if g == "n"}
     assert all(n in noeuds for g, _, ns in objets if g == "w" for n in ns), "aucune voie ne pointe dans le vide"
+
+
+def test_bouts_coupes_par_basemap_recolles_d_une_maille_a_l_autre():
+    # ATKIS par basemap.de : un chemin coupé au bord d'une tuile vectorielle
+    # revient en deux morceaux dont les bouts, à 0,5 m l'un de l'autre, ne
+    # coïncident pas. Ici la coupure tombe sur la limite de deux mailles.
+    gauche = {"id": "g", "nature": "Weg/Pfad/Steig", "land": "BW", "bords": [False, True],
+              "pts": [[43.1, 5.95], [43.1, 5.9999970]]}
+    droite = {"id": "d", "nature": "Weg/Pfad/Steig", "land": "BW", "bords": [True, False],
+              "pts": [[43.1, 6.0000030], [43.1, 6.05]]}
+    registre = case.Registre(1000, 1000)
+    registre.fusionner([], [gauche, droite], *A, source="atkis")
+    registre.fusionner([], [gauche, droite], *B, source="atkis")
+    (ids_g, tags), (ids_d, _) = (registre.voies[w] for w in sorted(registre.voies))
+    assert ids_g[-1] == ids_d[0], "un seul nœud de part et d'autre de la limite"
+    assert tags["hike2gpx"] == "atkis"

@@ -50,7 +50,7 @@ class HorsLigne:
             manifeste = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise ErreurLot(f"Manifeste illisible : {exc}") from exc
-        if manifeste.get("format") != lot.FORMAT:
+        if manifeste.get("format") not in lot.FORMATS_LUS:
             raise ErreurLot(f"Format de lot {manifeste.get('format')} inconnu (attendu : {lot.FORMAT}).")
         case = manifeste.get("case", "")
         if not case or "/" in case or "\\" in case or ".." in case:

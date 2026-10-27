@@ -51,8 +51,13 @@ le dénivelé calculé par BRouter est nul.
 Le PC et le serveur fabriquent un lot par **la même fonction**,
 `hike2gpx/fabrication.py`. OSM y vient des extraits Geofabrik installés et
 indexés, lus tuile par tuile comme le fait déjà le calcul à la volée ; les
-chemins officiels viennent du fournisseur national du pays (BD TOPO, ATKIS,
-swissTLM3D…), fusionnés maille par maille. Le PBF de la zone est réécrit
+chemins officiels viennent des fournisseurs nationaux (BD TOPO, ATKIS,
+swissTLM3D…), fusionnés maille par maille. Une case de 5° chevauche souvent
+une frontière (E5_N45 : Alpes françaises, Suisse, Italie) : elle prend tous
+les fournisseurs dont le pays la touche, d'après les contours de l'index
+Geofabrik, chacun n'étant interrogé que sur son pays. Chaque tronçon garde sa
+source dans le PBF (`hike2gpx=ign`, `hike2gpx=swisstlm3d`), et les calques
+gardent une couche par fournisseur (`troncons_bdtopo`…, format de lot 3). Le PBF de la zone est réécrit
 depuis un stock SQLite temporaire, ce qui dispense de l'outil `osmium` et du
 PBF source. Seule la lecture des tronçons diffère : le PC interroge le service
 national avec son cache, le serveur peut lire le GeoPackage régional de la

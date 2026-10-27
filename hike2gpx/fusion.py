@@ -171,19 +171,24 @@ class Reseau:
                 for ids, tags in self.voies.values() if fr._praticable(tags) and not fr._hors_sol(tags)
                 for k in range(len(ids) - 1)]
 
-    def ajouter_ign(self, troncons, source="ign", bouts=None) -> int:
+    def ajouter_ign(self, troncons, source="ign", bouts=None, bords=None) -> int:
         """Ajoute les tronçons officiels absents d'OSM ; rend leur nombre.
 
+        Un tronçon porte sa source (« source », sinon celle donnée ici) : une
+        case frontalière mêle plusieurs fournisseurs dans une même fusion.
         bouts : point (arrondi au 1e-7) -> nœud commun des tronçons IGN. Partagé
         entre les mailles d'une case, il garde à un même point le même nœud,
-        déjà raccordé : deux tronçons qui se touchent à la limite restent liés."""
+        déjà raccordé : deux tronçons qui se touchent à la limite restent liés.
+        bords : de même, les extrémités découpées par basemap.de, recollées par
+        proximité d'une maille à l'autre."""
         from .providers import source as fournisseur
-        fournisseur(source)
+        for cle in {source, *(t["source"] for t in troncons if t.get("source"))}:
+            fournisseur(cle)
         index = self.index()
         self._liens = []
         bouts = {} if bouts is None else bouts
         crees = set()               # bouts nés ici, les seuls à raccorder
-        bords_vectoriels = defaultdict(list)  # extrémités découpées par basemap.de
+        bords_vectoriels = defaultdict(list) if bords is None else bords  # extrémités découpées par basemap.de
         ajoutes = 0
         candidats = [t for t in troncons if t.get("nature") not in NATURES_EXCLUES and len(t.get("pts") or []) >= 2]
         parts = parts_couvertes([t["pts"] for t in candidats], self.segments_osm())
@@ -211,8 +216,9 @@ class Reseau:
                                     break
                         if nid is None:
                             nid = self._nouveau_noeud(lat, lon)
+                            crees.add(nid)
+                        # Un voisin d'une autre maille y est déjà raccordé.
                         bouts[cle] = nid
-                        crees.add(nid)
                         if bord:
                             bords_vectoriels[case].append((lat, lon, nid, t["land"],
                                                            t.get("niveau", 0), t["id"]))
@@ -223,7 +229,7 @@ class Reseau:
                     ids.append(self._nouveau_noeud(lat, lon))
             wid = self._nouvelle_voie()
             tags = dict(ETIQUETTE)
-            tags["hike2gpx"] = source
+            tags["hike2gpx"] = t.get("source") or source
             if t.get("acces_pieton") not in ACCES_OUVERTS:
                 tags["foot"] = "private"
             self.voies[wid] = [ids, tags]

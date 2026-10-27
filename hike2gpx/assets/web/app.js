@@ -1458,8 +1458,8 @@ function afficherLot(r) {
 
 // Règle unique : un lot qui couvre la zone sert seul. Trop vieux, il ne se
 // renouvelle pas tout seul comme les caches : on demande. « Plus tard » vaut
-// pour la séance. Le lot est refait sur sa zone, enrichi comme avant si le
-// pays affiché a un fournisseur national.
+// pour la séance. Le lot est refait sur sa zone, avec les fournisseurs
+// nationaux qui la touchent.
 const lotsReportes = new Set();
 let lotPerime = null;
 
@@ -1500,9 +1500,8 @@ async function suivreLot() {
 
 async function preparerCase(nom, zone = null) {
   carte.closePopup();
-  // Le fournisseur national du pays affiché entre au lot s'il couvre la zone.
-  const source = FOURNISSEURS_CARTES[paysCarte]?.paths?.source;
-  const reponse = await api("preparer_lot", { case: nom, ...(zone ? { zone } : {}), ...(source ? { source } : {}) });
+  // Le serveur prend tous les fournisseurs nationaux qui touchent la zone.
+  const reponse = await api("preparer_lot", zone ? { case: nom, zone } : { case: nom });
   if (reponse.erreur) {
     afficherLot({ case: nom, erreur: reponse.erreur });
     return;

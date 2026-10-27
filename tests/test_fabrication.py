@@ -24,8 +24,8 @@ class Installation:
 def mode_en_ligne(monkeypatch):
     """Le code du mode en ligne, simulé : une tuile couverte par un extrait installé."""
     lus = []
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile",
-                        lambda dossier, i, j: {"id": "paca", "date": "2026-10-25T21:21:21Z"} if (i, j) == TUILE else None)
+    monkeypatch.setattr(geofabrik, "extraits_de_tuile",
+                        lambda dossier, i, j: [{"id": "paca", "date": "2026-10-25T21:21:21Z"}] if (i, j) == TUILE else [])
     monkeypatch.setattr(geofabrik, "regions", lambda dossier: [])
     monkeypatch.setattr(geofabrik, "installes", lambda dossier: [])
 
@@ -146,8 +146,8 @@ def test_regions_a_installer_pour_les_tuiles_sans_extrait(tmp_path, monkeypatch)
     region = {"id": "provence-alpes-cote-d-azur", "bornes": (42.9, 4.2, 45.2, 7.8)}
     monkeypatch.setattr(geofabrik, "regions", lambda dossier: [region])
     monkeypatch.setattr(geofabrik, "installes", lambda dossier: [])
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda dossier, i, j: None)
-    monkeypatch.setattr(geofabrik, "region_de_tuile", lambda regions, i, j: region)
+    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda dossier, i, j: [])
+    monkeypatch.setattr(geofabrik, "regions_de_tuile", lambda regions, i, j: [region])
     assert fabrication.regions_a_installer(tmp_path, ZONE) == [region]
     monkeypatch.setattr(geofabrik, "installes", lambda dossier: [region])
     assert fabrication.regions_a_installer(tmp_path, ZONE) == []
@@ -194,8 +194,8 @@ def test_stock_osm_garde_les_tags_et_ecrit_le_pbf(tmp_path):
 @pytest.fixture
 def osm_installe(monkeypatch, mode_en_ligne):
     """Un extrait installé partout ; seule la tuile des essais a un sentier."""
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile",
-                        lambda dossier, i, j: {"id": "paca", "date": "2026-10-25T21:21:21Z", "base": "x"})
+    monkeypatch.setattr(geofabrik, "extraits_de_tuile",
+                        lambda dossier, i, j: [{"id": "paca", "date": "2026-10-25T21:21:21Z", "base": "x"}])
     monkeypatch.setattr(geofabrik, "elements_tuile",
                         lambda extrait, i, j: [PORTAIL, SENTIER] if (i, j) == TUILE else [])
 
@@ -227,9 +227,10 @@ def test_lot_enrichi_fusionne_compile_et_montre_les_chemins_officiels(tmp_path, 
         lus.append((sud, ouest, nord, est))
         return [CHEMIN_IGN]
     m = json.loads(fabrication.fabriquer(tmp_path / "donnees", installation, "E5_N40", tmp_path / "lot", zone=ZONE,
-                                         source="ign", troncons=troncons, edition="2026-09-15").read_text("utf-8"))
+                                         fournisseurs=["ign"], troncons={"ign": troncons},
+                                         editions={"ign": "2026-09-15"}).read_text("utf-8"))
     assert installation.demandes == [], "pas de RD5 officielle : la RD5 est compilée"
-    assert m["type"] == "enrichi" and m["source"] == "ign" and m["emprise_enrichie"] == list(ZONE)
+    assert m["type"] == "enrichi" and m["fournisseurs"] == ["ign"] and m["emprise_enrichie"] == list(ZONE)
     assert m["sources"]["bdtopo"] == "2026-09-15" and m["sources"]["osm"] == "2026-10-25T21:21:21Z"
     assert reliefs == [ZONE], "le relief de la zone seule"
     assert (tmp_path / "lot" / "E5_N40.rd5").read_bytes() == b"rd5 enrichie"
@@ -254,7 +255,7 @@ def test_lot_enrichi_installe_et_lu_comme_les_autres(tmp_path, osm_installe, mon
     monkeypatch.setattr(brouter, "fabriquer_tuiles", compiler)
     monkeypatch.setattr(relief, "fabriquer", lambda *a, **o: tmp_path / "bef")
     fabrication.fabriquer(tmp_path / "donnees", Compilation(), "E5_N40", tmp_path / "lot", zone=ZONE,
-                          source="ign", troncons=lambda *bornes: [CHEMIN_IGN])
+                          fournisseurs=["ign"], troncons={"ign": lambda *bornes: [CHEMIN_IGN]})
     h = hors_ligne.HorsLigne(tmp_path / "donnees")
     h.installer(tmp_path / "lot")
     assert (h.segments / "E5_N40.rd5").is_file() and not (h.segments_osm / "E5_N40.rd5").exists()
@@ -263,18 +264,54 @@ def test_lot_enrichi_installe_et_lu_comme_les_autres(tmp_path, osm_installe, mon
     assert h.lot_du_calque((43.40, 6.01, 43.42, 6.03), "osm") is None, "le calque OSM s'arrête à la zone"
 
 
-def test_preparer_lot_inclut_le_fournisseur_qui_couvre_la_zone(tmp_path, monkeypatch):
+# Contours simplifiés : la France à l'ouest de 7°, la Suisse à l'est, la Pologne loin.
+REGIONS = [{"id": "france", "polygones": [[[(-5, 41), (7, 41), (7, 51), (-5, 51), (-5, 41)]]]},
+           {"id": "switzerland", "polygones": [[[(7, 45.8), (10.5, 45.8), (10.5, 47.8), (7, 47.8), (7, 45.8)]]]},
+           {"id": "poland", "polygones": [[[(14, 49), (24, 49), (24, 55), (14, 55), (14, 49)]]]}]
+
+
+def test_les_fournisseurs_d_une_zone_suivent_les_frontieres(tmp_path, monkeypatch):
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier: REGIONS)
+    assert fabrication.fournisseurs_de_zone(tmp_path, ZONE) == ["ign"]
+    assert fabrication.fournisseurs_de_zone(tmp_path, (46.0, 6.9, 46.1, 7.1)) == ["ign", "swisstlm3d"], \
+        "une case frontalière prend les deux"
+    assert fabrication.fournisseurs_de_zone(tmp_path, (53.0, 20.0, 53.1, 20.1)) == [], \
+        "BDOT10k ne couvre que la Basse-Silésie"
+    assert fabrication.fournisseurs_de_zone(tmp_path, (51.0, 16.0, 51.1, 16.1)) == ["bdot10k_ds"]
+
+
+def test_preparer_lot_laisse_la_fabrication_choisir_les_fournisseurs(tmp_path, monkeypatch):
     from hike2gpx import application as appli
     a = appli.Application(tmp_path / "donnees")
     demandes = []
-    monkeypatch.setattr(a, "_fabriquer_lot", lambda case, zone, source=None: demandes.append(source))
+    monkeypatch.setattr(fabrication, "fabriquer", lambda *args, **options: demandes.append(options) or 1/0)
     a.preparer_lot({"case": "E5_N40", "zone": list(ZONE), "source": "ign"})
     a._fil_lot.join(5)
-    a.preparer_lot({"case": "E15_N50", "zone": [53.0, 15.0, 53.1, 15.1], "source": "bdot10k_ds"})
-    a._fil_lot.join(5)
-    a.preparer_lot({"case": "E5_N40", "zone": list(ZONE), "source": "inconnue"})
-    a._fil_lot.join(5)
-    assert demandes == ["ign", None, None], "BDOT10k ne couvre que la Basse-Silésie"
+    assert "fournisseurs" not in demandes[0], "par défaut, ceux qui touchent la zone"
+
+
+def test_case_frontaliere_fusionne_deux_fournisseurs(tmp_path, osm_installe, monkeypatch):
+    from hike2gpx import brouter, relief
+    installation = Compilation()
+
+    def compiler(inst, pbf, dossier, **options):
+        installation.pbf = lire_pbf(pbf)
+        (dossier / "segments").mkdir(parents=True)
+        (dossier / "segments" / "E5_N40.rd5").write_bytes(b"rd5")
+        return dossier / "segments"
+    monkeypatch.setattr(brouter, "fabriquer_tuiles", compiler)
+    monkeypatch.setattr(relief, "fabriquer", lambda *a, **o: tmp_path / "bef")
+    chemin_suisse = {"id": "CH-1", "nature": "Weg 15", "pts": [[43.33, 6.03], [43.34, 6.04]]}
+    m = json.loads(fabrication.fabriquer(
+        tmp_path / "donnees", installation, "E5_N40", tmp_path / "lot", zone=ZONE, fournisseurs=["ign", "swisstlm3d"],
+        troncons={"ign": lambda *b: [CHEMIN_IGN], "swisstlm3d": lambda *b: [chemin_suisse]}).read_text("utf-8"))
+    assert m["fournisseurs"] == ["ign", "swisstlm3d"] and {"bdtopo", "swisstlm3d"} <= set(m["sources"])
+    _, voies, _ = installation.pbf
+    assert sorted(tags.get("hike2gpx") for wid, (_, tags) in voies.items() if wid > 10) == ["ign", "swisstlm3d"]
+    mbtiles = tmp_path / "lot" / "calques.mbtiles"
+    assert {t["id"] for t in lot.lire_calque(mbtiles, "bdtopo", *ZONE)["troncons"]} == {"T-0"}
+    assert {t["id"] for t in lot.lire_calque(mbtiles, "swisstlm3d", *ZONE)["troncons"]} == {"CH-1"}, \
+        "une couche par fournisseur"
 
 
 def test_relief_ne_rapatrie_que_la_zone(tmp_path, monkeypatch):
@@ -303,20 +340,21 @@ def serie(tmp_path, monkeypatch):
     """Fabrication simulée : un manifeste minimal, une erreur pour E0_N40.
     Rend l'extrait installé (sa date se change) et les cases fabriquées."""
     extrait = {"id": "paca", "date": "2026-10-20T20:23:47Z"}
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda dossier, i, j: extrait)
+    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda dossier, i, j: [extrait])
     monkeypatch.setattr(geofabrik, "age_s", lambda e: 0)
     faites = []
 
-    def fabriquer(dossier, installation, case, sortie, *, zone=None, source=None, **options):
+    def fabriquer(dossier, installation, case, sortie, *, zone=None, fournisseurs=None, **options):
         if case == "E0_N40":
             raise RuntimeError("WFS indisponible")
         faites.append((case, zone))
         sortie.mkdir(parents=True)
         (sortie / "a.bin").write_bytes(b"x")
         return lot.ecrire_manifeste(sortie, case, [sortie / "a.bin"], {"osm": extrait["date"], "bdtopo": "2026-09-15"},
-                                    type="enrichi")
+                                    type="enrichi", fournisseurs=fournisseurs)
     monkeypatch.setattr(fabrication, "fabriquer", fabriquer)
     monkeypatch.setattr(fabrication, "_tuiles", lambda zone: [(0, 0)])
+    monkeypatch.setattr(fabrication, "fournisseurs_de_zone", lambda dossier, zone: ["ign"])
     return extrait, faites
 
 
@@ -324,7 +362,8 @@ def test_fabriquer_lots_reprend_et_isole_les_erreurs(tmp_path, serie):
     extrait, faites = serie
     lignes = []
     lots = lambda **o: fabrication.fabriquer_lots(tmp_path, Installation(), ["E5_N40", "E0_N40"], tmp_path / "lots",
-                                                  source="ign", edition="2026-09-15", ecrire=lignes.append, **o)
+                                                  fournisseurs=["ign"], editions={"ign": "2026-09-15"},
+                                                  ecrire=lignes.append, **o)
     bilan = lots()
     assert bilan["E5_N40"] == "fabriqué" and bilan["E0_N40"] == "erreur : WFS indisponible"
     assert (tmp_path / "lots" / "E5_N40" / "manifest.json").is_file()
@@ -345,16 +384,21 @@ def test_fabriquer_lots_limite_les_cases_a_la_zone(tmp_path, serie):
 
 
 def test_lot_a_jour_selon_le_type_et_l_edition(tmp_path):
-    lot.ecrire_manifeste(tmp_path, "E5_N40", [], {"osm": "2026-10-20", "bdtopo": "2026-09-15"}, type="enrichi")
-    assert fabrication.lot_a_jour(tmp_path, osm="2026-10-20", calque="bdtopo", edition="2026-09-15")
-    assert not fabrication.lot_a_jour(tmp_path, osm="2026-10-20", calque="bdtopo", edition="2026-12-15")
+    lot.ecrire_manifeste(tmp_path, "E5_N40", [], {"osm": "2026-10-20", "bdtopo": "2026-09-15"}, type="enrichi",
+                         fournisseurs=["ign"])
+    assert fabrication.lot_a_jour(tmp_path, osm="2026-10-20", fournisseurs=["ign"], editions={"ign": "2026-09-15"})
+    assert not fabrication.lot_a_jour(tmp_path, osm="2026-10-20", fournisseurs=["ign"], editions={"ign": "2026-12-15"})
+    assert not fabrication.lot_a_jour(tmp_path, osm="2026-10-20", fournisseurs=["ign", "swisstlm3d"]), \
+        "un fournisseur de plus : le lot est à refaire"
     assert not fabrication.lot_a_jour(tmp_path, osm="2026-10-20"), "un lot OSM n'est pas un lot enrichi"
     assert not fabrication.lot_a_jour(tmp_path / "absent", osm="2026-10-20")
 
 
 @pytest.mark.parametrize("arguments", [["bundles", "X5_N40", "--output", "lots"],
-                                       ["bundles", "E5_N40", "--output", "lots", "--gpkg", "a.gpkg"],
-                                       ["bundles", "E5_N40", "--output", "lots", "--source", "inconnue"],
+                                       ["bundles", "E5_N40", "--output", "lots", "--osm-only", "--provider", "ign"],
+                                       ["bundles", "E5_N40", "--output", "lots", "--provider", "inconnue"],
+                                       ["bundles", "E5_N40", "--output", "lots", "--gpkg", "a.gpkg",
+                                        "--provider", "swisstlm3d"],
                                        ["bundles", "E5_N40"]])
 def test_la_commande_bundles_refuse_les_options_invalides(arguments):
     from hike2gpx.__main__ import main

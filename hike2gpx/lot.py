@@ -26,7 +26,10 @@ import shapely
 
 # Version du format de lot, lue par le téléphone et le PC. 2 : les couches
 # reprennent celles de la page (voies, barrieres, troncons, franchissements).
-FORMAT = 2
+# 3 : plusieurs fournisseurs par lot (une case frontalière), une couche de
+# tronçons chacun, troncons_<calque> (troncons_bdtopo, troncons_swisstlm3d…).
+FORMAT = 3
+FORMATS_LUS = (2, 3)
 ZOOM = 14
 ZOOM_BLOC = 10                  # lecture des sources par blocs : 256 tuiles du zoom 14
 ETENDUE = 4096
@@ -233,10 +236,13 @@ def boite_case(nom: str) -> tuple:
     return lat, lon, lat + 5, lon + 5
 
 
-# Calque de la page -> couches du lot qui le composent ; le calque d'un
-# fournisseur national (bdtopo, atkis…) est la couche des tronçons.
+# Calque de la page -> couches du lot qui le composent.
 CALQUES = {"osm": ("voies", "barrieres", "franchissements")}
-OFFICIELS = ("troncons",)
+
+
+def couche_officielle(calque: str) -> str:
+    """La couche des tronçons d'un fournisseur national (bdtopo, atkis…)."""
+    return f"troncons_{calque}"
 
 
 def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: float, est: float) -> dict:
@@ -245,8 +251,11 @@ def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: floa
     franchissements avec leur position. Une ligne coupée par plusieurs tuiles
     revient en morceaux, que la page dessine bout à bout : chacun est recoupé
     aux bords de sa tuile, sans la marge, pour ne rien dessiner deux fois."""
-    couches = CALQUES.get(calque, OFFICIELS)
-    resultat = {c: [] for c in couches}
+    # Couche du lot -> clé de la page ; un lot de format 2 n'a qu'une couche
+    # « troncons », celle de la BD TOPO.
+    couches = {c: c for c in CALQUES[calque]} if calque in CALQUES \
+        else {couche_officielle(calque): "troncons", "troncons": "troncons"}
+    resultat = {c: [] for c in couches.values()}
     vus = set()
     with sqlite3.connect(f"file:{Path(mbtiles).resolve().as_posix()}?mode=ro", uri=True) as base:
         for x, y in tuiles_emprise(ZOOM, sud, ouest, nord, est):
@@ -272,7 +281,7 @@ def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: floa
                             continue
                         vus.add(props.get("cle"))
                         props["lat"], props["lon"] = latlon(g["coordinates"])
-                        resultat[nom].append(props)
+                        resultat[couches[nom]].append(props)
                         continue
                     parties = [g["coordinates"]] if g["type"] == "LineString" else g["coordinates"]
                     for partie in parties:
@@ -280,7 +289,7 @@ def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: floa
                         coupee = shapely.clip_by_rect(ligne, o, s, e, n)
                         for morceau in shapely.get_parts(shapely.line_merge(coupee)) if not coupee.is_empty else []:
                             if morceau.geom_type == "LineString" and len(morceau.coords) > 1:
-                                resultat[nom].append({**props, "pts": [[round(la, 6), round(lo, 6)]
+                                resultat[couches[nom]].append({**props, "pts": [[round(la, 6), round(lo, 6)]
                                                                        for lo, la in morceau.coords]})
     return resultat
 
