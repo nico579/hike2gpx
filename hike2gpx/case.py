@@ -17,7 +17,9 @@ voies ajoutées ; le créateur de BRouter le compile comme un extrait ordinaire.
 """
 from __future__ import annotations
 
+import json
 import math
+import sqlite3
 from pathlib import Path
 
 from . import franchissements as fr, fusion, geofabrik
@@ -202,3 +204,62 @@ def troncons_gpkg(gpkg, sud: float, ouest: float, nord: float, est: float, depar
                                      "prive": bool(prive),
                                      "pts": [[round(p[1], 7), round(p[0], 7)] for p in ligne.coords]})
     return troncons
+
+
+class StockOSM:
+    """Les éléments OSM d'une zone, lus tuile par tuile dans les extraits
+    installés (geofabrik.elements_tuile), gardés sur disque pour écrire le PBF
+    de la zone : une case entière ne tiendrait pas en mémoire. Un nœud y garde
+    ses tags quand une tuile les donne, sa seule position sinon."""
+
+    def __init__(self, chemin: Path):
+        Path(chemin).unlink(missing_ok=True)
+        self.base = sqlite3.connect(str(chemin))
+        self.base.executescript(
+            "PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF;"
+            "CREATE TABLE noeuds(id INTEGER PRIMARY KEY, lat REAL, lon REAL, tags TEXT NOT NULL);"
+            "CREATE TABLE voies(id INTEGER PRIMARY KEY, noeuds TEXT NOT NULL, tags TEXT NOT NULL);"
+            "CREATE TABLE relations(id INTEGER PRIMARY KEY, membres TEXT NOT NULL, tags TEXT NOT NULL);")
+
+    def ajouter(self, elements: list) -> None:
+        noeuds, positions, voies, relations = [], [], [], []
+        for e in elements:
+            if e.get("type") == "node":
+                noeuds.append((e["id"], e["lat"], e["lon"], json.dumps(e.get("tags") or {})))
+            elif e.get("type") == "way" and e.get("geometry"):
+                voies.append((e["id"], json.dumps(e["nodes"]), json.dumps(e.get("tags") or {})))
+                positions += [(n, p["lat"], p["lon"]) for n, p in zip(e["nodes"], e["geometry"])]
+            elif e.get("type") == "relation":
+                relations.append((e["id"], json.dumps(e.get("members", [])), json.dumps(e.get("tags") or {})))
+        with self.base:
+            self.base.executemany("INSERT OR IGNORE INTO noeuds VALUES (?, ?, ?, '{}')", positions)
+            self.base.executemany("INSERT INTO noeuds VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE "
+                                  "SET tags = excluded.tags WHERE excluded.tags != '{}'", noeuds)
+            self.base.executemany("INSERT OR IGNORE INTO voies VALUES (?, ?, ?)", voies)
+            self.base.executemany("INSERT OR IGNORE INTO relations VALUES (?, ?, ?)", relations)
+
+    def maxima(self) -> tuple:
+        """(plus grand nœud, plus grande voie) : les objets ajoutés viennent après."""
+        return tuple(self.base.execute(f"SELECT coalesce(max(id), 0) FROM {table}").fetchone()[0]
+                     for table in ("noeuds", "voies"))
+
+    def ecrire_pbf(self, sortie: Path) -> None:
+        """Le PBF de la zone, nœuds, voies puis relations, chacun par identifiant.
+        Une relation ne garde que ses voies présentes, comme fusion.Reseau."""
+        import osmium
+        Path(sortie).unlink(missing_ok=True)
+        with osmium.SimpleWriter(str(sortie)) as w:
+            for nid, lat, lon, tags in self.base.execute("SELECT id, lat, lon, tags FROM noeuds ORDER BY id"):
+                w.add_node(osmium.osm.mutable.Node(id=nid, location=osmium.osm.Location(lon, lat),
+                                                   tags=json.loads(tags), version=1))
+            presentes = set()
+            for wid, noeuds, tags in self.base.execute("SELECT id, noeuds, tags FROM voies ORDER BY id"):
+                presentes.add(wid)
+                w.add_way(osmium.osm.mutable.Way(id=wid, nodes=json.loads(noeuds), tags=json.loads(tags), version=1))
+            for rid, membres, tags in self.base.execute("SELECT id, membres, tags FROM relations ORDER BY id"):
+                refs = [("w", m["ref"], m.get("role", "")) for m in json.loads(membres)
+                        if m.get("type") == "way" and m.get("ref") in presentes]
+                w.add_relation(osmium.osm.mutable.Relation(id=rid, members=refs, tags=json.loads(tags), version=1))
+
+    def fermer(self) -> None:
+        self.base.close()

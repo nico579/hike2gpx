@@ -1,0 +1,28 @@
+# Lots hors ligne des cases BRouter de la France, fabriqués par la même
+# fonction que la page (hike2gpx/fabrication.py). Lancé par
+# hike2gpx-bundles.timer ; à la main : systemctl start hike2gpx-bundles.
+#
+# Installation :
+#   sudo cp hike2gpx-bundles.service hike2gpx-bundles.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now hike2gpx-bundles.timer
+# Journal : journalctl -u hike2gpx-bundles
+#
+# Un lot à jour est sauté : une exécution interrompue reprend là où elle
+# s'était arrêtée. Pour une case entière, le GeoPackage de la BD TOPO
+# (--gpkg) est bien plus rapide que le WFS ; avec celui d'une seule région,
+# limiter les cases à cette région (--zone).
+
+[Unit]
+Description=hike2gpx : lots hors ligne des cases BRouter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=hike2gpx
+Environment=HIKE2GPX_HOME=/var/lib/hike2gpx
+ExecStart=/opt/hike2gpx/venv/bin/hike2gpx bundles \
+    W10_N45 W5_N40 W5_N45 E0_N40 E0_N45 E0_N50 E5_N40 E5_N45 \
+    --source ign --output /srv/hike2gpx/lots
+Nice=10
+IOSchedulingClass=idle

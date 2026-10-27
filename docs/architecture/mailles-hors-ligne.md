@@ -45,8 +45,19 @@ chemins après coup : on recompile la case entière, à partir d'OSM et des
 chemins IGN déjà raccordés (`hike2gpx/case.py`).
 
 Une RD5 compilée par nos soins reçoit son **relief** de Mapterhorn : en
-France, le MNT LiDAR de l'IGN (`deploy/linux/relief_case.py`). Sans relief,
+France, le MNT LiDAR de l'IGN (`hike2gpx/relief.py`). Sans relief,
 le dénivelé calculé par BRouter est nul.
+
+Le PC et le serveur fabriquent un lot par **la même fonction**,
+`hike2gpx/fabrication.py`. OSM y vient des extraits Geofabrik installés et
+indexés, lus tuile par tuile comme le fait déjà le calcul à la volée ; les
+chemins officiels viennent du fournisseur national du pays (BD TOPO, ATKIS,
+swissTLM3D…), fusionnés maille par maille. Le PBF de la zone est réécrit
+depuis un stock SQLite temporaire, ce qui dispense de l'outil `osmium` et du
+PBF source. Seule la lecture des tronçons diffère : le PC interroge le service
+national avec son cache, le serveur peut lire le GeoPackage régional de la
+BD TOPO (`hike2gpx bundles --gpkg`), bien plus vite pour une
+case entière.
 
 PR #37 avait choisi un découpage au quart de degré, avec un format `.rd5q` et
 un réassembleur écrit deux fois, en Python et en Java. La preuve était solide
