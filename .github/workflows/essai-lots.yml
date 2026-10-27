@@ -38,7 +38,7 @@ jobs:
 
       - name: Ressources de la machine
         run: |
-          nproc; free -m; df -h / "$RUNNER_TEMP"; java -version 2>&1 | head -1
+          nproc; free -m; df -h / "$RUNNER_TEMP"; java -version 2>&1 | head -1; command -v 7z
 
       - name: Mesures en fond
         run: |
@@ -55,7 +55,8 @@ jobs:
           CASE: ${{ inputs.case || 'E5_N40' }}
         run: |
           debut=$(date +%s)
-          python -m hike2gpx bundles "$CASE" --output "$RUNNER_TEMP/lots"
+          # Les chemins IGN par les archives régionales de la BD TOPO, pas le WFS.
+          python -m hike2gpx bundles "$CASE" --ign-regions --output "$RUNNER_TEMP/lots"
           echo "Durée totale : $(( $(date +%s) - debut )) s"
 
       - name: Bilan

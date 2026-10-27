@@ -397,8 +397,12 @@ def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, rac
                 ecrire(f"{case} : extraits renouvelés {', '.join(renouveles)}")
             de_la_case = fournisseurs_de_zone(dossier, utile) if fournisseurs is None \
                 else [s for s in fournisseurs if s in fournisseurs_de_zone(dossier, utile)]
+            # Une édition peut dépendre de la case (les régions de la BD TOPO
+            # qu'elle touche) : donnée alors comme édition(sud, ouest, nord, est).
+            editions_case = {s: e(*utile) if callable(e) else e for s, e in (editions or {}).items()
+                             if s in de_la_case}
             if not forcer and lot_a_jour(racine / case, osm=date_osm(dossier, utile), fournisseurs=de_la_case,
-                                         editions={s: e for s, e in (editions or {}).items() if s in de_la_case}):
+                                         editions=editions_case):
                 bilan[case] = "à jour"
                 ecrire(f"{case} : à jour")
                 continue
@@ -413,7 +417,7 @@ def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, rac
                     ecrire(f"{case} : {etape} {faites}/{total} ({time.monotonic() - debut:.0f} s)")
                     derniere[:] = [etape, dixieme]
             fabriquer(dossier, installation, case, travail, zone=None if utile == boite else utile,
-                      fournisseurs=de_la_case, troncons=troncons, editions=editions, suivi=suivi)
+                      fournisseurs=de_la_case, troncons=troncons, editions=editions_case, suivi=suivi)
             _mettre_en_place(travail, racine / case)
             octets = sum(f.stat().st_size for f in (racine / case).iterdir())
             bilan[case] = "fabriqué"
