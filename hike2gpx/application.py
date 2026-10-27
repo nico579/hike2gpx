@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
 import shutil
 import threading
@@ -21,8 +22,8 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import (__version__, brouter, communes, fabrication, franchissements, geofabrik, hors_ligne, journaux, maison,
-               osmfr, providers)
+from . import (__version__, brouter, communes, depot, fabrication, franchissements, geofabrik, hors_ligne, journaux,
+               maison, osmfr, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -224,6 +225,9 @@ class Application:
         self.installation = brouter.Installation(self.dossier)
         self.maison = maison.TuilesMaison(self.installation, self.dossier)
         self.hors_ligne = hors_ligne.HorsLigne(self.dossier)
+        # Le dépôt des lots du serveur ; HIKE2GPX_DEPOT en désigne un autre (un
+        # PC qui sert ses lots, un essai).
+        self.depot_lots = os.environ.get("HIKE2GPX_DEPOT", depot.DEPOT)
         # Fabrication d'un lot OSM en tâche de fond (fabrication.py), une à la fois.
         self._verrou_lot = threading.Lock()
         self._lot = {"actif": False}
@@ -1049,7 +1053,7 @@ class Application:
                "extrait": self.extrait,
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
                "disponibilite": self.disponibilite, "hors_ligne": self.lots_hors_ligne,
-               "lot_en_cours": self.lot_en_cours,
+               "lot_en_cours": self.lot_en_cours, "catalogue_lots": self.catalogue_lots,
                **get_langue}
         post = {"itineraire": self.itineraire, "disponibilite": self.disponibilite_parcours,
                 "reglages": self.enregistrer_reglages,
@@ -1057,8 +1061,72 @@ class Application:
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
                 "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux,
                 "installer_lot": self.installer_lot, "preparer_lot": self.preparer_lot,
-                "arreter_lot": self.arreter_lot, **post_langue}
+                "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot, **post_langue}
         return get, post
+
+    CATALOGUE_TTL_S = 600.0
+
+    def catalogue_lots(self) -> dict:
+        """Les lots que publie le dépôt du serveur (depot.py), avec pour chacun
+        son état sur ce PC : absent, installé et à jour, ou plus ancien."""
+        cache = getattr(self, "_catalogue", None)
+        if cache is None or time.monotonic() - cache[0] > self.CATALOGUE_TTL_S:
+            try:
+                cache = (time.monotonic(), depot.lire_catalogue(self.depot_lots))
+            except depot.ErreurDepot as exc:
+                journal.warning("Dépôt des lots : %s", exc)
+                return {"erreur": str(exc), "lots": []}
+            self._catalogue = cache
+        installes = {m["case"]: m for m in self.hors_ligne.lots()}
+        lots = []
+        for entree in cache[1]["lots"]:
+            local = installes.get(entree["case"])
+            etat = "absent" if local is None else \
+                "a_jour" if local.get("sources") == entree.get("sources") else "ancien"
+            lots.append({k: entree.get(k) for k in ("case", "type", "fournisseurs", "zone", "sources", "octets")}
+                        | {"etat": etat})
+        return {"lots": lots, "depot": self.depot_lots}
+
+    def telecharger_lot(self, corps) -> dict:
+        """Télécharge en tâche de fond le lot d'une case depuis le dépôt du
+        serveur, vérifié fichier par fichier, puis l'installe."""
+        case = (corps or {}).get("case")
+        cache = getattr(self, "_catalogue", None)
+        entree = next((e for e in cache[1]["lots"] if e["case"] == case), None) if cache else None
+        if entree is None:
+            return {"erreur": "Ce lot n'est pas au catalogue du dépôt."}
+        with self._verrou_lot:
+            if self._fil_lot is not None and self._fil_lot.is_alive():
+                return {"erreur": "Un lot se prépare déjà.", "lot_en_cours": dict(self._lot)}
+            self._lot = {"actif": True, "case": case, "zone": entree.get("zone"), "etape": "telechargement",
+                         "faites": 0, "total": entree.get("octets", 0), "debut": time.time(), "arreter": False}
+            self._fil_lot = threading.Thread(target=self._telecharger_lot, args=(entree,), daemon=True,
+                                             name=f"lot-{case}")
+            self._fil_lot.start()
+        return {"lot_en_cours": self.lot_en_cours()}
+
+    def _telecharger_lot(self, entree) -> None:
+        case, debut = entree["case"], time.monotonic()
+        travail = self.hors_ligne.racine / f".telechargement-{case}"
+        try:
+            depot.telecharger(entree, self.depot_lots, travail,
+                              suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
+                              continuer=lambda: not self._lot.get("arreter"))
+            self._lot["etape"] = "installation"
+            self.hors_ligne.installer(travail)
+        except depot.Abandon:
+            journal.info("Lot %s : téléchargement arrêté après %.0f s", case, time.monotonic() - debut)
+            self._lot.update(actif=False, erreur="Téléchargement arrêté.")
+        except Exception as exc:          # réseau, empreinte, disque : la page l'affiche
+            journal.exception("Lot %s : téléchargement en erreur après %.0f s", case, time.monotonic() - debut)
+            self._lot.update(actif=False, erreur=str(exc))
+        else:
+            journal.info("Lot %s : téléchargé et installé en %.0f s", case, time.monotonic() - debut)
+            self._lot.update(actif=False, etape="fini")
+        finally:
+            # Un téléchargement arrêté ou coupé repartira de zéro : rien de
+            # partiel ne reste dans le dossier des lots.
+            fabrication.nettoyer(travail)
 
     def preparer_lot(self, corps) -> dict:
         """Fabrique en tâche de fond le lot d'une case (fabrication.py), puis
