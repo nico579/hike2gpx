@@ -1458,13 +1458,13 @@ function afficherLot(r) {
 
 // Règle unique : un lot qui couvre la zone sert seul. Trop vieux, il ne se
 // renouvelle pas tout seul comme les caches : on demande. « Plus tard » vaut
-// pour la séance. Seul un lot OSM sait aujourd'hui se refaire sur ce PC.
+// pour la séance. Le lot est refait sur sa zone, enrichi comme avant si le
+// pays affiché a un fournisseur national.
 const lotsReportes = new Set();
 let lotPerime = null;
 
 function proposerMiseAJour(lotUtilise) {
-  if (!lotUtilise?.perime || lotUtilise.type !== "osm" || lotsReportes.has(lotUtilise.case)
-      || lotEnCours?.actif) return;
+  if (!lotUtilise?.perime || lotsReportes.has(lotUtilise.case) || lotEnCours?.actif) return;
   lotPerime = lotUtilise;
   $("lotHorsLigneTexte").textContent = t("horsLigne.perime",
     { nom: lotUtilise.case, date: (lotUtilise.sources?.osm || "").slice(0, 10) });
@@ -1474,7 +1474,8 @@ function proposerMiseAJour(lotUtilise) {
 }
 
 $("majLot").addEventListener("click", () => {
-  if (lotPerime) preparerCase(lotPerime.case, lotPerime.zone);
+  // Un lot enrichi de l'ancienne chaîne n'a pas de zone : son emprise enrichie.
+  if (lotPerime) preparerCase(lotPerime.case, lotPerime.zone || lotPerime.emprise_enrichie);
 });
 $("plusTardLot").addEventListener("click", () => {
   if (lotPerime) lotsReportes.add(lotPerime.case);
