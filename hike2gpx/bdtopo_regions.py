@@ -15,6 +15,7 @@ archives régionales, GeoPackage « tous thèmes », quatre fois par an :
 from __future__ import annotations
 
 import hashlib
+import http.client
 import logging
 import re
 import shutil
@@ -92,7 +93,7 @@ def _telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen) -> N
                     mode = "ab" if deja and getattr(reponse, "status", 200) == 206 else "wb"
                     with open(cible, mode) as f:
                         shutil.copyfileobj(reponse, f, BLOC)
-            except OSError as exc:      # coupure : l'essai suivant reprend
+            except (OSError, http.client.HTTPException) as exc:     # coupure : l'essai suivant reprend
                 journal.info("BD TOPO : %s coupé (%s), reprise", cible.name, exc)
                 continue
         h = hashlib.md5()
