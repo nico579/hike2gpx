@@ -133,7 +133,8 @@ def trace_messages(points, morceaux):
 def test_portions_ign_lues_dans_les_messages():
     t = trace_messages(DETOUR, [(1, 300, "highway=path"), (2, 324, "highway=path hike2gpx=ign"),
                                 (3, 300, "highway=track")])
-    assert appli.portions_ign(t) == [{"debut_m": 300, "longueur_m": 324,
+    # La source est toujours dite, IGN compris : un lot frontalier en mêle plusieurs.
+    assert appli.portions_ign(t) == [{"debut_m": 300, "longueur_m": 324, "source": "ign",
                                       "coords": [[43.302, 6.003], [43.302, 6.007]]}]
     # Deux morceaux IGN de suite ne font qu'une portion.
     t = trace_messages(DETOUR, [(1, 300, "highway=path hike2gpx=ign"), (2, 324, "foot=private hike2gpx=ign"),
@@ -563,11 +564,11 @@ def test_disponibilite_depuis_extrait_ou_overpass(tmp_path, monkeypatch):
     monkeypatch.setattr(a.installation, "segment_present", lambda nom: True)
     monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: False)
     monkeypatch.setattr(a, "_detail_sources_osm", lambda zone, overpass: {"overpass": "non"})
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: {"nom": "Var"})
+    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda *args: [{"nom": "Var"}])
     monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
     assert a.disponibilite(zone) == {"pret": True, "source": "extrait", "nom": "Var",
                                     "details": {"overpass": "non"}}
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: None)
+    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda *args: [])
     monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: True)
     assert a.disponibilite(zone) == {"pret": True, "source": "cache", "details": {"overpass": "non"}}
     monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: False)

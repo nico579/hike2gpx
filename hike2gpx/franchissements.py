@@ -628,29 +628,31 @@ def interroger(texte: str, delai_s: float = 200.0, attendre=time.sleep, continue
 
 
 def tuile_de_l_extrait(i: int, j: int, dossier) -> dict | None:
-    """La tuile lue dans l'extrait Geofabrik installé qui la contient tout
-    entière (geofabrik.py), au format du cache Overpass, ou None. Un extrait
-    trop vieux lance son renouvellement en tâche de fond et sert en attendant."""
+    """La tuile lue dans les extraits Geofabrik installés qui la couvrent
+    (geofabrik.extraits_de_tuile : deux à une frontière), au format du cache
+    Overpass, ou None. Un extrait trop vieux lance son renouvellement en tâche
+    de fond et sert en attendant."""
     from . import geofabrik     # pas de cycle : geofabrik importe ce module
     try:
-        extrait = geofabrik.extrait_de_tuile(dossier, i, j)
-        if extrait is None:
+        extraits = geofabrik.extraits_de_tuile(dossier, i, j)
+        if not extraits:
             return None
-        geofabrik.telechargements(dossier).renouveler_si_perime(extrait)
-        return {"version": VERSION_DONNEES, "fetched_at": geofabrik.horodatage(extrait),
-                "bornes": bornes_tuile(i, j), "elements": geofabrik.elements_tuile(extrait, i, j),
-                "source": f"geofabrik:{extrait['id']}:{extrait['date']}"}
+        for extrait in extraits:
+            geofabrik.telechargements(dossier).renouveler_si_perime(extrait)
+        return {"version": VERSION_DONNEES, "fetched_at": min(map(geofabrik.horodatage, extraits)),
+                "bornes": bornes_tuile(i, j), "elements": geofabrik.elements_des_extraits(extraits, i, j),
+                "source": "+".join(f"geofabrik:{e['id']}:{e['date']}" for e in extraits)}
     except (OSError, ValueError, sqlite3.Error) as exc:
         journal.warning("Extrait OSM illisible pour la tuile %d_%d, Overpass à la place : %s", i, j, exc)
         return None
 
 
 def _couverte(i: int, j: int, dossier) -> bool:
-    """Un extrait installé contient-il toute la tuile ? Assez léger pour être
+    """Des extraits installés couvrent-ils toute la tuile ? Assez léger pour être
     redemandé à chaque seconde d'attente d'Overpass."""
     from . import geofabrik     # pas de cycle : geofabrik importe ce module
     try:
-        return geofabrik.extrait_de_tuile(dossier, i, j) is not None
+        return bool(geofabrik.extraits_de_tuile(dossier, i, j))
     except (OSError, ValueError):
         return False
 
@@ -668,7 +670,7 @@ def _date_cache_valide(chemin: Path, modification: int, taille: int) -> float | 
 def tuile_disponible(i: int, j: int, dossier, maintenant=time.time) -> bool:
     """Une tuile peut fournir ses franchissements sans nouvel appel Overpass."""
     from . import geofabrik
-    if geofabrik.extrait_de_tuile(dossier, i, j) is not None:
+    if geofabrik.extraits_de_tuile(dossier, i, j):
         return True
     chemin = Path(dossier) / "overpass" / f"v{VERSION_DONNEES}_{i}_{j}.json"
     try:

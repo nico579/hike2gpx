@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import math
 import sqlite3
+from collections import defaultdict
 from pathlib import Path
 
 from . import franchissements as fr, fusion, geofabrik
@@ -73,6 +74,7 @@ class Registre:
     def __init__(self, premier_noeud: int, premiere_voie: int):
         self.identifiants = Identifiants(premier_noeud, premiere_voie)
         self.bouts = {}             # point -> nœud final, partagé entre mailles
+        self.bords = defaultdict(list)  # bouts coupés par basemap.de (ATKIS), recollés d'une maille à l'autre
         self.noeuds = {}            # nœuds ajoutés : id -> (lat, lon)
         self.voies = {}             # voies ajoutées : id -> (ids, tags)
         self.raccords = {}          # voie OSM -> {rang du segment d'origine -> {nœud: abscisse}}
@@ -80,14 +82,15 @@ class Registre:
 
     def fusionner(self, elements: list, troncons: list, sud: float, ouest: float, source: str = "ign") -> dict:
         """Fusionne une maille : ses tronçons (ceux dont le premier point y tombe)
-        dans OSM lu avec la couronne. Rend les comptes de la maille."""
+        dans OSM lu avec la couronne. Un tronçon peut porter sa source (une
+        maille frontalière mêle plusieurs fournisseurs). Rend les comptes."""
         nord, est = sud + MAILLE_DEG, ouest + MAILLE_DEG
         dedans = lambda lat, lon: sud <= lat < nord and ouest <= lon < est
         reseau = fusion.Reseau(self.identifiants)
         reseau.ajouter_osm(elements)
         origine = {wid: list(ids) for wid, (ids, _) in reseau.voies.items()}
         a_moi = [t for t in troncons if t.get("pts") and dedans(*t["pts"][0])]
-        ajoutes = reseau.ajouter_ign(a_moi, source=source, bouts=self.bouts)
+        ajoutes = reseau.ajouter_ign(a_moi, source=source, bouts=self.bouts, bords=self.bords)
         for wid in reseau.ign:
             ids, tags = reseau.voies[wid]
             self.voies[wid] = (list(ids), dict(tags))

@@ -50,11 +50,13 @@ def regions_a_installer(dossier, zone: tuple) -> list:
     installes = {r["id"] for r in geofabrik.installes(dossier)}
     besoins = {}
     for i, j in _tuiles(zone):
-        if geofabrik.extrait_de_tuile(dossier, i, j):
+        if geofabrik.extraits_de_tuile(dossier, i, j):
             continue
-        region = geofabrik.region_de_tuile(regions, i, j)
-        if region and region["id"] not in installes:
-            besoins[region["id"]] = region
+        # Une tuile frontalière demande les deux régions voisines, pas le
+        # grand extrait qui les contient (geofabrik.regions_de_tuile).
+        for region in geofabrik.regions_de_tuile(regions, i, j):
+            if region["id"] not in installes:
+                besoins[region["id"]] = region
     return list(besoins.values())
 
 
@@ -65,14 +67,55 @@ def troncons_du_fournisseur(source: str, dossier):
     return lambda sud, ouest, nord, est: module.troncons_zone(sud, ouest, nord, est, dossier)
 
 
+def couvertures(dossier) -> dict:
+    """Ce que couvre chaque fournisseur national : le contour de son pays dans
+    l'index Geofabrik (PAYS_CARTES), réduit à sa borne s'il est régional."""
+    pays = {code: nom for nom, code in providers.PAYS_CARTES.items()}
+    regions = {r["id"]: r for r in geofabrik.regions(dossier)}
+    resultat = {}
+    for cle, fournisseur in providers.SOURCES.items():
+        region = regions.get(pays.get(fournisseur.pays))
+        if region is None:
+            continue
+        contour = shapely.MultiPolygon([shapely.Polygon(p[0], p[1:]) for p in region["polygones"]])
+        if fournisseur.borne:
+            s, o, n, e = fournisseur.borne
+            contour = contour.intersection(shapely.box(o, s, e, n))
+        resultat[cle] = contour
+    return resultat
+
+
+def fournisseurs_de_zone(dossier, zone: tuple) -> list:
+    """Les fournisseurs nationaux qui touchent la zone (sud, ouest, nord, est) :
+    une case frontalière en a plusieurs. Règle de Nico : s'il en existe un, il
+    entre au lot."""
+    boite = shapely.box(zone[1], zone[0], zone[3], zone[2])
+    return [cle for cle, contour in couvertures(dossier).items() if contour.intersects(boite)]
+
+
+def _lecteur(dossier, fournisseurs: list, troncons: dict):
+    """Lecture commune des tronçons de plusieurs fournisseurs : chacun n'est
+    interrogé que sur son pays, et chaque tronçon porte sa source."""
+    contours = couvertures(dossier)
+    lecteurs = {s: troncons.get(s) or troncons_du_fournisseur(s, dossier) for s in fournisseurs}
+
+    def lire(sud, ouest, nord, est):
+        boite = shapely.box(ouest, sud, est, nord)
+        return [{**t, "source": s} for s, lecteur in lecteurs.items()
+                if s not in contours or contours[s].intersects(boite)
+                for t in lecteur(sud, ouest, nord, est)]
+    return lire
+
+
 def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Path, *, zone: tuple | None = None,
-              source: str | None = None, troncons=None, edition: str | None = None,
+              fournisseurs: list | None = None, troncons: dict | None = None, editions: dict | None = None,
               suivi=None, continuer=None) -> Path:
     """Fabrique le lot de la case dans sortie (vide ou absent) et rend le chemin
     du manifeste. zone : une partie de la case (par défaut la case entière).
-    source : le fournisseur national à inclure (lot enrichi), sinon lot OSM.
-    troncons(sud, ouest, nord, est) : autre lecture de ses tronçons (le
-    GeoPackage du serveur), edition : leur édition pour le manifeste.
+    fournisseurs : les fournisseurs nationaux à fusionner, par défaut tous
+    ceux qui touchent la zone ; aucun, c'est un lot OSM. troncons : {source:
+    lecture(sud, ouest, nord, est)} pour remplacer celle du service (le
+    GeoPackage du serveur), editions : {source: édition} pour le manifeste.
     suivi(etape, faites, total) ; continuer() faux arrête (Abandon)."""
     suivi = suivi or (lambda etape, faites, total: None)
     continuer = continuer or (lambda: True)
@@ -81,8 +124,11 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
                                        min(zone[2], boite[2]), min(zone[3], boite[3]))
     sortie = Path(sortie)
     sortie.mkdir(parents=True, exist_ok=True)
+    if fournisseurs is None:
+        fournisseurs = fournisseurs_de_zone(dossier, zone)
+    editions = editions or {}
 
-    if source is None:
+    if not fournisseurs:
         suivi("rd5", 0, 1)
         installation.telecharger_segment(case, vers=sortie)
         suivi("rd5", 1, 1)
@@ -98,24 +144,25 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
             raise Abandon() from exc
     suivi("extraits", len(manquantes), len(manquantes))
 
-    if source is None:
+    if not fournisseurs:
         tous, dates = _calques(dossier, case, boite, zone, sortie, ATTRIBUTION, suivi, continuer)
         franchissements = list(tous.values())
         sources, autres = {"osm": max((d for d in dates if d), default=None), "rd5": "brouter.de"}, \
             {"type": "osm", "zone": list(zone), "attribution": ATTRIBUTION}
     else:
-        fournisseur = providers.source(source)
-        troncons = troncons or troncons_du_fournisseur(source, dossier)
-        attribution = (f"© contributeurs OpenStreetMap (ODbL) ; chemins {fournisseur.nom} ; "
+        lire = _lecteur(dossier, fournisseurs, troncons or {})
+        noms = ", ".join(providers.source(s).nom for s in fournisseurs)
+        attribution = (f"© contributeurs OpenStreetMap (ODbL) ; chemins {noms} ; "
                        f"{relief.ATTRIBUTION} ; itinéraires BRouter")
-        franchissements, dates = _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons,
+        franchissements, dates = _enrichir(dossier, installation, case, boite, zone, sortie, fournisseurs[0], lire,
                                            suivi, continuer)
         _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer,
-                 franchissements=franchissements, troncons=troncons)
+                 franchissements=franchissements, troncons=lire)
         sources = {"osm": max((d for d in dates if d), default=None),
-                   fournisseur.calque: edition or time.strftime("%Y-%m-%d"), "relief": "Mapterhorn, zoom 12"}
-        autres = {"type": "enrichi", "source": source, "zone": list(zone), "emprise_enrichie": list(zone),
-                  "attribution": attribution}
+                   **{providers.source(s).calque: editions.get(s) or time.strftime("%Y-%m-%d") for s in fournisseurs},
+                   "relief": "Mapterhorn, zoom 12"}
+        autres = {"type": "enrichi", "fournisseurs": list(fournisseurs), "zone": list(zone),
+                  "emprise_enrichie": list(zone), "attribution": attribution}
 
     with gzip.open(sortie / "franchissements.json.gz", "wt", encoding="utf-8") as f:
         json.dump(franchissements, f, ensure_ascii=False)
@@ -140,10 +187,10 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
             if not continuer():
                 raise Abandon()
             suivi("osm", k, len(tuiles))
-            extrait = geofabrik.extrait_de_tuile(dossier, i, j)
-            if extrait is not None:
-                dates.add(extrait.get("date"))
-                stock.ajouter(geofabrik.elements_tuile(extrait, i, j))
+            extraits = geofabrik.extraits_de_tuile(dossier, i, j)
+            if extraits:
+                dates.update(e.get("date") for e in extraits)
+                stock.ajouter(geofabrik.elements_des_extraits(extraits, i, j))
         noeud, voie = stock.maxima()
         registre = cases.Registre(noeud + 1, voie + 1)
 
@@ -157,9 +204,9 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
                 for i, j in fr.tuiles_zone(m_sud - cases.HALO_DEG, m_ouest - cases.HALO_DEG,
                                            m_sud + cases.MAILLE_DEG + cases.HALO_DEG,
                                            m_ouest + cases.MAILLE_DEG + cases.HALO_DEG):
-                    extrait = geofabrik.extrait_de_tuile(dossier, i, j)
-                    if extrait is not None:
-                        elements += geofabrik.elements_tuile(extrait, i, j)
+                    extraits = geofabrik.extraits_de_tuile(dossier, i, j)
+                    if extraits:
+                        elements += geofabrik.elements_des_extraits(extraits, i, j)
                 registre.fusionner(elements, a_fusionner, m_sud, m_ouest, source=source)
         suivi("fusion", len(mailles), len(mailles))
 
@@ -226,10 +273,10 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
                        min(n, zone[2]) + MARGE_LECTURE, min(e, zone[3]) + MARGE_LECTURE)
             couches = {"voies": [], "barrieres": [], "franchissements": []}
             for i, j in _tuiles(lecture):
-                extrait = geofabrik.extrait_de_tuile(dossier, i, j)
-                if extrait is None:         # mer, ou région sans extrait : rien à lire sans réseau
+                extraits = geofabrik.extraits_de_tuile(dossier, i, j)
+                if not extraits:            # mer, ou région sans extrait : rien à lire sans réseau
                     continue
-                dates.add(extrait.get("date"))
+                dates.update(e.get("date") for e in extraits)
                 v, franchissements_tuile = lire(i, j)
                 couches["voies"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
                                       {"id": x["id"], "genre": x["genre"]}) for x in v["voies"]
@@ -248,11 +295,12 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
                 couches["franchissements"] += [a_montrer[r] for r in arbre.query(boite_lecture)]
             if troncons is not None:
                 vus = set()
-                couches["troncons"] = []
                 for t in troncons(*lecture):
-                    if t["id"] not in vus and len(t["pts"]) > 1:
-                        vus.add(t["id"])
-                        couches["troncons"].append(
+                    if (t["source"], t["id"]) not in vus and len(t["pts"]) > 1:
+                        vus.add((t["source"], t["id"]))
+                        # Une couche par fournisseur : le calque IGN ne montre pas les chemins suisses.
+                        couche = lot.couche_officielle(providers.source(t["source"]).calque)
+                        couches.setdefault(couche, []).append(
                             (shapely.LineString([(lo, la) for la, lo in t["pts"]]),
                              {"id": t["id"], "nature": t.get("nature"), "acces_pieton": t.get("acces_pieton"),
                               "prive": t.get("prive")}))
@@ -273,7 +321,7 @@ def nettoyer(sortie: Path) -> None:
 
 def date_osm(dossier, zone: tuple) -> str | None:
     """L'édition la plus récente des extraits installés qui couvrent la zone."""
-    dates = {e.get("date") for e in (geofabrik.extrait_de_tuile(dossier, i, j) for i, j in _tuiles(zone)) if e}
+    dates = {e.get("date") for i, j in _tuiles(zone) for e in geofabrik.extraits_de_tuile(dossier, i, j)}
     return max((d for d in dates if d), default=None)
 
 
@@ -283,26 +331,26 @@ def renouveler_extraits(dossier, zone: tuple) -> list:
     limite = geofabrik.jours_renouvellement(dossier) * 86400
     vieux = {}
     for i, j in _tuiles(zone):
-        extrait = geofabrik.extrait_de_tuile(dossier, i, j)
-        if extrait is not None and geofabrik.age_s(extrait) > limite:
-            vieux[extrait["id"]] = extrait
+        for extrait in geofabrik.extraits_de_tuile(dossier, i, j):
+            if geofabrik.age_s(extrait) > limite:
+                vieux[extrait["id"]] = extrait
     for extrait in vieux.values():
         geofabrik.installer(dossier, extrait)
     return list(vieux)
 
 
-def lot_a_jour(chemin: Path, *, osm: str | None, calque: str | None = None, edition: str | None = None) -> bool:
-    """Le lot déjà fabriqué dans chemin suffit-il ? Même format, même type,
-    données OSM au moins aussi récentes que les extraits, même édition des
-    tronçons quand elle est connue (un GeoPackage ; le WFS n'en a pas)."""
+def lot_a_jour(chemin: Path, *, osm: str | None, fournisseurs: list = (), editions: dict | None = None) -> bool:
+    """Le lot déjà fabriqué dans chemin suffit-il ? Même format, mêmes
+    fournisseurs, données OSM au moins aussi récentes que les extraits, même
+    édition des tronçons quand elle est connue (un GeoPackage ; le WFS n'en a pas)."""
     try:
         m = json.loads((Path(chemin) / "manifest.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
     sources = m.get("sources", {})
-    return (m.get("format") == lot.FORMAT and (m.get("type") == "enrichi") == (calque is not None)
+    return (m.get("format") == lot.FORMAT and sorted(m.get("fournisseurs", [])) == sorted(fournisseurs)
             and osm is not None and (sources.get("osm") or "") >= osm
-            and (calque is None or edition is None or sources.get(calque) == edition))
+            and all(sources.get(providers.source(s).calque) == edition for s, edition in (editions or {}).items()))
 
 
 def _mettre_en_place(travail: Path, cible: Path) -> None:
@@ -317,15 +365,15 @@ def _mettre_en_place(travail: Path, cible: Path) -> None:
 
 
 def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, racine: Path, *,
-                   zone: tuple | None = None, source: str | None = None, troncons=None, edition: str | None = None,
-                   forcer: bool = False, ecrire=print) -> dict:
+                   zone: tuple | None = None, fournisseurs: list | None = None, troncons: dict | None = None,
+                   editions: dict | None = None, forcer: bool = False, ecrire=print) -> dict:
     """Fabrique les lots de plusieurs cases dans racine/CASE, l'une après
     l'autre ; rend {case: "fabriqué" | "à jour" | "hors zone" | "erreur : …"}.
     Un lot à jour est sauté (forcer le refait), une erreur n'arrête pas les
-    cases suivantes. zone limite chaque case (le GeoPackage d'une seule région)."""
+    cases suivantes. zone limite chaque case (le GeoPackage d'une seule région) ;
+    fournisseurs, troncons et editions comme pour fabriquer."""
     racine = Path(racine)
     racine.mkdir(parents=True, exist_ok=True)
-    calque = providers.source(source).calque if source else None
     bilan = {}
     for case in cases:
         debut = time.monotonic()
@@ -341,8 +389,10 @@ def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, rac
             renouveles = renouveler_extraits(dossier, utile)
             if renouveles:
                 ecrire(f"{case} : extraits renouvelés {', '.join(renouveles)}")
-            if not forcer and lot_a_jour(racine / case, osm=date_osm(dossier, utile), calque=calque,
-                                         edition=edition):
+            de_la_case = fournisseurs_de_zone(dossier, utile) if fournisseurs is None \
+                else [s for s in fournisseurs if s in fournisseurs_de_zone(dossier, utile)]
+            if not forcer and lot_a_jour(racine / case, osm=date_osm(dossier, utile), fournisseurs=de_la_case,
+                                         editions={s: e for s, e in (editions or {}).items() if s in de_la_case}):
                 bilan[case] = "à jour"
                 ecrire(f"{case} : à jour")
                 continue
@@ -353,8 +403,8 @@ def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, rac
                 if etape != derniere[0]:
                     ecrire(f"{case} : {etape} ({time.monotonic() - debut:.0f} s)")
                     derniere[0] = etape
-            fabriquer(dossier, installation, case, travail, zone=None if utile == boite else utile, source=source,
-                      troncons=troncons, edition=edition, suivi=suivi)
+            fabriquer(dossier, installation, case, travail, zone=None if utile == boite else utile,
+                      fournisseurs=de_la_case, troncons=troncons, editions=editions, suivi=suivi)
             _mettre_en_place(travail, racine / case)
             octets = sum(f.stat().st_size for f in (racine / case).iterdir())
             bilan[case] = "fabriqué"

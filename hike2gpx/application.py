@@ -21,8 +21,8 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import (__version__, brouter, communes, fabrication, franchissements, geofabrik, hors_ligne, journaux, lot,
-               maison, osmfr, providers)
+from . import (__version__, brouter, communes, fabrication, franchissements, geofabrik, hors_ligne, journaux, maison,
+               osmfr, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -192,9 +192,8 @@ def portions_ign(trace) -> list:
                                  "fin_rang": fin_rang, "source": source})
         cumul += longueur
         debut_rang = fin_rang
-    return [{"debut_m": p["debut_m"], "longueur_m": round(p["longueur_m"]),
-             "coords": [[c[1], c[0]] for c in coords[p["debut_rang"]:p["fin_rang"] + 1]],
-             **({"source": p["source"]} if p["source"] != "ign" else {})} for p in portions]
+    return [{"debut_m": p["debut_m"], "longueur_m": round(p["longueur_m"]), "source": p["source"],
+             "coords": [[c[1], c[0]] for c in coords[p["debut_rang"]:p["fin_rang"] + 1]]} for p in portions]
 
 
 def entrees_ign(portions) -> list:
@@ -844,10 +843,11 @@ class Application:
         tuiles = franchissements.tuiles_zone(*zone)
         if len(tuiles) > TUILES_MAX:
             return {"pret": False, "source": None, "attente": "zone", "details": details}
-        extraits = [geofabrik.extrait_de_tuile(self.dossier, i, j) for i, j in tuiles]
+        extraits = [geofabrik.extraits_de_tuile(self.dossier, i, j) for i, j in tuiles]
         if all(extraits):
-            return {"pret": True, "source": "extrait", "nom": extraits[0]["nom"], "details": details}
-        if all(extrait is not None or franchissements.tuile_disponible(i, j, self.dossier)
+            noms = list(dict.fromkeys(e["nom"] for liste in extraits for e in liste))
+            return {"pret": True, "source": "extrait", "nom": ", ".join(noms), "details": details}
+        if all(extrait or franchissements.tuile_disponible(i, j, self.dossier)
                for (i, j), extrait in zip(tuiles, extraits)):
             return {"pret": True, "source": "cache", "details": details}
         return {"pret": overpass is True, "source": "overpass" if overpass else None,
@@ -1062,9 +1062,9 @@ class Application:
 
     def preparer_lot(self, corps) -> dict:
         """Fabrique en tâche de fond le lot d'une case (fabrication.py), puis
-        l'installe. corps : {"case": "E5_N40", "zone": [sud, ouest, nord, est],
-        "source": "ign"} (zone facultative, dans la case). Le fournisseur
-        national du pays affiché est inclus au lot s'il couvre la zone."""
+        l'installe. corps : {"case": "E5_N40", "zone": [sud, ouest, nord, est]}
+        (zone facultative, dans la case). Tout fournisseur national qui touche
+        la zone entre au lot, plusieurs pour une case frontalière."""
         corps = corps or {}
         case = corps.get("case")
         if not isinstance(case, str) or not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", case):
@@ -1073,20 +1073,17 @@ class Application:
         if zone is not None and not (isinstance(zone, list) and len(zone) == 4
                                      and all(isinstance(v, (int, float)) for v in zone)):
             return {"erreur": "Zone invalide."}
-        source = corps.get("source")
-        if source not in providers.SOURCES or not providers.source(source).disponible(zone or lot.boite_case(case)):
-            source = None
         with self._verrou_lot:
             if self._fil_lot is not None and self._fil_lot.is_alive():
                 return {"erreur": "Un lot se prépare déjà.", "lot_en_cours": dict(self._lot)}
-            self._lot = {"actif": True, "case": case, "zone": zone, "source": source, "etape": "debut",
+            self._lot = {"actif": True, "case": case, "zone": zone, "etape": "debut",
                          "faites": 0, "total": 0, "debut": time.time(), "arreter": False}
-            self._fil_lot = threading.Thread(target=self._fabriquer_lot, args=(case, zone, source), daemon=True,
+            self._fil_lot = threading.Thread(target=self._fabriquer_lot, args=(case, zone), daemon=True,
                                              name=f"lot-{case}")
             self._fil_lot.start()
         return {"lot_en_cours": self.lot_en_cours()}
 
-    def _fabriquer_lot(self, case, zone, source=None) -> None:
+    def _fabriquer_lot(self, case, zone) -> None:
         travail = self.hors_ligne.racine / f".fabrication-{case}"
         debut = time.monotonic()
 
@@ -1096,8 +1093,7 @@ class Application:
         try:
             fabrication.nettoyer(travail)
             fabrication.fabriquer(self.dossier, self.installation, case, travail,
-                                  zone=tuple(zone) if zone else None, source=source,
-                                  suivi=suivi, continuer=lambda: not self._lot.get("arreter"))
+                                  zone=tuple(zone) if zone else None, suivi=suivi, continuer=lambda: not self._lot.get("arreter"))
             self._lot["etape"] = "installation"
             self.hors_ligne.installer(travail)
         except fabrication.Abandon:
