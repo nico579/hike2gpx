@@ -294,3 +294,70 @@ def test_relief_et_denivele_partagent_les_tuiles(tmp_path):
     from gpx2elev.providers import Repository
     assert Repository(tmp_path / "gpx2elev").reader.directory == relief.cache(tmp_path)
     assert relief._fichier(relief.cache(tmp_path), 2134, 1497).name == "mapterhorn_12_2134_1497.webp"
+
+
+# ------------------------------------------------------------------ par lots (CLI)
+
+@pytest.fixture
+def serie(tmp_path, monkeypatch):
+    """Fabrication simulée : un manifeste minimal, une erreur pour E0_N40.
+    Rend l'extrait installé (sa date se change) et les cases fabriquées."""
+    extrait = {"id": "paca", "date": "2026-10-20T20:23:47Z"}
+    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda dossier, i, j: extrait)
+    monkeypatch.setattr(geofabrik, "age_s", lambda e: 0)
+    faites = []
+
+    def fabriquer(dossier, installation, case, sortie, *, zone=None, source=None, **options):
+        if case == "E0_N40":
+            raise RuntimeError("WFS indisponible")
+        faites.append((case, zone))
+        sortie.mkdir(parents=True)
+        (sortie / "a.bin").write_bytes(b"x")
+        return lot.ecrire_manifeste(sortie, case, [sortie / "a.bin"], {"osm": extrait["date"], "bdtopo": "2026-09-15"},
+                                    type="enrichi")
+    monkeypatch.setattr(fabrication, "fabriquer", fabriquer)
+    monkeypatch.setattr(fabrication, "_tuiles", lambda zone: [(0, 0)])
+    return extrait, faites
+
+
+def test_fabriquer_lots_reprend_et_isole_les_erreurs(tmp_path, serie):
+    extrait, faites = serie
+    lignes = []
+    lots = lambda **o: fabrication.fabriquer_lots(tmp_path, Installation(), ["E5_N40", "E0_N40"], tmp_path / "lots",
+                                                  source="ign", edition="2026-09-15", ecrire=lignes.append, **o)
+    bilan = lots()
+    assert bilan["E5_N40"] == "fabriqué" and bilan["E0_N40"] == "erreur : WFS indisponible"
+    assert (tmp_path / "lots" / "E5_N40" / "manifest.json").is_file()
+    assert sorted(p.name for p in (tmp_path / "lots").iterdir()) == ["E5_N40"], "aucun reste provisoire"
+    assert lots()["E5_N40"] == "à jour" and len(faites) == 1
+    assert lots(forcer=True)["E5_N40"] == "fabriqué"
+    extrait["date"] = "2026-10-27T20:00:00Z"                    # un extrait renouvelé
+    assert lots()["E5_N40"] == "fabriqué" and len(faites) == 3
+    assert any("erreur" in l for l in lignes)
+
+
+def test_fabriquer_lots_limite_les_cases_a_la_zone(tmp_path, serie):
+    _, faites = serie
+    bilan = fabrication.fabriquer_lots(tmp_path, Installation(), ["E5_N40", "W5_N45"], tmp_path / "lots",
+                                       zone=(42.98, 5.65, 43.81, 6.94), ecrire=lambda t: None)
+    assert bilan == {"E5_N40": "fabriqué", "W5_N45": "hors zone"}
+    assert faites == [("E5_N40", (42.98, 5.65, 43.81, 6.94))]
+
+
+def test_lot_a_jour_selon_le_type_et_l_edition(tmp_path):
+    lot.ecrire_manifeste(tmp_path, "E5_N40", [], {"osm": "2026-10-20", "bdtopo": "2026-09-15"}, type="enrichi")
+    assert fabrication.lot_a_jour(tmp_path, osm="2026-10-20", calque="bdtopo", edition="2026-09-15")
+    assert not fabrication.lot_a_jour(tmp_path, osm="2026-10-20", calque="bdtopo", edition="2026-12-15")
+    assert not fabrication.lot_a_jour(tmp_path, osm="2026-10-20"), "un lot OSM n'est pas un lot enrichi"
+    assert not fabrication.lot_a_jour(tmp_path / "absent", osm="2026-10-20")
+
+
+@pytest.mark.parametrize("arguments", [["bundles", "X5_N40", "--output", "lots"],
+                                       ["bundles", "E5_N40", "--output", "lots", "--gpkg", "a.gpkg"],
+                                       ["bundles", "E5_N40", "--output", "lots", "--source", "inconnue"],
+                                       ["bundles", "E5_N40"]])
+def test_la_commande_bundles_refuse_les_options_invalides(arguments):
+    from hike2gpx.__main__ import main
+    with pytest.raises(SystemExit) as sortie:
+        main(arguments)
+    assert sortie.value.code == 2

@@ -1,0 +1,14 @@
+# Chaque dimanche à 2 h : les extraits OSM plus vieux que le délai de
+# renouvellement sont réinstallés, puis les lots dont les données ont changé
+# sont refaits. Persistent : une exécution manquée (serveur éteint) part au
+# démarrage suivant.
+
+[Unit]
+Description=hike2gpx : lots hors ligne chaque semaine
+
+[Timer]
+OnCalendar=Sun *-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

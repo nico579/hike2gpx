@@ -1,5 +1,5 @@
 """Le lot d'une case, fabriqué n'importe où dans le monde : la seule fabrication,
-appelée par le PC comme par le serveur (deploy/linux/fabriquer_case.py).
+appelée par la page (GUI) comme par la ligne de commande (CLI, hike2gpx bundles).
 
 OSM vient toujours des extraits Geofabrik installés, comme l'application le
 lit déjà : tuile de 0,05° après tuile, voies entières. Deux lots possibles :
@@ -267,3 +267,101 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
 
 def nettoyer(sortie: Path) -> None:
     shutil.rmtree(sortie, ignore_errors=True)
+
+
+# ------------------------------------------------------------------ par lots (serveur)
+
+def date_osm(dossier, zone: tuple) -> str | None:
+    """L'édition la plus récente des extraits installés qui couvrent la zone."""
+    dates = {e.get("date") for e in (geofabrik.extrait_de_tuile(dossier, i, j) for i, j in _tuiles(zone)) if e}
+    return max((d for d in dates if d), default=None)
+
+
+def renouveler_extraits(dossier, zone: tuple) -> list:
+    """Réinstalle les extraits de la zone plus vieux que le délai de
+    renouvellement des réglages ; rend leurs identifiants."""
+    limite = geofabrik.jours_renouvellement(dossier) * 86400
+    vieux = {}
+    for i, j in _tuiles(zone):
+        extrait = geofabrik.extrait_de_tuile(dossier, i, j)
+        if extrait is not None and geofabrik.age_s(extrait) > limite:
+            vieux[extrait["id"]] = extrait
+    for extrait in vieux.values():
+        geofabrik.installer(dossier, extrait)
+    return list(vieux)
+
+
+def lot_a_jour(chemin: Path, *, osm: str | None, calque: str | None = None, edition: str | None = None) -> bool:
+    """Le lot déjà fabriqué dans chemin suffit-il ? Même format, même type,
+    données OSM au moins aussi récentes que les extraits, même édition des
+    tronçons quand elle est connue (un GeoPackage ; le WFS n'en a pas)."""
+    try:
+        m = json.loads((Path(chemin) / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    sources = m.get("sources", {})
+    return (m.get("format") == lot.FORMAT and (m.get("type") == "enrichi") == (calque is not None)
+            and osm is not None and (sources.get("osm") or "") >= osm
+            and (calque is None or edition is None or sources.get(calque) == edition))
+
+
+def _mettre_en_place(travail: Path, cible: Path) -> None:
+    """Remplace le lot cible par celui de travail : un lecteur (le téléphone qui
+    télécharge) ne voit jamais un lot à moitié écrit."""
+    ancien = cible.with_name(f".{cible.name}.ancien")
+    shutil.rmtree(ancien, ignore_errors=True)
+    if cible.exists():
+        cible.replace(ancien)
+    travail.replace(cible)
+    shutil.rmtree(ancien, ignore_errors=True)
+
+
+def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, racine: Path, *,
+                   zone: tuple | None = None, source: str | None = None, troncons=None, edition: str | None = None,
+                   forcer: bool = False, ecrire=print) -> dict:
+    """Fabrique les lots de plusieurs cases dans racine/CASE, l'une après
+    l'autre ; rend {case: "fabriqué" | "à jour" | "hors zone" | "erreur : …"}.
+    Un lot à jour est sauté (forcer le refait), une erreur n'arrête pas les
+    cases suivantes. zone limite chaque case (le GeoPackage d'une seule région)."""
+    racine = Path(racine)
+    racine.mkdir(parents=True, exist_ok=True)
+    calque = providers.source(source).calque if source else None
+    bilan = {}
+    for case in cases:
+        debut = time.monotonic()
+        boite = lot.boite_case(case)
+        utile = boite if zone is None else (max(zone[0], boite[0]), max(zone[1], boite[1]),
+                                            min(zone[2], boite[2]), min(zone[3], boite[3]))
+        if utile[0] >= utile[2] or utile[1] >= utile[3]:
+            bilan[case] = "hors zone"
+            ecrire(f"{case} : hors zone")
+            continue
+        travail = racine / f".{case}.part"
+        try:
+            renouveles = renouveler_extraits(dossier, utile)
+            if renouveles:
+                ecrire(f"{case} : extraits renouvelés {', '.join(renouveles)}")
+            if not forcer and lot_a_jour(racine / case, osm=date_osm(dossier, utile), calque=calque,
+                                         edition=edition):
+                bilan[case] = "à jour"
+                ecrire(f"{case} : à jour")
+                continue
+            nettoyer(travail)
+            derniere = [None]
+
+            def suivi(etape, faites, total):
+                if etape != derniere[0]:
+                    ecrire(f"{case} : {etape} ({time.monotonic() - debut:.0f} s)")
+                    derniere[0] = etape
+            fabriquer(dossier, installation, case, travail, zone=None if utile == boite else utile, source=source,
+                      troncons=troncons, edition=edition, suivi=suivi)
+            _mettre_en_place(travail, racine / case)
+            octets = sum(f.stat().st_size for f in (racine / case).iterdir())
+            bilan[case] = "fabriqué"
+            ecrire(f"{case} : fabriqué, {octets / 1e6:.1f} Mo en {time.monotonic() - debut:.0f} s")
+        except Exception as exc:        # réseau, disque, BRouter : la case suivante part quand même
+            bilan[case] = f"erreur : {exc}"
+            ecrire(f"{case} : erreur après {time.monotonic() - debut:.0f} s : {exc}")
+        finally:
+            nettoyer(travail)
+    return bilan

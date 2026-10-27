@@ -56,7 +56,7 @@ swissTLM3D…), fusionnés maille par maille. Le PBF de la zone est réécrit
 depuis un stock SQLite temporaire, ce qui dispense de l'outil `osmium` et du
 PBF source. Seule la lecture des tronçons diffère : le PC interroge le service
 national avec son cache, le serveur peut lire le GeoPackage régional de la
-BD TOPO (`deploy/linux/fabriquer_case.py --gpkg`), bien plus vite pour une
+BD TOPO (`hike2gpx bundles --gpkg`), bien plus vite pour une
 case entière.
 
 PR #37 avait choisi un découpage au quart de degré, avec un format `.rd5q` et
