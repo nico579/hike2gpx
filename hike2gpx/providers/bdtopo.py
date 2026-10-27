@@ -10,20 +10,17 @@ franchissements.py, en tuiles de 0,05° ; cache de 30 jours, la BD TOPO
 """
 from __future__ import annotations
 
-import json
 import logging
 import math
 import threading
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from pathlib import Path
 
 from nico579_commons import atomique
 
-from .. import __version__
 from ..franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
+from .core import lire_json
 
 journal = logging.getLogger(__name__)
 
@@ -45,13 +42,7 @@ def _verrou(cle) -> threading.Lock:
 
 
 def interroger(parametres: dict, delai_s: float = 120.0) -> dict:
-    url = WFS + "?" + urllib.parse.urlencode(parametres)
-    demande = urllib.request.Request(url, headers={"User-Agent": f"hike2gpx/{__version__}"})
-    try:
-        with urllib.request.urlopen(demande, timeout=delai_s) as reponse:
-            donnees = json.loads(reponse.read())
-    except (OSError, ValueError) as exc:     # URLError, délai, JSON illisible
-        raise ErreurDonnees(f"BD TOPO indisponible ({exc}).") from exc
+    donnees = lire_json(WFS + "?" + urllib.parse.urlencode(parametres), "BD TOPO", delai_s)
     if not isinstance(donnees, dict) or not isinstance(donnees.get("features"), list):
         raise ErreurDonnees("Réponse BD TOPO inattendue.")
     return donnees

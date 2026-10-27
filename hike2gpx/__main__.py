@@ -45,6 +45,10 @@ def main(argv=None) -> int:
                          help="national paths provider to merge; repeatable. Default: every provider whose "
                               "country touches the cell (a border cell gets several)")
     bundles.add_argument("--osm-only", action="store_true", help="OSM bundle, without any national provider")
+    bundles.add_argument("--ign-regions", action="store_true",
+                         help="read IGN paths from the BD TOPO regional GeoPackages (downloaded once, kept in "
+                              "the data folder; needs the 7z command) instead of the IGN WFS: the way to build "
+                              "whole cells")
     bundles.add_argument("--gpkg", type=Path, help="BD TOPO GeoPackage read instead of the IGN WFS")
     bundles.add_argument("--department", help="with --gpkg: keep this department only, e.g. 83")
     bundles.add_argument("--zone", type=float, nargs=4, metavar=("SOUTH", "WEST", "NORTH", "EAST"),
@@ -58,10 +62,12 @@ def main(argv=None) -> int:
         for cellule in args.cells:
             if not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", cellule):
                 parser.error(f"invalid BRouter cell: {cellule}")
-        if args.osm_only and (args.providers or args.gpkg):
-            parser.error("--osm-only excludes --provider and --gpkg")
-        if args.gpkg and args.providers and "ign" not in args.providers:
-            parser.error("--gpkg reads IGN paths: add --provider ign")
+        if args.osm_only and (args.providers or args.gpkg or args.ign_regions):
+            parser.error("--osm-only excludes --provider, --gpkg and --ign-regions")
+        if args.gpkg and args.ign_regions:
+            parser.error("--gpkg and --ign-regions are two ways to read IGN paths: choose one")
+        if (args.gpkg or args.ign_regions) and args.providers and "ign" not in args.providers:
+            parser.error("--gpkg and --ign-regions read IGN paths: add --provider ign")
         if args.department and not args.gpkg:
             parser.error("--department requires --gpkg")
     if args.self_test_version:      # avant tout dossier : ne touche pas aux données
@@ -114,6 +120,12 @@ def lots(dossier, args) -> int:
                                                                            args.department)
         trouvee = re.search(r"ED(\d{4}-\d{2}-\d{2})", args.gpkg.name)
         editions["ign"] = trouvee.group(1) if trouvee else args.gpkg.name
+    if args.ign_regions:
+        # Les archives régionales de la BD TOPO : une case entière sans les
+        # milliers de requêtes du WFS ; l'édition dépend des régions de la case.
+        from . import bdtopo_regions
+        lecteur = bdtopo_regions.Lecteur(dossier)
+        troncons["ign"], editions["ign"] = lecteur, lecteur.date
     fournisseurs = [] if args.osm_only else args.providers      # None : ceux de chaque case
     bilan = fabrication.fabriquer_lots(dossier, installation, args.cells, args.output,
                                        zone=tuple(args.zone) if args.zone else None, fournisseurs=fournisseurs,

@@ -20,6 +20,7 @@ from __future__ import annotations
 import functools
 import gzip
 import json
+import logging
 import shutil
 import time
 from pathlib import Path
@@ -28,8 +29,10 @@ import shapely
 
 from . import brouter, case as cases, franchissements as fr, geofabrik, lot, providers, relief
 
+journal = logging.getLogger(__name__)
 ATTRIBUTION = "© contributeurs OpenStreetMap (ODbL) ; itinéraires BRouter (brouter.de)"
 MARGE_LECTURE = 0.001       # degrés lus autour d'un bloc, plus que la marge d'une tuile du zoom 14
+BORD_DEG = 1e-6             # rogné au nord et à l'est d'une tuile pour ne pas lire ses voisines
 # Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° dense
 # en demande quatre ou cinq.
 TAS_CASE, AIRE_VUE = "4500m", 1.0       # au-delà d'1 degré carré, le tas d'une case
@@ -45,8 +48,10 @@ def _tuiles(zone: tuple) -> list:
 
 
 def regions_a_installer(dossier, zone: tuple) -> list:
-    """Extraits Geofabrik qui couvrent les tuiles de la zone et manquent encore."""
-    regions = geofabrik.regions(dossier)
+    """Extraits Geofabrik qui couvrent les tuiles de la zone et manquent encore,
+    parmi les seules régions sans sous-régions : une tuile en mer ne réclame
+    plus la France, l'Italie ni l'Europe."""
+    regions = geofabrik.feuilles(geofabrik.regions_attendues(dossier))
     installes = {r["id"] for r in geofabrik.installes(dossier)}
     besoins = {}
     for i, j in _tuiles(zone):
@@ -71,7 +76,7 @@ def couvertures(dossier) -> dict:
     """Ce que couvre chaque fournisseur national : le contour de son pays dans
     l'index Geofabrik (PAYS_CARTES), réduit à sa borne s'il est régional."""
     pays = {code: nom for nom, code in providers.PAYS_CARTES.items()}
-    regions = {r["id"]: r for r in geofabrik.regions(dossier)}
+    regions = {r["id"]: r for r in geofabrik.regions_attendues(dossier)}
     resultat = {}
     for cle, fournisseur in providers.SOURCES.items():
         region = regions.get(pays.get(fournisseur.pays))
@@ -142,6 +147,12 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
             geofabrik.installer(dossier, region, continuer=continuer)
         except geofabrik.Abandon as exc:    # l'arrêt demandé pendant l'extrait arrête le lot
             raise Abandon() from exc
+        except geofabrik.ExtraitEcarte as exc:
+            # Une région transversale sans sous-régions (les Alpes, 2,2 Go) peut
+            # encore être trop grosse : ses tuiles, en mer, restent sans données.
+            # Le message de l'exception parle d'Overpass, qui ne sert pas aux lots.
+            journal.warning("Lot %s : extrait %s écarté (%s), ses tuiles restent vides", case, region["id"],
+                            str(exc).split(",")[0])
     suivi("extraits", len(manquantes), len(manquantes))
 
     if not fournisseurs:
@@ -260,8 +271,14 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
     # lues restent en mémoire, sans garder toute la case.
     @functools.lru_cache(maxsize=256)
     def lire(i, j):
-        return (fr.voies_affichables(*fr.bornes_tuile(i, j), dossier),
-                fr.franchissements_tuile(i, j, dossier) if franchissements is None else [])
+        # Les bords nord et est d'une tuile sont ceux de ses voisines : rognés,
+        # pour ne lire qu'elle. Sinon chaque tuile en lisait quatre, et une
+        # voisine en mer partait vers Overpass (essai GitHub Actions, HTTP 502).
+        # en_ligne=False : un lot ne lit que les extraits, jamais Overpass, trop
+        # instable pour une fabrication en série (Nico, 2026-10-27).
+        sud, ouest, nord, est = fr.bornes_tuile(i, j)
+        return (fr.voies_affichables(sud, ouest, nord - BORD_DEG, est - BORD_DEG, dossier, en_ligne=False),
+                fr.franchissements_tuile(i, j, dossier, en_ligne=False) if franchissements is None else [])
     blocs = lot.blocs(*zone)
     try:
         for k, (x10, y10) in enumerate(blocs):
@@ -391,20 +408,27 @@ def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, rac
                 ecrire(f"{case} : extraits renouvelés {', '.join(renouveles)}")
             de_la_case = fournisseurs_de_zone(dossier, utile) if fournisseurs is None \
                 else [s for s in fournisseurs if s in fournisseurs_de_zone(dossier, utile)]
+            # Une édition peut dépendre de la case (les régions de la BD TOPO
+            # qu'elle touche) : donnée alors comme édition(sud, ouest, nord, est).
+            editions_case = {s: e(*utile) if callable(e) else e for s, e in (editions or {}).items()
+                             if s in de_la_case}
             if not forcer and lot_a_jour(racine / case, osm=date_osm(dossier, utile), fournisseurs=de_la_case,
-                                         editions={s: e for s, e in (editions or {}).items() if s in de_la_case}):
+                                         editions=editions_case):
                 bilan[case] = "à jour"
                 ecrire(f"{case} : à jour")
                 continue
             nettoyer(travail)
-            derniere = [None]
+            derniere = [None, 0]        # étape, dixième déjà annoncé
 
             def suivi(etape, faites, total):
-                if etape != derniere[0]:
-                    ecrire(f"{case} : {etape} ({time.monotonic() - debut:.0f} s)")
-                    derniere[0] = etape
+                # Chaque étape, puis chaque dixième d'une longue étape : une fusion
+                # de case entière dure près d'une heure.
+                dixieme = faites * 10 // total if total else 0
+                if etape != derniere[0] or dixieme > derniere[1]:
+                    ecrire(f"{case} : {etape} {faites}/{total} ({time.monotonic() - debut:.0f} s)")
+                    derniere[:] = [etape, dixieme]
             fabriquer(dossier, installation, case, travail, zone=None if utile == boite else utile,
-                      fournisseurs=de_la_case, troncons=troncons, editions=editions, suivi=suivi)
+                      fournisseurs=de_la_case, troncons=troncons, editions=editions_case, suivi=suivi)
             _mettre_en_place(travail, racine / case)
             octets = sum(f.stat().st_size for f in (racine / case).iterdir())
             bilan[case] = "fabriqué"

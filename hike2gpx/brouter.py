@@ -16,6 +16,7 @@ passerait.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import logging
 import math
@@ -190,7 +191,7 @@ def _telecharger(url: str, cible: Path, sha256: str | None = None, valider=None)
         if valider is not None and not valider(partiel):
             raise ErreurBRouter(f"Fichier reçu incomplet ou illisible : {url}.")
         atomique.remplacer(partiel, cible)
-    except OSError as exc:
+    except (OSError, http.client.HTTPException) as exc:     # réponse coupée (IncompleteRead) comprise
         raise ErreurBRouter(f"Téléchargement impossible : {url} ({exc}).") from exc
     finally:
         partiel.unlink(missing_ok=True)

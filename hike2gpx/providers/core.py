@@ -1,10 +1,13 @@
 """Lecture, cache et registre communs aux sources de chemins officiels."""
 from __future__ import annotations
 
+import http.client
+import json
 import logging
 import math
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -27,14 +30,35 @@ def _tuile_verrou(cle):
         return _verrous.setdefault(cle, threading.Lock())
 
 
-def _json(url):
+ESSAIS, PAUSE_S = 3, 5.0
+
+
+def lire_json(url: str, nom: str, delai_s: float = 120.0):
+    """Le JSON d'un service officiel, en trois essais. Un lot de case entière
+    lit des milliers de tuiles : une réponse coupée (IncompleteRead, essai
+    GitHub Actions du 2026-10-27), un délai dépassé ou une erreur 5xx finit
+    toujours par arriver, et ne doit pas perdre une heure de fabrication.
+    Une erreur 4xx, elle, ne guérit pas en réessayant."""
     demande = urllib.request.Request(url, headers={"User-Agent": f"hike2gpx/{__version__}"})
-    try:
-        with urllib.request.urlopen(demande, timeout=120) as reponse:
-            import json
-            donnees = json.load(reponse)
-    except (OSError, ValueError) as exc:
-        raise ErreurDonnees(f"Source officielle indisponible ({exc}).") from exc
+    derniere = None
+    for essai in range(ESSAIS):
+        try:
+            with urllib.request.urlopen(demande, timeout=delai_s) as reponse:
+                return json.loads(reponse.read())
+        except urllib.error.HTTPError as exc:
+            if exc.code < 500 and exc.code != 429:
+                raise ErreurDonnees(f"{nom} indisponible ({exc}).") from exc
+            derniere = exc
+        except (OSError, ValueError, http.client.HTTPException) as exc:     # délai, coupure, JSON tronqué
+            derniere = exc
+        if essai < ESSAIS - 1:
+            journal.info("%s : essai %d en échec (%s), nouvel essai", nom, essai + 1, derniere)
+            time.sleep(PAUSE_S * (essai + 1))
+    raise ErreurDonnees(f"{nom} indisponible ({derniere}).") from derniere
+
+
+def _json(url):
+    donnees = lire_json(url, "Source officielle")
     if not isinstance(donnees, dict) or "error" in donnees:
         raise ErreurDonnees(f"Réponse officielle invalide : {donnees.get('error') if isinstance(donnees, dict) else donnees}")
     return donnees
