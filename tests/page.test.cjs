@@ -34,6 +34,7 @@ function charger(preferences = {}, documentGpx = null) {
     on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
       ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
     hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
+    closePopup() { this.popup = null; },
     getCenter() { return { lat: (this.vue.s + this.vue.n) / 2, lng: (this.vue.w + this.vue.e) / 2 }; },
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
     getBounds() { const v = this.vue; return { getSouth: () => v.s, getWest: () => v.w, getNorth: () => v.n,
@@ -74,6 +75,7 @@ function charger(preferences = {}, documentGpx = null) {
          openOn(map) { map.popup = this; return this; } }),
        vectorGrid: { protobuf: (url, options) => Object.assign(couche(), { url, options }) },
       polyline: (points, options) => Object.assign(couche(), { points, options }),
+      rectangle: (bounds, options) => Object.assign(couche(), { bounds, options }),
       circleMarker: (points, options) => Object.assign(couche(), { points, options }),
       marker: (latlng, options) => Object.assign(couche(), { position: latlng, options, getLatLng() { return this.position; } }),
       tileLayer: Object.assign((url, options) => Object.assign(couche(), { url, options }),
@@ -115,6 +117,7 @@ function charger(preferences = {}, documentGpx = null) {
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
+    + " grilleCases, chargerLots, preparerCase, suivreLot, bulleCase, casesVisibles, nomCase, boiteCase,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -128,6 +131,61 @@ function resultat(lonArrivee) {
 }
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
+
+test("les cases hors ligne se dessinent depuis les réglages, selon leur état", async () => {
+  const { page, elements, requetes } = charger();
+  // Les tableaux de la page viennent d'un autre contexte : on compare leur JSON.
+  const json = (v) => JSON.parse(JSON.stringify(v));
+  assert.deepEqual(json(page.casesVisibles()), ["E5_N40"], "la vue de Garéoult tombe dans la case E5_N40");
+  assert.deepEqual(json(page.boiteCase("W5_N45")), [45, -5, 50, 0]);
+  assert.equal(page.nomCase(-0.5, -0.5), "W5_S5");
+  elements.get("showOfflineGrid").checked = true;
+  const charge = page.chargerLots();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"),
+    { lots: [{ case: "E5_N40", octets: 135e6, sources: { osm: "2026-10-25T21:21:21Z" } }] });
+  await charge;
+  const [cadre] = page.grilleCases.layers;
+  assert.deepEqual(json(cadre.bounds), [[40, 5], [45, 10]]);
+  assert.equal(cadre.options.color, "#23804f", "vert : prête hors ligne");
+  assert.match(elements.get("offlineGridStatus").textContent, /^1 case/);
+  elements.get("showOfflineGrid").checked = false;
+  const avant = requetes.length;
+  await page.chargerLots();
+  assert.equal(page.grilleCases.layers.length, 0, "case décochée : plus de grille");
+  assert.equal(requetes.length, avant, "ni requête au serveur");
+});
+
+test("une case absente se prépare sur la vue actuelle ou en entier", async () => {
+  const { page, requetes } = charger();
+  const bulle = page.bulleCase("E5_N40");
+  const boutons = bulle.enfants.filter((e) => e.type === "button");
+  assert.deepEqual(boutons.map((b) => b.textContent),
+    ["Préparer la vue actuelle", "Préparer toute la case (environ une heure)"]);
+  boutons[0].click();
+  const vue = requetes.findLast((r) => r.url === "/api/preparer_lot");
+  assert.deepEqual(JSON.parse(vue.options.body), { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });
+  boutons[1].click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_lot").options.body),
+    { case: "E5_N40" });
+});
+
+test("la note suit la préparation hors ligne, puis la case est prête", async () => {
+  const { page, requetes, elements, minuteurs } = charger();
+  const suivi = page.suivreLot();
+  repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"),
+    { actif: true, case: "E5_N40", etape: "calques", faites: 4, total: 16, duree_s: 125 });
+  await suivi;
+  assert.equal(elements.get("lotHorsLigneTexte").textContent,
+    "Préparation hors ligne de E5_N40 : chemins et franchissements 4/16, depuis 2 min");
+  assert.equal(elements.get("arreterLot").hidden, false);
+  assert.equal(elements.get("lotHorsLigneBarre").style.width, "25%");
+  assert.equal(minuteurs.at(-1).ms, 2000, "relu toutes les deux secondes");
+  const fin = page.suivreLot();
+  repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"), { actif: false, case: "E5_N40", etape: "fini" });
+  await fin;
+  assert.equal(elements.get("lotHorsLigneTexte").textContent, "Case E5_N40 prête hors ligne.");
+  assert.equal(elements.get("arreterLot").hidden, true);
+});
 
 test("un clic droit affiche les coordonnées et permet de les copier sans ajouter de point", async () => {
   const { carte, page, pressePapiers } = charger();

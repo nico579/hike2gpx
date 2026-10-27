@@ -117,6 +117,30 @@ def test_un_seul_lot_a_la_fois_et_arret(tmp_path, mode_en_ligne, monkeypatch):
     assert etat["erreur"] == "Fabrication arrêtée." and a.lots_hors_ligne()["lots"] == []
 
 
+def test_un_arret_pendant_l_extrait_arrete_le_lot(tmp_path, monkeypatch):
+    # Trouvé en essai réel : l'arrêt survenu pendant geofabrik.installer levait
+    # geofabrik.Abandon, que l'application prenait pour une erreur sans message.
+    region = {"id": "provence-alpes-cote-d-azur"}
+    monkeypatch.setattr(lot_osm, "regions_a_installer", lambda dossier, zone: [region])
+
+    def installer(dossier, region, continuer=None):
+        raise geofabrik.Abandon()
+    monkeypatch.setattr(geofabrik, "installer", installer)
+    with pytest.raises(lot_osm.Abandon):
+        lot_osm.fabriquer(tmp_path / "donnees", Installation(), "E5_N40", tmp_path / "lot", zone=ZONE)
+
+
+def test_un_arret_pendant_les_calques_libere_leur_fichier(tmp_path, mode_en_ligne):
+    # Trouvé en essai réel sous Windows : la base des calques restait ouverte
+    # après un arrêt, et l'essai suivant ne pouvait ni l'effacer ni la réécrire.
+    appels = iter([True, False])
+    with pytest.raises(lot_osm.Abandon):
+        lot_osm.fabriquer(tmp_path / "donnees", Installation(), "E5_N40", tmp_path / "lot",
+                          zone=(43.30, 5.95, 43.35, 6.40), continuer=lambda: next(appels, False))
+    (tmp_path / "lot" / "calques.mbtiles").unlink()      # échouerait sous Windows si la base restait ouverte
+    lot_osm.fabriquer(tmp_path / "donnees", Installation(), "E5_N40", tmp_path / "lot", zone=ZONE)
+
+
 def test_regions_a_installer_pour_les_tuiles_sans_extrait(tmp_path, monkeypatch):
     region = {"id": "provence-alpes-cote-d-azur", "bornes": (42.9, 4.2, 45.2, 7.8)}
     monkeypatch.setattr(geofabrik, "regions", lambda dossier: [region])

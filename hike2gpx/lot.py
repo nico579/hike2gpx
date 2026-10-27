@@ -143,6 +143,11 @@ class Calques:
         self.tuiles += ecrites
         return ecrites
 
+    def abandonner(self) -> None:
+        """Ferme la base sans la finir (arrêt, erreur) : sous Windows, un fichier
+        resté ouvert ne pourrait plus être effacé ni réécrit."""
+        self.base.close()
+
     def fermer(self) -> None:
         sud, ouest, nord, est = self.emprise
         vector_layers = [{"id": nom, "fields": champs, "minzoom": ZOOM, "maxzoom": ZOOM}
