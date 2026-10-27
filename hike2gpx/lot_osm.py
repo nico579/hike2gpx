@@ -69,7 +69,10 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
         if not continuer():
             raise Abandon()
         suivi("extraits", k, len(manquantes))
-        geofabrik.installer(dossier, region, continuer=continuer)
+        try:
+            geofabrik.installer(dossier, region, continuer=continuer)
+        except geofabrik.Abandon as exc:    # l'arrêt demandé pendant l'extrait arrête le lot
+            raise Abandon() from exc
     suivi("extraits", len(manquantes), len(manquantes))
 
     calques = lot.Calques(sortie / "calques.mbtiles", case, boite, ATTRIBUTION)
@@ -81,32 +84,37 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
     def lire(i, j):
         return fr.voies_affichables(*fr.bornes_tuile(i, j), dossier), fr.franchissements_tuile(i, j, dossier)
     blocs = lot.blocs(*zone)
-    for k, (x10, y10) in enumerate(blocs):
-        if not continuer():
-            raise Abandon()
-        suivi("calques", k, len(blocs))
-        o, s, e, n = lot.bornes_tuile(lot.ZOOM_BLOC, x10, y10)
-        lecture = (max(s, zone[0]) - MARGE_LECTURE, max(o, zone[1]) - MARGE_LECTURE,
-                   min(n, zone[2]) + MARGE_LECTURE, min(e, zone[3]) + MARGE_LECTURE)
-        couches = {"voies": [], "barrieres": [], "franchissements": []}
-        for i, j in _tuiles(lecture):
-            extrait = geofabrik.extrait_de_tuile(dossier, i, j)
-            if extrait is None:         # mer, ou région sans extrait : rien à lire sans réseau
-                continue
-            dates.add(extrait.get("date"))
-            v, franchissements_tuile = lire(i, j)
-            couches["voies"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
-                                  {"id": x["id"], "genre": x["genre"]}) for x in v["voies"] if len(x["pts"]) > 1]
-            couches["barrieres"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
-                                      {"id": x["id"], "nature": x["nature"]}) for x in v["barrieres"]
+    try:
+        for k, (x10, y10) in enumerate(blocs):
+            if not continuer():
+                raise Abandon()
+            suivi("calques", k, len(blocs))
+            o, s, e, n = lot.bornes_tuile(lot.ZOOM_BLOC, x10, y10)
+            lecture = (max(s, zone[0]) - MARGE_LECTURE, max(o, zone[1]) - MARGE_LECTURE,
+                       min(n, zone[2]) + MARGE_LECTURE, min(e, zone[3]) + MARGE_LECTURE)
+            couches = {"voies": [], "barrieres": [], "franchissements": []}
+            for i, j in _tuiles(lecture):
+                extrait = geofabrik.extrait_de_tuile(dossier, i, j)
+                if extrait is None:         # mer, ou région sans extrait : rien à lire sans réseau
+                    continue
+                dates.add(extrait.get("date"))
+                v, franchissements_tuile = lire(i, j)
+                couches["voies"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
+                                      {"id": x["id"], "genre": x["genre"]}) for x in v["voies"]
                                      if len(x["pts"]) > 1]
-            for f in franchissements_tuile:
-                tous[f["cle"]] = f
-                if f["statut"] in ("blocked", "uncertain"):
-                    couches["franchissements"].append(
-                        (shapely.Point(f["lon"], f["lat"]),
-                         {c: f.get(c) for c in ("cle", "statut", "raison", "nature", "osm")}))
-        calques.ajouter_bloc(x10, y10, couches)
+                couches["barrieres"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
+                                          {"id": x["id"], "nature": x["nature"]}) for x in v["barrieres"]
+                                         if len(x["pts"]) > 1]
+                for f in franchissements_tuile:
+                    tous[f["cle"]] = f
+                    if f["statut"] in ("blocked", "uncertain"):
+                        couches["franchissements"].append(
+                            (shapely.Point(f["lon"], f["lat"]),
+                             {c: f.get(c) for c in ("cle", "statut", "raison", "nature", "osm")}))
+            calques.ajouter_bloc(x10, y10, couches)
+    except BaseException:
+        calques.abandonner()        # sous Windows, la base ouverte bloquerait le prochain essai
+        raise
     suivi("calques", len(blocs), len(blocs))
     calques.fermer()
 

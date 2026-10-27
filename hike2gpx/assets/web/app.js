@@ -1302,7 +1302,11 @@ function construireFonds() {
 // et la note de l'onglet Parcours en suit l'avancement.
 const CASE_DEG = 5;
 const CLE_CASES = "hike2gpx.casesHorsLigne";
-carte.createPane("casesHorsLigne").style.zIndex = 380;
+// Au-dessus des calques (400) et des panneaux du tracé et des franchissements
+// (449 à 452), dont les canevas couvrent la carte et prendraient les clics,
+// mais sous les points du parcours (600). Grille affichée, ses cases
+// reçoivent les clics ; décochée, la carte revient au tracé.
+carte.createPane("casesHorsLigne").style.zIndex = 455;
 const grilleCases = L.layerGroup();
 let lotsInstalles = [];
 let lotEnCours = { actif: false };
@@ -1338,7 +1342,9 @@ function etatCase(nom) {
 const STYLES_CASE = {
   prete: { color: "#23804f", weight: 2, fillColor: "#23804f", fillOpacity: 0.08 },
   preparation: { color: "#e07b00", weight: 2, dashArray: "6 4", fillColor: "#e07b00", fillOpacity: 0.08 },
-  absente: { color: "#697789", weight: 1, dashArray: "4 6", fill: false },
+  // Un fond presque transparent : un clic dans la case ouvre sa bulle, comme
+  // les mailles du serveur ; décocher la grille rend les clics au tracé.
+  absente: { color: "#37474f", weight: 1.5, dashArray: "5 5", fillColor: "#37474f", fillOpacity: 0.03 },
 };
 
 function tailleTexte(octets) {
