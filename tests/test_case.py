@@ -1,4 +1,5 @@
 import osmium
+import pytest
 
 from hike2gpx import case
 
@@ -97,3 +98,49 @@ def test_bouts_coupes_par_basemap_recolles_d_une_maille_a_l_autre():
     (ids_g, tags), (ids_d, _) = (registre.voies[w] for w in sorted(registre.voies))
     assert ids_g[-1] == ids_d[0], "un seul nœud de part et d'autre de la limite"
     assert tags["hike2gpx"] == "atkis"
+
+
+def _geopackage_bdtopo(chemin, troncons):
+    """Un GeoPackage réduit, de même structure que celui de l'IGN : la table
+    des tronçons (géométrie GPKG en Lambert 93) et son index RTree."""
+    import sqlite3
+    import struct
+
+    import shapely
+    from rasterio.warp import transform
+    base = sqlite3.connect(chemin)
+    base.execute("CREATE TABLE troncon_de_route (fid INTEGER PRIMARY KEY, cleabs TEXT, nature TEXT, "
+                 "acces_pieton TEXT, prive INTEGER, insee_commune_gauche TEXT, insee_commune_droite TEXT, "
+                 "geometrie BLOB)")
+    base.execute("CREATE VIRTUAL TABLE rtree_troncon_de_route_geometrie USING rtree(id, minx, maxx, miny, maxy)")
+    for fid, (cleabs, insee, lignes) in enumerate(troncons, 1):
+        en_l93 = []
+        for ligne in lignes:
+            xs, ys = transform("EPSG:4326", "EPSG:2154", [lo for la, lo in ligne], [la for la, lo in ligne])
+            en_l93.append(list(zip(xs, ys, [300.0] * len(xs))))      # avec l'altitude, comme la BD TOPO
+        geometrie = shapely.MultiLineString(en_l93) if len(en_l93) > 1 else shapely.LineString(en_l93[0])
+        blob = b"GP\x00\x01" + struct.pack("<i", 2154) + shapely.to_wkb(geometrie)
+        base.execute("INSERT INTO troncon_de_route VALUES (?, ?, 'Sentier', NULL, 0, ?, ?, ?)",
+                     (fid, cleabs, insee, insee, blob))
+        x0, y0, x1, y1 = geometrie.bounds
+        base.execute("INSERT INTO rtree_troncon_de_route_geometrie VALUES (?, ?, ?, ?, ?)", (fid, x0, x1, y0, y1))
+    base.commit()
+    base.close()
+
+
+def test_troncons_gpkg_rend_les_troncons_en_coordonnees_gps(tmp_path):
+    # Le passage Lambert 93 -> GPS par rasterio, sans pyproj (essai GitHub
+    # Actions du 2026-10-27 : pyproj n'est pas une dépendance de l'application).
+    gpkg = tmp_path / "bdtopo.gpkg"
+    _geopackage_bdtopo(gpkg, [
+        ("TRONROUT1", "83063", [[(43.330, 6.040), (43.331, 6.042)]]),
+        ("TRONROUT2", "83063", [[(43.332, 6.043), (43.333, 6.044)], [(43.334, 6.045), (43.335, 6.046)]]),
+        ("TRONROUT3", "06088", [[(43.336, 6.047), (43.337, 6.048)]])])
+    troncons = case.troncons_gpkg(gpkg, 43.32, 6.03, 43.34, 6.05)
+    assert [t["id"] for t in troncons] == ["TRONROUT1-0", "TRONROUT2-0", "TRONROUT2-1", "TRONROUT3-0"]
+    assert troncons[0]["pts"][0] == pytest.approx([43.330, 6.040], abs=1e-6)
+    assert sum(troncons[2]["pts"], []) == pytest.approx([43.334, 6.045, 43.335, 6.046], abs=1e-6), \
+        "chaque partie d'un tronçon multiple, à sa place"
+    assert {t["id"] for t in case.troncons_gpkg(gpkg, 43.32, 6.03, 43.34, 6.05, "83")} == \
+        {"TRONROUT1-0", "TRONROUT2-0", "TRONROUT2-1"}, "le filtre par département"
+    assert case.troncons_gpkg(gpkg, 44.0, 7.0, 44.1, 7.1) == []

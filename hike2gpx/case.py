@@ -176,17 +176,19 @@ def troncons_gpkg(gpkg, sud: float, ouest: float, nord: float, est: float, depar
     """Tronçons BD TOPO d'un GeoPackage régional qui touchent l'emprise, entiers
     (la maille garde ceux dont le premier point y tombe), au format de la
     fusion. departement : ne garder que ceux d'un département (« 83 »).
-    Reprend la lecture par l'index RTree de la PR #37."""
+    Reprend la lecture par l'index RTree de la PR #37. Le passage du Lambert 93
+    au GPS se fait par rasterio (GDAL et PROJ), déjà embarqué pour le dénivelé,
+    en un seul appel pour tous les points de l'emprise."""
     import sqlite3
     from contextlib import closing
-    from pyproj import Transformer
-    from shapely import from_wkb, transform
 
-    vers_l93 = Transformer.from_crs(4326, 2154, always_xy=True)
-    vers_wgs = Transformer.from_crs(2154, 4326, always_xy=True)
+    import numpy as np
+    from rasterio.warp import transform as reprojeter
+    from shapely import from_wkb, get_coordinates, get_parts
+
     bord = [(ouest + (est - ouest) * k / 8, la) for la in (sud, nord) for k in range(9)]
     bord += [(lo, sud + (nord - sud) * k / 8) for lo in (ouest, est) for k in range(9)]
-    xs, ys = zip(*(vers_l93.transform(lo, la) for lo, la in bord))
+    xs, ys = reprojeter("EPSG:4326", "EPSG:2154", [lo for lo, _ in bord], [la for _, la in bord])
     requete = ("SELECT t.cleabs, t.nature, t.acces_pieton, t.prive, t.geometrie "
                "FROM rtree_troncon_de_route_geometrie r JOIN troncon_de_route t ON t.fid = r.id "
                "WHERE r.minx <= ? AND r.maxx >= ? AND r.miny <= ? AND r.maxy >= ?")
@@ -195,17 +197,24 @@ def troncons_gpkg(gpkg, sud: float, ouest: float, nord: float, est: float, depar
         requete += " AND (t.insee_commune_gauche LIKE ? OR t.insee_commune_droite LIKE ?)"
         valeurs += [departement + "%"] * 2
     tailles = {0: 0, 1: 32, 2: 48, 3: 48, 4: 64}
-    troncons = []
+    troncons, morceaux = [], []
     with closing(sqlite3.connect(f"file:{Path(gpkg).resolve().as_posix()}?mode=ro", uri=True)) as base:
         for cleabs, nature, acces, prive, blob in base.execute(requete, valeurs):
-            geometrie = transform(from_wkb(blob[8 + tailles[(blob[3] >> 1) & 7]:]), vers_wgs.transform,
-                                  interleaved=False)
-            lignes = [geometrie] if geometrie.geom_type == "LineString" else list(geometrie.geoms)
-            for k, ligne in enumerate(lignes):
-                if len(ligne.coords) >= 2:
+            for k, ligne in enumerate(get_parts(from_wkb(blob[8 + tailles[(blob[3] >> 1) & 7]:]))):
+                points = get_coordinates(ligne)        # x, y en Lambert 93, sans l'altitude
+                if len(points) >= 2:
                     troncons.append({"id": f"{cleabs}-{k}", "nature": nature, "acces_pieton": acces,
-                                     "prive": bool(prive),
-                                     "pts": [[round(p[1], 7), round(p[0], 7)] for p in ligne.coords]})
+                                     "prive": bool(prive)})
+                    morceaux.append(points)
+    if not morceaux:
+        return []
+    tous = np.concatenate(morceaux)
+    lons, lats = reprojeter("EPSG:2154", "EPSG:4326", tous[:, 0].tolist(), tous[:, 1].tolist())
+    debut = 0
+    for t, points in zip(troncons, morceaux):
+        fin = debut + len(points)
+        t["pts"] = [[round(la, 7), round(lo, 7)] for lo, la in zip(lons[debut:fin], lats[debut:fin])]
+        debut = fin
     return troncons
 
 
