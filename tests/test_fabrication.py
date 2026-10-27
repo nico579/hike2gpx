@@ -428,3 +428,15 @@ def test_la_fabrication_attend_l_index_des_regions(tmp_path, monkeypatch):
     index = geofabrik.Index("d'essai", "index-essai.json", lambda ouvrir: regions)
     assert [r["id"] for r in index.attendre(tmp_path)] == ["france", "switzerland", "poland"]
 
+
+def test_les_calques_ne_lisent_que_la_tuile_demandee(tmp_path, mode_en_ligne, monkeypatch):
+    # Essai GitHub Actions du 2026-10-27 : les bornes exactes d'une tuile
+    # touchent ses voisines du nord et de l'est ; chaque tuile en lisait quatre,
+    # et une voisine en mer, sans extrait, partait vers Overpass (HTTP 502).
+    lues = []
+    voies = fr.voies_affichables
+    monkeypatch.setattr(fr, "voies_affichables",
+                        lambda *bornes, **o: lues.append(fr.tuiles_zone(*bornes[:4])) or voies(*bornes, **o))
+    fabrication.fabriquer(tmp_path / "donnees", Installation(), "E5_N40", tmp_path / "lot", zone=ZONE)
+    assert lues == [[TUILE]]
+

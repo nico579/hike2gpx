@@ -32,6 +32,7 @@ from . import brouter, case as cases, franchissements as fr, geofabrik, lot, pro
 journal = logging.getLogger(__name__)
 ATTRIBUTION = "© contributeurs OpenStreetMap (ODbL) ; itinéraires BRouter (brouter.de)"
 MARGE_LECTURE = 0.001       # degrés lus autour d'un bloc, plus que la marge d'une tuile du zoom 14
+BORD_DEG = 1e-6             # rogné au nord et à l'est d'une tuile pour ne pas lire ses voisines
 # Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° dense
 # en demande quatre ou cinq.
 TAS_CASE, AIRE_VUE = "4500m", 1.0       # au-delà d'1 degré carré, le tas d'une case
@@ -266,8 +267,14 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
     # lues restent en mémoire, sans garder toute la case.
     @functools.lru_cache(maxsize=256)
     def lire(i, j):
-        return (fr.voies_affichables(*fr.bornes_tuile(i, j), dossier),
-                fr.franchissements_tuile(i, j, dossier) if franchissements is None else [])
+        # Les bords nord et est d'une tuile sont ceux de ses voisines : rognés,
+        # pour ne lire qu'elle. Sinon chaque tuile en lisait quatre, et une
+        # voisine en mer partait vers Overpass (essai GitHub Actions, HTTP 502).
+        # en_ligne=False : un lot ne lit que les extraits, jamais Overpass, trop
+        # instable pour une fabrication en série (Nico, 2026-10-27).
+        sud, ouest, nord, est = fr.bornes_tuile(i, j)
+        return (fr.voies_affichables(sud, ouest, nord - BORD_DEG, est - BORD_DEG, dossier, en_ligne=False),
+                fr.franchissements_tuile(i, j, dossier, en_ligne=False) if franchissements is None else [])
     blocs = lot.blocs(*zone)
     try:
         for k, (x10, y10) in enumerate(blocs):
