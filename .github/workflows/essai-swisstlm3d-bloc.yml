@@ -1,0 +1,74 @@
+# Essai, pas production : la lecture en bloc de swissTLM3D (téléchargement,
+# réduction, lecture d'emprises) comparée, emprise par emprise, au lecteur en
+# ligne que la fusion utilise aujourd'hui. Rien n'est publié.
+name: Essai swissTLM3D en bloc
+
+on:
+  push:
+    branches: [essai/swisstlm3d-bloc]
+
+permissions:
+  contents: read
+
+jobs:
+  comparer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - name: Télécharger et réduire
+        run: |
+          time python -c "import logging, sys; logging.basicConfig(level=logging.INFO); from hike2gpx import swisstlm3d_national as s; print(s.geopackage(sys.argv[1]))" "$HIKE2GPX_HOME"
+          ls -la "$HIKE2GPX_HOME/swisstlm3d-national"; df -h "$RUNNER_TEMP"
+
+      - name: Comparer au lecteur en ligne
+        run: |
+          python - "$HIKE2GPX_HOME" <<'EOF'
+          import collections, sys, time
+          from hike2gpx import swisstlm3d_national
+          from hike2gpx.providers import swisstlm3d
+          lecteur = swisstlm3d_national.Lecteur(sys.argv[1])
+          # Val Onsernone, Zermatt, Grindelwald, Jura vaudois, Engadine, Appenzell.
+          zones = [(46.20, 8.60), (46.00, 7.75), (46.60, 8.05), (46.60, 6.25), (46.55, 9.85), (47.30, 9.40)]
+          ecarts = 0
+          for sud, ouest in zones:
+              z = (sud, ouest, sud + 0.05, ouest + 0.05)
+              debut = time.time()
+              bloc = lecteur(*z)
+              t_bloc = time.time() - debut
+              debut = time.time()
+              ligne = swisstlm3d.lire(*z)
+              t_ligne = time.time() - debut
+              nb, nl = collections.Counter(t["nature"] for t in bloc), collections.Counter(t["nature"] for t in ligne)
+              print(f"{z} : en bloc {len(bloc)} ({t_bloc:.1f} s) {dict(sorted(nb.items()))}")
+              print(f"{' ' * len(str(z))}   en ligne {len(ligne)} ({t_ligne:.1f} s) {dict(sorted(nl.items()))}")
+              ecarts += nb != nl
+          # Le code 18 (2m Wegfragment par analogie) : présent dans le fichier ?
+          import sqlite3
+          base = sqlite3.connect(lecteur._base)
+          print("natures gardées :", base.execute("SELECT objektart, count(*) FROM tlm_strassen_strasse GROUP BY 1").fetchall())
+          import json, urllib.request
+          for objektart in ("2m Wegfragment", "1m Wegfragment"):
+              codes = collections.Counter()
+              for x0, x1, y0, y1 in base.execute(
+                      "SELECT r.minx, r.maxx, r.miny, r.maxy FROM rtree_tlm_strassen_strasse_geom r "
+                      "JOIN tlm_strassen_strasse t ON t.id = r.id WHERE t.objektart = ? LIMIT 5", (objektart,)):
+                  box = f"{x0},{y0},{x1},{y1}"
+                  url = ("https://api3.geo.admin.ch/rest/services/api/MapServer/identify?geometryType=esriGeometryEnvelope"
+                         f"&geometry={box}&sr=2056&layers=all:ch.swisstopo.swisstlm3d-strassen&tolerance=0"
+                         f"&returnGeometry=false&limit=50&mapExtent={box}&imageDisplay=1024,1024,96")
+                  for o in json.load(urllib.request.urlopen(url, timeout=60)).get("results", []):
+                      codes[(o.get("attributes") or {}).get("objektart")] += 1
+              print(f"« {objektart} » : codes du service en ligne autour de cinq objets {dict(codes)}")
+          print("emprises différentes :", ecarts)
+          EOF
