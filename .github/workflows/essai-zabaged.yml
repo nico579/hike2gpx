@@ -15,22 +15,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - name: Trouver la dernière édition
+      - name: Télécharger la dernière édition (avec reprise)
         run: |
-          for u in https://atom.cuzk.gov.cz/ZABAGED-GPKG/ZABAGED-GPKG.xml \
-                   https://atom.cuzk.gov.cz/ZABAGED-GPKG/ \
-                   https://openzu.cuzk.gov.cz/opendata/ZABAGED-GPKG/ \
-                   https://openzu.cuzk.gov.cz/opendata/ZABAGED-GPKG/epsg-3045/; do
-            echo "=== $u"; curl -sSL -m 60 "$u" | head -c 3000; echo
-          done
-
-      - name: Télécharger (avec reprise)
-        run: |
-          base=https://openzu.cuzk.gov.cz/opendata/ZABAGED-GPKG/epsg-3045/
-          nom=$(curl -sSL -m 60 "$base" | grep -oE 'ZABAGED[^"<> ]*\.zip' | sort -u | tail -1)
-          echo "fichier : $nom"; test -n "$nom"
+          # Le flux du jeu de données donne l'adresse de l'édition courante ; les
+          # dossiers du serveur, eux, sont fermés à la consultation (403).
+          url=$(curl -sSL -m 60 https://atom.cuzk.gov.cz/ZABAGED-GPKG/datasetFeeds/CZ-00025712-CUZK_ZABAGED-GPKG_1.xml \
+                | grep -oE 'https://[^"]*epsg-3045/[^"]*\.zip' | head -1)
+          echo "fichier : $url"; test -n "$url"
           for essai in 1 2 3 4 5 6 7 8; do
-            curl -sSL -C - --retry 3 -m 3000 -o "$RUNNER_TEMP/z.zip" "$base$nom" && break
+            curl -sSL -C - --retry 3 -m 3000 -o "$RUNNER_TEMP/z.zip" "$url" && break
             echo "coupure $essai, reprise"; sleep 10
           done
           ls -la "$RUNNER_TEMP/z.zip"; df -h "$RUNNER_TEMP"
