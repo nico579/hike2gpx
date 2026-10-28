@@ -49,6 +49,33 @@ def test_installer_range_la_rd5_avec_les_segments(tmp_path):
     assert not list(h.racine.glob(".*")) and not list(h.segments.glob(".*")), "aucun reste provisoire"
 
 
+
+def test_supprimer_une_case_ne_retire_qu_elle(tmp_path):
+    # Un voyage fini : la case quitte le PC, lot, RD5 et fonds ; la voisine reste.
+    h = hors_ligne.HorsLigne(tmp_path / "donnees")
+    h.installer(fabriquer_lot(tmp_path / "lot"))
+    h.installer(fabriquer_lot(tmp_path / "voisin", case="E10_N40"))
+    h.dossier_fonds.mkdir(parents=True)
+    for nom in ("E5_N40-scan25", "E5_N40-planign-vue-3fa2c1", "E10_N40-scan25"):
+        (h.dossier_fonds / f"{nom}.mbtiles").write_bytes(b"fond")
+    h.calque(h.lots()[1], "osm", (43.30, 6.00, 43.36, 6.10))
+    octets = h.supprimer("E5_N40")
+    assert octets > 0 and not (h.racine / "E5_N40").exists() and not (h.segments / "E5_N40.rd5").exists()
+    assert sorted(p.stem for p in h.dossier_fonds.iterdir()) == ["E10_N40-scan25"]
+    assert [m["case"] for m in h.lots()] == ["E10_N40"] and (h.segments / "E10_N40.rd5").is_file()
+    assert lot._tuile_decodee.cache_info().currsize == 0, "rien de la case retirée ne reste en mémoire"
+    assert h.supprimer("E5_N40") == 0, "une case déjà retirée"
+
+
+def test_vider_repart_de_zero(tmp_path):
+    h = hors_ligne.HorsLigne(tmp_path / "donnees")
+    h.installer(fabriquer_lot(tmp_path / "lot"))
+    h.vider()
+    assert not h.racine.exists() and h.lots() == [] and h.fonds() == []
+    h.vider()                                   # rien à vider : sans erreur
+    h.installer(fabriquer_lot(tmp_path / "lot"))
+    assert [m["case"] for m in h.lots()] == ["E5_N40"], "un lot se réinstalle après"
+
 def test_un_lot_altere_n_est_pas_installe(tmp_path):
     source = fabriquer_lot(tmp_path / "lot")
     contenu = bytearray((source / "calques.mbtiles").read_bytes())

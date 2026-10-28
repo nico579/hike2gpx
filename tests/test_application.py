@@ -610,10 +610,11 @@ def test_routes_init_annonce_l_application(tmp_path):
     # installer_lot, preparer_lot, arreter_lot, telecharger_lot : les lots de
     # case pour le hors ligne (hors_ligne.py, fabrication.py, depot.py) ;
     # preparer_fond : le fond de carte d'une case ou d'une vue (fonds.py) ;
-    # partage : ouvrir ou fermer le partage au téléphone (partage.py).
+    # partage : ouvrir ou fermer le partage au téléphone (partage.py) ;
+    # supprimer_case : retirer du PC le lot et les fonds d'une case.
     assert set(post) == {"itineraire", "disponibilite", "reglages", "moteur", "denivele", "communes", "langue",
                          "arreter_calques", "donnees", "ouvrir_journaux", "installer_lot", "preparer_lot",
-                         "arreter_lot", "telecharger_lot", "preparer_fond", "partage"}
+                         "arreter_lot", "telecharger_lot", "preparer_fond", "partage", "supprimer_case"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
@@ -719,7 +720,8 @@ def test_les_donnees_telechargees_se_voient_et_se_videent(tmp_path, monkeypatch)
 
 def test_vider_cache_unique_efface_toutes_les_donnees_locales(tmp_path):
     donnees_d_essai(tmp_path)
-    for dossier, nom in (("gpx2elev", "profil.json"), ("brouter/maison", "etat.json")):
+    for dossier, nom in (("gpx2elev", "profil.json"), ("brouter/maison", "etat.json"),
+                         ("hors-ligne/E5_N40", "manifest.json"), ("hors-ligne/fonds", "E5_N40-scan25.mbtiles")):
         p = tmp_path / dossier / nom
         p.parent.mkdir(parents=True)
         p.write_text("{}")
@@ -732,6 +734,16 @@ def test_vider_cache_unique_efface_toutes_les_donnees_locales(tmp_path):
     assert not (tmp_path / "brouter" / "maison").exists()
     assert not list((tmp_path / "brouter" / "segments4").glob("*.rd5"))
     assert not list(geofabrik.dossier_extraits(tmp_path).iterdir())
+    assert not (tmp_path / "hors-ligne").exists(), "les lots et les fonds aussi, pour repartir de zéro"
+
+
+def test_supprimer_une_case_depuis_la_carte(tmp_path):
+    a = appli.Application(tmp_path)
+    assert "erreur" in a.supprimer_case({"case": "../E5_N40"})
+    (tmp_path / "hors-ligne" / "fonds").mkdir(parents=True)
+    (tmp_path / "hors-ligne" / "fonds" / "E5_N40-scan25.mbtiles").write_bytes(b"fond")
+    assert a.supprimer_case({"case": "E5_N40"}) == {"octets": 4}
+    assert not list((tmp_path / "hors-ligne" / "fonds").iterdir())
 
 
 def test_vider_cache_refuse_pendant_un_calcul(tmp_path):

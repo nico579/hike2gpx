@@ -128,8 +128,11 @@ const TEXTES = {
     "donnees.viderTout": "Vider le cache",
     "donnees.aideCache": "Détail des caches vidés",
     "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins officiels, les extraits OSM téléchargés, les données BRouter et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte, conservées dans le cache du navigateur, ne sont pas effacées.",
-    "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter ? Elles seront retéléchargées au besoin. Les tuiles de fond de carte restent dans le cache du navigateur.",
-    "donnees.vide": "Cache local vidé. Les tuiles du fond de carte restent gérées par le navigateur.",
+    "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter, ainsi que les lots et les fonds hors ligne ? Les données en ligne et les lots du serveur seront retéléchargés au besoin ; les lots et les fonds préparés sur ce PC seront à refaire. Les tuiles de fond de carte affichées restent dans le cache du navigateur.",
+    "donnees.vide": "Cache local vidé, lots et fonds hors ligne compris. Les tuiles du fond de carte affiché restent gérées par le navigateur.",
+    "horsLigne.supprimer": "Supprimer du PC",
+    "horsLigne.confirmerSuppression": "Retirer du PC le lot et les fonds de carte de la case {nom} ({taille}) ? Un lot du serveur se retélécharge ; un lot ou un fond préparé sur ce PC sera à refaire.",
+    "horsLigne.supprimee": "Case {nom} retirée du PC : {taille} libérés.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
     "unite.mo": "Mo",
     "pied": "Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins et cartes officiels selon le pays, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.",
@@ -349,8 +352,11 @@ const TEXTES = {
     "donnees.viderTout": "Clear cache",
     "donnees.aideCache": "Details of cleared caches",
     "donnees.detailCache": "This clears Overpass responses and OSM crossings, official paths, downloaded OSM extracts, BRouter data and gpx2elev elevation models. They are downloaded again when needed. Background map tiles held in the browser cache are not cleared.",
-    "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data? It will download again when needed. Background map tiles remain in the browser cache.",
-    "donnees.vide": "Local cache cleared. Background map tiles remain managed by the browser.",
+    "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data, and the offline bundles and maps? Online data and the server's bundles will download again when needed; bundles and maps prepared on this computer will have to be made again. Displayed background map tiles remain in the browser cache.",
+    "donnees.vide": "Local cache cleared, offline bundles and maps included. Displayed background map tiles remain managed by the browser.",
+    "horsLigne.supprimer": "Remove from this computer",
+    "horsLigne.confirmerSuppression": "Remove the bundle and the background maps of the {nom} area from this computer ({taille})? A server bundle downloads again; a bundle or map prepared on this computer will have to be made again.",
+    "horsLigne.supprimee": "{nom} area removed from this computer: {taille} freed.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
     "unite.mo": "MB",
     "pied": "Barriers and paths © OpenStreetMap contributors (ODbL), official paths and maps according to the country, routing by BRouter. A barrier missing from OpenStreetMap cannot be avoided: the ground always has the last word.",
@@ -1482,7 +1488,27 @@ function bulleCase(nom) {
       () => telechargerCase(nom)));
   }
   if (paysCarte === "fr") ajouterFonds(div, nom, vueDansCase ? [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()] : null);
+  // Un voyage fini, une case qu'on ne visitera plus : son lot et ses fonds
+  // quittent le PC (décision de Nico du 2026-10-28).
+  const fondsIci = fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`));
+  if (lotCase || fondsIci.length) {
+    const octets = (lotCase?.octets || 0) + fondsIci.reduce((somme, f) => somme + (f.octets || 0), 0);
+    div.append(bouton(t("horsLigne.supprimer"), () => supprimerCase(nom, octets)));
+  }
   return div;
+}
+
+async function supprimerCase(nom, octets) {
+  if (!confirm(t("horsLigne.confirmerSuppression", { nom, taille: tailleTexte(octets) }))) return;
+  carte.closePopup();
+  const r = await api("supprimer_case", { case: nom });
+  afficherLot(r.erreur ? { case: nom, erreur: r.erreur } : {});
+  if (!r.erreur) {
+    $("lotHorsLigneTexte").textContent = t("horsLigne.supprimee", { nom, taille: tailleTexte(r.octets) });
+    $("lotHorsLigne").hidden = false;
+  }
+  await chargerLots();
+  chargerFonds();
 }
 
 // Le fond de la page, hors ligne : le SCAN 25 avec la clé IGN, le Plan IGN
@@ -2454,7 +2480,11 @@ async function agirDonnees(action, cible, confirmer) {
     const r = await api("donnees", { action, cible });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
     afficherDonnees(r);
-    if (action === "vider_cache") $("cacheStatus").textContent = t("donnees.vide");
+    if (action === "vider_cache") {
+      $("cacheStatus").textContent = t("donnees.vide");
+      chargerLots();          // les lots et les fonds hors ligne sont partis aussi
+      chargerFonds();
+    }
     majExtrait(true);       // un téléchargement lancé se suit dans le panneau
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
