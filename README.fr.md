@@ -237,13 +237,68 @@ une fois et rangé dans une base SQLite par tuile, au dossier de données
 Une fois installé, l'extrait est la source des tuiles qu'il contient :
 lecture instantanée, sans quota ni panne, hors connexion comprise. Une tuile en
 sort sous la forme exacte d'une réponse d'Overpass, si bien que les
-franchissements se jugent de la même façon. Overpass ne sert plus qu'ailleurs :
-hors des extraits installés, ou sur une tuile à cheval sur leur limite ; et
-une tuile qui attendait Overpass au moment où un extrait s'installe bascule
-aussitôt sur lui. OSM France et Geofabrik refont leurs extraits chaque jour ;
+franchissements se jugent de la même façon. Overpass ne sert plus qu'hors des
+extraits installés : une tuile à cheval sur une frontière est lue dans les
+deux extraits voisins, qui la couvrent ensemble ; et une tuile qui attendait
+Overpass au moment où un extrait s'installe bascule aussitôt sur lui. OSM France et Geofabrik refont leurs extraits chaque jour ;
 plus vieux que le délai choisi dans les réglages (30 jours par défaut, de 1 à
 365), l'extrait se renouvelle de lui-même en tâche de fond, l'ancien servant
 jusqu'à la bascule. Les tuiles BRouter suivent le même délai.
+
+### Lots hors ligne
+
+Un extrait épargne Overpass, mais un calcul a encore besoin du réseau pour les
+chemins officiels et les tuiles BRouter. Pour partir sans aucune connexion,
+hike2gpx travaille avec des lots : tout ce dont une case BRouter de 5° a besoin
+(données de routage, chemins officiels, franchissements, calques), chaque
+fichier vérifié contre l'empreinte SHA-256 d'un manifeste.
+
+Cochez « Afficher les cases hors ligne (5°) » dans les réglages, et la carte montre
+la grille des cases. Un clic sur une case propose deux façons d'obtenir son
+lot :
+
+- **le télécharger depuis le serveur.** Les cases de la France sont fabriquées
+  chaque semaine et publiées sur
+  [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles) ; la grille
+  les montre en bleu. La case du Var, 247 Mo, arrive en quelques dizaines de
+  secondes, reprise après une coupure, chaque fichier vérifié avant
+  l'installation.
+- **le préparer sur ce PC**, pour la vue affichée ou la case entière, partout
+  dans le monde. Là où un fournisseur national existe (BD TOPO de l'IGN,
+  ATKIS, ZABAGED, swissTLM3D, BDOT10k), ses chemins sont fusionnés dans
+  OpenStreetMap et les données de routage compilées avec le relief Mapterhorn ;
+  ailleurs, le lot reprend les tuiles BRouter que publie brouter.de. Une vue de
+  quelques kilomètres est prête en trois minutes environ.
+
+Une règle s'applique alors : quand un lot installé couvre tout le parcours, il
+sert seul, au calcul comme aux calques, sans réseau ; sinon, tout se fait à la
+volée comme avant. La case « chemins officiels » garde son sens : décochée, les
+chemins officiels restent dans le lot, mais le calcul ne peut pas les
+emprunter. Les caches se renouvellent d'eux-mêmes ; un lot plus vieux que le
+délai de renouvellement demande d'abord. Une case qui chevauche une frontière
+prend tous les fournisseurs dont le pays la touche : E5_N45 réunit les chemins
+de l'IGN et de swissTLM3D, chacun lu sur son seul pays.
+
+### Fabriquer des lots en ligne de commande
+
+La page et la ligne de commande partagent le même code. C'est ainsi que
+travaille le serveur :
+
+```
+hike2gpx cells --bulk-only                      # les cases à fabriquer
+hike2gpx bundles E5_N40 E5_N45 --bulk --output lots/
+hike2gpx catalog lots/ --publish-dir publication/
+```
+
+`cells` liste les cases que touchent les pays des fournisseurs.
+`bundles --bulk` lit chaque fournisseur dans son téléchargement en bloc (les
+archives régionales de la BD TOPO) plutôt que par son service web : une case
+entière demanderait sinon des milliers de requêtes. Un lot à jour est sauté, et
+une case en échec n'arrête pas les autres. `catalog` écrit le catalogue que lit
+l'application. Le serveur hebdomadaire est un
+[workflow réutilisable](.github/workflows/bundles.yml) qu'appelle le dépôt des
+lots : une machine GitHub Actions par case, environ une heure et demie pour une
+case entière.
 
 ## Limites
 
@@ -254,9 +309,10 @@ ajoutée à OpenStreetMap est respectée par hike2gpx dès que son cache de la
 zone se renouvelle ; les moteurs des autres planificateurs, eux, continuent de
 l'ignorer.
 
-En dehors de la France et de l'Allemagne, le calcul ne connaît que les chemins
-d'OpenStreetMap : un sentier absent d'OSM n'existe pas pour lui, même si la
-carte nationale le dessine. En Allemagne, les chemins ATKIS intégrés n'ont
+En dehors de la France, de l'Allemagne, de la Tchéquie, de la Suisse et de la
+Basse-Silésie, le calcul ne connaît que les chemins d'OpenStreetMap : un
+sentier absent d'OSM n'existe pas pour lui, même si la carte nationale le
+dessine. En Allemagne, les chemins ATKIS intégrés n'ont
 pas de droit de passage piéton explicite : les portions empruntées restent
 à vérifier sur place.
 

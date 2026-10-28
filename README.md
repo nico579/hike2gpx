@@ -234,13 +234,63 @@ the downloaded file is deleted.
 Once installed, the extract is the source of the tiles it contains: instant
 reading, no quota, no outage, offline included. A tile comes out of it in the
 exact form of an Overpass answer, so the crossings are judged the same way.
-Overpass only serves elsewhere: outside the installed extracts, or on a tile
-straddling their edge; and a tile that was waiting for Overpass when an
-extract gets installed switches to it at once. OSM France and Geofabrik
+Overpass only serves outside the installed extracts: a tile straddling a
+border is read from the two neighbouring extracts, which cover it together;
+and a tile that was waiting for Overpass when an extract gets installed
+switches to it at once. OSM France and Geofabrik
 rebuild their extracts every day; once older than the delay chosen in the
 settings (30 days by default, from 1 to 365), the extract renews itself in the
 background, the old one serving until the switch. The BRouter tiles follow the
 same delay.
+
+### Offline bundles
+
+An extract spares Overpass, but a computation still needs the network for the
+official paths and the BRouter tiles. For a trip with no connection at all,
+hike2gpx works with bundles: everything one 5° BRouter cell needs (routing
+data, official paths, crossings, map layers), each file checked against the
+SHA-256 of a manifest.
+
+Tick "Show offline areas (5°)" in the settings and the map shows the grid of cells.
+A click on a cell offers two ways to get its bundle:
+
+- **download it from the server.** The French cells are built every week and
+  published on [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles);
+  the grid shows them in blue. The Var cell, 247 MB, arrives in a few tens of
+  seconds, resumed after a cut, each file checked before installation.
+- **prepare it on this computer**, for the current view or the whole cell,
+  anywhere in the world. Where a national provider exists (IGN BD TOPO, ATKIS,
+  ZABAGED, swissTLM3D, BDOT10k), its paths are merged into OpenStreetMap and
+  the routing data compiled with Mapterhorn elevation; elsewhere, the bundle
+  takes the BRouter tiles published by brouter.de. A view of a few kilometres
+  is ready in about three minutes.
+
+Then one rule applies: when an installed bundle covers the whole route, it is
+used alone, for routing and for the layers, with no network; otherwise
+everything runs on the fly as before. The "official paths" box keeps its
+meaning: unticked, the official paths stay in the bundle but routing may not
+use them. Caches renew themselves; a bundle older than the renewal delay asks
+first. A cell crossing a border takes every provider whose country it touches:
+E5_N45 merges IGN and swissTLM3D paths, each read on its own country only.
+
+### Building bundles from the command line
+
+The page and the command line share the same code. The server works this way:
+
+```
+hike2gpx cells --bulk-only                      # the cells to build
+hike2gpx bundles E5_N40 E5_N45 --bulk --output bundles/
+hike2gpx catalog bundles/ --publish-dir publication/
+```
+
+`cells` lists the cells that the providers' countries touch. `bundles --bulk`
+reads each provider from its bulk download (the BD TOPO regional archives)
+rather than its web service: a whole cell would otherwise take thousands of
+requests. A bundle that is up to date is skipped, and a failing cell does not
+stop the others. `catalog` writes the catalog the application reads. The
+weekly server is a [reusable workflow](.github/workflows/bundles.yml) that the
+bundles repository calls: one GitHub Actions machine per cell, about an hour
+and a half for a whole cell.
 
 ## Limits
 
@@ -250,9 +300,9 @@ OpenStreetMap records only 18 fences, and IGN's BD TOPO none (see
 OpenStreetMap is respected by hike2gpx as soon as its cache of the area is
 renewed; the engines of the other planners keep ignoring it.
 
-Outside France and Germany, routing only knows OpenStreetMap's
-paths: a trail missing from OSM does not exist for it, even if the national
-map draws it. The integrated ATKIS ways do not state explicit pedestrian
+Outside France, Germany, Czechia, Switzerland and Lower Silesia, routing
+only knows OpenStreetMap's paths: a trail missing from OSM does not exist for
+it, even if the national map draws it. The integrated ATKIS ways do not state explicit pedestrian
 rights, so any routed section must be checked on site.
 
 A computation examines at most 100 tiles of 0.05°, about 55 × 40 km: the first
