@@ -215,6 +215,10 @@ const TEXTES = {
     "horsLigne.preparerFondVue": "Fond de carte de la vue ({source})",
     "horsLigne.preparerFondCase": "Fond de carte de toute la case ({source}, zooms 6 à 13, environ {duree})",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
+    "partage.ouvrir": "Partager au téléphone",
+    "partage.fermer": "Arrêter le partage",
+    "partage.ouvert": "Scannez ce code avec hike2gpx sur le téléphone, sur le même Wi-Fi : {lots} lot(s) et {fonds} fond(s) de carte, {taille}. Le code change à chaque partage.",
+    "partage.erreur": "Partage impossible : {erreur}",
     "pleinEcran.entrer": "Plein écran",
     "pleinEcran.quitter": "Quitter le plein écran",
     "etape.debut": "Préparation du calcul",
@@ -432,6 +436,10 @@ const TEXTES = {
     "horsLigne.preparerFondVue": "Base map of the view ({source})",
     "horsLigne.preparerFondCase": "Base map of the whole area ({source}, zooms 6 to 13, about {duree})",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
+    "partage.ouvrir": "Share with the phone",
+    "partage.fermer": "Stop sharing",
+    "partage.ouvert": "Scan this code with hike2gpx on the phone, on the same Wi-Fi: {lots} bundle(s) and {fonds} base map(s), {taille}. The code changes with every share.",
+    "partage.erreur": "Sharing failed: {erreur}",
     "pleinEcran.entrer": "Full screen",
     "pleinEcran.quitter": "Exit full screen",
     "etape.debut": "Preparing the calculation",
@@ -1491,6 +1499,30 @@ function ajouterFonds(div, nom, vue) {
   div.append(bouton(t("horsLigne.preparerFondCase", { source, duree: "45 min" }), () => preparerFond(nom)));
 }
 
+// ------------------------------------------------------------ partage au téléphone
+// Le PC sert ses lots et ses fonds sur le Wi-Fi (partage.py), fermé par
+// défaut. Le QR code porte l'adresse du catalogue et un jeton tiré à chaque
+// ouverture ; il est dessiné par le serveur (SVG).
+function afficherPartage(r) {
+  etat.partage = r;
+  $("partagerTelephone").hidden = Boolean(r.ouvert);
+  $("partageOuvert").hidden = !r.ouvert;
+  $("partageQr").innerHTML = r.ouvert ? r.qr : "";
+  $("partageTexte").textContent = r.erreur ? t("partage.erreur", { erreur: ts(r.erreur) })
+    : r.ouvert ? t("partage.ouvert", { lots: r.lots.length, fonds: r.fonds.length, taille: tailleTexte(r.octets) }) : "";
+  $("partageTexte").hidden = !$("partageTexte").textContent;
+}
+
+async function basculerPartage(ouvrir) {
+  try {
+    afficherPartage(await api("partage", { ouvrir }));
+  } catch (e) {
+    afficherPartage({ ouvert: false, erreur: e.message });
+  }
+}
+$("partagerTelephone").addEventListener("click", () => basculerPartage(true));
+$("fermerPartage").addEventListener("click", () => basculerPartage(false));
+
 async function preparerFond(nom, zone = null) {
   carte.closePopup();
   const reponse = await api("preparer_fond", zone ? { case: nom, zone } : { case: nom });
@@ -2457,6 +2489,7 @@ async function demarrer() {
   chargerFonds();         // le fond hors ligne s'y ajoute s'il y en a
   rafraichirCalques();
   restaurerCases();       // lots installés, et fabrication en cours si la page a été rechargée
+  api("partage").then(afficherPartage).catch(() => {});   // un partage resté ouvert, page rechargée
 }
 
 demarrer();

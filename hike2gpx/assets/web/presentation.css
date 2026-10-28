@@ -169,6 +169,8 @@ body.profile-collapsed .map-activity{bottom:81px}
 #reglages .setting-row label{margin:0;font-size:12px;line-height:1.5;color:#546a80}
 .settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
 .display-settings{margin-top:17px;padding-top:7px;border-top:1px solid var(--bordure)}
+#reglages .partage-qr{margin:9px 0;background:#fff;width:max-content;padding:4px}
+#reglages .partage-qr svg{display:block;width:196px;height:auto}
 #reglages .display-settings .option{display:flex;align-items:flex-start;gap:9px;margin:0;padding:9px 0}
 .transparency-setting{display:block;margin-top:12px;font-size:12px;color:#42566d}
 .transparency-setting>div{display:flex;align-items:center;gap:12px;margin-top:5px}
