@@ -73,6 +73,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     ["Extrait OSM", "extraitOsm", "extraitTexte", "extraitPiste", "extraitBarre"],
     ["BRouter", "brouterEnCours", "brouterTexte", "brouterPiste", "brouterBarre"],
     ["Calcul du parcours", "progression", "progressionTexte", "progression", "progressionBarre"],
+    ["Lot hors ligne", "lotHorsLigne", "lotHorsLigneTexte", "lotHorsLignePiste", "lotHorsLigneBarre"],
   ].map(([label, sourceId, textId, trackId, barId]) => {
     const row = document.createElement("div");
     row.className = "map-activity-row";
