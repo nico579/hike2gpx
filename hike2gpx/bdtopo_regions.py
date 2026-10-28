@@ -14,8 +14,6 @@ archives régionales, GeoPackage « tous thèmes », quatre fois par an :
 """
 from __future__ import annotations
 
-import hashlib
-import http.client
 import logging
 import re
 import shutil
@@ -27,7 +25,8 @@ import xml.etree.ElementTree as ET
 from contextlib import closing
 from pathlib import Path
 
-from . import __version__
+from . import __version__, en_bloc
+from .en_bloc import ErreurArchive
 from .providers.core import lire_json
 
 journal = logging.getLogger(__name__)
@@ -37,11 +36,6 @@ TELECHARGEMENT = "https://data.geopf.fr/telechargement/download/BDTOPO/"
 ATOM = "{http://www.w3.org/2005/Atom}"
 GPF = "{https://data.geopf.fr/annexes/ressources/xsd/gpf_dl.xsd}"
 AGENT = {"User-Agent": f"hike2gpx/{__version__} (BD TOPO par régions)"}
-BLOC = 1 << 20
-
-
-class ErreurArchive(RuntimeError):
-    pass
 
 
 def regions_de_zone(sud: float, ouest: float, nord: float, est: float) -> list:
@@ -86,26 +80,7 @@ def derniere_edition(region: str, lire=_atom) -> dict:
 
 def _telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen) -> None:
     """Le fichier, repris là où il s'est arrêté (Range), puis contrôlé par son MD5."""
-    for essai in range(3):
-        deja = cible.stat().st_size if cible.exists() else 0
-        if deja < fichier["octets"]:
-            entetes = {**AGENT, **({"Range": f"bytes={deja}-"} if deja else {})}
-            try:
-                with ouvrir(urllib.request.Request(fichier["url"], headers=entetes), timeout=120) as reponse:
-                    mode = "ab" if deja and getattr(reponse, "status", 200) == 206 else "wb"
-                    with open(cible, mode) as f:
-                        shutil.copyfileobj(reponse, f, BLOC)
-            except (OSError, http.client.HTTPException) as exc:     # coupure : l'essai suivant reprend
-                journal.info("BD TOPO : %s coupé (%s), reprise", cible.name, exc)
-                continue
-        h = hashlib.md5()
-        with open(cible, "rb") as f:
-            while bloc := f.read(BLOC):
-                h.update(bloc)
-        if h.hexdigest() == fichier["md5"]:
-            return
-        cible.unlink()                  # contenu faux : on repart de zéro
-    raise ErreurArchive(f"{cible.name} : téléchargement impossible ou altéré.")
+    en_bloc.telecharger(fichier, cible, ouvrir)
 
 
 def geopackage(dossier, region: str, edition: dict | None = None) -> Path:

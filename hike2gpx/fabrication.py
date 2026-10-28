@@ -122,15 +122,16 @@ def cases_des_fournisseurs(dossier, fournisseurs=None) -> list:
 # Fournisseurs qui savent lire une case entière en bloc (archives, GeoPackage
 # national…) plutôt que tuile par tuile : seuls ceux-là sont fabriqués en case
 # entière sur le serveur (essais du 2026-10-27 : par le WFS, 3 h de fusion).
-EN_BLOC = ("ign",)
+EN_BLOC = ("ign", "zabaged")
 
 
 def lecteurs_en_bloc(dossier) -> tuple:
     """({fournisseur: lecture(sud, ouest, nord, est)}, {fournisseur: édition(…)})
-    des lecteurs en bloc, pour fabriquer(troncons=…, editions=…)."""
-    from . import bdtopo_regions
-    ign = bdtopo_regions.Lecteur(dossier)
-    return {"ign": ign}, {"ign": ign.date}
+    des lecteurs en bloc, pour fabriquer(troncons=…, editions=…). Chacun ne
+    télécharge qu'à la première emprise de son pays."""
+    from . import bdtopo_regions, zabaged_national
+    lecteurs = {"ign": bdtopo_regions.Lecteur(dossier), "zabaged": zabaged_national.Lecteur(dossier)}
+    return lecteurs, {cle: lecteur.date for cle, lecteur in lecteurs.items()}
 
 
 def _lecteur(dossier, fournisseurs: list, troncons: dict):
