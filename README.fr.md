@@ -16,8 +16,9 @@ barrière, le juge, puis interdit ou décourage son passage. À Garéoult (Var),
 le profil Randonnée standard de BRouter franchit une clôture en béton pour un
 trajet de 69 m ; hike2gpx la contourne par un détour de 435 m.
 
-Pour ordinateur : Windows, macOS et Linux. Le téléphone viendra plus tard,
-par l'application BRouter pour Android.
+Pour ordinateur : Windows, macOS et Linux. Une application Android, qui
+calcule hors ligne avec les lots, est en essai dans `android/` : elle n'est
+pas encore publiée.
 
 Installé depuis une release, hike2gpx se met à jour tout seul, comme les
 autres applications de nico579 : quand une version plus récente est publiée,
