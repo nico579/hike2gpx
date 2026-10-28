@@ -263,7 +263,10 @@ case propose deux façons d'obtenir son lot :
   [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles) ; la grille
   les montre en bleu. La case du Var, 247 Mo, arrive en quelques dizaines de
   secondes, reprise après une coupure, chaque fichier vérifié avant
-  l'installation.
+  l'installation. Pas besoin de cliquer : dès qu'un calcul ou les chemins de
+  la carte touchent une case publiée, son lot se télécharge de lui-même, et
+  le mode à la volée sert en attendant. Un lot venu du serveur se renouvelle
+  aussi tout seul quand le serveur en publie un plus récent.
 - **le préparer sur ce PC**, pour la vue affichée ou la case entière, partout
   dans le monde. Là où un fournisseur national existe (BD TOPO de l'IGN,
   ATKIS, ZABAGED, swissTLM3D, BDOT10k), ses chemins sont fusionnés dans
