@@ -136,3 +136,33 @@ def test_un_depot_injoignable_n_empeche_rien(tmp_path, monkeypatch):
     monkeypatch.setattr(depot.urllib.request, "urlopen", refuser)
     reponse = appli.Application(tmp_path / "donnees").catalogue_lots()
     assert reponse["lots"] == [] and "illisible" in reponse["erreur"]
+
+
+def test_le_lot_du_serveur_se_telecharge_de_lui_meme(tmp_path, monkeypatch):
+    # Décision de Nico du 2026-10-28 : la case qui sert vraiment (un calcul, un
+    # calque) reçoit d'elle-même le lot du serveur, qui prend le relais du
+    # mode à la volée.
+    from hike2gpx import application as appli
+    fabriquer_lot(tmp_path / "lots" / "E5_N40")
+    depot.ecrire_catalogue(tmp_path / "lots", tmp_path / "publication")
+    ouvrir, _ = servir(tmp_path / "publication")
+    monkeypatch.setattr(depot.urllib.request, "urlopen", ouvrir)
+    a = appli.Application(tmp_path / "donnees")
+    ailleurs, zone = (47.0, 2.0, 47.01, 2.01), (43.30, 5.50, 43.31, 5.51)
+    assert a._lot_automatique(zone, "essai") is False, "catalogue jamais lu : rien n'attend GitHub"
+    a.catalogue_lots()                                            # la page le lit à son ouverture
+    assert a._lot_automatique(ailleurs, "essai") is False, "rien au catalogue pour cette zone"
+    assert a._lot_automatique(zone, "essai") is True
+    assert a._avec_lot_automatique({})["lot_en_cours"]["auto"] is True, "la page suit l'avancement"
+    a._fil_lot.join(10)
+    assert a.lot_en_cours()["etape"] == "fini" and a.hors_ligne.origine("E5_N40") == {"depot": a.depot_lots}
+    assert a._lot_automatique(zone, "essai") is False, "à jour : rien à refaire"
+    # Plus récent au serveur : un lot du dépôt se renouvelle, un lot préparé ici non.
+    a._catalogue[1]["lots"][0]["sources"] = {"osm": "2026-11-01T00:00:00Z"}
+    assert [e["case"] for e in a._lots_a_telecharger(a._catalogue[1], zone)] == ["E5_N40"]
+    (a.hors_ligne.racine / "E5_N40" / "origine.json").unlink()
+    assert a._lots_a_telecharger(a._catalogue[1], zone) == []
+    # Retirée à la main, la case ne revient pas d'elle-même pendant la séance.
+    (a.hors_ligne.racine / "E5_N40" / "origine.json").write_text("{}")
+    a.supprimer_case({"case": "E5_N40"})
+    assert a._lots_a_telecharger(a._catalogue[1], zone) == []

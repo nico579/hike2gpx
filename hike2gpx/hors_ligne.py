@@ -28,6 +28,16 @@ from pathlib import Path
 
 from . import fonds, lot
 
+# Note de provenance d'un lot venu du dépôt du serveur, à côté du manifeste
+# (que le lot publié ne change pas) : ce lot est un cache, renouvelé tout seul.
+# Un lot préparé sur l'ordinateur n'en a pas.
+ORIGINE = "origine.json"
+
+
+def touche(boite, zone) -> bool:
+    """Les boîtes (sud, ouest, nord, est) se chevauchent-elles ?"""
+    return boite[0] < zone[2] and zone[0] < boite[2] and boite[1] < zone[3] and zone[1] < boite[3]
+
 
 class ErreurLot(ValueError):
     pass
@@ -70,6 +80,15 @@ class HorsLigne:
         chemin = self.dossier_fonds / f"{nom}.mbtiles"
         return chemin if chemin.is_file() else None
 
+    def origine(self, case: str) -> dict | None:
+        """La provenance notée à l'installation du lot de cette case : un dict
+        pour un lot du dépôt, None pour un lot préparé sur l'ordinateur."""
+        try:
+            origine = json.loads((self.racine / case / ORIGINE).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return origine if isinstance(origine, dict) else None
+
     def supprimer(self, case: str) -> int:
         """Retire de l'ordinateur tout ce qui sert la case hors ligne : son lot, sa RD5
         et ses fonds de carte (un voyage fini, une case qu'on ne visitera
@@ -100,9 +119,11 @@ class HorsLigne:
         self._franchissements.clear()
         lot._tuile_decodee.cache_clear()
 
-    def installer(self, source: Path) -> dict:
+    def installer(self, source: Path, origine: dict | None = None) -> dict:
         """Installe le lot du dossier source après vérification de chaque fichier
-        contre le manifeste. Remplace un lot plus ancien de la même case."""
+        contre le manifeste. Remplace un lot plus ancien de la même case.
+        origine : la provenance d'un lot venu du dépôt ({"depot": adresse du
+        catalogue}), notée à côté du manifeste ; None pour un lot préparé ici."""
         source = Path(source)
         try:
             manifeste = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
@@ -132,6 +153,8 @@ class HorsLigne:
             if f["nom"] != rd5:
                 shutil.copy2(source / f["nom"], provisoire / f["nom"])
         shutil.copy2(source / "manifest.json", provisoire / "manifest.json")
+        if origine:
+            (provisoire / ORIGINE).write_text(json.dumps(origine, ensure_ascii=False), encoding="utf-8")
         shutil.copy2(source / rd5, segments / f".{rd5}.part")
         shutil.rmtree(self.racine / case, ignore_errors=True)
         provisoire.replace(self.racine / case)

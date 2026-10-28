@@ -197,6 +197,7 @@ const TEXTES = {
     "horsLigne.mettreAJour": "Mettre à jour",
     "horsLigne.arreter": "Arrêter",
     "horsLigne.avancement": "Préparation hors ligne de {nom} : {etape}{compte}, depuis {duree}",
+    "horsLigne.automatique": "Lot de la case {nom}, téléchargé de lui-même depuis le serveur :{compte}, depuis {duree}. Il prendra le relais du mode à la volée.",
     "horsLigne.fini": "Case {nom} prête hors ligne.",
     "horsLigne.perime": "Le lot hors ligne de {nom} date du {date}, au-delà du délai de renouvellement. Le mettre à jour ?",
     "horsLigne.plusTard": "Plus tard",
@@ -421,6 +422,7 @@ const TEXTES = {
     "horsLigne.mettreAJour": "Update",
     "horsLigne.arreter": "Stop",
     "horsLigne.avancement": "Preparing {nom} for offline use: {etape}{compte}, for {duree}",
+    "horsLigne.automatique": "Bundle of the {nom} area, downloading by itself from the server:{compte}, for {duree}. It will take over from on-the-fly mode.",
     "horsLigne.fini": "Area {nom} ready offline.",
     "horsLigne.perime": "The offline data of {nom} dates from {date}, past the refresh delay. Update it?",
     "horsLigne.plusTard": "Later",
@@ -617,6 +619,9 @@ async function api(route, corps, signal) {
   const reponse = await fetch(`/api/${route}`, options);
   const donnees = await reponse.json().catch(() => ({}));
   if (!reponse.ok) throw new Error(donnees.error || `HTTP ${reponse.status}`);
+  // Un calcul ou un calque a lancé de lui-même le lot du serveur de la zone :
+  // la page suit son avancement, comme celui d'un lot demandé à la main.
+  if (donnees.lot_en_cours?.auto && donnees.lot_en_cours.actif && !minuterieLot) suivreLot();
   return donnees;
 }
 
@@ -1640,8 +1645,9 @@ function afficherLot(r) {
     // Un téléchargement compte en octets, une fabrication en tuiles ou mailles.
     const compte = !r.total ? "" : r.etape === "telechargement"
       ? ` ${tailleTexte(r.faites)} / ${tailleTexte(r.total)}` : ` ${r.faites}/${r.total}`;
-    message = t("horsLigne.avancement", { nom, etape: t(`horsLigne.etape.${r.etape}`), compte,
-      duree: dureeTexte(r.duree_s || 0) });
+    const duree = dureeTexte(r.duree_s || 0);
+    message = r.auto && r.etape === "telechargement" ? t("horsLigne.automatique", { nom, compte, duree })
+      : t("horsLigne.avancement", { nom, etape: t(`horsLigne.etape.${r.etape}`), compte, duree });
   } else if (r.erreur) {
     message = t("horsLigne.erreur", { nom, erreur: ts(r.erreur) });
   } else if (r.etape === "fini") {
@@ -2520,6 +2526,9 @@ async function demarrer() {
   restaurerCalques();     // avant le contrôle des fonds, pour que ses cases soient cochées
   construireFonds();
   chargerFonds();         // le fond hors ligne s'y ajoute s'il y en a
+  // Le catalogue du serveur, lu dès l'ouverture : un calcul ou un calque peut
+  // alors faire venir de lui-même le lot de sa zone (_lot_automatique).
+  api("catalogue_lots").then((r) => { lotsServeur = r.lots || []; }).catch(() => {});
   rafraichirCalques();
   restaurerCases();       // lots installés, et fabrication en cours si la page a été rechargée
   api("partage").then(afficherPartage).catch(() => {});   // un partage resté ouvert, page rechargée
