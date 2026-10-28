@@ -91,6 +91,10 @@ def test_telecharger_un_lot_reprend_une_coupure_et_verifie_tout(tmp_path, monkey
     assert (tmp_path / "travail" / "E5_N40.rd5").read_bytes() == (tmp_path / "lots" / "E5_N40" / "E5_N40.rd5").read_bytes()
     assert ("E5_N40.E5_N40.rd5", "bytes=700-") in demandes, "la coupure reprend où elle s'était arrêtée"
     assert suivi[-1][0] == suivi[-1][1] == catalogue["lots"][0]["octets"]
+    # Une seule barre pour tout le lot : le total couvre tous ses fichiers et
+    # l'avancement ne recule jamais d'un fichier au suivant.
+    assert {total for _, total in suivi} == {catalogue["lots"][0]["octets"]}
+    assert [f for f, _ in suivi] == sorted(f for f, _ in suivi)
     from hike2gpx import hors_ligne
     assert hors_ligne.HorsLigne(tmp_path / "donnees").installer(tmp_path / "travail")["case"] == "E5_N40"
 
