@@ -286,6 +286,18 @@ second at most). An interrupted base map resumes where it stopped. SCAN 25
 is not open data, so a base map stays on your computer: it is never
 published.
 
+### Sharing with the phone
+
+The phone takes the server's bundles from GitHub. What only your computer
+has, bundles prepared outside the server's countries and base maps, it gets
+from the computer, over Wi-Fi. In the settings, "Share with the phone" shows
+a QR code: scan it with hike2gpx on the phone, on the same network. The
+computer then serves its bundles and base maps, each file checked against
+its hash on arrival and resumed after a cut. Sharing stays closed until you
+open it, listens on the local network only, and its code changes every time
+it opens; "Stop sharing" closes it. The protocol is described in
+[docs/architecture/partage-telephone.md](docs/architecture/partage-telephone.md).
+
 ### Building bundles from the command line
 
 The page and the command line share the same code. The server works this way:

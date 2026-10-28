@@ -84,7 +84,7 @@ Un fond de carte :
 - `nom` : le nom du fichier sans extension, `<case>-<source>` pour une case
   entière, `<case>-<source>-vue-<6 hexadécimaux>` pour une vue ;
 - `zone` : `[sud, ouest, nord, est]` en degrés, comme les lots ;
-- `zoom` : `[min, max]`, les niveaux présents ; au-delà de `max`, on agrandit ;
+- `zoom` : `[min, max]`, une plage de deux entiers, les niveaux présents (bornes comprises) ; au-delà de `max`, on agrandit ;
 - `source` : `scan25` (SCAN 25 de l'IGN, avec clé) ou `plan` (Plan IGN,
   Licence Ouverte) ;
 - `octets`, `sha256`, `url` : comme un fichier de lot.

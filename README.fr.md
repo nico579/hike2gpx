@@ -291,6 +291,19 @@ hike2gpx ménage le service de l'IGN (dix tuiles par seconde au plus). Un fond
 interrompu reprend où il s'était arrêté. Le SCAN 25 n'étant pas une donnée
 libre, un fond reste sur votre PC : il n'est jamais publié.
 
+### Partager au téléphone
+
+Le téléphone prend les lots du serveur sur GitHub. Ce que seul votre PC
+possède, les lots préparés hors des pays du serveur et les fonds de carte, il
+le reçoit de lui, par le Wi-Fi. Dans les réglages, « Partager au téléphone »
+affiche un QR code : scannez-le avec hike2gpx sur le téléphone, connecté au
+même réseau. Le PC sert alors ses lots et ses fonds, chaque fichier vérifié
+par son empreinte à l'arrivée, repris après une coupure. Le partage est fermé
+tant que vous ne l'ouvrez pas, n'écoute que sur le réseau local, et son code
+change à chaque ouverture ; « Arrêter le partage » le referme. Le détail du
+protocole est dans
+[docs/architecture/partage-telephone.md](docs/architecture/partage-telephone.md).
+
 ### Fabriquer des lots en ligne de commande
 
 La page et la ligne de commande partagent le même code. C'est ainsi que
