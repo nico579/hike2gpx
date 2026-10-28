@@ -1,0 +1,42 @@
+# L'application Android : tests unitaires (JVM) et APK de débogage, à chaque
+# demande de fusion qui touche android/, et à la demande. L'APK, signé de la
+# clé de débogage que Gradle crée sur place, s'installe à la main sur un
+# téléphone ; il n'est pas publié.
+name: Android
+
+on:
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'tools/profils_android.py'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true              # BRouter 1.7.10, compilé dans l'APK
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      # Cache Gradle et contrôle du gradle-wrapper.jar contre les empreintes publiées.
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Tests unitaires et APK
+        working-directory: android
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: hike2gpx-android
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/reports/tests/testDebugUnitTest/
+          retention-days: 14
