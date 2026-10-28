@@ -467,3 +467,57 @@ def test_la_commande_cells_et_bundles_bulk(tmp_path, monkeypatch, capsys):
     assert demandes["fournisseurs"] == ["ign"] and demandes["troncons"] == {"ign": "lecteur"}
     assert "laissés de côté" in capsys.readouterr().out
 
+
+def test_le_manifeste_ne_declare_que_les_fournisseurs_qui_ont_apporte(tmp_path, osm_installe, monkeypatch):
+    # W5_N50 : le contour Geofabrik de la France déborde en mer au-dessus du
+    # Cotentin ; la case, anglaise, ne doit pas se dire « IGN ».
+    from hike2gpx import brouter, relief
+
+    def compiler(inst, pbf, dossier, **options):
+        (dossier / "segments").mkdir(parents=True)
+        (dossier / "segments" / "E5_N40.rd5").write_bytes(b"rd5")
+        return dossier / "segments"
+    monkeypatch.setattr(brouter, "fabriquer_tuiles", compiler)
+    monkeypatch.setattr(relief, "fabriquer", lambda *a, **o: tmp_path / "bef")
+    m = json.loads(fabrication.fabriquer(
+        tmp_path / "donnees", Compilation(), "E5_N40", tmp_path / "lot", zone=ZONE, fournisseurs=["ign", "swisstlm3d"],
+        troncons={"ign": lambda *b: [CHEMIN_IGN], "swisstlm3d": lambda *b: []},
+        editions={"ign": "2026-09-15", "swisstlm3d": "2026-03-01"}).read_text("utf-8"))
+    assert m["fournisseurs"] == ["ign"] and m["fournisseurs_demandes"] == ["ign", "swisstlm3d"]
+    assert "swisstlm3d" not in m["sources"] and "swissTLM3D" not in m["attribution"]
+    a_jour = lambda **o: fabrication.lot_a_jour(tmp_path / "lot", osm="2026-10-25T21:21:21Z", **o)
+    assert a_jour(fournisseurs=["ign", "swisstlm3d"], editions={"ign": "2026-09-15", "swisstlm3d": "2026-03-01"}), \
+        "pas refait chaque semaine pour un fournisseur qui n'apporte rien"
+    assert not a_jour(fournisseurs=["ign"]), "la demande a changé"
+
+
+def test_le_relief_d_une_case_entiere_n_est_construit_qu_une_fois(tmp_path, osm_installe, monkeypatch):
+    from hike2gpx import brouter, relief
+    construits = []
+
+    def construire(inst, boite, dossier, cache, **o):
+        construits.append(o["zone"])
+        (dossier / "bef").mkdir(parents=True)
+        (dossier / "bef" / f"{relief.nom_bef(40, 5)}.bef").write_bytes(b"relief")
+        return dossier / "bef"
+
+    def compiler(inst, pbf, dossier, *, relief=None, tas="1g"):
+        assert (relief / "srtm_38_04.bef").is_file()
+        (dossier / "segments").mkdir(parents=True)
+        (dossier / "segments" / "E5_N40.rd5").write_bytes(b"rd5")
+        return dossier / "segments"
+    monkeypatch.setattr(relief, "fabriquer", construire)
+    monkeypatch.setattr(brouter, "fabriquer_tuiles", compiler)
+    monkeypatch.setattr(fabrication, "_calques",
+                        lambda dossier, case, boite, zone, sortie, *a, **o:
+                        (sortie / "calques.mbtiles").write_bytes(b"calques") and ({}, set()))
+    fabriquer = lambda sortie, **o: fabrication.fabriquer(tmp_path / "donnees", Compilation(), "E5_N40", sortie,
+                                                          fournisseurs=["ign"], troncons={"ign": lambda *b: []}, **o)
+    fabriquer(tmp_path / "vue", zone=ZONE)
+    assert not relief.fichier_bef(tmp_path / "donnees", (40, 5, 45, 10)).exists(), "une vue garde son relief partiel"
+    fabriquer(tmp_path / "case1")
+    fabriquer(tmp_path / "case2")
+    assert len(construits) == 2, "la vue, puis la case une seule fois"
+    assert relief.fichier_bef(tmp_path / "donnees", (40, 5, 45, 10)).read_bytes() == b"relief"
+    assert "brouter-" in relief.fichier_bef(tmp_path, (40, 5, 45, 10)).parent.name, "rangé par version de BRouter"
+

@@ -103,8 +103,31 @@ jobs:
           done
           ls -la "$RUNNER_TEMP/lots/$CASE"
 
+      - name: Reprendre le relief publié
+        run: |
+          # Le relief d'une case ne change jamais : publié une fois sous le nom
+          # relief.<version de BRouter>.<fichier>, il évite les 4 800 tuiles
+          # Mapterhorn des fois suivantes.
+          BEF=$(python -c "import sys; from hike2gpx import lot, relief; print(relief.fichier_bef(sys.argv[1], lot.boite_case(sys.argv[2])))" "$HIKE2GPX_HOME" "$CASE")
+          ACTIF="relief.$(basename "$(dirname "$BEF")").$(basename "$BEF")"
+          echo "BEF=$BEF" >> "$GITHUB_ENV"; echo "ACTIF=$ACTIF" >> "$GITHUB_ENV"
+          mkdir -p "$(dirname "$BEF")"
+          if gh release download bundles --repo "$GITHUB_REPOSITORY" --pattern "$ACTIF" --dir "$RUNNER_TEMP"; then
+            mv "$RUNNER_TEMP/$ACTIF" "$BEF" && echo "RELIEF_PUBLIE=1" >> "$GITHUB_ENV" && echo "relief repris : $ACTIF"
+          fi
+
       - name: Fabriquer la case
         run: python -m hike2gpx bundles "$CASE" --bulk --output "$RUNNER_TEMP/lots"
+
+      - name: Publier le relief
+        if: env.RELIEF_PUBLIE != '1'
+        run: |
+          [ -f "$BEF" ] || { echo "pas de relief de case entière à publier"; exit 0; }
+          gh release view bundles --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create bundles --repo "$GITHUB_REPOSITORY" --title "Lots hors ligne de hike2gpx" \
+                 --notes "Lots hors ligne des cases BRouter, refaits chaque semaine. Catalogue : catalog.json." || true
+          cp "$BEF" "$RUNNER_TEMP/$ACTIF"
+          gh release upload bundles "$RUNNER_TEMP/$ACTIF" --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Garder le lot pour la publication
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -144,7 +167,8 @@ jobs:
           # Les lots publiés jusqu'ici, puis ceux de cette semaine par-dessus : le
           # catalogue liste toutes les cases, même celles qui ont échoué cette fois.
           mkdir -p "$RUNNER_TEMP/publie" "$RUNNER_TEMP/lots"
-          gh release download bundles --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/publie" || true
+          # Les fichiers des lots seulement (E5_N40.…, W5_N45.…), pas les reliefs.
+          gh release download bundles --repo "$GITHUB_REPOSITORY" --pattern "[EW]*" --dir "$RUNNER_TEMP/publie" || true
           for f in "$RUNNER_TEMP"/publie/*.*.*; do
             [ -e "$f" ] || continue
             nom=${f##*/}; case=${nom%%.*}

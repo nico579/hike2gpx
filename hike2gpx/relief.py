@@ -144,6 +144,13 @@ def nom_bef(lat_sud: int, lon_ouest: int) -> str:
     return f"srtm_{(lon_ouest + 180) // 5 + 1:02d}_{(60 - lat_sud) // 5:02d}"
 
 
+def fichier_bef(dossier, boite: tuple) -> Path:
+    """Le relief gardé d'une case entière, rangé par version de BRouter : le
+    format .bef est celui de son convertisseur. Le serveur le publie sous le
+    nom relief.<dossier>.<fichier> (relief.brouter-1.7.10.srtm_38_04.bef)."""
+    return Path(dossier) / "relief-cases" / f"brouter-{brouter.VERSION}" / f"{nom_bef(int(boite[0]), int(boite[1]))}.bef"
+
+
 def fabriquer(inst: brouter.Installation, boite: tuple, dossier: Path, cache_tuiles: Path, *,
               zone: tuple | None = None, suivi=None, continuer=None) -> Path:
     """Le relief de la case boite (sud, ouest, nord, est) dans dossier/bef,
