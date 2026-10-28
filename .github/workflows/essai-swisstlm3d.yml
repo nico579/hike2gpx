@@ -1,0 +1,79 @@
+# Exploration, pas production : comment le GeoPackage national swissTLM3D
+# range-t-il les chemins (objektart 15 à 18 du service en ligne, sans
+# restriction : verkehrsbeschraenkung 100) ? Les codes du service en ligne
+# sont rapprochés des valeurs du fichier par la position des mêmes objets.
+name: Essai swissTLM3D (exploration)
+
+on:
+  push:
+    branches: [essai/swisstlm3d]
+
+permissions:
+  contents: read
+
+jobs:
+  explorer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Télécharger l'édition 2026-02
+        run: |
+          url=$(curl -sSL -m 60 "https://data.geo.admin.ch/api/stac/v0.9/collections/ch.swisstopo.swisstlm3d/items/swisstlm3d_2026-02" \
+                | jq -r '.assets | to_entries[] | select(.key | endswith(".gpkg.zip")) | .value.href')
+          echo "fichier : $url"; test -n "$url"
+          time curl -sSL --retry 5 -C - -o "$RUNNER_TEMP/t.zip" "$url"
+          ls -la "$RUNNER_TEMP/t.zip"; df -h "$RUNNER_TEMP"
+          time unzip -q -o "$RUNNER_TEMP/t.zip" -d "$RUNNER_TEMP/t"; rm "$RUNNER_TEMP/t.zip"
+
+      - name: Tables des routes et chemins
+        run: |
+          g=$(find "$RUNNER_TEMP/t" -name '*.gpkg' | head -1); ls -la "$g"
+          python3 - "$g" <<'EOF'
+          import json, sqlite3, sys, urllib.request
+          b = sqlite3.connect(sys.argv[1])
+          contenu = b.execute("SELECT table_name, data_type, srs_id FROM gpkg_contents").fetchall()
+          print(len(contenu), "couches ; srs :", sorted({c[2] for c in contenu}))
+          print("toutes :", sorted(c[0] for c in contenu))
+          for nom, genre, srs in contenu:
+              if "strass" in nom.lower() or "weg" in nom.lower():
+                  colonnes = [r[1:4] for r in b.execute(f'PRAGMA table_info("{nom}")')]
+                  n = b.execute(f'SELECT count(*) FROM "{nom}"').fetchone()[0]
+                  geom = b.execute("SELECT column_name, geometry_type_name, z FROM gpkg_geometry_columns WHERE table_name=?", (nom,)).fetchall()
+                  rtree = b.execute("SELECT name FROM sqlite_master WHERE name LIKE ?", (f"rtree_{nom}%",)).fetchall()
+                  print(f"\n{nom} ({genre}, srs {srs}) : {n} objets ; géométrie {geom} ; index {rtree}")
+                  print("  colonnes :", colonnes)
+                  noms = [c[0] for c in colonnes]
+                  for c in ("objektart", "verkehrsbeschraenkung", "kunstbaute", "wanderwege", "befahrbarkeit"):
+                      if c in noms:
+                          print(f"  {c} :", b.execute(f'SELECT "{c}", count(*) FROM "{nom}" GROUP BY 1 ORDER BY 2 DESC').fetchall()[:40])
+          # Les mêmes objets, vus du service en ligne : codes contre valeurs du fichier.
+          table = next((c[0] for c in contenu if c[0].lower() == "tlm_strassen_strasse"), None)
+          if table:
+              cle = [r[1] for r in b.execute(f'PRAGMA table_info("{table}")') if r[5]][0]
+              geo = b.execute("SELECT column_name FROM gpkg_geometry_columns WHERE table_name=?", (table,)).fetchone()[0]
+              paires = {}
+              for x, y in ((2702000, 1118000), (2620000, 1150000), (2780000, 1180000), (2600000, 1200000)):
+                  box = f"{x},{y},{x + 1500},{y + 1500}"
+                  url = ("https://api3.geo.admin.ch/rest/services/api/MapServer/identify?geometryType=esriGeometryEnvelope"
+                         f"&geometry={box}&sr=2056&layers=all:ch.swisstopo.swisstlm3d-strassen&tolerance=0"
+                         f"&returnGeometry=true&geometryFormat=geojson&limit=200&mapExtent={box}&imageDisplay=1024,1024,96")
+                  for objet in json.load(urllib.request.urlopen(url, timeout=60)).get("results", []):
+                      geom = objet.get("geometry") or {}
+                      lignes = geom.get("coordinates", [])
+                      if geom.get("type") == "LineString":
+                          lignes = [lignes]
+                      pts = [p for l in lignes for p in l]
+                      if not pts:
+                          continue
+                      xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+                      for ligne in b.execute(f'SELECT t.objektart, t.verkehrsbeschraenkung FROM "rtree_{table}_{geo}" r '
+                                             f'JOIN "{table}" t ON t."{cle}" = r.id WHERE abs(r.minx - ?) < 1 AND abs(r.maxx - ?) < 1 '
+                                             f'AND abs(r.miny - ?) < 1 AND abs(r.maxy - ?) < 1',
+                                             (min(xs), max(xs), min(ys), max(ys))):
+                          a = objet.get("attributes") or objet.get("properties") or {}
+                          paire = (a.get("objektart"), ligne[0], a.get("verkehrsbeschraenkung"), ligne[1])
+                          paires[paire] = paires.get(paire, 0) + 1
+              print("\nservice en ligne -> fichier (objektart, objektart, verkehrsbeschraenkung, verkehrsbeschraenkung) :")
+              for paire, n in sorted(paires.items(), key=lambda p: str(p)):
+                  print(" ", paire, n)
+          EOF
