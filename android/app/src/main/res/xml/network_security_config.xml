@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Un PC du réseau local sert souvent son dépôt en HTTP simple, sans certificat :
+  le texte clair est donc permis ici, et LienDepot.verifierAdresse le limite aux
+  adresses locales. GitHub reste en HTTPS.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
