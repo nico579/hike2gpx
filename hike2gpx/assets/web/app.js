@@ -197,6 +197,8 @@ const TEXTES = {
     "horsLigne.mettreAJour": "Mettre à jour",
     "horsLigne.arreter": "Arrêter",
     "horsLigne.avancement": "Préparation hors ligne de {nom} : {etape}{compte}, depuis {duree}",
+    "horsLigne.attenteCalques": "Chemins de la carte : en attente du lot hors ligne de la zone, qui se télécharge.",
+    "horsLigne.attenteCalcul": "Le lot hors ligne de la zone se télécharge : le calcul reprendra dès son arrivée.",
     "horsLigne.automatique": "Lot de la case {nom}, téléchargé de lui-même depuis le serveur :{compte}, depuis {duree}. Il prendra le relais du mode à la volée.",
     "horsLigne.fini": "Case {nom} prête hors ligne.",
     "horsLigne.perime": "Le lot hors ligne de {nom} date du {date}, au-delà du délai de renouvellement. Le mettre à jour ?",
@@ -422,6 +424,8 @@ const TEXTES = {
     "horsLigne.mettreAJour": "Update",
     "horsLigne.arreter": "Stop",
     "horsLigne.avancement": "Preparing {nom} for offline use: {etape}{compte}, for {duree}",
+    "horsLigne.attenteCalques": "Map paths: waiting for the area's offline bundle, which is downloading.",
+    "horsLigne.attenteCalcul": "The area's offline bundle is downloading: the route will be computed as soon as it arrives.",
     "horsLigne.automatique": "Bundle of the {nom} area, downloading by itself from the server:{compte}, for {duree}. It will take over from on-the-fly mode.",
     "horsLigne.fini": "Area {nom} ready offline.",
     "horsLigne.perime": "The offline data of {nom} dates from {date}, past the refresh delay. Update it?",
@@ -1090,6 +1094,13 @@ async function chargerCalque(cle, zone) {
     noteCalques(`${nom} : ${ts(donnees.erreur)}`);
     return;
   }
+  if (donnees.attente_lot) {
+    // Le lot de la zone se télécharge : rien à la volée, le calque se relit
+    // depuis le lot à son arrivée (suivreLot).
+    calque.charge = null;
+    noteCalques(t("horsLigne.attenteCalques"));
+    return;
+  }
   calque.groupe.clearLayers();
   DESSINS[cle](calque.groupe, donnees);
   // Les tuiles lues débordent la vue : tant qu'elle y reste, rien à redemander.
@@ -1379,6 +1390,7 @@ let lotsInstalles = [];
 let lotsServeur = [];            // le catalogue du dépôt (catalogue_lots), avec l'état de chaque lot ici
 let lotEnCours = { actif: false };
 let minuterieLot = null;
+let lotSuivi = false;       // un lot suivi était en cours : à sa fin, calques et calcul repartent
 // Les fonds de carte téléchargés sur ce PC (fonds.py) : un MBTiles chacun,
 // servi tuile par tuile par /fonds/<nom>/{z}/{x}/{y}, sans réseau.
 let fondsInstalles = [];
@@ -1695,11 +1707,22 @@ async function suivreLot() {
   }
   afficherLot(lotEnCours);
   if (lotEnCours.actif) {
+    lotSuivi = true;
     minuterieLot = setTimeout(suivreLot, 2000);
     dessinerCases();
   } else {
     await chargerLots();
     chargerFonds();         // sans l'attendre : la grille est déjà à jour
+    if (lotSuivi) {
+      // Le lot est arrivé (ou a échoué) : les calques et le calcul qui
+      // l'attendaient repartent, sur lui ou à la volée.
+      lotSuivi = false;
+      rafraichirCalques();
+      if (etat.attenteLot) {
+        etat.attenteLot = false;
+        if (etat.points.length >= 2) planifierCalcul();
+      }
+    }
   }
 }
 
@@ -1993,6 +2016,12 @@ function boutonAction(libelle, action) {
 }
 
 function afficherErreur(reponse) {
+  if (reponse.code === "attente_lot") {
+    // Pas une erreur : le calcul attend le lot de la zone, puis reprend (suivreLot).
+    afficherStatut(() => t("horsLigne.attenteCalcul"));
+    etat.attenteLot = true;
+    return;
+  }
   effacerResultat();
   const osmIndisponible = /Overpass|barrières non vérifiées|OSM.*indisponibles/i.test(reponse.erreur || "");
   afficherStatut(() => osmIndisponible ? t("statut.donneesIndisponibles") : texteErreur(reponse), true);
