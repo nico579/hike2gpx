@@ -98,6 +98,41 @@ def fournisseurs_de_zone(dossier, zone: tuple) -> list:
     return [cle for cle, contour in couvertures(dossier).items() if contour.intersects(boite)]
 
 
+def nom_case(sud: int, ouest: int) -> str:
+    """Le nom BRouter de la case de 5° dont le coin sud-ouest est donné (E5_N40)."""
+    return f"{'W' if ouest < 0 else 'E'}{abs(ouest)}_{'S' if sud < 0 else 'N'}{abs(sud)}"
+
+
+def cases_des_fournisseurs(dossier, fournisseurs=None) -> list:
+    """Les cases de 5° que touche le pays d'au moins un de ces fournisseurs (tous
+    par défaut) : la liste que le serveur fabrique, tirée des contours, jamais
+    écrite à la main. Un fournisseur ajouté entre ainsi de lui-même au serveur."""
+    cases = set()
+    for cle, contour in couvertures(dossier).items():
+        if fournisseurs is not None and cle not in fournisseurs or contour.is_empty:
+            continue
+        o, s, e, n = contour.bounds
+        for sud in range(int(s // 5 * 5), int(n // 5 * 5) + 5, 5):
+            for ouest in range(int(o // 5 * 5), int(e // 5 * 5) + 5, 5):
+                if contour.intersects(shapely.box(ouest, sud, ouest + 5, sud + 5)):
+                    cases.add(nom_case(sud, ouest))
+    return sorted(cases)
+
+
+# Fournisseurs qui savent lire une case entière en bloc (archives, GeoPackage
+# national…) plutôt que tuile par tuile : seuls ceux-là sont fabriqués en case
+# entière sur le serveur (essais du 2026-10-27 : par le WFS, 3 h de fusion).
+EN_BLOC = ("ign",)
+
+
+def lecteurs_en_bloc(dossier) -> tuple:
+    """({fournisseur: lecture(sud, ouest, nord, est)}, {fournisseur: édition(…)})
+    des lecteurs en bloc, pour fabriquer(troncons=…, editions=…)."""
+    from . import bdtopo_regions
+    ign = bdtopo_regions.Lecteur(dossier)
+    return {"ign": ign}, {"ign": ign.date}
+
+
 def _lecteur(dossier, fournisseurs: list, troncons: dict):
     """Lecture commune des tronçons de plusieurs fournisseurs : chacun n'est
     interrogé que sur son pays, et chaque tronçon porte sa source."""

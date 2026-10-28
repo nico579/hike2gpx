@@ -12,9 +12,10 @@ on:
   workflow_call:
     inputs:
       cases:
-        description: Cases BRouter à fabriquer, séparées par des espaces
+        description: Cases BRouter à fabriquer, séparées par des espaces ; vide, toutes celles
+          que touchent les pays des fournisseurs lisibles en bloc (hike2gpx cells --bulk-only)
         type: string
-        required: true
+        default: ""
       ref:
         description: Version de hike2gpx qui fabrique
         type: string
@@ -28,11 +29,37 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       cases: ${{ steps.cases.outputs.cases }}
+    env:
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
     steps:
+      - name: Checkout hike2gpx
+        if: inputs.cases == ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        if: inputs.cases == ''
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        if: inputs.cases == ''
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
       - id: cases
         env:
           CASES: ${{ inputs.cases }}
-        run: echo "cases=$(jq -cn --arg c "$CASES" '$c | split(" ") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
+        run: |
+          # Sans liste donnée, les cases se déduisent des contours des pays : un
+          # fournisseur qui gagne une lecture en bloc entre de lui-même au serveur.
+          if [ -z "$CASES" ]; then CASES=$(python -m hike2gpx cells --bulk-only); fi
+          echo "cases : $CASES"
+          echo "cases=$(jq -cn --arg c "$CASES" '$c | split(" ") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
 
   case:
     needs: liste
@@ -77,7 +104,7 @@ jobs:
           ls -la "$RUNNER_TEMP/lots/$CASE"
 
       - name: Fabriquer la case
-        run: python -m hike2gpx bundles "$CASE" --ign-regions --output "$RUNNER_TEMP/lots"
+        run: python -m hike2gpx bundles "$CASE" --bulk --output "$RUNNER_TEMP/lots"
 
       - name: Garder le lot pour la publication
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
