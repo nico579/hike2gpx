@@ -141,9 +141,14 @@ def _lecteur(dossier, fournisseurs: list, troncons: dict):
 
     def lire(sud, ouest, nord, est):
         boite = shapely.box(ouest, sud, est, nord)
-        return [{**t, "source": s} for s, lecteur in lecteurs.items()
-                if s not in contours or contours[s].intersects(boite)
-                for t in lecteur(sud, ouest, nord, est)]
+        troncons_lus = [{**t, "source": s} for s, lecteur in lecteurs.items()
+                        if s not in contours or contours[s].intersects(boite)
+                        for t in lecteur(sud, ouest, nord, est)]
+        lire.apportes.update(t["source"] for t in troncons_lus)
+        return troncons_lus
+    # Les fournisseurs qui ont rendu au moins un tronçon : un contour de pays
+    # déborde en mer (la France au-dessus du Cotentin touche W5_N50, anglaise).
+    lire.apportes = set()
     return lire
 
 
@@ -204,11 +209,18 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
                                            suivi, continuer)
         _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer,
                  franchissements=franchissements, troncons=lire)
+        # Le manifeste ne déclare que les fournisseurs qui ont réellement apporté
+        # des tronçons ; les demandés restent notés, pour savoir si le lot est à jour.
+        apportes = [s for s in fournisseurs if s in lire.apportes]
+        if apportes != list(fournisseurs):
+            noms = ", ".join(providers.source(s).nom for s in apportes) or "aucun"
+            attribution = (f"© contributeurs OpenStreetMap (ODbL) ; chemins {noms} ; "
+                           f"{relief.ATTRIBUTION} ; itinéraires BRouter")
         sources = {"osm": max((d for d in dates if d), default=None),
-                   **{providers.source(s).calque: editions.get(s) or time.strftime("%Y-%m-%d") for s in fournisseurs},
+                   **{providers.source(s).calque: editions.get(s) or time.strftime("%Y-%m-%d") for s in apportes},
                    "relief": "Mapterhorn, zoom 12"}
-        autres = {"type": "enrichi", "fournisseurs": list(fournisseurs), "zone": list(zone),
-                  "emprise_enrichie": list(zone), "attribution": attribution}
+        autres = {"type": "enrichi", "fournisseurs": apportes, "fournisseurs_demandes": list(fournisseurs),
+                  "zone": list(zone), "emprise_enrichie": list(zone), "attribution": attribution}
 
     with gzip.open(sortie / "franchissements.json.gz", "wt", encoding="utf-8") as f:
         json.dump(franchissements, f, ensure_ascii=False)
@@ -266,11 +278,20 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
 
     def suivi_relief(etape, faites, total):
         suivi("relief", faites, total)
-    try:
-        bef = relief.fabriquer(installation, boite, travail / "relief", relief.cache(dossier),
-                               zone=zone, suivi=suivi_relief, continuer=continuer)
-    except relief.Abandon as exc:
-        raise Abandon() from exc
+    # Le relief d'une case entière ne change jamais : gardé (et publié par le
+    # serveur) une fois pour toutes ; une vue garde son relief partiel.
+    bef_garde = relief.fichier_bef(dossier, boite) if tuple(zone) == tuple(boite) else None
+    if bef_garde is not None and bef_garde.is_file():
+        bef = bef_garde.parent
+    else:
+        try:
+            bef = relief.fabriquer(installation, boite, travail / "relief", relief.cache(dossier),
+                                   zone=zone, suivi=suivi_relief, continuer=continuer)
+        except relief.Abandon as exc:
+            raise Abandon() from exc
+        if bef_garde is not None:
+            bef_garde.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(bef / bef_garde.name, bef_garde)
     suivi("compilation", 0, 1)
     installation.preparer_maison()
     aire = (zone[2] - zone[0]) * (zone[3] - zone[1])
@@ -400,9 +421,14 @@ def lot_a_jour(chemin: Path, *, osm: str | None, fournisseurs: list = (), editio
     except (OSError, ValueError):
         return False
     sources = m.get("sources", {})
-    return (m.get("format") == lot.FORMAT and sorted(m.get("fournisseurs", [])) == sorted(fournisseurs)
+    demandes = m.get("fournisseurs_demandes", m.get("fournisseurs", []))
+    apportes = m.get("fournisseurs", [])
+    # Un fournisseur demandé mais sans tronçon (sa case est hors de son pays) n'a
+    # pas d'édition au manifeste : seule celle des fournisseurs apportés compte.
+    return (m.get("format") == lot.FORMAT and sorted(demandes) == sorted(fournisseurs)
             and osm is not None and (sources.get("osm") or "") >= osm
-            and all(sources.get(providers.source(s).calque) == edition for s, edition in (editions or {}).items()))
+            and all(sources.get(providers.source(s).calque) == edition for s, edition in (editions or {}).items()
+                    if s in apportes))
 
 
 def _mettre_en_place(travail: Path, cible: Path) -> None:
