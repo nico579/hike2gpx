@@ -27,6 +27,7 @@ def mode_en_ligne(monkeypatch):
     monkeypatch.setattr(geofabrik, "extraits_de_tuile",
                         lambda dossier, i, j: [{"id": "paca", "date": "2026-10-25T21:21:21Z"}] if (i, j) == TUILE else [])
     monkeypatch.setattr(geofabrik, "regions", lambda dossier: [])
+    monkeypatch.setattr(geofabrik, "regions_attendues", lambda dossier: [])
     monkeypatch.setattr(geofabrik, "installes", lambda dossier: [])
 
     def voies(sud, ouest, nord, est, dossier, **options):
@@ -144,7 +145,7 @@ def test_un_arret_pendant_les_calques_libere_leur_fichier(tmp_path, mode_en_lign
 
 def test_regions_a_installer_pour_les_tuiles_sans_extrait(tmp_path, monkeypatch):
     region = {"id": "provence-alpes-cote-d-azur", "bornes": (42.9, 4.2, 45.2, 7.8)}
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [region])
+    monkeypatch.setattr(geofabrik, "regions_attendues", lambda dossier: [region])
     monkeypatch.setattr(geofabrik, "installes", lambda dossier: [])
     monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda dossier, i, j: [])
     monkeypatch.setattr(geofabrik, "regions_de_tuile", lambda regions, i, j: [region])
@@ -271,7 +272,7 @@ REGIONS = [{"id": "france", "polygones": [[[(-5, 41), (7, 41), (7, 51), (-5, 51)
 
 
 def test_les_fournisseurs_d_une_zone_suivent_les_frontieres(tmp_path, monkeypatch):
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier: REGIONS)
+    monkeypatch.setattr(geofabrik, "regions_attendues", lambda dossier: REGIONS)
     assert fabrication.fournisseurs_de_zone(tmp_path, ZONE) == ["ign"]
     assert fabrication.fournisseurs_de_zone(tmp_path, (46.0, 6.9, 46.1, 7.1)) == ["ign", "swisstlm3d"], \
         "une case frontalière prend les deux"
@@ -405,3 +406,37 @@ def test_la_commande_bundles_refuse_les_options_invalides(arguments):
     with pytest.raises(SystemExit) as sortie:
         main(arguments)
     assert sortie.value.code == 2
+
+
+def test_un_extrait_trop_gros_est_saute_pas_fatal(tmp_path, mode_en_ligne, monkeypatch):
+    # Essai GitHub Actions du 2026-10-27 : les tuiles en mer de E5_N40 ne sont
+    # contenues que par l'Europe (32,9 Go), et le lot entier échouait.
+    europe = {"id": "europe", "bornes": (34.0, -25.0, 72.0, 45.0)}
+    monkeypatch.setattr(fabrication, "regions_a_installer", lambda dossier, zone: [europe])
+
+    def installer(dossier, region, continuer=None):
+        raise geofabrik.ExtraitEcarte("extrait trop gros (32.9 Go), Overpass reste la source")
+    monkeypatch.setattr(geofabrik, "installer", installer)
+    manifeste = fabrication.fabriquer(tmp_path / "donnees", Installation(), "E5_N40", tmp_path / "lot", zone=ZONE)
+    assert manifeste.is_file()
+
+
+def test_la_fabrication_attend_l_index_des_regions(tmp_path, monkeypatch):
+    # Sur une machine neuve, regions() rend [] le temps de bâtir l'index : la
+    # page n'attend pas, une fabrication si (sinon aucun fournisseur trouvé).
+    regions = [{**r, "bornes": [40.0, -5.0, 51.0, 7.0]} for r in REGIONS]
+    index = geofabrik.Index("d'essai", "index-essai.json", lambda ouvrir: regions)
+    assert [r["id"] for r in index.attendre(tmp_path)] == ["france", "switzerland", "poland"]
+
+
+def test_les_calques_ne_lisent_que_la_tuile_demandee(tmp_path, mode_en_ligne, monkeypatch):
+    # Essai GitHub Actions du 2026-10-27 : les bornes exactes d'une tuile
+    # touchent ses voisines du nord et de l'est ; chaque tuile en lisait quatre,
+    # et une voisine en mer, sans extrait, partait vers Overpass (HTTP 502).
+    lues = []
+    voies = fr.voies_affichables
+    monkeypatch.setattr(fr, "voies_affichables",
+                        lambda *bornes, **o: lues.append(fr.tuiles_zone(*bornes[:4])) or voies(*bornes, **o))
+    fabrication.fabriquer(tmp_path / "donnees", Installation(), "E5_N40", tmp_path / "lot", zone=ZONE)
+    assert lues == [[TUILE]]
+

@@ -14,6 +14,7 @@ Attribution : https://mapterhorn.com/attribution (dont IGN pour la France).
 """
 from __future__ import annotations
 
+import http.client
 import math
 import os
 import shutil
@@ -94,7 +95,7 @@ def tuile(cache_tuiles: Path, x: int, y: int, voulues: set | None = None) -> np.
                     return None
                 if essai == 2:
                     raise
-            except OSError:
+            except (OSError, http.client.HTTPException):    # réponse coupée (IncompleteRead) comprise
                 if essai == 2:
                     raise
             time.sleep(5 * (essai + 1))

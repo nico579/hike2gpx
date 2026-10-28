@@ -1,0 +1,92 @@
+import hashlib
+import io
+import xml.etree.ElementTree as ET
+
+import pytest
+
+from hike2gpx import bdtopo_regions as br
+
+NOM = "BDTOPO_3-5_TOUSTHEMES_GPKG_LAMB93_R93_2026-09-15"
+CONTENU = b"archive 7z de la BD TOPO" * 1000
+
+
+def _flux(titres):
+    entrees = "".join(f"<entry><title>{t}</title></entry>" for t in titres)
+    return ET.fromstring(f'<feed xmlns="http://www.w3.org/2005/Atom">{entrees}</feed>')
+
+
+def _fichiers(nom, md5):
+    url = f"{br.TELECHARGEMENT}{nom}/{nom}.7z"
+    return ET.fromstring(
+        f'<feed xmlns="http://www.w3.org/2005/Atom" xmlns:gpf="https://data.geopf.fr/annexes/ressources/xsd/gpf_dl.xsd">'
+        f'<entry><link rel="alternate" href="{url}" gpf:length="{len(CONTENU)}"/><content>{md5}</content></entry>'
+        f'</feed>')
+
+
+def test_la_derniere_edition_de_la_region():
+    md5 = hashlib.md5(CONTENU).hexdigest()
+
+    def lire(url):
+        if "zone=R93" in url:
+            return _flux([NOM.replace("2026-09-15", "2026-06-15"), NOM, "BDTOPO_3-5_TOUSTHEMES_SHP_LAMB93_R93_2026-12-15"])
+        return _fichiers(NOM, md5)
+    edition = br.derniere_edition("R93", lire)
+    assert edition["nom"] == NOM and edition["date"] == "2026-09-15", "le GeoPackage le plus récent, pas le Shapefile"
+    assert edition["fichiers"] == [{"url": f"{br.TELECHARGEMENT}{NOM}/{NOM}.7z", "octets": len(CONTENU), "md5": md5}]
+
+
+class Reponse(io.BytesIO):
+    def __init__(self, donnees, status=200):
+        super().__init__(donnees)
+        self.status = status
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_un_telechargement_coupe_reprend_ou_il_s_est_arrete(tmp_path):
+    cible = tmp_path / "a.7z"
+    cible.write_bytes(CONTENU[:5000])          # ce qu'une coupure a laissé
+    demandes = []
+
+    def ouvrir(demande, timeout):
+        demandes.append(demande.get_header("Range"))
+        return Reponse(CONTENU[5000:], 206)
+    br._telecharger({"url": "https://x/a.7z", "octets": len(CONTENU), "md5": hashlib.md5(CONTENU).hexdigest()},
+                    cible, ouvrir)
+    assert demandes == ["bytes=5000-"] and cible.read_bytes() == CONTENU
+
+
+def test_un_fichier_altere_est_refuse(tmp_path):
+    with pytest.raises(br.ErreurArchive, match="altéré"):
+        br._telecharger({"url": "https://x/a.7z", "octets": len(CONTENU), "md5": "0" * 32}, tmp_path / "a.7z",
+                        lambda demande, timeout: Reponse(CONTENU))
+
+
+def test_le_lecteur_cherche_les_regions_une_fois_par_case(tmp_path, monkeypatch):
+    appels = []
+    monkeypatch.setattr(br, "regions_de_zone", lambda *bornes: appels.append(bornes) or ["R84", "R93"])
+    monkeypatch.setattr(br, "derniere_edition",
+                        lambda region: {"nom": region, "date": {"R84": "2026-06-15", "R93": "2026-09-15"}[region]})
+    monkeypatch.setattr(br, "geopackage", lambda dossier, region, edition: f"{region}.gpkg")
+    from hike2gpx import case
+    # Un tronçon qui passe la limite des deux régions est dans les deux archives.
+    lus = {"R84.gpkg": [{"id": "T-1-0"}, {"id": "T-2-0"}], "R93.gpkg": [{"id": "T-2-0"}, {"id": "T-3-0"}]}
+    monkeypatch.setattr(case, "troncons_gpkg", lambda gpkg, *bornes: lus[gpkg])
+    lecteur = br.Lecteur(tmp_path)
+    assert [t["id"] for t in lecteur(43.25, 6.0, 43.5, 6.25)] == ["T-1-0", "T-2-0", "T-3-0"]
+    lecteur(43.5, 6.0, 43.75, 6.25)
+    lecteur(39.999, 4.999, 40.251, 5.251)      # une emprise qui déborde au sud-ouest reste dans la case
+    assert appels == [(40.0, 5.0, 45.0, 10.0)], "une seule recherche des régions pour la case"
+    assert lecteur.date(43.25, 6.0, 43.5, 6.25) == "2026-09-15", "l'édition la plus récente des régions"
+
+
+def test_la_commande_refuse_deux_lectures_ign():
+    from hike2gpx.__main__ import main
+    with pytest.raises(SystemExit):
+        main(["bundles", "E5_N40", "--output", "lots", "--gpkg", "a.gpkg", "--ign-regions"])
+    with pytest.raises(SystemExit):
+        main(["bundles", "E5_N40", "--output", "lots", "--osm-only", "--ign-regions"])

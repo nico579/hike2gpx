@@ -586,3 +586,18 @@ def test_les_elements_de_deux_extraits_sont_reunis_sans_doublon(monkeypatch):
     assert sorted((e["type"], e["id"]) for e in elements) == [("node", 1), ("way", 1), ("way", 2)]
     assert next(e for e in elements if e["type"] == "node")["tags"] == {"barrier": "gate"}, "le nœud qui a ses tags"
 
+
+def test_une_tuile_en_mer_ne_reclame_ni_pays_ni_continent():
+    # Essai GitHub Actions du 2026-10-27 : pour les tuiles en mer de E5_N40, la
+    # fabrication réclamait l'Europe (32,9 Go), la France et l'Italie.
+    europe = {**_carre("europe", -25.0, 45.0, 34.0, 72.0), "parent": None}
+    france = {**_carre("france", -5.0, 10.0, 41.0, 51.5), "parent": "europe"}
+    paca = {**_carre("provence-alpes-cote-d-azur", 4.2, 7.8, 42.9, 45.2), "parent": "france"}
+    mer = fr.tuile_du_point(42.0, 7.0)          # au large de la Corse, hors de PACA
+    feuilles = geofabrik.feuilles([europe, france, paca])
+    assert [r["id"] for r in feuilles] == ["provence-alpes-cote-d-azur"]
+    assert geofabrik.regions_de_tuile([europe, france, paca], *mer)[0]["id"] == "france", "l'ancienne règle"
+    assert geofabrik.regions_de_tuile(feuilles, *mer) == [], "la mer reste vide"
+    assert [r["id"] for r in geofabrik.regions_de_tuile(feuilles, *fr.tuile_du_point(43.3, 6.0))] == \
+        ["provence-alpes-cote-d-azur"]
+

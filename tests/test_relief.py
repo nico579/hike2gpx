@@ -33,3 +33,30 @@ def test_hgt_decode_terrarium_sur_la_grille_d_une_seconde(tmp_path):
     assert grille[0, 0] == 812 or grille[0, 0] == 813
     assert (grille == relief.SANS_DONNEE).any(), "la colonne de mer reste sans donnée"
     assert set(np.unique(grille)) <= {812, 813, relief.SANS_DONNEE}
+
+
+def test_une_tuile_coupee_en_route_est_relue(tmp_path, monkeypatch):
+    # Essai GitHub Actions du 2026-10-27 : une réponse de Mapterhorn coupée
+    # (IncompleteRead) n'était pas une OSError et faisait échouer le lot.
+    import http.client
+    import io
+    tampon = io.BytesIO()
+    terrarium(812.5).save(tampon, format="WEBP", lossless=True)
+    reponses = [http.client.IncompleteRead(b"x" * 10), tampon.getvalue()]
+
+    class Reponse(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def ouvrir(demande, timeout):
+        r = reponses.pop(0)
+        if isinstance(r, Exception):
+            raise r
+        return Reponse(r)
+    monkeypatch.setattr(relief.urllib.request, "urlopen", ouvrir)
+    monkeypatch.setattr(relief.time, "sleep", lambda s: None)
+    altitudes = relief.tuile(tmp_path, 2134, 1497, {(2134, 1497)})
+    assert altitudes is not None and round(float(altitudes[0, 0])) in (812, 813)

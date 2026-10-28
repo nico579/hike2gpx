@@ -127,6 +127,14 @@ def region_de_tuile(regions: list, i: int, j: int) -> dict | None:
     return min(candidates, key=_surface) if candidates else None
 
 
+def feuilles(regions: list) -> list:
+    """Les régions sans sous-régions : PACA ou la Ligurie, pas la France, l'Italie
+    ni l'Europe. Une tuile qu'aucune feuille ne couvre est en mer : rien à y lire,
+    et nul besoin d'y réclamer un extrait de pays ou de continent."""
+    parents = {r.get("parent") for r in regions}
+    return [r for r in regions if r["id"] not in parents]
+
+
 def regions_de_tuile(regions: list, i: int, j: int) -> list:
     """Les extraits qui servent la tuile : le plus petit qui la contient toute
     entière, sauf si de plus petits la couvrent ensemble. Une tuile coupée par
@@ -162,7 +170,8 @@ def _region(feature: dict) -> dict | None:
     lons = [x for p in polygones for a in p for x, _ in a]
     lats = [y for p in polygones for a in p for _, y in a]
     return {"id": str(proprietes["id"]), "nom": str(proprietes.get("name") or proprietes["id"]), "pbf": pbf,
-            "bornes": (min(lats), min(lons), max(lats), max(lons)), "polygones": polygones}
+            "bornes": (min(lats), min(lons), max(lats), max(lons)), "polygones": polygones,
+            "parent": proprietes.get("parent")}
 
 
 def _a_garder(region: dict) -> dict:
@@ -214,6 +223,17 @@ class Index:
                 return []
             return self._charge["regions"]
 
+    def attendre(self, dossier, delai_s: float = 180.0) -> list:
+        """Les régions, quitte à attendre l'index s'il est absent : une
+        fabrication de lot, contrairement à la page, ne peut pas se contenter
+        d'une liste vide (aucun fournisseur, aucun extrait)."""
+        if not self.chemin(dossier).is_file():
+            self.preparer(dossier)
+            fil = self._fil
+            if fil is not None:
+                fil.join(delai_s)
+        return self.regions(dossier)
+
     def preparer(self, dossier, *, ouvrir=None) -> None:
         with self._verrou:
             if self._fil is not None and self._fil.is_alive():
@@ -254,13 +274,20 @@ def _batir(ouvrir=None) -> list:
 
 
 # Les régions déjà lues, comme celles d'OSM France : un autre nom que
-# l'ancien index-v1.json, qui gardait le GeoJSON brut de Geofabrik.
-INDEX = Index("de Geofabrik", "geofabrik-v1.json", _batir)
+# l'ancien index-v1.json, qui gardait le GeoJSON brut de Geofabrik. v2 garde
+# le parent de chaque région (feuilles()).
+INDEX = Index("de Geofabrik", "geofabrik-v2.json", _batir)
 
 
 def regions(dossier, **options) -> list:
     """Les régions de Geofabrik, sans jamais attendre son serveur (Index)."""
     return INDEX.regions(dossier, **options)
+
+
+def regions_attendues(dossier) -> list:
+    """Les régions de Geofabrik, quitte à attendre l'index sur une machine
+    neuve : pour la fabrication des lots, pas pour la page."""
+    return INDEX.attendre(dossier)
 
 
 # ------------------------------------------------------------------ extraits installés
