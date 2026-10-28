@@ -1,0 +1,59 @@
+# Exploration, pas production : où se trouve le GeoPackage national ZABAGED, et
+# comment s'y rangent les sentiers (Pěšina) et les chemins (Cesta) ? De quoi
+# écrire la lecture en bloc de la Tchéquie sans rien supposer.
+name: Essai ZABAGED (exploration)
+
+on:
+  push:
+    branches: [essai/zabaged]
+
+permissions:
+  contents: read
+
+jobs:
+  explorer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Trouver la dernière édition
+        run: |
+          for u in https://atom.cuzk.gov.cz/ZABAGED-GPKG/ZABAGED-GPKG.xml \
+                   https://atom.cuzk.gov.cz/ZABAGED-GPKG/ \
+                   https://openzu.cuzk.gov.cz/opendata/ZABAGED-GPKG/ \
+                   https://openzu.cuzk.gov.cz/opendata/ZABAGED-GPKG/epsg-3045/; do
+            echo "=== $u"; curl -sSL -m 60 "$u" | head -c 3000; echo
+          done
+
+      - name: Télécharger (avec reprise)
+        run: |
+          base=https://openzu.cuzk.gov.cz/opendata/ZABAGED-GPKG/epsg-3045/
+          nom=$(curl -sSL -m 60 "$base" | grep -oE 'ZABAGED[^"<> ]*\.zip' | sort -u | tail -1)
+          echo "fichier : $nom"; test -n "$nom"
+          for essai in 1 2 3 4 5 6 7 8; do
+            curl -sSL -C - --retry 3 -m 3000 -o "$RUNNER_TEMP/z.zip" "$base$nom" && break
+            echo "coupure $essai, reprise"; sleep 10
+          done
+          ls -la "$RUNNER_TEMP/z.zip"; df -h "$RUNNER_TEMP"
+
+      - name: Couches de chemins
+        run: |
+          unzip -l "$RUNNER_TEMP/z.zip" | tail -5
+          unzip -q -o "$RUNNER_TEMP/z.zip" -d "$RUNNER_TEMP/z"; rm "$RUNNER_TEMP/z.zip"
+          g=$(find "$RUNNER_TEMP/z" -name '*.gpkg' | head -1); ls -la "$g"
+          python3 - "$g" <<'EOF'
+          import sqlite3, sys
+          b = sqlite3.connect(sys.argv[1])
+          contenu = b.execute("SELECT table_name, data_type, srs_id FROM gpkg_contents").fetchall()
+          print(len(contenu), "couches ; srs :", sorted({c[2] for c in contenu}))
+          for nom, genre, srs in contenu:
+              if any(m in nom.lower() for m in ("pesin", "pěšin", "cest", "silnic", "kom")):
+                  colonnes = [r[1] for r in b.execute(f'PRAGMA table_info("{nom}")')]
+                  n = b.execute(f'SELECT count(*) FROM "{nom}"').fetchone()[0]
+                  geom = b.execute("SELECT column_name, geometry_type_name FROM gpkg_geometry_columns WHERE table_name=?", (nom,)).fetchall()
+                  rtree = b.execute("SELECT name FROM sqlite_master WHERE name LIKE ?", (f"rtree_{nom}%",)).fetchall()
+                  print(f"\n{nom} ({genre}, srs {srs}) : {n} objets ; géométrie {geom} ; index {rtree}")
+                  print("  colonnes :", colonnes)
+                  for ligne in b.execute(f'SELECT * FROM "{nom}" LIMIT 2'):
+                      print("  exemple :", [v if not isinstance(v, bytes) else f"<{len(v)} octets>" for v in ligne])
+          print("\ntoutes les couches :", sorted(c[0] for c in contenu))
+          EOF
