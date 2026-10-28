@@ -275,6 +275,12 @@ use them. Caches renew themselves; a bundle older than the renewal delay asks
 first. A cell crossing a border takes every provider whose country it touches:
 E5_N45 merges IGN and swissTLM3D paths, each read on its own country only.
 
+A cell you no longer need, after a trip for instance, is removed from its
+popup: "Remove from this computer" deletes its bundle and its base maps. The
+"Clear cache" button in the settings starts over from scratch: caches, offline
+bundles and maps included. A server bundle downloads again in seconds; a
+bundle or map prepared on the computer has to be made again.
+
 That leaves the map itself. In France, the same popup also prepares the
 **offline base map**: the tiles the page shows, SCAN 25 if you have an IGN
 key, Plan IGN otherwise, stored on this computer in an MBTiles file. It then

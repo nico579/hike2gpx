@@ -280,6 +280,12 @@ délai de renouvellement demande d'abord. Une case qui chevauche une frontière
 prend tous les fournisseurs dont le pays la touche : E5_N45 réunit les chemins
 de l'IGN et de swissTLM3D, chacun lu sur son seul pays.
 
+Une case dont on n'a plus besoin, après un voyage par exemple, se retire par
+sa bulle : « Supprimer de cet ordinateur » efface son lot et ses fonds de
+carte. Le bouton « Vider le cache » des réglages, lui, repart de zéro : caches, lots et
+fonds hors ligne compris. Un lot du serveur se retélécharge en quelques
+secondes ; un lot ou un fond préparé sur l'ordinateur est à refaire.
+
 Reste la carte elle-même. En France, la même bulle prépare aussi le **fond de
 carte hors ligne** : les tuiles que la page affiche, le SCAN 25 si vous avez
 une clé IGN, sinon le Plan IGN, rangées sur ce PC dans un fichier MBTiles. Il
