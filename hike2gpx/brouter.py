@@ -359,8 +359,12 @@ def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path, *, relief: Pa
     for etape in etapes:
         r = enfants.lancer(commande + etape, cwd=dossier, capture_output=True, text=True, encoding="utf-8",
                            errors="replace", stdin=subprocess.DEVNULL, **options)
+        classe = next(e for e in etape if e.startswith("btools")).rsplit(".", 1)[-1]
+        # La sortie de chaque étape reste à côté (WayLinker.log…) : une étape
+        # peut finir sans erreur et sans tuile (essai GitHub Actions du
+        # 2026-10-28, E5_N45), et il faut alors savoir ce qu'elle a dit.
+        (dossier / f"{classe}.log").write_text(f"{r.stdout or ''}\n{r.stderr or ''}", encoding="utf-8")
         if r.returncode:
-            classe = next(e for e in etape if e.startswith("btools")).rsplit(".", 1)[-1]
             raise ErreurBRouter(f"Fabrication des tuiles impossible ({classe}) : {(r.stderr or r.stdout).strip()[-300:]}")
     return dossier / "segments"
 
