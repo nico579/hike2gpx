@@ -51,7 +51,7 @@ def test_installer_range_la_rd5_avec_les_segments(tmp_path):
 
 
 def test_supprimer_une_case_ne_retire_qu_elle(tmp_path):
-    # Un voyage fini : la case quitte le PC, lot, RD5 et fonds ; la voisine reste.
+    # Un voyage fini : la case quitte l'ordinateur, lot, RD5 et fonds ; la voisine reste.
     h = hors_ligne.HorsLigne(tmp_path / "donnees")
     h.installer(fabriquer_lot(tmp_path / "lot"))
     h.installer(fabriquer_lot(tmp_path / "voisin", case="E10_N40"))

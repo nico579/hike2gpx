@@ -128,11 +128,11 @@ const TEXTES = {
     "donnees.viderTout": "Vider le cache",
     "donnees.aideCache": "Détail des caches vidés",
     "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins officiels, les extraits OSM téléchargés, les données BRouter et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte, conservées dans le cache du navigateur, ne sont pas effacées.",
-    "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter, ainsi que les lots et les fonds hors ligne ? Les données en ligne et les lots du serveur seront retéléchargés au besoin ; les lots et les fonds préparés sur ce PC seront à refaire. Les tuiles de fond de carte affichées restent dans le cache du navigateur.",
+    "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter, ainsi que les lots et les fonds hors ligne ? Les données en ligne et les lots du serveur seront retéléchargés au besoin ; les lots et les fonds préparés sur cet ordinateur seront à refaire. Les tuiles de fond de carte affichées restent dans le cache du navigateur.",
     "donnees.vide": "Cache local vidé, lots et fonds hors ligne compris. Les tuiles du fond de carte affiché restent gérées par le navigateur.",
-    "horsLigne.supprimer": "Supprimer du PC",
-    "horsLigne.confirmerSuppression": "Retirer du PC le lot et les fonds de carte de la case {nom} ({taille}) ? Un lot du serveur se retélécharge ; un lot ou un fond préparé sur ce PC sera à refaire.",
-    "horsLigne.supprimee": "Case {nom} retirée du PC : {taille} libérés.",
+    "horsLigne.supprimer": "Supprimer de cet ordinateur",
+    "horsLigne.confirmerSuppression": "Retirer de cet ordinateur le lot et les fonds de carte de la case {nom} ({taille}) ? Un lot du serveur se retélécharge ; un lot ou un fond préparé sur cet ordinateur sera à refaire.",
+    "horsLigne.supprimee": "Case {nom} retirée de cet ordinateur : {taille} libérés.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
     "unite.mo": "Mo",
     "pied": "Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins et cartes officiels selon le pays, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.",
@@ -1492,7 +1492,7 @@ function bulleCase(nom) {
   }
   if (paysCarte === "fr") ajouterFonds(div, nom, vueDansCase ? [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()] : null);
   // Un voyage fini, une case qu'on ne visitera plus : son lot et ses fonds
-  // quittent le PC (décision de Nico du 2026-10-28).
+  // quittent l'ordinateur (décision de Nico du 2026-10-28).
   const fondsIci = fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`));
   if (lotCase || fondsIci.length) {
     const octets = (lotCase?.octets || 0) + fondsIci.reduce((somme, f) => somme + (f.octets || 0), 0);

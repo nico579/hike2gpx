@@ -71,7 +71,7 @@ class HorsLigne:
         return chemin if chemin.is_file() else None
 
     def supprimer(self, case: str) -> int:
-        """Retire du PC tout ce qui sert la case hors ligne : son lot, sa RD5
+        """Retire de l'ordinateur tout ce qui sert la case hors ligne : son lot, sa RD5
         et ses fonds de carte (un voyage fini, une case qu'on ne visitera
         plus). Les moteurs BRouter qui lisent la RD5 sont arrêtés avant, par
         l'appelant. Rend les octets libérés."""

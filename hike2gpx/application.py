@@ -1104,7 +1104,7 @@ class Application:
         return {"lots": lots, "depot": self.depot_lots}
 
     def supprimer_case(self, corps) -> dict:
-        """Retire du PC le lot et les fonds d'une case, depuis sa bulle sur la
+        """Retire de l'ordinateur le lot et les fonds d'une case, depuis sa bulle sur la
         carte. corps : {"case": "E5_N40"}. Rend {"octets"} libérés, ou {"erreur"}."""
         case, _, erreur = self._case_et_zone(corps)
         if erreur:
@@ -1118,7 +1118,7 @@ class Application:
             octets = self.hors_ligne.supprimer(case)
         finally:
             self._verrou_calcul.release()
-        journal.info("Case %s retirée du PC depuis la carte : %d octets libérés", case, octets)
+        journal.info("Case %s retirée de l'ordinateur depuis la carte : %d octets libérés", case, octets)
         return {"octets": octets}
 
     def telecharger_lot(self, corps) -> dict:

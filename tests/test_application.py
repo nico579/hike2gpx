@@ -611,7 +611,7 @@ def test_routes_init_annonce_l_application(tmp_path):
     # case pour le hors ligne (hors_ligne.py, fabrication.py, depot.py) ;
     # preparer_fond : le fond de carte d'une case ou d'une vue (fonds.py) ;
     # partage : ouvrir ou fermer le partage au téléphone (partage.py) ;
-    # supprimer_case : retirer du PC le lot et les fonds d'une case.
+    # supprimer_case : retirer de l'ordinateur le lot et les fonds d'une case.
     assert set(post) == {"itineraire", "disponibilite", "reglages", "moteur", "denivele", "communes", "langue",
                          "arreter_calques", "donnees", "ouvrir_journaux", "installer_lot", "preparer_lot",
                          "arreter_lot", "telecharger_lot", "preparer_fond", "partage", "supprimer_case"}
