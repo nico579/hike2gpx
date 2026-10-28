@@ -656,6 +656,11 @@ let paysCarte = Object.hasOwn(window.HIKE2GPX_MAP_PROVIDERS, vueInitiale.pays)
   ? vueInitiale.pays : (vueInitiale.hors_france === true ? "autre" : "fr");
 let horsFrance = paysCarte !== "fr";
 const carte = L.map("carte").setView([vueInitiale.lat, vueInitiale.lon], vueInitiale.zoom);
+// L'échelle de la carte, dans l'en-tête à droite de la recherche de ville
+// (demande de Nico du 2026-10-28) ; Leaflet la tient à jour où qu'elle soit.
+const echelle = L.control.scale({ imperial: false, maxWidth: 120 }).addTo(carte).getContainer();
+echelle.classList.add("echelle-entete");
+$("citySubmit").after(echelle);
 carte.on("contextmenu", (evenement) => {
   const { lat, lng } = evenement.latlng;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
@@ -1642,7 +1647,14 @@ function basculerCases() {
   afficherEntreeHorsLigne();
   chargerLots();
 }
-$("showOfflineGrid").addEventListener("change", basculerCases);
+// Les cases font 5° : de près, on n'en voit qu'un morceau. Afficher la grille
+// dézoome jusqu'à en montrer plusieurs (demande de Nico du 2026-10-28) ; la
+// grille restaurée au chargement de la page garde la vue.
+const ZOOM_CASES = 6;
+function montrerCases() {
+  if ($("showOfflineGrid").checked && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
+}
+$("showOfflineGrid").addEventListener("change", () => { basculerCases(); montrerCases(); });
 
 // L'entrée du mode hors ligne, sur la carte : le bouton « Hors ligne » fait
 // la même chose que la case des réglages (les deux restent d'accord), et dit
@@ -1658,6 +1670,7 @@ function afficherEntreeHorsLigne() {
 $("offlineButton").addEventListener("click", () => {
   $("showOfflineGrid").checked = !$("showOfflineGrid").checked;
   basculerCases();
+  montrerCases();
 });
 carte.on("moveend", dessinerCases);
 
