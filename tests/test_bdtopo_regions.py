@@ -90,3 +90,34 @@ def test_la_commande_refuse_deux_lectures_ign():
         main(["bundles", "E5_N40", "--output", "lots", "--gpkg", "a.gpkg", "--bulk"])
     with pytest.raises(SystemExit):
         main(["bundles", "E5_N40", "--output", "lots", "--osm-only", "--bulk"])
+
+
+def test_seuls_les_troncons_sont_gardes_et_rendent_la_meme_chose(tmp_path):
+    # Essai GitHub Actions : une case touchant cinq régions (E0_N45) remplissait
+    # le disque avec des GeoPackage « tous thèmes » entiers.
+    import sqlite3
+    from hike2gpx import case
+    from test_case import _geopackage_bdtopo
+    complet = tmp_path / "complet.gpkg"
+    _geopackage_bdtopo(complet, [("TRONROUT1", "83063", [[(43.330, 6.040), (43.331, 6.042)]]),
+                                 ("TRONROUT2", "06088", [[(43.332, 6.043), (43.333, 6.044)]])])
+    with sqlite3.connect(complet) as base:          # une autre table du « tous thèmes »
+        base.execute("CREATE TABLE batiment (fid INTEGER PRIMARY KEY, donnees BLOB)")
+        base.execute("INSERT INTO batiment VALUES (1, zeroblob(200000))")
+    br._garder_les_troncons(complet, tmp_path / "troncons.sqlite")
+    bornes = (43.32, 6.03, 43.34, 6.05)
+    assert case.troncons_gpkg(tmp_path / "troncons.sqlite", *bornes) == case.troncons_gpkg(complet, *bornes)
+    assert case.troncons_gpkg(tmp_path / "troncons.sqlite", *bornes, "83")[0]["id"] == "TRONROUT1-0"
+    with sqlite3.connect(tmp_path / "troncons.sqlite") as base:
+        tables = {n for (n,) in base.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "batiment" not in tables
+    assert (tmp_path / "troncons.sqlite").stat().st_size < complet.stat().st_size / 4
+
+
+def test_une_region_deja_gardee_n_est_pas_retelechargee(tmp_path, monkeypatch):
+    racine = tmp_path / "bdtopo-regions"
+    racine.mkdir()
+    (racine / f"{NOM}.troncons.sqlite").write_bytes(b"base")
+    monkeypatch.setattr(br, "_telecharger", lambda *a: pytest.fail("rien à télécharger"))
+    assert br.geopackage(tmp_path, "R93", {"nom": NOM, "date": "2026-09-15", "fichiers": []}).name == \
+        f"{NOM}.troncons.sqlite"
