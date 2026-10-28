@@ -17,8 +17,9 @@ discourages the passage. In Garéoult (Var, France), BRouter's standard hiking
 profile goes through a concrete fence on a 69 m stretch; hike2gpx goes around
 it with a 435 m detour.
 
-For desktop computers: Windows, macOS and Linux. Phones will come later,
-through the BRouter app for Android.
+For desktop computers: Windows, macOS and Linux. An Android app, which
+routes offline from the bundles, is being tested in `android/`; it is not
+published yet.
 
 Installed from a release, hike2gpx updates itself, like the other nico579
 applications: when a newer version is published, a banner on the page and the
