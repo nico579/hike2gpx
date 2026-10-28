@@ -179,6 +179,11 @@ const TEXTES = {
     "horsLigne.case": "Case {nom}",
     "horsLigne.prete": "Prête hors ligne : {taille}, OSM du {date}.",
     "horsLigne.absente": "Pas encore disponible hors ligne.",
+    "horsLigne.serveur": "Sur le serveur : {taille}, OSM du {osm}{officiels}.",
+    "horsLigne.serveurOfficiels": ", chemins officiels du {date}",
+    "horsLigne.serveurAJour": "À jour avec le serveur.",
+    "horsLigne.telecharger": "Télécharger depuis le serveur",
+    "horsLigne.telechargerMaj": "Mettre à jour depuis le serveur",
     "horsLigne.enPreparation": "En préparation.",
     "horsLigne.preparerVue": "Préparer la vue actuelle",
     "horsLigne.preparerCase": "Préparer toute la case (environ une heure)",
@@ -194,6 +199,7 @@ const TEXTES = {
     "horsLigne.etape.extraits": "extraits OSM",
     "horsLigne.etape.calques": "chemins et franchissements",
     "horsLigne.etape.installation": "installation",
+    "horsLigne.etape.telechargement": "téléchargement depuis le serveur",
     "horsLigne.etape.osm": "lecture d'OSM",
     "horsLigne.etape.fusion": "fusion des chemins officiels",
     "horsLigne.etape.relief": "relief",
@@ -379,6 +385,11 @@ const TEXTES = {
     "horsLigne.case": "Area {nom}",
     "horsLigne.prete": "Ready offline: {taille}, OSM of {date}.",
     "horsLigne.absente": "Not available offline yet.",
+    "horsLigne.serveur": "On the server: {taille}, OSM of {osm}{officiels}.",
+    "horsLigne.serveurOfficiels": ", official paths of {date}",
+    "horsLigne.serveurAJour": "Up to date with the server.",
+    "horsLigne.telecharger": "Download from the server",
+    "horsLigne.telechargerMaj": "Update from the server",
     "horsLigne.enPreparation": "Being prepared.",
     "horsLigne.preparerVue": "Prepare the current view",
     "horsLigne.preparerCase": "Prepare the whole area (about an hour)",
@@ -394,6 +405,7 @@ const TEXTES = {
     "horsLigne.etape.extraits": "OSM extracts",
     "horsLigne.etape.calques": "paths and crossings",
     "horsLigne.etape.installation": "installation",
+    "horsLigne.etape.telechargement": "download from the server",
     "horsLigne.etape.osm": "reading OSM",
     "horsLigne.etape.fusion": "merging official paths",
     "horsLigne.etape.relief": "elevation",
@@ -1321,6 +1333,7 @@ const CLE_CASES = "hike2gpx.casesHorsLigne";
 carte.createPane("casesHorsLigne").style.zIndex = 455;
 const grilleCases = L.layerGroup();
 let lotsInstalles = [];
+let lotsServeur = [];            // le catalogue du dépôt (catalogue_lots), avec l'état de chaque lot ici
 let lotEnCours = { actif: false };
 let minuterieLot = null;
 
@@ -1348,7 +1361,8 @@ function casesVisibles() {
 
 function etatCase(nom) {
   if (lotEnCours.actif && lotEnCours.case === nom) return "preparation";
-  return lotsInstalles.some((l) => l.case === nom) ? "prete" : "absente";
+  if (lotsInstalles.some((l) => l.case === nom)) return "prete";
+  return lotsServeur.some((l) => l.case === nom) ? "serveur" : "absente";
 }
 
 const STYLES_CASE = {
@@ -1357,6 +1371,8 @@ const STYLES_CASE = {
   // Un fond presque transparent : un clic dans la case ouvre sa bulle, comme
   // les mailles du serveur ; décocher la grille rend les clics au tracé.
   absente: { color: "#37474f", weight: 1.5, dashArray: "5 5", fillColor: "#37474f", fillOpacity: 0.03 },
+  // Pas encore ici, mais publiée par le serveur : un clic propose de la télécharger.
+  serveur: { color: "#1565c0", weight: 2, dashArray: "5 5", fillColor: "#1565c0", fillOpacity: 0.05 },
 };
 
 function tailleTexte(octets) {
@@ -1396,7 +1412,28 @@ function bulleCase(nom) {
       [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])));
   }
   div.append(bouton(lotCase ? t("horsLigne.mettreAJour") : t("horsLigne.preparerCase"), () => preparerCase(nom)));
+  const surServeur = lotsServeur.find((l) => l.case === nom);
+  if (surServeur) {
+    const officiels = Object.entries(surServeur.sources || {}).find(([cle]) => !["osm", "relief", "rd5"].includes(cle));
+    div.append(paragraphe(t("horsLigne.serveur", { taille: tailleTexte(surServeur.octets),
+      osm: (surServeur.sources?.osm || "").slice(0, 10),
+      officiels: officiels ? t("horsLigne.serveurOfficiels", { date: String(officiels[1]).slice(0, 10) }) : "" })));
+    if (surServeur.etat === "a_jour") div.append(paragraphe(t("horsLigne.serveurAJour")));
+    else div.append(bouton(t(surServeur.etat === "ancien" ? "horsLigne.telechargerMaj" : "horsLigne.telecharger"),
+      () => telechargerCase(nom)));
+  }
   return div;
+}
+
+async function telechargerCase(nom) {
+  carte.closePopup();
+  const reponse = await api("telecharger_lot", { case: nom });
+  if (reponse.erreur) {
+    afficherLot({ case: nom, erreur: reponse.erreur });
+    return;
+  }
+  if (minuterieLot) clearTimeout(minuterieLot);
+  suivreLot();
 }
 
 function dessinerCases() {
@@ -1423,6 +1460,10 @@ async function chargerLots() {
     try {
       lotsInstalles = (await api("hors_ligne")).lots || [];
     } catch (_) { /* serveur injoignable : la grille reste vide */ }
+    // Le catalogue du dépôt vient de GitHub, parfois en quelques secondes : la
+    // grille n'attend pas, elle se redessine à son arrivée.
+    api("catalogue_lots").then((r) => { lotsServeur = r.lots || []; dessinerCases(); })
+      .catch(() => { lotsServeur = []; });
   }
   afficherStatutCases();
   dessinerCases();
@@ -1441,7 +1482,9 @@ function afficherLot(r) {
   const nom = r.case || "";
   let message = "";
   if (r.actif) {
-    const compte = r.total ? ` ${r.faites}/${r.total}` : "";
+    // Un téléchargement compte en octets, une fabrication en tuiles ou mailles.
+    const compte = !r.total ? "" : r.etape === "telechargement"
+      ? ` ${tailleTexte(r.faites)} / ${tailleTexte(r.total)}` : ` ${r.faites}/${r.total}`;
     message = t("horsLigne.avancement", { nom, etape: t(`horsLigne.etape.${r.etape}`), compte,
       duree: dureeTexte(r.duree_s || 0) });
   } else if (r.erreur) {

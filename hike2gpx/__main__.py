@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import json
 import re
 import sys
 from pathlib import Path
@@ -54,6 +55,12 @@ def main(argv=None) -> int:
     bundles.add_argument("--zone", type=float, nargs=4, metavar=("SOUTH", "WEST", "NORTH", "EAST"),
                          help="limit every cell to this area, e.g. the region covered by --gpkg")
     bundles.add_argument("--force", action="store_true", help="rebuild bundles that are up to date")
+    catalogue = sous.add_parser("catalog", help="write the catalog of built bundles, for a bundle depot",
+                                description="Write catalog.json, listing each bundle of BUNDLES/CELL with the size, "
+                                            "SHA-256 and URL of its files, relative to the catalog.")
+    catalogue.add_argument("bundles", type=Path, help="directory of built bundles, one per cell")
+    catalogue.add_argument("--publish-dir", type=Path,
+                           help="copy the files there, flat (CELL.name), with the catalog: ready for a GitHub release")
     # Import d'un extrait Geofabrik, lancé par geofabrik.installer() dans un
     # processus à part (PBF, base, région en JSON, date des données).
     parser.add_argument("--importer-extrait", nargs=4, metavar="X", help=argparse.SUPPRESS)
@@ -74,8 +81,6 @@ def main(argv=None) -> int:
         from . import autotest
         return autotest.verifier(args.self_test_version)
     if args.importer_extrait:
-        import json
-
         from . import geofabrik
         pbf, base, region, date = args.importer_extrait
         compte = geofabrik.importer(Path(pbf), Path(base), json.loads(Path(region).read_text(encoding="utf-8")),
@@ -93,6 +98,12 @@ def main(argv=None) -> int:
         return 0
     if args.commande == "bundles":
         return lots(dossier, args)
+    if args.commande == "catalog":
+        from . import depot
+        chemin = depot.ecrire_catalogue(args.bundles, args.publish_dir)
+        lus = json.loads(chemin.read_text(encoding="utf-8"))["lots"]
+        print(f"{chemin} : {len(lus)} lots, {sum(l['octets'] for l in lus) / 1e6:.0f} Mo", flush=True)
+        return 0
     if args.commande == "analyser":
         liste = franchissements.franchissements_zone(args.sud, args.ouest, args.nord, args.est, dossier)
         compte = collections.Counter((f["statut"], f["nature"], f["raison"]) for f in liste)

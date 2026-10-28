@@ -607,11 +607,11 @@ def test_routes_init_annonce_l_application(tmp_path):
     assert {"osm", "bdtopo", "extrait"} <= set(get)
     # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
     # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
-    # installer_lot, preparer_lot, arreter_lot : les lots de case pour le hors
-    # ligne (hors_ligne.py, lot_osm.py).
+    # installer_lot, preparer_lot, arreter_lot, telecharger_lot : les lots de
+    # case pour le hors ligne (hors_ligne.py, fabrication.py, depot.py).
     assert set(post) == {"itineraire", "disponibilite", "reglages", "moteur", "denivele", "communes", "langue",
                          "arreter_calques", "donnees", "ouvrir_journaux", "installer_lot", "preparer_lot",
-                         "arreter_lot"}
+                         "arreter_lot", "telecharger_lot"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):

@@ -1,0 +1,144 @@
+# Le serveur des lots, sur GitHub Actions : fabrique les lots hors ligne des
+# cases demandées et les publie, avec leur catalogue, sur la publication fixe
+# « bundles » du dépôt appelant (nico579/hike2gpx-bundles), dont l'adresse ne
+# change jamais (depot.DEPOT). Workflow réutilisable : le dépôt des lots ne
+# garde qu'un petit appel planifié, toute la logique vit ici, à côté du code.
+#
+# Essai du 2026-10-27 : une case entière (E5_N40) en 87 min, 6,1 Go de mémoire
+# au plus, 35 Go de disque ; une tâche par case, en parallèle.
+name: Lots hors ligne
+
+on:
+  workflow_call:
+    inputs:
+      cases:
+        description: Cases BRouter à fabriquer, séparées par des espaces
+        type: string
+        required: true
+      ref:
+        description: Version de hike2gpx qui fabrique
+        type: string
+        default: main
+
+permissions:
+  contents: write                   # publier sur le dépôt appelant
+
+jobs:
+  liste:
+    runs-on: ubuntu-24.04
+    outputs:
+      cases: ${{ steps.cases.outputs.cases }}
+    steps:
+      - id: cases
+        env:
+          CASES: ${{ inputs.cases }}
+        run: echo "cases=$(jq -cn --arg c "$CASES" '$c | split(" ") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
+
+  case:
+    needs: liste
+    name: case ${{ matrix.case }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false              # une case en échec n'arrête pas les autres
+      matrix:
+        case: ${{ fromJSON(needs.liste.outputs.cases) }}
+    env:
+      CASE: ${{ matrix.case }}
+      GH_TOKEN: ${{ github.token }}
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+    steps:
+      - name: Checkout hike2gpx
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - name: Reprendre le lot publié
+        run: |
+          # Le lot déjà publié de la case, rangé comme bundles le range : un lot à
+          # jour (mêmes éditions OSM et BD TOPO) est alors sauté.
+          mkdir -p "$RUNNER_TEMP/publie" "$RUNNER_TEMP/lots/$CASE"
+          gh release download bundles --repo "$GITHUB_REPOSITORY" --pattern "$CASE.*" \
+              --dir "$RUNNER_TEMP/publie" || true
+          for f in "$RUNNER_TEMP"/publie/"$CASE".*; do
+            [ -e "$f" ] && mv "$f" "$RUNNER_TEMP/lots/$CASE/${f##*/$CASE.}"
+          done
+          ls -la "$RUNNER_TEMP/lots/$CASE"
+
+      - name: Fabriquer la case
+        run: python -m hike2gpx bundles "$CASE" --ign-regions --output "$RUNNER_TEMP/lots"
+
+      - name: Garder le lot pour la publication
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          # Le dossier de la case lui-même : la publication retrouve chaque lot
+          # par son manifeste, quelle que soit la façon dont les artefacts se
+          # déposent (un seul : à plat ; plusieurs : un sous-dossier chacun).
+          name: lot-${{ matrix.case }}
+          path: ${{ runner.temp }}/lots
+          retention-days: 1
+
+  publier:
+    needs: case
+    if: ${{ !cancelled() }}         # les cases réussies sont publiées même si une autre a échoué
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout hike2gpx
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - name: Rassembler les lots
+        run: |
+          # Les lots publiés jusqu'ici, puis ceux de cette semaine par-dessus : le
+          # catalogue liste toutes les cases, même celles qui ont échoué cette fois.
+          mkdir -p "$RUNNER_TEMP/publie" "$RUNNER_TEMP/lots"
+          gh release download bundles --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/publie" || true
+          for f in "$RUNNER_TEMP"/publie/*.*.*; do
+            [ -e "$f" ] || continue
+            nom=${f##*/}; case=${nom%%.*}
+            mkdir -p "$RUNNER_TEMP/lots/$case" && mv "$f" "$RUNNER_TEMP/lots/$case/${nom#$case.}"
+          done
+
+      - name: Lots de cette semaine
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: lot-*
+          path: ${{ runner.temp }}/nouveaux
+
+      - name: Catalogue et publication
+        run: |
+          find "$RUNNER_TEMP/nouveaux" -name manifest.json | while read -r manifeste; do
+            d=$(dirname "$manifeste"); case=$(basename "$d")
+            echo "lot de la semaine : $case"
+            rm -rf "$RUNNER_TEMP/lots/$case" && mv "$d" "$RUNNER_TEMP/lots/$case"
+          done
+          python -m hike2gpx catalog "$RUNNER_TEMP/lots" --publish-dir "$RUNNER_TEMP/publication"
+          gh release view bundles --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create bundles --repo "$GITHUB_REPOSITORY" --title "Lots hors ligne de hike2gpx" \
+                 --notes "Lots hors ligne des cases BRouter, refaits chaque semaine. Catalogue : catalog.json."
+          gh release upload bundles "$RUNNER_TEMP"/publication/* --repo "$GITHUB_REPOSITORY" --clobber
