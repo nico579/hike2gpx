@@ -21,6 +21,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -84,9 +85,18 @@ def derniere_edition(region: str, lire=_atom) -> dict:
     return {"nom": nom, "date": nom[-10:], "fichiers": sorted(fichiers, key=lambda f: f["url"])}
 
 
-def _telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen) -> None:
-    """Le fichier, repris là où il s'est arrêté (Range), puis contrôlé par son MD5."""
-    for essai in range(3):
+ECHECS_MAX = 5         # essais de suite sans le moindre octet de plus
+
+
+def _telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, pause=time.sleep) -> None:
+    """Le fichier, repris là où il s'est arrêté (Range), puis contrôlé par son
+    MD5. Une archive de plusieurs Go se télécharge en quarante minutes depuis
+    GitHub Actions, coupée parfois plusieurs fois, ou fermée proprement avant
+    la fin : un essai qui a avancé ne compte pas comme un échec, et un fichier
+    incomplet reprend au lieu de repartir de zéro (essai du 2026-10-28, R93 et
+    R44 abandonnées après trois coupures)."""
+    echecs = 0
+    while echecs < ECHECS_MAX:
         deja = cible.stat().st_size if cible.exists() else 0
         if deja < fichier["octets"]:
             entetes = {**AGENT, **({"Range": f"bytes={deja}-"} if deja else {})}
@@ -97,6 +107,10 @@ def _telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen) -> N
                         shutil.copyfileobj(reponse, f, BLOC)
             except (OSError, http.client.HTTPException) as exc:     # coupure : l'essai suivant reprend
                 journal.info("BD TOPO : %s coupé (%s), reprise", cible.name, exc)
+            recus = cible.stat().st_size if cible.exists() else 0
+            if recus < fichier["octets"]:
+                echecs = 0 if recus > deja else echecs + 1
+                pause(min(60, 5 * (echecs + 1)))
                 continue
         h = hashlib.md5()
         with open(cible, "rb") as f:
@@ -105,6 +119,7 @@ def _telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen) -> N
         if h.hexdigest() == fichier["md5"]:
             return
         cible.unlink()                  # contenu faux : on repart de zéro
+        echecs += 1
     raise ErreurArchive(f"{cible.name} : téléchargement impossible ou altéré.")
 
 
