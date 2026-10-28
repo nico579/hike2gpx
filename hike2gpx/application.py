@@ -500,9 +500,15 @@ class Application:
         # tâche de fond s'il manque, Overpass servant en attendant ; de même le
         # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
         # Un lot installé qui couvre la zone suffit : rien à télécharger. Le lot
-        # que publie le serveur pour la zone se télécharge de lui-même ; en
-        # l'attendant, le calcul se fait à la volée, sans extrait.
-        couvert = self._lot_automatique(zone, "calcul d'itinéraire") or bool(self.hors_ligne.lot_couvrant(zone))
+        # que publie le serveur pour la zone se télécharge de lui-même, plus
+        # vite que la volée (Overpass, tuiles BRouter) : le calcul l'attend,
+        # la page le relance à son arrivée (essai de Nico du 2026-10-28, les
+        # deux se chevauchaient).
+        lot_attendu = self._lot_automatique(zone, "calcul d'itinéraire")
+        if lot_attendu and not self.hors_ligne.lot_couvrant(zone):
+            return {"erreur": "Le lot hors ligne de la zone se télécharge : le calcul reprendra à son arrivée.",
+                    "code": "attente_lot"}
+        couvert = lot_attendu or bool(self.hors_ligne.lot_couvrant(zone))
         extrait = None if couvert else self._extrait_automatique(zone, "calcul d'itinéraire")
         if not self.installation.installee():
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True,
@@ -702,6 +708,8 @@ class Application:
         lire_lot = self._lecture_du_lot(zone, "osm")
         if lire_lot:
             return self._avec_lot_automatique(self._calque("osm", zone, lire_lot, numero))
+        if lot_attendu:                 # rien à la volée : la page relit le calque à l'arrivée du lot
+            return self._avec_lot_automatique({"attente_lot": True})
         extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone and not lot_attendu else None
         resultat = self._avec_lot_automatique(self._calque("osm", zone, franchissements.voies_affichables, numero))
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
@@ -713,10 +721,11 @@ class Application:
                 return {"troncons": []}
             return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
         numero = self._prendre_vue(fournisseur.calque, vue)
-        if numero is not None and zone:
-            self._lot_automatique(zone, f"calque {fournisseur.nom}")
-        return self._avec_lot_automatique(self._calque(
-            fournisseur.calque, zone, self._lecture_du_lot(zone, fournisseur.calque) or lire, numero))
+        lot_attendu = self._lot_automatique(zone, f"calque {fournisseur.nom}") if numero is not None and zone else False
+        lire_lot = self._lecture_du_lot(zone, fournisseur.calque)
+        if lot_attendu and not lire_lot:
+            return self._avec_lot_automatique({"attente_lot": True})
+        return self._avec_lot_automatique(self._calque(fournisseur.calque, zone, lire_lot or lire, numero))
 
     def _lecture_du_lot(self, zone, calque):
         """Lecture du calque dans un lot installé qui couvre la zone, ou None.
