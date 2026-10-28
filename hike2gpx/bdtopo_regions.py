@@ -19,10 +19,12 @@ import http.client
 import logging
 import re
 import shutil
+import sqlite3
 import subprocess
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from contextlib import closing
 from pathlib import Path
 
 from . import __version__
@@ -107,37 +109,65 @@ def _telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen) -> N
 
 
 def geopackage(dossier, region: str, edition: dict | None = None) -> Path:
-    """Le GeoPackage de la région à sa dernière édition, téléchargé une fois et
-    gardé dans dossier/bdtopo-regions ; les éditions plus anciennes sont effacées."""
+    """Les tronçons de route de la région à sa dernière édition, téléchargés une
+    fois et gardés dans dossier/bdtopo-regions ; les éditions plus anciennes sont
+    effacées. Du GeoPackage « tous thèmes » (une vingtaine de Go pour une grande
+    région), seuls la table troncon_de_route et son index RTree sont gardés, dans
+    une petite base que lit case.troncons_gpkg : une case qui touche cinq régions
+    (E0_N45) remplissait sinon le disque d'une machine GitHub."""
     edition = edition or derniere_edition(region)
     racine = Path(dossier) / "bdtopo-regions"
-    gpkg = racine / f"{edition['nom']}.gpkg"
-    if gpkg.is_file():
-        return gpkg
+    base = racine / f"{edition['nom']}.troncons.sqlite"
+    if base.is_file():
+        return base
     commande = shutil.which("7z") or shutil.which("7za")
     if commande is None:
         raise ErreurArchive("La commande 7z est nécessaire pour la BD TOPO par régions (paquet p7zip).")
     travail = racine / f".{edition['nom']}"
-    travail.mkdir(parents=True, exist_ok=True)
-    parties = []
-    for fichier in edition["fichiers"]:
-        partie = travail / fichier["url"].rsplit("/", 1)[-1]
-        journal.info("BD TOPO : téléchargement de %s (%.0f Mo)", partie.name, fichier["octets"] / 1e6)
-        _telecharger(fichier, partie)
-        parties.append(partie)
-    extrait = travail / "extrait"
-    r = subprocess.run([commande, "x", "-y", f"-o{extrait}", str(parties[0])], capture_output=True, text=True)
-    if r.returncode:
-        raise ErreurArchive(f"Décompression de {parties[0].name} impossible : {(r.stderr or r.stdout)[-300:]}")
-    trouves = sorted(extrait.rglob("*.gpkg"), key=lambda p: p.stat().st_size)
-    if not trouves:
-        raise ErreurArchive(f"Pas de GeoPackage dans {parties[0].name}.")
-    trouves[-1].replace(gpkg)
-    shutil.rmtree(travail, ignore_errors=True)
-    for ancien in racine.glob(f"BDTOPO_*_{region}_*.gpkg"):
-        if ancien != gpkg:
+    try:
+        travail.mkdir(parents=True, exist_ok=True)
+        parties = []
+        for fichier in edition["fichiers"]:
+            partie = travail / fichier["url"].rsplit("/", 1)[-1]
+            journal.info("BD TOPO : téléchargement de %s (%.0f Mo)", partie.name, fichier["octets"] / 1e6)
+            _telecharger(fichier, partie)
+            parties.append(partie)
+        extrait = travail / "extrait"
+        # Le GeoPackage seul, pas la documentation ni les métadonnées de l'archive.
+        r = subprocess.run([commande, "x", "-y", f"-o{extrait}", str(parties[0]), "*.gpkg", "-r"],
+                           capture_output=True, text=True)
+        if r.returncode:
+            libre = shutil.disk_usage(racine).free / 1e9
+            raise ErreurArchive(f"Décompression de {parties[0].name} impossible ({libre:.1f} Go libres) : "
+                                f"{(r.stdout + r.stderr).strip()[-400:]}")
+        for partie in parties:              # l'archive ne sert plus : de la place pour la suite
+            partie.unlink()
+        trouves = sorted(extrait.rglob("*.gpkg"), key=lambda p: p.stat().st_size)
+        if not trouves:
+            raise ErreurArchive(f"Pas de GeoPackage dans {parties[0].name}.")
+        mince = travail / "troncons.sqlite"
+        _garder_les_troncons(trouves[-1], mince)
+        mince.replace(base)
+    finally:
+        shutil.rmtree(travail, ignore_errors=True)
+    for ancien in racine.glob(f"BDTOPO_*_{region}_*"):
+        if ancien != base:
             ancien.unlink()
-    return gpkg
+    return base
+
+
+def _garder_les_troncons(gpkg: Path, cible: Path) -> None:
+    """La table des tronçons de route et son index RTree, copiés du GeoPackage
+    complet dans une base à part, avec les seules colonnes que lit la fusion."""
+    with closing(sqlite3.connect(str(cible), uri=True)) as base:     # uri : ATTACH en lecture seule
+        base.execute("ATTACH DATABASE ? AS complet", (f"file:{gpkg.resolve().as_posix()}?mode=ro",))
+        base.execute("CREATE TABLE troncon_de_route AS SELECT fid, cleabs, nature, acces_pieton, prive, "
+                     "insee_commune_gauche, insee_commune_droite, geometrie FROM complet.troncon_de_route")
+        base.execute("CREATE VIRTUAL TABLE rtree_troncon_de_route_geometrie USING rtree(id, minx, maxx, miny, maxy)")
+        base.execute("INSERT INTO rtree_troncon_de_route_geometrie "
+                     "SELECT id, minx, maxx, miny, maxy FROM complet.rtree_troncon_de_route_geometrie")
+        base.commit()
+        base.execute("DETACH DATABASE complet")
 
 
 class Lecteur:
