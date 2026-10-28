@@ -146,7 +146,7 @@ test("les cases hors ligne se dessinent depuis les réglages, selon leur état",
   await charge;
   const [cadre] = page.grilleCases.layers;
   assert.deepEqual(json(cadre.bounds), [[40, 5], [45, 10]]);
-  assert.equal(cadre.options.color, "#23804f", "vert : prête hors ligne");
+  assert.equal(cadre.options.color, "#1b7a3e", "vert : prête hors ligne");
   assert.match(elements.get("offlineGridStatus").textContent, /^1 case/);
   elements.get("showOfflineGrid").checked = false;
   const avant = requetes.length;
@@ -1117,7 +1117,7 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
   bouton = elements.get("donnees").enfants[0].enfants[0];
   assert.equal(bouton.disabled, false);
   bouton.ecouteurs.click[0]();
-  assert.match(confirmations[0], /Les tuiles de fond de carte restent dans le cache du navigateur/);
+  assert.match(confirmations[0], /les lots et les fonds hors ligne/);
   assert.equal(requetes.filter((r) => r.url === "/api/donnees").length, 0);
   confirmations.reponse = true;
   bouton.ecouteurs.click[0]();

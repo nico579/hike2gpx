@@ -331,6 +331,10 @@ class Application:
 
     def arreter(self) -> None:
         self.partage.fermer()
+        self._arreter_moteurs()
+
+    def _arreter_moteurs(self) -> None:
+        """Les moteurs BRouter arrêtés ; ils repartent d'eux-mêmes au prochain calcul."""
         with self._verrou_moteur:
             for serveur in (self.serveur, self.serveur_maison, self.serveur_lot_osm):
                 if serveur is not None:
@@ -925,7 +929,8 @@ class Application:
         action, cible = corps.get("action"), corps.get("cible")
         taches = geofabrik.telechargements(self.dossier)
         if action == "vider_cache":
-            if taches.occupee() or (self._fil_brouter and self._fil_brouter.is_alive()) or self._lectures:
+            if taches.occupee() or (self._fil_brouter and self._fil_brouter.is_alive()) or self._lectures \
+                    or (self._fil_lot and self._fil_lot.is_alive()):
                 return {"erreur": "Un téléchargement ou une lecture est en cours. Réessayez après sa fin."}
             if not self._verrou_calcul.acquire(blocking=False):
                 return {"erreur": "Un calcul est en cours. Réessayez après sa fin."}
@@ -947,7 +952,12 @@ class Application:
                     for p in extraits.iterdir() if extraits.is_dir() else []:
                         if p.is_file():
                             p.unlink()
-                    journal.info("Caches locaux OSM, IGN, gpx2elev et BRouter vidés depuis les réglages")
+                    # Les lots et les fonds aussi, pour repartir de zéro
+                    # (décision de Nico du 2026-10-28) : ceux du serveur
+                    # se retéléchargent vite.
+                    self.hors_ligne.vider()
+                    journal.info("Caches locaux OSM, IGN, gpx2elev et BRouter, lots et fonds hors ligne "
+                                 "vidés depuis les réglages")
                 finally:
                     self._verrou_denivele.release()
             finally:
@@ -1065,6 +1075,7 @@ class Application:
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
                 "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux,
                 "installer_lot": self.installer_lot, "preparer_lot": self.preparer_lot,
+                "supprimer_case": self.supprimer_case,
                 "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot,
                 "preparer_fond": self.preparer_fond, "partage": self.partager, **post_langue}
         return get, post
@@ -1091,6 +1102,24 @@ class Application:
             lots.append({k: entree.get(k) for k in ("case", "type", "fournisseurs", "zone", "sources", "octets")}
                         | {"etat": etat})
         return {"lots": lots, "depot": self.depot_lots}
+
+    def supprimer_case(self, corps) -> dict:
+        """Retire de l'ordinateur le lot et les fonds d'une case, depuis sa bulle sur la
+        carte. corps : {"case": "E5_N40"}. Rend {"octets"} libérés, ou {"erreur"}."""
+        case, _, erreur = self._case_et_zone(corps)
+        if erreur:
+            return {"erreur": erreur}
+        if self._fil_lot and self._fil_lot.is_alive():
+            return {"erreur": "Un lot se prépare. Réessayez après sa fin."}
+        if not self._verrou_calcul.acquire(blocking=False):
+            return {"erreur": "Un calcul est en cours. Réessayez après sa fin."}
+        try:
+            self._arreter_moteurs()       # un moteur garde la RD5 ouverte : Windows refuserait de l'effacer
+            octets = self.hors_ligne.supprimer(case)
+        finally:
+            self._verrou_calcul.release()
+        journal.info("Case %s retirée de l'ordinateur depuis la carte : %d octets libérés", case, octets)
+        return {"octets": octets}
 
     def telecharger_lot(self, corps) -> dict:
         """Télécharge en tâche de fond le lot d'une case depuis le dépôt du

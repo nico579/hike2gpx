@@ -70,6 +70,36 @@ class HorsLigne:
         chemin = self.dossier_fonds / f"{nom}.mbtiles"
         return chemin if chemin.is_file() else None
 
+    def supprimer(self, case: str) -> int:
+        """Retire de l'ordinateur tout ce qui sert la case hors ligne : son lot, sa RD5
+        et ses fonds de carte (un voyage fini, une case qu'on ne visitera
+        plus). Les moteurs BRouter qui lisent la RD5 sont arrêtés avant, par
+        l'appelant. Rend les octets libérés."""
+        fichiers = [self.segments / f"{case}.rd5", self.segments_osm / f"{case}.rd5",
+                    *self.dossier_fonds.glob(f"{case}-*.mbtiles")]
+        dossier = self.racine / case
+        if dossier.is_dir():
+            fichiers += [p for p in dossier.iterdir() if p.is_file()]
+        fichiers = [p for p in fichiers if p.is_file()]
+        octets = sum(p.stat().st_size for p in fichiers)
+        for p in fichiers:
+            p.unlink()
+        shutil.rmtree(dossier, ignore_errors=True)
+        self._oublier()
+        return octets
+
+    def vider(self) -> None:
+        """Tous les lots et les fonds de carte retirés, pour repartir de zéro :
+        ceux du serveur se retéléchargent vite."""
+        if self.racine.is_dir():
+            shutil.rmtree(self.racine)
+        self._oublier()
+
+    def _oublier(self) -> None:
+        """Ce qui a été lu des lots retirés ne sert plus."""
+        self._franchissements.clear()
+        lot._tuile_decodee.cache_clear()
+
     def installer(self, source: Path) -> dict:
         """Installe le lot du dossier source après vérification de chaque fichier
         contre le manifeste. Remplace un lot plus ancien de la même case."""
