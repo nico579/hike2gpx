@@ -869,8 +869,18 @@ class Application:
         details = self._detail_sources_osm(zone, overpass)
         if zone is None:
             return {"pret": False, "source": None, "attente": "zone", "details": details}
+        # Un lot installé qui couvre la zone suffit au calcul, RD5 comprise
+        # (règle unique) : l'indicateur le dit au lieu de compter les extraits
+        # et les tuiles BRouter (capture de Nico du 2026-10-28).
+        lot_local = self.hors_ligne.lot_couvrant(zone)
+        if lot_local:
+            details["lot"] = {"nom": lot_local["case"], "etat": "disponible"}
+        elif self._lot.get("actif") and self._lot.get("case") in brouter.segments_zone(*zone):
+            details["lot"] = {"nom": self._lot["case"], "etat": "telechargement"}
         if not self.installation.installee():
             return {"pret": False, "source": None, "attente": "moteur", "details": details}
+        if lot_local:
+            return {"pret": True, "source": "lot", "nom": lot_local["case"], "details": details}
         if any(not self.installation.segment_present(n) for n in brouter.segments_zone(*zone)):
             return {"pret": False, "source": None, "attente": "segments", "details": details}
         tuiles = franchissements.tuiles_zone(*zone)

@@ -99,6 +99,7 @@ const TEXTES = {
     "disponibilite.info.titre": "Sources du prochain calcul",
     "disponibilite.info.verification": "Vérification des données en cours…",
     "disponibilite.info.overpass": "Overpass",
+    "disponibilite.info.lot": "Lot hors ligne",
     "disponibilite.info.local": "Extrait OSM local",
     "disponibilite.info.regional": "Extrait OSM régional",
     "disponibilite.info.brouter": "BRouter",
@@ -327,6 +328,7 @@ const TEXTES = {
     "disponibilite.info.titre": "Sources for the next route",
     "disponibilite.info.verification": "Checking data…",
     "disponibilite.info.overpass": "Overpass",
+    "disponibilite.info.lot": "Offline bundle",
     "disponibilite.info.local": "Local OSM extract",
     "disponibilite.info.regional": "Regional OSM extract",
     "disponibilite.info.brouter": "BRouter",
@@ -779,7 +781,8 @@ function afficherDisponibilite(d) {
   $("readiness").classList.toggle("available", pret);
   $("readiness").classList.toggle("unavailable", !pret);
   $("readinessText").textContent = t(pret ? "disponibilite.oui" : "disponibilite.non");
-  $("readiness").title = pret ? `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`
+  $("readiness").title = pret ? (d.source === "lot" ? `${t("disponibilite.info.lot")} : ${d.nom}`
+    : `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`)
     : t(`disponibilite.attente.${d?.attente || "osm"}`);
   $("readinessInfo").setAttribute("aria-label", t("disponibilite.info.titre"));
   const details = d?.details;
@@ -792,7 +795,9 @@ function afficherDisponibilite(d) {
     return `${t(`disponibilite.info.${cle}`)}${source.nom ? ` (${source.nom})` : ""} : `
       + t(`disponibilite.etat.${source.etat}`);
   };
+  // Un lot installé (ou qui se télécharge) passe en tête : il sert seul.
   $("readinessInfoText").textContent = [t("disponibilite.info.titre"),
+    ...(details.lot ? [extrait("lot")] : []),
     `${t("disponibilite.info.overpass")} : ${t(`disponibilite.etat.${details.overpass}`)}`,
     extrait("local"), extrait("regional"),
     `${t("disponibilite.info.brouter")} : ${t(d.attente === "moteur" || d.attente === "segments"

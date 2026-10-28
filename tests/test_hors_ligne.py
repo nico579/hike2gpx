@@ -177,6 +177,19 @@ def test_itineraire_hors_ligne_sans_reseau_ni_rd5_officielle(tmp_path, monkeypat
         "les franchissements du lot, filtrés sur la zone, et la coche passée au profil"
 
 
+def test_l_indicateur_compte_le_lot_installe(tmp_path, monkeypatch):
+    # Capture de Nico du 2026-10-28 : lot téléchargé, mais « Tracé indisponible »
+    # (Overpass muet, extrait régional absent, BRouter en attente).
+    a = appli.Application(tmp_path / "donnees")
+    a.hors_ligne.installer(fabriquer_lot(tmp_path / "lot"))
+    sans_reseau(a, monkeypatch)
+    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
+    d = a.disponibilite((43.30, 6.00, 43.31, 6.01))
+    assert d["pret"] is True and d["source"] == "lot" and d["nom"] == "E5_N40"
+    assert d["details"]["lot"] == {"nom": "E5_N40", "etat": "disponible"}
+    assert a.disponibilite((47.0, 2.0, 47.01, 2.01))["pret"] is False, "hors du lot : comme avant"
+
+
 def test_itineraire_sur_un_lot_osm(tmp_path, monkeypatch):
     a = appli.Application(tmp_path / "donnees")
     a.hors_ligne.installer(lot_osm(tmp_path / "lot"))
