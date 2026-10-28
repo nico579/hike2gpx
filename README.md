@@ -251,8 +251,9 @@ hike2gpx works with bundles: everything one 5° BRouter cell needs (routing
 data, official paths, crossings, map layers), each file checked against the
 SHA-256 of a manifest.
 
-Tick "Show offline areas (5°)" in the settings and the map shows the grid of cells.
-A click on a cell offers two ways to get its bundle:
+The "Offline" button at the top of the map (or the "Show offline areas (5°)"
+box in the settings) shows the grid of cells. A click on a cell offers two
+ways to get its bundle:
 
 - **download it from the server.** The French cells are built every week and
   published on [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles);
@@ -272,6 +273,18 @@ meaning: unticked, the official paths stay in the bundle but routing may not
 use them. Caches renew themselves; a bundle older than the renewal delay asks
 first. A cell crossing a border takes every provider whose country it touches:
 E5_N45 merges IGN and swissTLM3D paths, each read on its own country only.
+
+That leaves the map itself. In France, the same popup also prepares the
+**offline base map**: the tiles the page shows, SCAN 25 if you have an IGN
+key, Plan IGN otherwise, stored on this computer in an MBTiles file. It then
+appears among the base maps as "Offline map". A screen view goes down to
+zoom 16, where trails show: around Garéoult, 631 tiles, 12 MB of SCAN 25
+(27 MB of Plan IGN), a little over a minute. A whole cell stops at zoom 13,
+for the overview: cell E5_N40 weighs 151 MB of SCAN 25 and takes about three
+quarters of an hour, because hike2gpx spares the IGN service (ten tiles per
+second at most). An interrupted base map resumes where it stopped. SCAN 25
+is not open data, so a base map stays on your computer: it is never
+published.
 
 ### Building bundles from the command line
 

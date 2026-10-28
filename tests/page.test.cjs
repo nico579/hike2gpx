@@ -155,13 +155,34 @@ test("les cases hors ligne se dessinent depuis les réglages, selon leur état",
   assert.equal(requetes.length, avant, "ni requête au serveur");
 });
 
+test("le bouton « Hors ligne » de la carte montre la grille et dit quoi en faire", async () => {
+  const { page, elements, requetes, stockage } = charger();
+  const bouton = elements.get("offlineButton");
+  bouton.click();
+  assert.equal(elements.get("showOfflineGrid").checked, true, "la case des réglages suit le bouton");
+  assert.equal(bouton["aria-pressed"], "true");
+  assert.equal(bouton.classList.contains("actif"), true);
+  assert.equal(elements.get("offlineHint").hidden, false);
+  assert.match(elements.get("offlineHint").textContent,
+    /^Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou son fond de carte\.$/);
+  assert.equal(stockage.get("hike2gpx.casesHorsLigne"), "1");
+  assert.ok(requetes.some((r) => r.url === "/api/hors_ligne"), "les lots installés sont relus");
+  page.appliquerLangue("en");
+  assert.match(elements.get("offlineHint").textContent, /^Click an area: download its bundle/);
+  bouton.click();
+  assert.equal(elements.get("showOfflineGrid").checked, false);
+  assert.equal(bouton["aria-pressed"], "false");
+  assert.equal(elements.get("offlineHint").hidden, true);
+  assert.equal(page.grilleCases.layers.length, 0);
+});
+
 test("une case absente se prépare sur la vue actuelle ou en entier", async () => {
   const { page, requetes } = charger();
   const bulle = page.bulleCase("E5_N40");
   const boutons = bulle.enfants.filter((e) => e.type === "button");
   assert.deepEqual(boutons.map((b) => b.textContent),
     ["Préparer la vue actuelle", "Préparer toute la case (environ une heure)",
-      "Fond de carte de la vue (Plan IGN)", "Fond de carte de toute la case (Plan IGN, zooms 6 à 13, 40 min)"]);
+      "Fond de carte de la vue (Plan IGN)", "Fond de carte de toute la case (Plan IGN, zooms 6 à 13, environ 45 min)"]);
   boutons[0].click();
   const vue = requetes.findLast((r) => r.url === "/api/preparer_lot");
   assert.deepEqual(JSON.parse(vue.options.body), { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });

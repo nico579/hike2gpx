@@ -177,6 +177,9 @@ const TEXTES = {
     "reglages.casesHorsLigne": "Afficher les cases hors ligne (5°)",
     "reglages.casesNombre": "{nombre} case(s) prête(s) · vert : prête, bleu : sur le serveur, orange : en préparation, gris : à préparer",
     "reglages.casesAucune": "Aucune case prête hors ligne. Cliquez une case de la carte pour la préparer.",
+    "horsLigne.bouton": "Hors ligne",
+    "horsLigne.boutonTitre": "Afficher les cases hors ligne (5°) : lots et fonds de carte pour marcher sans réseau",
+    "horsLigne.aide": "Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou son fond de carte.",
     "horsLigne.case": "Case {nom}",
     "horsLigne.prete": "Prête hors ligne : {taille}, OSM du {date}.",
     "horsLigne.absente": "Pas encore disponible hors ligne.",
@@ -210,7 +213,7 @@ const TEXTES = {
     "horsLigne.fondVue": "vue",
     "horsLigne.fondCase": "toute la case",
     "horsLigne.preparerFondVue": "Fond de carte de la vue ({source})",
-    "horsLigne.preparerFondCase": "Fond de carte de toute la case ({source}, zooms 6 à 13, {duree})",
+    "horsLigne.preparerFondCase": "Fond de carte de toute la case ({source}, zooms 6 à 13, environ {duree})",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
     "pleinEcran.entrer": "Plein écran",
     "pleinEcran.quitter": "Quitter le plein écran",
@@ -391,6 +394,9 @@ const TEXTES = {
     "reglages.casesHorsLigne": "Show offline areas (5°)",
     "reglages.casesNombre": "{nombre} area(s) ready · green: ready, blue: on the server, orange: being prepared, gray: to prepare",
     "reglages.casesAucune": "No area is ready offline yet. Click an area on the map to prepare it.",
+    "horsLigne.bouton": "Offline",
+    "horsLigne.boutonTitre": "Show the offline areas (5°): bundles and base maps to hike with no network",
+    "horsLigne.aide": "Click an area: download its bundle from the server, prepare the view or the whole area, or its base map.",
     "horsLigne.case": "Area {nom}",
     "horsLigne.prete": "Ready offline: {taille}, OSM of {date}.",
     "horsLigne.absente": "Not available offline yet.",
@@ -424,7 +430,7 @@ const TEXTES = {
     "horsLigne.fondVue": "view",
     "horsLigne.fondCase": "whole area",
     "horsLigne.preparerFondVue": "Base map of the view ({source})",
-    "horsLigne.preparerFondCase": "Base map of the whole area ({source}, zooms 6 to 13, {duree})",
+    "horsLigne.preparerFondCase": "Base map of the whole area ({source}, zooms 6 to 13, about {duree})",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
     "pleinEcran.entrer": "Full screen",
     "pleinEcran.quitter": "Exit full screen",
@@ -569,6 +575,7 @@ function appliquerLangue(code) {
   rafraichirCalques();
   afficherExtrait(etat.extrait);
   afficherDonnees();
+  afficherEntreeHorsLigne();
   afficherStatut(...etat.statut);
   if (etat.dernier) ecrireResultat(etat.dernier);
   afficherDisponibilite(derniereDisponibilite);
@@ -1481,7 +1488,7 @@ function ajouterFonds(div, nom, vue) {
   }
   const source = etat.cleIgn ? "SCAN 25" : "Plan IGN";
   if (vue) div.append(bouton(t("horsLigne.preparerFondVue", { source }), () => preparerFond(nom, vue)));
-  div.append(bouton(t("horsLigne.preparerFondCase", { source, duree: "40 min" }), () => preparerFond(nom)));
+  div.append(bouton(t("horsLigne.preparerFondCase", { source, duree: "45 min" }), () => preparerFond(nom)));
 }
 
 async function preparerFond(nom, zone = null) {
@@ -1543,9 +1550,26 @@ function basculerCases() {
   try { localStorage.setItem(CLE_CASES, $("showOfflineGrid").checked ? "1" : "0"); }
   catch (_) { /* réglage de carte non persistant */ }
   if ($("showOfflineGrid").checked) grilleCases.addTo(carte); else grilleCases.remove();
+  afficherEntreeHorsLigne();
   chargerLots();
 }
 $("showOfflineGrid").addEventListener("change", basculerCases);
+
+// L'entrée du mode hors ligne, sur la carte : le bouton « Hors ligne » fait
+// la même chose que la case des réglages (les deux restent d'accord), et dit
+// en une ligne ce qu'on peut faire d'une case.
+function afficherEntreeHorsLigne() {
+  const active = $("showOfflineGrid").checked;
+  $("offlineButton").setAttribute("aria-pressed", String(active));
+  $("offlineButton").classList.toggle("actif", active);
+  $("offlineButton").title = t("horsLigne.boutonTitre");
+  $("offlineHint").textContent = active ? t("horsLigne.aide") : "";
+  $("offlineHint").hidden = !active;
+}
+$("offlineButton").addEventListener("click", () => {
+  $("showOfflineGrid").checked = !$("showOfflineGrid").checked;
+  basculerCases();
+});
 carte.on("moveend", dessinerCases);
 
 function afficherLot(r) {
@@ -1636,6 +1660,7 @@ function restaurerCases() {
   try { $("showOfflineGrid").checked = localStorage.getItem(CLE_CASES) === "1"; }
   catch (_) { /* pas de préférence */ }
   if ($("showOfflineGrid").checked) grilleCases.addTo(carte);
+  afficherEntreeHorsLigne();
   chargerLots();
   suivreLot();
 }

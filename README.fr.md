@@ -253,9 +253,9 @@ hike2gpx travaille avec des lots : tout ce dont une case BRouter de 5° a besoin
 (données de routage, chemins officiels, franchissements, calques), chaque
 fichier vérifié contre l'empreinte SHA-256 d'un manifeste.
 
-Cochez « Afficher les cases hors ligne (5°) » dans les réglages, et la carte montre
-la grille des cases. Un clic sur une case propose deux façons d'obtenir son
-lot :
+Le bouton « Hors ligne », en haut de la carte (ou la case « Afficher les cases
+hors ligne (5°) » des réglages), montre la grille des cases. Un clic sur une
+case propose deux façons d'obtenir son lot :
 
 - **le télécharger depuis le serveur.** Les cases de la France sont fabriquées
   chaque semaine et publiées sur
@@ -278,6 +278,18 @@ emprunter. Les caches se renouvellent d'eux-mêmes ; un lot plus vieux que le
 délai de renouvellement demande d'abord. Une case qui chevauche une frontière
 prend tous les fournisseurs dont le pays la touche : E5_N45 réunit les chemins
 de l'IGN et de swissTLM3D, chacun lu sur son seul pays.
+
+Reste la carte elle-même. En France, la même bulle prépare aussi le **fond de
+carte hors ligne** : les tuiles que la page affiche, le SCAN 25 si vous avez
+une clé IGN, sinon le Plan IGN, rangées sur ce PC dans un fichier MBTiles. Il
+apparaît ensuite parmi les fonds sous le nom « Carte hors ligne ». Une vue
+d'écran se prend jusqu'au zoom 16, celui des sentiers : autour de Garéoult,
+631 tuiles, 12 Mo en SCAN 25 (27 Mo en Plan IGN), un peu plus d'une minute.
+Une case entière s'arrête au zoom 13, pour la vue d'ensemble : la case
+E5_N40 fait 151 Mo en SCAN 25 et demande environ trois quarts d'heure, car
+hike2gpx ménage le service de l'IGN (dix tuiles par seconde au plus). Un fond
+interrompu reprend où il s'était arrêté. Le SCAN 25 n'étant pas une donnée
+libre, un fond reste sur votre PC : il n'est jamais publié.
 
 ### Fabriquer des lots en ligne de commande
 
