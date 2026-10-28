@@ -20,9 +20,10 @@ function charger(preferences = {}, documentGpx = null) {
     return { disabled: true, hidden: false, checked: false, textContent: "", value: "", dataset: {},
       style: { setProperty(name, value) { this[name] = value; } },
       classList: { toggle(c, oui) { (oui ?? !classes.has(c)) ? classes.add(c) : classes.delete(c); },
-        contains: (c) => classes.has(c) },
+        add: (c) => classes.add(c), contains: (c) => classes.has(c) },
       enfants: [], ecouteurs: {},
       append(...e) { this.enfants.push(...e); }, replaceChildren(...e) { this.enfants = e; },
+      after(...e) { this.suivants = e; },
       setAttribute(name, value) { this[name] = value; },
       addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() { this.removed = true; },
       click() { for (const action of this.ecouteurs.click || []) action(); } };
@@ -33,7 +34,8 @@ function charger(preferences = {}, documentGpx = null) {
     fitBounds(bounds, options) { this.fit = { bounds, options }; return this; },
     on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
       ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
-    hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
+    hasLayer() { return false; }, getZoom() { return this.zoom; }, setZoom(zoom) { this.zoom = zoom; return this; },
+    invalidateSize() {},
     closePopup() { this.popup = null; },
     getCenter() { return { lat: (this.vue.s + this.vue.n) / 2, lng: (this.vue.w + this.vue.e) / 2 }; },
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
@@ -81,7 +83,9 @@ function charger(preferences = {}, documentGpx = null) {
       tileLayer: Object.assign((url, options) => Object.assign(couche(), { url, options }),
         { wms: (url, options) => Object.assign(couche(), { url, options }) }),
       CRS: { EPSG4326: { code: "EPSG:4326" } }, divIcon: (options) => ({ options }),
-      control: { layers: (fonds, calques) => Object.assign(couche(), { fonds, calques,
+      control: { scale: (options) => Object.assign(couche(), { options, conteneur: element(),
+        getContainer() { return this.conteneur; } }),
+        layers: (fonds, calques) => Object.assign(couche(), { fonds, calques,
         addOverlay(layer, name) { this.calques[name] = layer; return this; },
         removeLayer(layer) {
           for (const [name, value] of Object.entries(this.calques)) {
@@ -156,9 +160,13 @@ test("les cases hors ligne se dessinent depuis les réglages, selon leur état",
 });
 
 test("le bouton « Hors ligne » de la carte montre la grille et dit quoi en faire", async () => {
-  const { page, elements, requetes, stockage } = charger();
+  const { page, elements, requetes, stockage, carte } = charger();
+  // L'échelle de la carte, à droite de la recherche de ville.
+  assert.ok(elements.get("citySubmit").suivants[0].classList.contains("echelle-entete"));
   const bouton = elements.get("offlineButton");
+  assert.equal(carte.zoom, 14);
   bouton.click();
+  assert.equal(carte.zoom, 6, "les cases de 5° se voient : la carte dézoome");
   assert.equal(elements.get("showOfflineGrid").checked, true, "la case des réglages suit le bouton");
   assert.equal(bouton["aria-pressed"], "true");
   assert.equal(bouton.classList.contains("actif"), true);
