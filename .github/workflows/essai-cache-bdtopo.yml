@@ -1,0 +1,68 @@
+# Essai, pas production : les étapes de cache de bundles.yml, sur une petite
+# case française (W10_N45, la Bretagne), sans fabriquer ni publier de lot. Deux
+# exécutions : la première télécharge et garde, la seconde doit reprendre.
+name: Essai cache BD TOPO
+
+on:
+  push:
+    branches: [essai/cache-bdtopo]
+
+permissions:
+  contents: read
+
+jobs:
+  case:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CASE: W10_N45
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - name: Éditions BD TOPO de la case
+        id: bdtopo
+        run: |
+          EDITIONS=$(python -c "import sys; from hike2gpx import bdtopo_regions, lot; l = bdtopo_regions.Lecteur(None); print('_'.join(r + '.' + l.edition(r)['date'] for r in l.regions(*lot.boite_case(sys.argv[1]))))" "$CASE") || EDITIONS=""
+          echo "éditions : ${EDITIONS:-aucune}"
+          echo "editions=$EDITIONS" >> "$GITHUB_OUTPUT"
+
+      - name: Reprendre les tronçons BD TOPO
+        id: bdtopo-cache
+        if: steps.bdtopo.outputs.editions != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.HIKE2GPX_HOME }}/bdtopo-regions
+          key: bdtopo-${{ env.CASE }}-${{ steps.bdtopo.outputs.editions }}
+          restore-keys: bdtopo-${{ env.CASE }}-
+
+      - name: Lire une emprise (à la place de la fabrication)
+        run: |
+          time python -c "import logging, sys; logging.basicConfig(level=logging.INFO); from hike2gpx import bdtopo_regions; print(len(bdtopo_regions.Lecteur(sys.argv[1])(48.40, -4.50, 48.45, -4.45)), 'tronçons')" "$HIKE2GPX_HOME"
+          ls -la "$HIKE2GPX_HOME/bdtopo-regions"
+
+      - name: Tronçons BD TOPO complets ?
+        id: bdtopo-complet
+        if: ${{ !cancelled() && steps.bdtopo.outputs.editions != '' && steps.bdtopo-cache.outputs.cache-hit != 'true' }}
+        env:
+          EDITIONS: ${{ steps.bdtopo.outputs.editions }}
+        run: |
+          for e in ${EDITIONS//_/ }; do
+            ls "$HIKE2GPX_HOME"/bdtopo-regions/BDTOPO_*_"${e%%.*}"_"${e#*.}".troncons.sqlite || exit 0
+          done
+          du -sh "$HIKE2GPX_HOME/bdtopo-regions"
+          echo "oui=1" >> "$GITHUB_OUTPUT"
+
+      - name: Garder les tronçons BD TOPO
+        if: ${{ !cancelled() && steps.bdtopo-complet.outputs.oui == '1' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.HIKE2GPX_HOME }}/bdtopo-regions
+          key: bdtopo-${{ env.CASE }}-${{ steps.bdtopo.outputs.editions }}
