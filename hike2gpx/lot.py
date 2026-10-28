@@ -262,27 +262,30 @@ def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: floa
     chemin = Path(mbtiles).resolve()
     date = chemin.stat().st_mtime_ns         # un lot réinstallé ne sert jamais d'anciennes tuiles
     for x, y in tuiles_emprise(ZOOM, sud, ouest, nord, est):
-        for nom, objet in _tuile_decodee(str(chemin), date, x, y, tuple(couches)):
-            if "lat" in objet:                  # un franchissement, vu une fois
-                if objet.get("cle") in vus:
-                    continue
-                vus.add(objet.get("cle"))
-            resultat[couches[nom]].append(dict(objet))
+        tuile = _tuile_decodee(str(chemin), date, x, y)
+        for nom in couches:
+            for objet in tuile.get(nom, ()):
+                if "lat" in objet:              # un franchissement, vu une fois
+                    if objet.get("cle") in vus:
+                        continue
+                    vus.add(objet.get("cle"))
+                resultat[couches[nom]].append(dict(objet))
     return resultat
 
 
 @functools.lru_cache(maxsize=512)
-def _tuile_decodee(chemin: str, date: int, x: int, y: int, noms: tuple) -> tuple:
+def _tuile_decodee(chemin: str, date: int, x: int, y: int) -> dict:
     """Les objets d'une tuile du lot, décodés et en [lat, lon], gardés en mémoire :
     un déplacement de la carte ne décode que les tuiles neuves du bord de la vue
     (sans ce cache, chaque déplacement redécodait les 49 tuiles d'une vue, 3 à 4 s).
     Une ligne est recoupée aux bords de sa tuile, sans la marge, pour ne rien
-    dessiner deux fois. Rend ((couche, objet), …)."""
+    dessiner deux fois. Toutes les couches d'un coup : les calques OSM et officiel
+    lisent les mêmes tuiles. Rend {couche: (objet, …)}."""
     with closing(sqlite3.connect(f"file:{Path(chemin).as_posix()}?mode=ro", uri=True)) as base:
         ligne = base.execute("SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? "
                              "AND tile_row = ?", (ZOOM, x, 2 ** ZOOM - 1 - y)).fetchone()
     if ligne is None:
-        return ()
+        return {}
     o, s, e, n = bornes_tuile(ZOOM, x, y)
     _, my0 = mercator(o, s)
     _, my1 = mercator(e, n)
@@ -294,23 +297,29 @@ def _tuile_decodee(chemin: str, date: int, x: int, y: int, noms: tuple) -> tuple
         lats = np.degrees(2 * np.arctan(np.exp(my / RAYON)) - np.pi / 2)
         return np.round(np.column_stack([o + p[:, 0] / ETENDUE * (e - o), lats]), 6)
 
-    objets = []
+    objets = {}
     tuile = mapbox_vector_tile.decode(gzip.decompress(ligne[0]), default_options={"y_coord_down": True})
-    for nom in noms:
-        for objet in tuile.get(nom, {}).get("features", []):
+    for nom, couche in tuile.items():
+        objets[nom] = liste = []
+        for objet in couche.get("features", []):
             g, props = objet["geometry"], dict(objet["properties"])
             if g["type"] == "Point":
                 props["lon"], props["lat"] = (float(v) for v in lonlat(g["coordinates"])[0])
-                objets.append((nom, props))
+                liste.append(props)
                 continue
             parties = [g["coordinates"]] if g["type"] == "LineString" else g["coordinates"]
             for partie in parties:
-                coupee = shapely.clip_by_rect(shapely.LineString(lonlat(partie)), o, s, e, n)
+                brut = np.asarray(partie, dtype=float)
+                if len(brut) > 1 and brut.min() >= 0 and brut.max() <= ETENDUE:
+                    # Dans la tuile, hors de la marge : rien à recouper.
+                    liste.append({**props, "pts": lonlat(brut)[:, ::-1].tolist()})
+                    continue
+                coupee = shapely.clip_by_rect(shapely.LineString(lonlat(brut)), o, s, e, n)
                 for morceau in shapely.get_parts(shapely.line_merge(coupee)) if not coupee.is_empty else []:
                     if morceau.geom_type == "LineString" and len(morceau.coords) > 1:
                         points = np.round(shapely.get_coordinates(morceau), 6)
-                        objets.append((nom, {**props, "pts": points[:, ::-1].tolist()}))
-    return tuple(objets)
+                        liste.append({**props, "pts": points[:, ::-1].tolist()})
+    return {nom: tuple(liste) for nom, liste in objets.items()}
 
 
 def blocs(sud: float, ouest: float, nord: float, est: float) -> list:
