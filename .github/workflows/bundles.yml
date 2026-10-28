@@ -136,7 +136,9 @@ jobs:
           # de plusieurs Go par région). Une clé à jour les rend tels quels ; à
           # défaut, la dernière clé de la case rend au moins les régions dont
           # l'édition n'a pas changé, les autres seront retéléchargées.
-          path: ${{ env.HIKE2GPX_HOME }}/bdtopo-regions
+          # runner.workspace est le dossier parent de github.workspace, donc
+          # HIKE2GPX_HOME écrit sans « .. », que actions/cache refuse.
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
           key: bdtopo-${{ matrix.case }}-${{ steps.bdtopo.outputs.editions }}
           restore-keys: bdtopo-${{ matrix.case }}-
 
@@ -163,7 +165,7 @@ jobs:
         if: ${{ !cancelled() && steps.bdtopo-complet.outputs.oui == '1' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ env.HIKE2GPX_HOME }}/bdtopo-regions
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
           key: bdtopo-${{ matrix.case }}-${{ steps.bdtopo.outputs.editions }}
 
       - name: Publier le relief
