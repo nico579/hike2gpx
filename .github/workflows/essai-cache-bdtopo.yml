@@ -1,6 +1,7 @@
-# Essai, pas production : les étapes de cache de bundles.yml, sur une petite
-# case française (W5_N45, cinq régions), sans fabriquer ni publier de lot. Deux
-# exécutions : la première télécharge et garde, la seconde doit reprendre.
+# Essai, pas production : la tâche « bdtopo » de bundles.yml et la reprise par
+# les cases, sur deux cases françaises (W10_N45 : une région ; W5_N45 : cinq),
+# sans fabriquer ni publier de lot. La première exécution prépare et garde,
+# la seconde (relancée) doit tout reprendre du cache.
 name: Essai cache BD TOPO
 
 on:
@@ -11,11 +12,72 @@ permissions:
   contents: read
 
 jobs:
-  case:
+  liste:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    outputs:
+      cases: '["W10_N45", "W5_N45"]'
+    steps:
+      - run: echo "cases fixes"
+
+  bdtopo:
+    needs: liste
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    outputs:
+      cle: ${{ steps.editions.outputs.cle }}
     env:
-      CASE: W5_N45
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+      CASES: ${{ join(fromJSON(needs.liste.outputs.cases), ' ') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - id: editions
+        run: |
+          EDITIONS=$(python -c "import sys; from hike2gpx import bdtopo_regions, lot; l = bdtopo_regions.Lecteur(None); r = sorted({x for c in sys.argv[1:] for x in l.regions(*lot.boite_case(c))}); print('_'.join(x + '.' + l.edition(x)['date'] for x in r))" $CASES) || EDITIONS=""
+          echo "éditions : ${EDITIONS:-aucune}"
+          if [ -n "$EDITIONS" ]; then echo "cle=bdtopo-$EDITIONS" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Reprendre les tronçons BD TOPO
+        id: cache
+        if: steps.editions.outputs.cle != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
+          key: ${{ steps.editions.outputs.cle }}
+          restore-keys: bdtopo-
+
+      - name: Télécharger les régions nouvelles
+        if: steps.editions.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
+        env:
+          CLE: ${{ steps.editions.outputs.cle }}
+        run: |
+          time python -c "import logging, sys; logging.basicConfig(level=logging.INFO); from hike2gpx import bdtopo_regions; [bdtopo_regions.geopackage(sys.argv[1], e.split('.')[0]) for e in sys.argv[2].removeprefix('bdtopo-').split('_')]" "$HIKE2GPX_HOME" "$CLE"
+          du -sh "$HIKE2GPX_HOME/bdtopo-regions"; ls -la "$HIKE2GPX_HOME/bdtopo-regions"
+
+      - name: Garder les tronçons BD TOPO
+        if: steps.editions.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
+          key: ${{ steps.editions.outputs.cle }}
+
+  case:
+    needs: [liste, bdtopo]
+    if: ${{ !cancelled() && needs.liste.result == 'success' }}
+    name: case ${{ matrix.case }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        case: ${{ fromJSON(needs.liste.outputs.cases) }}
+    env:
       HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -27,42 +89,15 @@ jobs:
           python -m pip install --quiet --require-hashes -r requirements.txt
           python -m pip install --quiet --no-deps -e .
 
-      - name: Éditions BD TOPO de la case
-        id: bdtopo
-        run: |
-          EDITIONS=$(python -c "import sys; from hike2gpx import bdtopo_regions, lot; l = bdtopo_regions.Lecteur(None); print('_'.join(r + '.' + l.edition(r)['date'] for r in l.regions(*lot.boite_case(sys.argv[1]))))" "$CASE") || EDITIONS=""
-          echo "éditions : ${EDITIONS:-aucune}"
-          echo "editions=$EDITIONS" >> "$GITHUB_OUTPUT"
-
       - name: Reprendre les tronçons BD TOPO
-        id: bdtopo-cache
-        if: steps.bdtopo.outputs.editions != ''
+        if: needs.bdtopo.outputs.cle != ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.workspace }}/donnees/bdtopo-regions
-          key: bdtopo-${{ env.CASE }}-${{ steps.bdtopo.outputs.editions }}
-          restore-keys: bdtopo-${{ env.CASE }}-
+          key: ${{ needs.bdtopo.outputs.cle }}
 
-      - name: Lire une emprise (à la place de la fabrication)
-        run: |
-          time python -c "import logging, sys; logging.basicConfig(level=logging.INFO); from hike2gpx import bdtopo_regions; print(len(bdtopo_regions.Lecteur(sys.argv[1])(48.40, -4.50, 48.45, -4.45)), 'tronçons')" "$HIKE2GPX_HOME"
-          ls -la "$HIKE2GPX_HOME/bdtopo-regions"
-
-      - name: Tronçons BD TOPO complets ?
-        id: bdtopo-complet
-        if: ${{ !cancelled() && steps.bdtopo.outputs.editions != '' && steps.bdtopo-cache.outputs.cache-hit != 'true' }}
+      - name: Lire le centre de la case (à la place de la fabrication), sans téléchargement
         env:
-          EDITIONS: ${{ steps.bdtopo.outputs.editions }}
+          CASE: ${{ matrix.case }}
         run: |
-          for e in ${EDITIONS//_/ }; do
-            ls "$HIKE2GPX_HOME"/bdtopo-regions/BDTOPO_*_"${e%%.*}"_"${e#*.}".troncons.sqlite || exit 0
-          done
-          du -sh "$HIKE2GPX_HOME/bdtopo-regions"
-          echo "oui=1" >> "$GITHUB_OUTPUT"
-
-      - name: Garder les tronçons BD TOPO
-        if: ${{ !cancelled() && steps.bdtopo-complet.outputs.oui == '1' }}
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.workspace }}/donnees/bdtopo-regions
-          key: bdtopo-${{ env.CASE }}-${{ steps.bdtopo.outputs.editions }}
+          time python -c "import sys; from hike2gpx import bdtopo_regions, lot; bdtopo_regions._telecharger = None; s, o, n, e = lot.boite_case(sys.argv[2]); s, o = s + 2.5, o + 4.5; print(len(bdtopo_regions.Lecteur(sys.argv[1])(s, o, s + 0.05, o + 0.05)), 'tronçons')" "$HIKE2GPX_HOME" "$CASE"

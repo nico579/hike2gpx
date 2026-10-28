@@ -61,8 +61,82 @@ jobs:
           echo "cases : $CASES"
           echo "cases=$(jq -cn --arg c "$CASES" '$c | split(" ") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
 
-  case:
+  bdtopo:
+    # Les tronçons BD TOPO de toutes les régions françaises des cases, préparés
+    # une fois et gardés par actions/cache : l'IGN ne publie une édition que
+    # quatre fois par an, inutile de retélécharger chaque semaine ses archives
+    # régionales (11 Go de 7z pour les cinq régions de W5_N45). Une seule entrée
+    # pour toutes les cases, et non une par case : une région touche jusqu'à
+    # quatre cases, et ces 35 copies (une dizaine de Go compressés) rempliraient
+    # à elles seules les 10 Go de cache d'un dépôt.
     needs: liste
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    outputs:
+      cle: ${{ steps.editions.outputs.cle }}
+    env:
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+      CASES: ${{ join(fromJSON(needs.liste.outputs.cases), ' ') }}
+    steps:
+      - name: Checkout hike2gpx
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - id: editions
+        run: |
+          # Les régions que touchent les cases et leur dernière édition
+          # (« R53.2026-09-15_R75.2026-06-15… ») : la clé du cache, qui ne change
+          # qu'avec une édition nouvelle. Vide hors de France, ou si le catalogue
+          # de l'IGN ne répond pas : chaque case lira alors ses régions elle-même.
+          EDITIONS=$(python -c "import sys; from hike2gpx import bdtopo_regions, lot; l = bdtopo_regions.Lecteur(None); r = sorted({x for c in sys.argv[1:] for x in l.regions(*lot.boite_case(c))}); print('_'.join(x + '.' + l.edition(x)['date'] for x in r))" $CASES) || EDITIONS=""
+          echo "éditions : ${EDITIONS:-aucune}"
+          if [ -n "$EDITIONS" ]; then echo "cle=bdtopo-$EDITIONS" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Reprendre les tronçons BD TOPO
+        id: cache
+        if: steps.editions.outputs.cle != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # runner.workspace est le parent de github.workspace : c'est
+          # HIKE2GPX_HOME écrit sans « .. », que actions/cache refuse. À défaut
+          # de clé exacte, la dernière gardée rend les régions inchangées.
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
+          key: ${{ steps.editions.outputs.cle }}
+          restore-keys: bdtopo-
+
+      - name: Télécharger les régions nouvelles
+        if: steps.editions.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
+        env:
+          CLE: ${{ steps.editions.outputs.cle }}
+        run: |
+          # Une région déjà là à la bonne édition n'est pas retéléchargée ;
+          # les éditions plus anciennes sont effacées (bdtopo_regions.geopackage).
+          time python -c "import logging, sys; logging.basicConfig(level=logging.INFO); from hike2gpx import bdtopo_regions; [bdtopo_regions.geopackage(sys.argv[1], e.split('.')[0]) for e in sys.argv[2].removeprefix('bdtopo-').split('_')]" "$HIKE2GPX_HOME" "$CLE"
+          du -sh "$HIKE2GPX_HOME/bdtopo-regions"; ls -la "$HIKE2GPX_HOME/bdtopo-regions"
+
+      - name: Garder les tronçons BD TOPO
+        if: steps.editions.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
+          key: ${{ steps.editions.outputs.cle }}
+
+  case:
+    needs: [liste, bdtopo]
+    # Sans la préparation BD TOPO (échouée), chaque case lit ses régions elle-même.
+    if: ${{ !cancelled() && needs.liste.result == 'success' }}
     name: case ${{ matrix.case }}
     runs-on: ubuntu-24.04
     timeout-minutes: 355
@@ -116,57 +190,15 @@ jobs:
             mv "$RUNNER_TEMP/$ACTIF" "$BEF" && echo "RELIEF_PUBLIE=1" >> "$GITHUB_ENV" && echo "relief repris : $ACTIF"
           fi
 
-      - name: Éditions BD TOPO de la case
-        id: bdtopo
-        run: |
-          # Les régions françaises que touche la case et leur dernière édition
-          # (« R53.2026-09-15_R84.2026-09-15 ») : la clé du cache qui suit. Elle
-          # ne change qu'avec une nouvelle édition, quatre fois par an. Vide hors
-          # de France, ou si le catalogue ne répond pas : pas de cache, rien d'autre.
-          EDITIONS=$(python -c "import sys; from hike2gpx import bdtopo_regions, lot; l = bdtopo_regions.Lecteur(None); print('_'.join(r + '.' + l.edition(r)['date'] for r in l.regions(*lot.boite_case(sys.argv[1]))))" "$CASE") || EDITIONS=""
-          echo "éditions : ${EDITIONS:-aucune}"
-          echo "editions=$EDITIONS" >> "$GITHUB_OUTPUT"
-
       - name: Reprendre les tronçons BD TOPO
-        id: bdtopo-cache
-        if: steps.bdtopo.outputs.editions != ''
+        if: needs.bdtopo.outputs.cle != ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          # Les tronçons déjà réduits des archives régionales (un téléchargement
-          # de plusieurs Go par région). Une clé à jour les rend tels quels ; à
-          # défaut, la dernière clé de la case rend au moins les régions dont
-          # l'édition n'a pas changé, les autres seront retéléchargées.
-          # runner.workspace est le dossier parent de github.workspace, donc
-          # HIKE2GPX_HOME écrit sans « .. », que actions/cache refuse.
           path: ${{ runner.workspace }}/donnees/bdtopo-regions
-          key: bdtopo-${{ matrix.case }}-${{ steps.bdtopo.outputs.editions }}
-          restore-keys: bdtopo-${{ matrix.case }}-
+          key: ${{ needs.bdtopo.outputs.cle }}
 
       - name: Fabriquer la case
         run: python -m hike2gpx bundles "$CASE" --bulk --output "$RUNNER_TEMP/lots"
-
-      - name: Tronçons BD TOPO complets ?
-        id: bdtopo-complet
-        if: ${{ !cancelled() && steps.bdtopo.outputs.editions != '' && steps.bdtopo-cache.outputs.cache-hit != 'true' }}
-        env:
-          EDITIONS: ${{ steps.bdtopo.outputs.editions }}
-        run: |
-          # Gardés même si la fabrication a échoué ensuite (les téléchargements
-          # sont faits), mais seulement si chaque région est là : une clé ne
-          # s'écrit qu'une fois, un cache incomplet le resterait jusqu'à la
-          # prochaine édition.
-          for e in ${EDITIONS//_/ }; do
-            ls "$HIKE2GPX_HOME"/bdtopo-regions/BDTOPO_*_"${e%%.*}"_"${e#*.}".troncons.sqlite || exit 0
-          done
-          du -sh "$HIKE2GPX_HOME/bdtopo-regions"
-          echo "oui=1" >> "$GITHUB_OUTPUT"
-
-      - name: Garder les tronçons BD TOPO
-        if: ${{ !cancelled() && steps.bdtopo-complet.outputs.oui == '1' }}
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.workspace }}/donnees/bdtopo-regions
-          key: bdtopo-${{ matrix.case }}-${{ steps.bdtopo.outputs.editions }}
 
       - name: Publier le relief
         if: env.RELIEF_PUBLIE != '1'
