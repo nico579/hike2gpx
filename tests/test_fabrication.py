@@ -440,3 +440,30 @@ def test_les_calques_ne_lisent_que_la_tuile_demandee(tmp_path, mode_en_ligne, mo
     fabrication.fabriquer(tmp_path / "donnees", Installation(), "E5_N40", tmp_path / "lot", zone=ZONE)
     assert lues == [[TUILE]]
 
+
+def test_les_cases_d_un_fournisseur_suivent_son_pays(tmp_path, monkeypatch):
+    monkeypatch.setattr(geofabrik, "regions_attendues", lambda dossier: REGIONS)
+    assert fabrication.cases_des_fournisseurs(tmp_path, ["swisstlm3d"]) == ["E10_N45", "E5_N45"]
+    assert fabrication.cases_des_fournisseurs(tmp_path, ["bdot10k_ds"]) == ["E10_N50", "E15_N50"], \
+        "la Basse-Silésie seule, pas toute la Pologne"
+    france = fabrication.cases_des_fournisseurs(tmp_path, ["ign"])
+    assert "E5_N40" in france and "E10_N45" not in france
+    assert set(fabrication.cases_des_fournisseurs(tmp_path)) >= set(france) | {"E10_N45"}
+
+
+def test_la_commande_cells_et_bundles_bulk(tmp_path, monkeypatch, capsys):
+    from hike2gpx import __main__, brouter
+    monkeypatch.setenv("HIKE2GPX_HOME", str(tmp_path))
+    monkeypatch.setattr(geofabrik, "regions_attendues", lambda dossier: REGIONS)
+    assert __main__.main(["cells", "--provider", "swisstlm3d"]) == 0
+    assert capsys.readouterr().out.split() == ["E10_N45", "E5_N45"]
+    assert __main__.main(["cells", "--provider", "swisstlm3d", "--bulk-only"]) == 0
+    assert capsys.readouterr().out.split() == [], "swissTLM3D n'a pas encore de lecture en bloc"
+    demandes = {}
+    monkeypatch.setattr(brouter.Installation, "installee", lambda self: True)
+    monkeypatch.setattr(fabrication, "lecteurs_en_bloc", lambda dossier: ({"ign": "lecteur"}, {"ign": "édition"}))
+    monkeypatch.setattr(fabrication, "fabriquer_lots", lambda *a, **o: demandes.update(o) or {"E5_N45": "fabriqué"})
+    assert __main__.main(["bundles", "E5_N45", "--bulk", "--output", str(tmp_path / "lots")]) == 0
+    assert demandes["fournisseurs"] == ["ign"] and demandes["troncons"] == {"ign": "lecteur"}
+    assert "laissés de côté" in capsys.readouterr().out
+

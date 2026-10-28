@@ -87,6 +87,6 @@ def test_le_lecteur_cherche_les_regions_une_fois_par_case(tmp_path, monkeypatch)
 def test_la_commande_refuse_deux_lectures_ign():
     from hike2gpx.__main__ import main
     with pytest.raises(SystemExit):
-        main(["bundles", "E5_N40", "--output", "lots", "--gpkg", "a.gpkg", "--ign-regions"])
+        main(["bundles", "E5_N40", "--output", "lots", "--gpkg", "a.gpkg", "--bulk"])
     with pytest.raises(SystemExit):
-        main(["bundles", "E5_N40", "--output", "lots", "--osm-only", "--ign-regions"])
+        main(["bundles", "E5_N40", "--output", "lots", "--osm-only", "--bulk"])

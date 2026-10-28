@@ -46,10 +46,10 @@ def main(argv=None) -> int:
                          help="national paths provider to merge; repeatable. Default: every provider whose "
                               "country touches the cell (a border cell gets several)")
     bundles.add_argument("--osm-only", action="store_true", help="OSM bundle, without any national provider")
-    bundles.add_argument("--ign-regions", action="store_true",
-                         help="read IGN paths from the BD TOPO regional GeoPackages (downloaded once, kept in "
-                              "the data folder; needs the 7z command) instead of the IGN WFS: the way to build "
-                              "whole cells")
+    bundles.add_argument("--bulk", action="store_true",
+                         help="read each provider from its bulk download (BD TOPO regional GeoPackages, kept in "
+                              "the data folder; needs the 7z command) instead of its web service: the way to build "
+                              "whole cells. Providers without a bulk reader yet are left out")
     bundles.add_argument("--gpkg", type=Path, help="BD TOPO GeoPackage read instead of the IGN WFS")
     bundles.add_argument("--department", help="with --gpkg: keep this department only, e.g. 83")
     bundles.add_argument("--zone", type=float, nargs=4, metavar=("SOUTH", "WEST", "NORTH", "EAST"),
@@ -61,6 +61,13 @@ def main(argv=None) -> int:
     catalogue.add_argument("bundles", type=Path, help="directory of built bundles, one per cell")
     catalogue.add_argument("--publish-dir", type=Path,
                            help="copy the files there, flat (CELL.name), with the catalog: ready for a GitHub release")
+    cellules = sous.add_parser("cells", help="list the BRouter cells touched by the national providers' countries",
+                               description="Print, space separated, the 5° BRouter cells that the country of each "
+                                           "national paths provider touches: the cells a bundle server builds.")
+    cellules.add_argument("--provider", action="append", choices=sorted(providers.SOURCES), dest="providers",
+                          help="only this provider; repeatable")
+    cellules.add_argument("--bulk-only", action="store_true",
+                          help="only the providers with a bulk reader (those bundles --bulk can build)")
     # Import d'un extrait Geofabrik, lancé par geofabrik.installer() dans un
     # processus à part (PBF, base, région en JSON, date des données).
     parser.add_argument("--importer-extrait", nargs=4, metavar="X", help=argparse.SUPPRESS)
@@ -69,12 +76,12 @@ def main(argv=None) -> int:
         for cellule in args.cells:
             if not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", cellule):
                 parser.error(f"invalid BRouter cell: {cellule}")
-        if args.osm_only and (args.providers or args.gpkg or args.ign_regions):
-            parser.error("--osm-only excludes --provider, --gpkg and --ign-regions")
-        if args.gpkg and args.ign_regions:
-            parser.error("--gpkg and --ign-regions are two ways to read IGN paths: choose one")
-        if (args.gpkg or args.ign_regions) and args.providers and "ign" not in args.providers:
-            parser.error("--gpkg and --ign-regions read IGN paths: add --provider ign")
+        if args.osm_only and (args.providers or args.gpkg or args.bulk):
+            parser.error("--osm-only excludes --provider, --gpkg and --bulk")
+        if args.gpkg and args.bulk:
+            parser.error("--gpkg and --bulk are two ways to read IGN paths: choose one")
+        if args.gpkg and args.providers and "ign" not in args.providers:
+            parser.error("--gpkg reads IGN paths: add --provider ign")
         if args.department and not args.gpkg:
             parser.error("--department requires --gpkg")
     if args.self_test_version:      # avant tout dossier : ne touche pas aux données
@@ -98,6 +105,13 @@ def main(argv=None) -> int:
         return 0
     if args.commande == "bundles":
         return lots(dossier, args)
+    if args.commande == "cells":
+        from . import fabrication
+        choisis = args.providers or sorted(providers.SOURCES)
+        if args.bulk_only:
+            choisis = [s for s in choisis if s in fabrication.EN_BLOC]
+        print(" ".join(fabrication.cases_des_fournisseurs(dossier, choisis)), flush=True)
+        return 0
     if args.commande == "catalog":
         from . import depot
         chemin = depot.ecrire_catalogue(args.bundles, args.publish_dir)
@@ -131,13 +145,17 @@ def lots(dossier, args) -> int:
                                                                            args.department)
         trouvee = re.search(r"ED(\d{4}-\d{2}-\d{2})", args.gpkg.name)
         editions["ign"] = trouvee.group(1) if trouvee else args.gpkg.name
-    if args.ign_regions:
-        # Les archives régionales de la BD TOPO : une case entière sans les
-        # milliers de requêtes du WFS ; l'édition dépend des régions de la case.
-        from . import bdtopo_regions
-        lecteur = bdtopo_regions.Lecteur(dossier)
-        troncons["ign"], editions["ign"] = lecteur, lecteur.date
     fournisseurs = [] if args.osm_only else args.providers      # None : ceux de chaque case
+    if args.bulk:
+        # Chaque fournisseur par son téléchargement en bloc (les archives
+        # régionales de la BD TOPO…) : une case entière sans les milliers de
+        # requêtes d'un service web. Ceux qui n'en ont pas encore sont laissés.
+        demandes = fournisseurs or sorted(providers.SOURCES)
+        laisses = [s for s in demandes if s not in fabrication.EN_BLOC]
+        if laisses:
+            print(f"--bulk : pas encore de lecture en bloc pour {', '.join(laisses)}, laissés de côté", flush=True)
+        fournisseurs = [s for s in demandes if s in fabrication.EN_BLOC]
+        troncons, editions = fabrication.lecteurs_en_bloc(dossier)
     bilan = fabrication.fabriquer_lots(dossier, installation, args.cells, args.output,
                                        zone=tuple(args.zone) if args.zone else None, fournisseurs=fournisseurs,
                                        troncons=troncons, editions=editions, forcer=args.force,
