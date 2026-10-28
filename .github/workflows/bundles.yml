@@ -82,8 +82,11 @@ jobs:
       - name: Garder le lot pour la publication
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
+          # Le dossier de la case lui-même : la publication retrouve chaque lot
+          # par son manifeste, quelle que soit la façon dont les artefacts se
+          # déposent (un seul : à plat ; plusieurs : un sous-dossier chacun).
           name: lot-${{ matrix.case }}
-          path: ${{ runner.temp }}/lots/${{ matrix.case }}
+          path: ${{ runner.temp }}/lots
           retention-days: 1
 
   publier:
@@ -129,9 +132,9 @@ jobs:
 
       - name: Catalogue et publication
         run: |
-          for d in "$RUNNER_TEMP"/nouveaux/lot-*; do
-            [ -d "$d" ] || continue
-            case=${d##*/lot-}
+          find "$RUNNER_TEMP/nouveaux" -name manifest.json | while read -r manifeste; do
+            d=$(dirname "$manifeste"); case=$(basename "$d")
+            echo "lot de la semaine : $case"
             rm -rf "$RUNNER_TEMP/lots/$case" && mv "$d" "$RUNNER_TEMP/lots/$case"
           done
           python -m hike2gpx catalog "$RUNNER_TEMP/lots" --publish-dir "$RUNNER_TEMP/publication"
