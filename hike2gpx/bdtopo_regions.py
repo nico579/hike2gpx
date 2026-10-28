@@ -133,10 +133,16 @@ def geopackage(dossier, region: str, edition: dict | None = None) -> Path:
 
 def _garder_les_troncons(gpkg: Path, cible: Path) -> None:
     """La table des tronçons de route et son index RTree, copiés du GeoPackage
-    complet dans une base à part, avec les seules colonnes que lit la fusion."""
+    complet dans une base à part, avec les seules colonnes que lit la fusion.
+    La clé fid y reste la clé primaire : l'index RTree renvoie des fid, et un
+    CREATE TABLE … AS SELECT l'aurait réduite à une colonne ordinaire, que
+    chaque lecture d'emprise aurait parcourue en entier."""
     with closing(sqlite3.connect(str(cible), uri=True)) as base:     # uri : ATTACH en lecture seule
         base.execute("ATTACH DATABASE ? AS complet", (f"file:{gpkg.resolve().as_posix()}?mode=ro",))
-        base.execute("CREATE TABLE troncon_de_route AS SELECT fid, cleabs, nature, acces_pieton, prive, "
+        base.execute("CREATE TABLE troncon_de_route (fid INTEGER PRIMARY KEY, cleabs TEXT, nature TEXT, "
+                     "acces_pieton TEXT, prive INTEGER, insee_commune_gauche TEXT, insee_commune_droite TEXT, "
+                     "geometrie BLOB)")
+        base.execute("INSERT INTO troncon_de_route SELECT fid, cleabs, nature, acces_pieton, prive, "
                      "insee_commune_gauche, insee_commune_droite, geometrie FROM complet.troncon_de_route")
         base.execute("CREATE VIRTUAL TABLE rtree_troncon_de_route_geometrie USING rtree(id, minx, maxx, miny, maxy)")
         base.execute("INSERT INTO rtree_troncon_de_route_geometrie "
