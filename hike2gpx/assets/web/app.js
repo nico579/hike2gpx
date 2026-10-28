@@ -1430,14 +1430,17 @@ function etatCase(nom) {
   return lotsServeur.some((l) => l.case === nom) ? "serveur" : "absente";
 }
 
+// Sur un fond chargé (SCAN 25, relief), un voile de 5 à 8 % ne se voyait
+// pas : les cases prêtes et celles du serveur ont un trait plein et épais et
+// un fond franc ; seule la case vide reste discrète.
 const STYLES_CASE = {
-  prete: { color: "#23804f", weight: 2, fillColor: "#23804f", fillOpacity: 0.08 },
-  preparation: { color: "#e07b00", weight: 2, dashArray: "6 4", fillColor: "#e07b00", fillOpacity: 0.08 },
+  prete: { color: "#1b7a3e", weight: 3.5, fillColor: "#23a04f", fillOpacity: 0.3 },
+  preparation: { color: "#e07b00", weight: 3.5, dashArray: "8 5", fillColor: "#e07b00", fillOpacity: 0.25 },
   // Un fond presque transparent : un clic dans la case ouvre sa bulle, comme
   // les mailles du serveur ; décocher la grille rend les clics au tracé.
   absente: { color: "#37474f", weight: 1.5, dashArray: "5 5", fillColor: "#37474f", fillOpacity: 0.03 },
   // Pas encore ici, mais publiée par le serveur : un clic propose de la télécharger.
-  serveur: { color: "#1565c0", weight: 2, dashArray: "5 5", fillColor: "#1565c0", fillOpacity: 0.05 },
+  serveur: { color: "#1565c0", weight: 3, fillColor: "#1e88e5", fillOpacity: 0.18 },
 };
 
 function tailleTexte(octets) {
