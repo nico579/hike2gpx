@@ -23,7 +23,7 @@ from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
 from . import (__version__, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik, hors_ligne,
-               journaux, lot, maison, osmfr, providers)
+               journaux, lot, maison, osmfr, partage, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -232,6 +232,8 @@ class Application:
         self._verrou_lot = threading.Lock()
         self._lot = {"actif": False}
         self._fil_lot = None
+        # Le partage au téléphone (partage.py), fermé tant qu'on ne l'ouvre pas.
+        self.partage = partage.Partage(self.hors_ligne)
         self.preferences = self.dossier / "preferences.json"
         self.serveur = None
         self.serveur_maison = None
@@ -328,6 +330,7 @@ class Application:
             return s.port
 
     def arreter(self) -> None:
+        self.partage.fermer()
         with self._verrou_moteur:
             for serveur in (self.serveur, self.serveur_maison, self.serveur_lot_osm):
                 if serveur is not None:
@@ -1054,6 +1057,7 @@ class Application:
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
                "disponibilite": self.disponibilite, "hors_ligne": self.lots_hors_ligne,
                "lot_en_cours": self.lot_en_cours, "catalogue_lots": self.catalogue_lots,
+               "partage": self.partage.etat,
                **get_langue}
         post = {"itineraire": self.itineraire, "disponibilite": self.disponibilite_parcours,
                 "reglages": self.enregistrer_reglages,
@@ -1062,7 +1066,7 @@ class Application:
                 "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux,
                 "installer_lot": self.installer_lot, "preparer_lot": self.preparer_lot,
                 "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot,
-                "preparer_fond": self.preparer_fond, **post_langue}
+                "preparer_fond": self.preparer_fond, "partage": self.partager, **post_langue}
         return get, post
 
     CATALOGUE_TTL_S = 600.0
@@ -1224,6 +1228,17 @@ class Application:
             self._lot.update(actif=False, etape="fini")
         finally:
             fabrication.nettoyer(travail)
+
+    def partager(self, corps) -> dict:
+        """Ouvre ({"ouvrir": true}) ou ferme le partage au téléphone. Chaque
+        ouverture tire un nouveau jeton : le QR code précédent ne vaut plus."""
+        if not (corps or {}).get("ouvrir"):
+            return self.partage.fermer()
+        try:
+            return self.partage.ouvrir()
+        except (partage.ErreurPartage, OSError) as exc:
+            journal.warning("Partage : %s", exc)
+            return {"ouvert": False, "erreur": str(exc)}
 
     def lot_en_cours(self) -> dict:
         """État de la fabrication en cours ou de la dernière : étape, avancement, durée."""

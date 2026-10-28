@@ -218,6 +218,29 @@ test("un fond de carte installé devient la « Carte hors ligne », lue sur le P
     .test(e.textContent ?? e.enfants?.join(""))), "la bulle dit les fonds de la case");
 });
 
+test("le partage au téléphone s'ouvre à la demande, montre son QR code et se ferme", async () => {
+  const { elements, requetes } = charger();
+  const attendre = () => new Promise((fin) => setImmediate(fin));
+  elements.get("partagerTelephone").click();
+  const ouverture = requetes.findLast((r) => r.url === "/api/partage");
+  assert.deepEqual(JSON.parse(ouverture.options.body), { ouvrir: true });
+  repondre(ouverture, { ouvert: true, url: "http://192.168.1.20:8799/depot/catalog.json", qr: "<svg>qr</svg>",
+    lien: "hike2gpx://depot?url=…", lots: ["E5_N40"], fonds: ["E5_N40-scan25"], octets: 412e6 });
+  await attendre();
+  assert.equal(elements.get("partageQr").innerHTML, "<svg>qr</svg>");
+  assert.equal(elements.get("partageOuvert").hidden, false);
+  assert.equal(elements.get("partagerTelephone").hidden, true);
+  assert.match(elements.get("partageTexte").textContent, /1 lot\(s\) et 1 fond\(s\) de carte, 412 Mo/);
+  elements.get("fermerPartage").click();
+  const fermeture = requetes.findLast((r) => r.url === "/api/partage");
+  assert.deepEqual(JSON.parse(fermeture.options.body), { ouvrir: false });
+  repondre(fermeture, { ouvert: false });
+  await attendre();
+  assert.equal(elements.get("partageQr").innerHTML, "", "le QR code s'efface : son jeton ne vaut plus");
+  assert.equal(elements.get("partageOuvert").hidden, true);
+  assert.equal(elements.get("partageTexte").hidden, true);
+});
+
 test("la note suit la préparation hors ligne, puis la case est prête", async () => {
   const { page, requetes, elements, minuteurs } = charger();
   const suivi = page.suivreLot();
