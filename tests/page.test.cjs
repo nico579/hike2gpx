@@ -1,6 +1,6 @@
-// Comportement de la page (app.js) sous Node : un DOM et un Leaflet réduits au
-// nécessaire, le réseau et les minuteries tenus à la main. Repris du banc de
-// l'audit du 18 octobre (B06). Lancé par test_page.py, ou : node --test tests
+﻿// Comportement de la page (app.js) sous Node : un DOM et un Leaflet rÃ©duits au
+// nÃ©cessaire, le rÃ©seau et les minuteries tenus Ã  la main. Repris du banc de
+// l'audit du 18 octobre (B06). LancÃ© par test_page.py, ou : node --test tests
 
 "use strict";
 const fs = require("node:fs");
@@ -48,7 +48,7 @@ function charger(preferences = {}, documentGpx = null) {
     tab.dataset.i18n = cle;
     elements.set(id, tab);
   }
-  // Le DOM initial reproduit la valeur cochée dans index.html.
+  // Le DOM initial reproduit la valeur cochÃ©e dans index.html.
   const strict = element();
   strict.checked = true;
   elements.set("strict", strict);
@@ -93,11 +93,11 @@ function charger(preferences = {}, documentGpx = null) {
         lng: Array.isArray(lat) ? lat[1] : lng, distanceTo() { return 1000; } }),
       Control: { extend: () => class { addTo() { return this; } } }, DomUtil: { create: element },
       DomEvent: { on() {}, disableClickPropagation() {} } },
-    // Comme le vrai fetch, une requête coupée par son signal est rejetée.
+    // Comme le vrai fetch, une requÃªte coupÃ©e par son signal est rejetÃ©e.
     fetch(url, options) {
       return new Promise((resolve, reject) => {
         requetes.push({ url, options, resolve, reject });
-        options?.signal?.addEventListener("abort", () => reject(new Error("abandonnée")));
+        options?.signal?.addEventListener("abort", () => reject(new Error("abandonnÃ©e")));
       });
     },
   });
@@ -132,11 +132,11 @@ function resultat(lonArrivee) {
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
 
-test("les cases hors ligne se dessinent depuis les réglages, selon leur état", async () => {
+test("les cases hors ligne se dessinent depuis les rÃ©glages, selon leur Ã©tat", async () => {
   const { page, elements, requetes } = charger();
   // Les tableaux de la page viennent d'un autre contexte : on compare leur JSON.
   const json = (v) => JSON.parse(JSON.stringify(v));
-  assert.deepEqual(json(page.casesVisibles()), ["E5_N40"], "la vue de Garéoult tombe dans la case E5_N40");
+  assert.deepEqual(json(page.casesVisibles()), ["E5_N40"], "la vue de GarÃ©oult tombe dans la case E5_N40");
   assert.deepEqual(json(page.boiteCase("W5_N45")), [45, -5, 50, 0]);
   assert.equal(page.nomCase(-0.5, -0.5), "W5_S5");
   elements.get("showOfflineGrid").checked = true;
@@ -146,27 +146,27 @@ test("les cases hors ligne se dessinent depuis les réglages, selon leur état",
   await charge;
   const [cadre] = page.grilleCases.layers;
   assert.deepEqual(json(cadre.bounds), [[40, 5], [45, 10]]);
-  assert.equal(cadre.options.color, "#23804f", "vert : prête hors ligne");
+  assert.equal(cadre.options.color, "#23804f", "vert : prÃªte hors ligne");
   assert.match(elements.get("offlineGridStatus").textContent, /^1 case/);
   elements.get("showOfflineGrid").checked = false;
   const avant = requetes.length;
   await page.chargerLots();
-  assert.equal(page.grilleCases.layers.length, 0, "case décochée : plus de grille");
-  assert.equal(requetes.length, avant, "ni requête au serveur");
+  assert.equal(page.grilleCases.layers.length, 0, "case dÃ©cochÃ©e : plus de grille");
+  assert.equal(requetes.length, avant, "ni requÃªte au serveur");
 });
 
-test("le bouton « Hors ligne » de la carte montre la grille et dit quoi en faire", async () => {
+test("le bouton Â« Hors ligne Â» de la carte montre la grille et dit quoi en faire", async () => {
   const { page, elements, requetes, stockage } = charger();
   const bouton = elements.get("offlineButton");
   bouton.click();
-  assert.equal(elements.get("showOfflineGrid").checked, true, "la case des réglages suit le bouton");
+  assert.equal(elements.get("showOfflineGrid").checked, true, "la case des rÃ©glages suit le bouton");
   assert.equal(bouton["aria-pressed"], "true");
   assert.equal(bouton.classList.contains("actif"), true);
   assert.equal(elements.get("offlineHint").hidden, false);
   assert.match(elements.get("offlineHint").textContent,
-    /^Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou son fond de carte\.$/);
+    /^Cliquez une case : tÃ©lÃ©charger son lot depuis le serveur, prÃ©parer la vue ou toute la case, ou son fond de carte\.$/);
   assert.equal(stockage.get("hike2gpx.casesHorsLigne"), "1");
-  assert.ok(requetes.some((r) => r.url === "/api/hors_ligne"), "les lots installés sont relus");
+  assert.ok(requetes.some((r) => r.url === "/api/hors_ligne"), "les lots installÃ©s sont relus");
   page.appliquerLangue("en");
   assert.match(elements.get("offlineHint").textContent, /^Click an area: download its bundle/);
   bouton.click();
@@ -176,13 +176,13 @@ test("le bouton « Hors ligne » de la carte montre la grille et dit quoi en fai
   assert.equal(page.grilleCases.layers.length, 0);
 });
 
-test("une case absente se prépare sur la vue actuelle ou en entier", async () => {
+test("une case absente se prÃ©pare sur la vue actuelle ou en entier", async () => {
   const { page, requetes } = charger();
   const bulle = page.bulleCase("E5_N40");
   const boutons = bulle.enfants.filter((e) => e.type === "button");
   assert.deepEqual(boutons.map((b) => b.textContent),
-    ["Préparer la vue actuelle", "Préparer toute la case (environ une heure)",
-      "Fond de carte de la vue (Plan IGN)", "Fond de carte de toute la case (Plan IGN, zooms 6 à 13, environ 45 min)"]);
+    ["PrÃ©parer la vue actuelle", "PrÃ©parer toute la case (environ une heure)",
+      "Fond de carte de la vue (Plan IGN)", "Fond de carte de toute la case (Plan IGN, zooms 6 Ã  13, environ 45 min)"]);
   boutons[0].click();
   const vue = requetes.findLast((r) => r.url === "/api/preparer_lot");
   assert.deepEqual(JSON.parse(vue.options.body), { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });
@@ -197,7 +197,7 @@ test("une case absente se prépare sur la vue actuelle ou en entier", async () =
     { case: "E5_N40" });
 });
 
-test("un fond de carte installé devient la « Carte hors ligne », lue sur le PC", async () => {
+test("un fond de carte installÃ© devient la Â« Carte hors ligne Â», lue sur le PC", async () => {
   const { page, requetes } = charger();
   assert.equal(page.fonds().horsLigne, undefined, "aucun fond : pas de carte hors ligne");
   const charge = page.chargerFonds();
@@ -208,7 +208,7 @@ test("un fond de carte installé devient la « Carte hors ligne », lue sur le P
   const groupe = page.fonds().horsLigne;
   assert.ok(groupe, "le fond hors ligne parmi les fonds");
   assert.ok(page.controle().fonds["Carte hors ligne"]);
-  // La case d'abord, la vue par-dessus ; chacune bornée à sa zone.
+  // La case d'abord, la vue par-dessus ; chacune bornÃ©e Ã  sa zone.
   assert.deepEqual(groupe.layers.map((c) => c.url),
     ["/fonds/E5_N40-scan25/{z}/{x}/{y}", "/fonds/E5_N40-scan25-vue-3fa2c1/{z}/{x}/{y}"]);
   assert.equal(groupe.layers[1].options.maxNativeZoom, 16);
@@ -218,14 +218,14 @@ test("un fond de carte installé devient la « Carte hors ligne », lue sur le P
     .test(e.textContent ?? e.enfants?.join(""))), "la bulle dit les fonds de la case");
 });
 
-test("le partage au téléphone s'ouvre à la demande, montre son QR code et se ferme", async () => {
+test("le partage au tÃ©lÃ©phone s'ouvre Ã  la demande, montre son QR code et se ferme", async () => {
   const { elements, requetes } = charger();
   const attendre = () => new Promise((fin) => setImmediate(fin));
   elements.get("partagerTelephone").click();
   const ouverture = requetes.findLast((r) => r.url === "/api/partage");
   assert.deepEqual(JSON.parse(ouverture.options.body), { ouvrir: true });
   repondre(ouverture, { ouvert: true, url: "http://192.168.1.20:8799/depot/catalog.json", qr: "<svg>qr</svg>",
-    lien: "hike2gpx://depot?url=…", lots: ["E5_N40"], fonds: ["E5_N40-scan25"], octets: 412e6 });
+    lien: "hike2gpx://depot?url=â€¦", lots: ["E5_N40"], fonds: ["E5_N40-scan25"], octets: 412e6 });
   await attendre();
   assert.equal(elements.get("partageQr").innerHTML, "<svg>qr</svg>");
   assert.equal(elements.get("partageOuvert").hidden, false);
@@ -241,30 +241,30 @@ test("le partage au téléphone s'ouvre à la demande, montre son QR code et se 
   assert.equal(elements.get("partageTexte").hidden, true);
 });
 
-test("la note suit la préparation hors ligne, puis la case est prête", async () => {
+test("la note suit la prÃ©paration hors ligne, puis la case est prÃªte", async () => {
   const { page, requetes, elements, minuteurs } = charger();
   const suivi = page.suivreLot();
   repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"),
     { actif: true, case: "E5_N40", etape: "calques", faites: 4, total: 16, duree_s: 125 });
   await suivi;
   assert.equal(elements.get("lotHorsLigneTexte").textContent,
-    "Préparation hors ligne de E5_N40 : chemins et franchissements 4/16, depuis 2 min");
+    "PrÃ©paration hors ligne de E5_N40 : chemins et franchissements 4/16, depuis 2 min");
   assert.equal(elements.get("arreterLot").hidden, false);
   assert.equal(elements.get("lotHorsLigneBarre").style.width, "25%");
   assert.equal(minuteurs.at(-1).ms, 2000, "relu toutes les deux secondes");
   const fin = page.suivreLot();
   repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"), { actif: false, case: "E5_N40", etape: "fini" });
   await fin;
-  assert.equal(elements.get("lotHorsLigneTexte").textContent, "Case E5_N40 prête hors ligne.");
+  assert.equal(elements.get("lotHorsLigneTexte").textContent, "Case E5_N40 prÃªte hors ligne.");
   assert.equal(elements.get("arreterLot").hidden, true);
 });
 
-test("un clic droit affiche les coordonnées et permet de les copier sans ajouter de point", async () => {
+test("un clic droit affiche les coordonnÃ©es et permet de les copier sans ajouter de point", async () => {
   const { carte, page, pressePapiers } = charger();
   carte.handlers.contextmenu({ latlng: { lat: 50.71234567, lng: 10.24987654 } });
   const [titre, bouton] = carte.popup.content.enfants;
   assert.equal(titre.enfants[0].value, "50.712346, 10.249877");
-  assert.equal(bouton.textContent, "Copier les coordonnées");
+  assert.equal(bouton.textContent, "Copier les coordonnÃ©es");
   await bouton.ecouteurs.click[0]();
   assert.deepEqual(pressePapiers, ["50.712346, 10.249877"]);
   assert.equal(page.etat.points.length, 0);
@@ -281,7 +281,7 @@ function documentGpx(segments) {
     } };
 }
 
-test("un GPX chargé se coche dans les couches sans perdre son tracé", async () => {
+test("un GPX chargÃ© se coche dans les couches sans perdre son tracÃ©", async () => {
   const { page, elements, carte, stockage } = charger({}, documentGpx([[[43.3, 6], [43.31, 6.02]]]));
   const fichier = { name: "2026-09-20_09-03.gpx", size: 250, text: async () => "<gpx/>" };
   await elements.get("fichierGpx").ecouteurs.change[0]({ target: { files: [fichier], value: "rando.gpx" } });
@@ -308,7 +308,7 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   assert.equal(elements.get("chargerGpx").textContent, "Charger un GPX");
 });
 
-test("un GPX invalide conserve le tracé précédemment chargé", async () => {
+test("un GPX invalide conserve le tracÃ© prÃ©cÃ©demment chargÃ©", async () => {
   const document = documentGpx([[[43.3, 6], [43.31, 6.02]]]);
   const { page, elements } = charger({}, document);
   const importer = (name) => elements.get("fichierGpx").ecouteurs.change[0]({ target: {
@@ -323,7 +323,7 @@ test("un GPX invalide conserve le tracé précédemment chargé", async () => {
   assert.equal(elements.get("erreurGpx").hidden, false);
 });
 
-test("le nom du fichier GPX est échappé dans le contrôle Leaflet", async () => {
+test("le nom du fichier GPX est Ã©chappÃ© dans le contrÃ´le Leaflet", async () => {
   const { page, elements } = charger({}, documentGpx([[[43.3, 6], [43.31, 6.02]]]));
   await elements.get("fichierGpx").ecouteurs.change[0]({ target: {
     files: [{ name: "<b>rando</b>.gpx", size: 250, text: async () => "<gpx/>" }], value: "" } });
@@ -331,7 +331,7 @@ test("le nom du fichier GPX est échappé dans le contrôle Leaflet", async () =
   assert.equal(page.controle().calques["<b>rando</b>"], undefined);
 });
 
-test("le bouton Réglages demande l'ouverture du dossier des journaux", async () => {
+test("le bouton RÃ©glages demande l'ouverture du dossier des journaux", async () => {
   const { elements, requetes } = charger();
   const ouverture = elements.get("ouvrirDossierJournaux").ecouteurs.click[0]();
   const requete = requetes.findLast((r) => r.url === "/api/ouvrir_journaux");
@@ -342,31 +342,31 @@ test("le bouton Réglages demande l'ouverture du dossier des journaux", async ()
   assert.equal(elements.get("erreurDossierJournaux").hidden, true);
 });
 
-// Chaque pays déclare ses capacités et leurs libellés dans son provider.
-test("chaque fond et chaque calque des providers a son libellé FR et EN", () => {
+// Chaque pays dÃ©clare ses capacitÃ©s et leurs libellÃ©s dans son provider.
+test("chaque fond et chaque calque des providers a son libellÃ© FR et EN", () => {
   const { page } = charger();
   for (const [code, provider] of Object.entries(page.providers)) {
     if (code === "autre") continue;
     const fauxL = { tileLayer: Object.assign(() => ({}), { wms: () => ({}) }), CRS: { EPSG4326: {} } };
     const fonds = Object.keys(provider.bases({ L: fauxL, cleIgn: "cle", tuileIgn: () => "" }));
     assert.ok([...fonds, "osmRando", "osm", "satellite"].includes(provider.defaultBase),
-      `${code} : fond par défaut ${provider.defaultBase} absent`);
+      `${code} : fond par dÃ©faut ${provider.defaultBase} absent`);
     for (const langue of ["fr", "en"]) {
-      assert.ok(provider.infoBase?.[langue], `${code} : fond du panneau ⓘ sans libellé ${langue}`);
+      assert.ok(provider.infoBase?.[langue], `${code} : fond du panneau â“˜ sans libellÃ© ${langue}`);
       for (const fond of fonds) {
         assert.ok(provider.baseNames?.[fond]?.[langue],
-          `${code} : libellé ${langue} « fond.${fond} » manquant`);
+          `${code} : libellÃ© ${langue} Â« fond.${fond} Â» manquant`);
       }
       for (const calque of provider.overlays || []) {
         assert.ok(provider.overlayNames?.[calque]?.[langue],
-          `${code} : calque du panneau ⓘ sans libellé ${langue}`);
+          `${code} : calque du panneau â“˜ sans libellÃ© ${langue}`);
       }
       if (provider.paths) assert.ok(provider.paths.name[langue] && provider.paths.legend[langue]);
     }
   }
 });
 
-test("le rapport des pays présente fond, chemins et itinéraire depuis les providers", () => {
+test("le rapport des pays prÃ©sente fond, chemins et itinÃ©raire depuis les providers", () => {
   const { page } = charger();
   const fr = couvertureCartographique(page.providers, "fr");
   assert.equal(fr.length, 11);
@@ -375,20 +375,20 @@ test("le rapport des pays présente fond, chemins et itinéraire depuis les prov
   assert.match(fr.find((p) => p.code === "cz").chemins, /ZABAGED/);
   assert.equal(fr.find((p) => p.code === "cz").itineraire, "OSM + ZABAGED");
   assert.match(fr.find((p) => p.code === "ch").chemins, /swissTLM3D.*swisstopo/);
-  assert.equal(fr.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k (Basse-Silésie)");
+  assert.equal(fr.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k (Basse-SilÃ©sie)");
   assert.equal(fr.find((p) => p.code === "at").chemins, "OSM");
   assert.equal(fr.find((p) => p.code === "es").itineraire, "OSM");
   const en = couvertureCartographique(page.providers, "en");
   assert.equal(en.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k (Lower Silesia)");
   assert.equal(en.find((p) => p.code === "us").fond, "USGS topographic map");
   assert.ok(fs.readFileSync(path.join(__dirname, "..", "RAPPORT_SOURCES_CHEMINS_BROUTER.md"), "utf8")
-    .includes(sectionGeneree()), "le tableau du rapport doit être régénéré depuis les providers");
+    .includes(sectionGeneree()), "le tableau du rapport doit Ãªtre rÃ©gÃ©nÃ©rÃ© depuis les providers");
   assert.equal(fs.readFileSync(path.join(__dirname, "..", "COUNTRY_COVERAGE.md"), "utf8"), documentEnglish());
   assert.equal(lienCouverturePays("fr"), "/documentation/pays");
   assert.equal(lienCouverturePays("en"), "/documentation/pays?lang=en");
 });
 
-test("l'aide ouvre le README de la version installée, dans la langue de la page", () => {
+test("l'aide ouvre le README de la version installÃ©e, dans la langue de la page", () => {
   const { page, elements } = charger();
   page.etat.version = "0.3.3";
   page.appliquerLangue("fr");
@@ -399,7 +399,7 @@ test("l'aide ouvre le README de la version installée, dans la langue de la page
   assert.equal(elements.get("aide")["aria-label"], "Help: the user guide (README)");
 });
 
-test("le panneau Réglages montre la version et vérifie les mises à jour", async () => {
+test("le panneau RÃ©glages montre la version et vÃ©rifie les mises Ã  jour", async () => {
   const { elements, requetes } = charger();
   repondre(requetes.findLast((r) => r.url === "/api/maj"), { version: "0.3.0", version_locale: "0.3.0" });
   await new Promise((fin) => setImmediate(fin));
@@ -409,7 +409,7 @@ test("le panneau Réglages montre la version et vérifie les mises à jour", asy
   const verification = elements.get("verifierMaj").ecouteurs.click[0]();
   const requete = requetes.findLast((r) => r.url === "/api/maj-verifier");
   assert.equal(requete.options.method, "POST");
-  assert.equal(elements.get("statutMaj").textContent, "Vérification…");
+  assert.equal(elements.get("statutMaj").textContent, "VÃ©rificationâ€¦");
   repondre(requete, { ok: true, version: "0.3.10", version_locale: "0.3.9" });
   await verification;
   assert.equal(elements.get("statutMaj").textContent,
@@ -418,21 +418,21 @@ test("le panneau Réglages montre la version et vérifie les mises à jour", asy
   assert.equal(elements.get("verifierMaj").disabled, false);
 });
 
-test("la vérification des mises à jour dit « à jour » ou son échec", async () => {
+test("la vÃ©rification des mises Ã  jour dit Â« Ã  jour Â» ou son Ã©chec", async () => {
   const { elements, requetes } = charger();
   let clic = elements.get("verifierMaj").ecouteurs.click[0]();
   repondre(requetes.findLast((r) => r.url === "/api/maj-verifier"), { ok: true, version: "0.3.1", version_locale: "0.3.1" });
   await clic;
-  assert.equal(elements.get("statutMaj").textContent, "Vous avez la dernière version.");
+  assert.equal(elements.get("statutMaj").textContent, "Vous avez la derniÃ¨re version.");
 
   clic = elements.get("verifierMaj").ecouteurs.click[0]();
   repondre(requetes.findLast((r) => r.url === "/api/maj-verifier"), { ok: false, version: null, version_locale: "0.3.1" });
   await clic;
-  assert.equal(elements.get("statutMaj").textContent, "Vérification impossible (réseau ?).");
+  assert.equal(elements.get("statutMaj").textContent, "VÃ©rification impossible (rÃ©seau ?).");
   assert.equal(elements.get("verifierMaj").disabled, false);
 });
 
-test("le parcours revient après rechargement et se recalcule", async () => {
+test("le parcours revient aprÃ¨s rechargement et se recalcule", async () => {
   const avant = charger();
   avant.page.ajouterPoint({ lat: 43.3, lng: 6 });
   avant.page.ajouterPoint({ lat: 43.31, lng: 6.02 });
@@ -443,7 +443,7 @@ test("le parcours revient après rechargement et se recalcule", async () => {
     "[[43.3,6],[43.31,6.02]]");
   assert.equal(apres.elements.get("exporter").disabled, true);
   const minuterie = apres.minuteurs.findLast((m) => m.ms === 250 && !m.annule);
-  assert.ok(minuterie, "le calcul est relancé après la restauration");
+  assert.ok(minuterie, "le calcul est relancÃ© aprÃ¨s la restauration");
   const calcul = minuterie.callback();
   assert.deepEqual(JSON.parse(apres.derniere().options.body).points, [[43.3, 6], [43.31, 6.02]]);
   repondre(apres.derniere(), resultat(6.02));
@@ -451,26 +451,26 @@ test("le parcours revient après rechargement et se recalcule", async () => {
   assert.equal(apres.elements.get("exporter").disabled, false);
 });
 
-test("le voyant suit les données du prochain calcul, pas le tracé affiché", async () => {
+test("le voyant suit les donnÃ©es du prochain calcul, pas le tracÃ© affichÃ©", async () => {
   const { page, elements, derniere, minuteurs } = charger();
   page.afficherDisponibilite({ pret: false, source: null, attente: "osm" });
-  assert.equal(elements.get("readinessText").textContent, "Tracé indisponible");
+  assert.equal(elements.get("readinessText").textContent, "TracÃ© indisponible");
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   page.ajouterPoint({ lat: 43.31, lng: 6.02 });
   const calcul = minuteurs.findLast((m) => m.ms === 250 && !m.annule).callback();
   repondre(derniere(), resultat(6.02));
   await calcul;
   page.afficherDisponibilite({ pret: false, source: null, attente: "osm" });
-  assert.equal(elements.get("readinessText").textContent, "Tracé indisponible");
+  assert.equal(elements.get("readinessText").textContent, "TracÃ© indisponible");
   page.afficherDisponibilite({ pret: true, source: "cache", details: {
     overpass: "oui", local: { nom: "Var", etat: "disponible" },
-    regional: { nom: "Provence-Alpes-Côte d’Azur", etat: "import" },
+    regional: { nom: "Provence-Alpes-CÃ´te dâ€™Azur", etat: "import" },
   } });
-  assert.equal(elements.get("readinessText").textContent, "Tracé disponible");
+  assert.equal(elements.get("readinessText").textContent, "TracÃ© disponible");
   assert.equal(elements.get("readiness").classList.contains("available"), true);
-  assert.match(elements.get("readinessInfoText").textContent, /Overpass : répond/);
+  assert.match(elements.get("readinessInfoText").textContent, /Overpass : rÃ©pond/);
   assert.match(elements.get("readinessInfoText").textContent, /Extrait OSM local \(Var\) : disponible/);
-  assert.match(elements.get("readinessInfoText").textContent, /Extrait OSM régional .* : import en cours/);
+  assert.match(elements.get("readinessInfoText").textContent, /Extrait OSM rÃ©gional .* : import en cours/);
   page.appliquerLangue("en");
   assert.equal(elements.get("readinessText").textContent, "Routing available");
   assert.match(elements.get("readinessInfoText").textContent, /Regional OSM extract .* : importing/);
@@ -478,7 +478,7 @@ test("le voyant suit les données du prochain calcul, pas le tracé affiché", a
   assert.equal(elements.get("readinessText").textContent, "Routing unavailable");
 });
 
-test("déplacer, retirer et effacer mettent à jour le parcours sauvegardé", () => {
+test("dÃ©placer, retirer et effacer mettent Ã  jour le parcours sauvegardÃ©", () => {
   const { page, elements, stockage } = charger();
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   page.ajouterPoint({ lat: 43.31, lng: 6.02 });
@@ -492,7 +492,7 @@ test("déplacer, retirer et effacer mettent à jour le parcours sauvegardé", ()
   assert.equal(charger(Object.fromEntries(stockage)).page.etat.points.length, 0);
 });
 
-test("une sauvegarde de points invalide est ignorée", () => {
+test("une sauvegarde de points invalide est ignorÃ©e", () => {
   for (const valeur of ["{", "[[91,6]]", "[[43.3,6],[null,6]]"]) {
     assert.equal(charger({ "hike2gpx.points": valeur }).page.etat.points.length, 0);
   }
@@ -504,14 +504,14 @@ test("rechercher une ville recentre la carte sans ajouter de point", async () =>
   const recherche = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
   const requete = requetes.find((r) => r.url === "/api/communes");
   assert.equal(JSON.parse(requete.options.body).recherche, "Grenoble");
-  repondre(requete, { communes: [{ nom: "Grenoble", detail: "Isère", code_pays: "fr", lat: 45.1842, lon: 5.7155 }] });
+  repondre(requete, { communes: [{ nom: "Grenoble", detail: "IsÃ¨re", code_pays: "fr", lat: 45.1842, lon: 5.7155 }] });
   await recherche;
   assert.equal(JSON.stringify(carte.center), "[45.1842,5.7155]");
   assert.equal(carte.viewZoom, 13);
   assert.equal(page.etat.points.length, 0);
 });
 
-test("la recherche accepte des coordonnées GPS sans appeler la recherche de ville", () => {
+test("la recherche accepte des coordonnÃ©es GPS sans appeler la recherche de ville", () => {
   const { elements, requetes, carte, page } = charger();
   for (const entree of ["50.725, 10.275", "50.725,10.275", "50,725 ; 10,275", "50.725 10.275"]) {
     elements.get("cityQuery").value = entree;
@@ -545,7 +545,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.deepEqual(Object.keys(page.controle().fonds), ["Carte topographique (IGN Espagne)", "OSM rando", "OSM", "Satellite"]);
   assert.match(page.fonds().osmRando.url, /tile\.opentopomap\.org/);
   assert.match(page.fonds().satellite.url, /World_Imagery/);
-  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM", "Sentiers balisés GR/PR/SL (IGN Espagne)"]);
+  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM", "Sentiers balisÃ©s GR/PR/SL (IGN Espagne)"]);
   assert.equal(page.fonds().reliefLidar, undefined);
   assert.match(page.fond().url, /ign\.es\/wmts\/mapa-raster/);
   assert.equal(page.CALQUES.bdtopo.groupe.removed, true);
@@ -571,7 +571,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   elements.get("cityQuery").value = "Grenoble";
   const rechercheGrenoble = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
   repondre(requetes.findLast((r) => r.url === "/api/communes"), { communes: [
-    { nom: "Grenoble", detail: "Isère", code_pays: "fr", lat: 45.1842, lon: 5.7155 },
+    { nom: "Grenoble", detail: "IsÃ¨re", code_pays: "fr", lat: 45.1842, lon: 5.7155 },
   ] });
   await rechercheGrenoble;
   assert.deepEqual(Object.keys(page.fonds()), ["scan25", "plan", "photos", "reliefLidar", "osmRando", "osm", "satellite"]);
@@ -586,7 +586,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.equal(rechargeFrance.page.fond(), rechargeFrance.page.fonds().reliefLidar);
 });
 
-test("un déplacement manuel de Madrid à Garéoult rétablit les couches IGN", async () => {
+test("un dÃ©placement manuel de Madrid Ã  GarÃ©oult rÃ©tablit les couches IGN", async () => {
   const { page, elements, requetes, carte, minuteurs } = charger();
   elements.get("cityQuery").value = "Madrid";
   const recherche = elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
@@ -613,14 +613,14 @@ test("un déplacement manuel de Madrid à Garéoult rétablit les couches IGN", 
   await retour;
   assert.equal(page.fonds().plan, undefined);
   assert.ok(page.fonds().espagne);
-  assert.ok(page.controle().calques["Sentiers balisés GR/PR/SL (IGN Espagne)"]);
+  assert.ok(page.controle().calques["Sentiers balisÃ©s GR/PR/SL (IGN Espagne)"]);
 });
 
-test("la Suisse active swisstopo et conserve un fond préféré par pays", () => {
+test("la Suisse active swisstopo et conserve un fond prÃ©fÃ©rÃ© par pays", () => {
   const { page, carte, stockage } = charger();
   page.choisirPays("ch");
   assert.match(page.fond().url, /ch\.swisstopo\.pixelkarte-farbe/);
-  assert.match(page.controle().calques["Sentiers de randonnée (swisstopo)"].url,
+  assert.match(page.controle().calques["Sentiers de randonnÃ©e (swisstopo)"].url,
     /ch\.swisstopo\.swisstlm3d-wanderwege/);
   assert.equal(page.fonds().plan, undefined);
   carte.handlers.baselayerchange({ layer: page.fonds().osm });
@@ -665,7 +665,7 @@ test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => 
   assert.equal(page.CALQUES.atkis.groupe.layers.length, 1);
 });
 
-test("les nouveaux providers transmettent leur source au calcul, avec limite régionale polonaise", async () => {
+test("les nouveaux providers transmettent leur source au calcul, avec limite rÃ©gionale polonaise", async () => {
   for (const [pays, source, centre] of [
     ["cz", "zabaged", [49.125, 13.475]],
     ["ch", "swisstlm3d", [46.225, 8.625]],
@@ -697,17 +697,17 @@ test("les nouveaux providers transmettent leur source au calcul, avec limite ré
   }
 });
 
-test("les États-Unis proposent le fond USGS et ses sentiers agrégés", () => {
+test("les Ã‰tats-Unis proposent le fond USGS et ses sentiers agrÃ©gÃ©s", () => {
   const { page, elements } = charger();
   page.choisirPays("us");
   assert.match(page.fond().url, /basemap\.nationalmap\.gov.*USGSTopo/);
-  assert.ok(page.controle().calques["Sentiers recensés par l’USGS"]);
+  assert.ok(page.controle().calques["Sentiers recensÃ©s par lâ€™USGS"]);
   assert.equal(elements.get("ignOption").hidden, false);
   assert.equal(elements.get("ign").disabled, true);
   assert.match(elements.get("ignOptionTexte").textContent, /USGS.*affichage seul/);
 });
 
-test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", async () => {
+test("durÃ©e de marche et points extrÃªmes attendent puis reprennent gpx2elev", async () => {
   const { page, elements, derniere, requetes } = charger();
   page.etat.points = [{ lat: 43.3, lon: 6 }, { lat: 43.3, lon: 6.01 }];
   const calcul = page.calculer();
@@ -715,7 +715,7 @@ test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", 
   trajet.longueur_m = 10000;
   repondre(derniere(), trajet);
   await calcul;
-  assert.equal(elements.get("duree").textContent, "…");
+  assert.equal(elements.get("duree").textContent, "â€¦");
   const relief = requetes.find((r) => r.url === "/api/denivele");
   repondre(relief, { montee_m: 120, descente_m: 90, altitude_min_m: 400, altitude_max_m: 700,
     modele: "Mapterhorn", duree_marche_s: 8100 });
@@ -723,11 +723,11 @@ test("durée de marche et points extrêmes attendent puis reprennent gpx2elev", 
   assert.equal(elements.get("duree").textContent, "2 h 15");
   assert.equal(elements.get("pointHaut").textContent, "700 m");
   assert.equal(elements.get("pointBas").textContent, "400 m");
-assert.equal(elements.get("denivele").textContent, "+ 120 m / − 90 m");
+assert.equal(elements.get("denivele").textContent, "+ 120 m / âˆ’ 90 m");
 assert.match(elements.get("sourceDenivele").textContent, /Source des altitudes du parcours : Mapterhorn/);
 });
 
-test("les flèches suivent le sens du tracé et disparaissent au zoom éloigné", () => {
+test("les flÃ¨ches suivent le sens du tracÃ© et disparaissent au zoom Ã©loignÃ©", () => {
   const { page, carte } = charger();
   const est = page.preparerFleches([[6, 43], [6.01, 43]]);
   const ouest = page.preparerFleches([[6.01, 43], [6, 43]]);
@@ -743,7 +743,7 @@ test("les flèches suivent le sens du tracé et disparaissent au zoom éloigné"
   assert.equal(page.fleches.layers.length, 0);
 });
 
-test("une ouverture vérifie les tuiles BRouter même si le moteur est déjà installé", async () => {
+test("une ouverture vÃ©rifie les tuiles BRouter mÃªme si le moteur est dÃ©jÃ  installÃ©", async () => {
   const { requetes } = charger();
   repondre(requetes.find((r) => r.url === "/api/etat"),
     { version: "0.1.0", brouter: "1.7.10", moteur_installe: true });
@@ -753,8 +753,8 @@ test("une ouverture vérifie les tuiles BRouter même si le moteur est déjà in
   assert.ok(requetes.some((r) => r.url === "/api/moteur"));
 });
 
-test("les deux calques sont cochés par défaut, sans écraser un choix mémorisé", () => {
-  function cochés(preferences) {
+test("les deux calques sont cochÃ©s par dÃ©faut, sans Ã©craser un choix mÃ©morisÃ©", () => {
+  function cochÃ©s(preferences) {
     const { page } = charger(preferences);
     const vus = [];
     for (const [nom, calque] of Object.entries(page.CALQUES)) {
@@ -763,12 +763,12 @@ test("les deux calques sont cochés par défaut, sans écraser un choix mémoris
     page.restaurerCalques();
     return vus;
   }
-  assert.deepEqual(cochés({}), ["osm", "bdtopo"]);
-  assert.deepEqual(cochés({ "hike2gpx.calques": "[]" }), []);
-  assert.deepEqual(cochés({ "hike2gpx.calques": '["osm"]' }), ["osm"]);
+  assert.deepEqual(cochÃ©s({}), ["osm", "bdtopo"]);
+  assert.deepEqual(cochÃ©s({ "hike2gpx.calques": "[]" }), []);
+  assert.deepEqual(cochÃ©s({ "hike2gpx.calques": '["osm"]' }), ["osm"]);
 });
 
-test("les options de marche et le fond reviennent à l'ouverture", () => {
+test("les options de marche et le fond reviennent Ã  l'ouverture", () => {
   assert.equal(charger().elements.get("strict").checked, true);
   assert.equal(charger({ "hike2gpx.options": JSON.stringify({ strict: false }) })
     .elements.get("strict").checked, false);
@@ -798,7 +798,7 @@ async function calculReussi(page, derniere) {
   await calcul;
 }
 
-test("modifier un point retire aussitôt l'ancien tracé de l'export", async () => {
+test("modifier un point retire aussitÃ´t l'ancien tracÃ© de l'export", async () => {
   const { page, elements, derniere } = charger();
   await calculReussi(page, derniere);
   assert.equal(elements.get("exporter").disabled, false);
@@ -808,38 +808,38 @@ test("modifier un point retire aussitôt l'ancien tracé de l'export", async () 
   assert.equal(elements.get("exporter").disabled, true);
 });
 
-test("un recalcul en échec ne laisse pas exporter l'ancien tracé", async () => {
+test("un recalcul en Ã©chec ne laisse pas exporter l'ancien tracÃ©", async () => {
   const { page, elements, derniere } = charger();
   await calculReussi(page, derniere);
   const calcul = page.calculer();
-  derniere().reject(new Error("panne réseau simulée"));
+  derniere().reject(new Error("panne rÃ©seau simulÃ©e"));
   await calcul;
   assert.equal(page.etat.dernier, null);
   assert.equal(elements.get("exporter").disabled, true);
 });
 
-test("une réponse arrivée après une modification est ignorée", async () => {
+test("une rÃ©ponse arrivÃ©e aprÃ¨s une modification est ignorÃ©e", async () => {
   const { page, elements, derniere } = charger();
   page.etat.points = [{ lat: 43.3, lon: 6 }, { lat: 43.3, lon: 6.01 }];
   const calcul = page.calculer();
   page.etat.points = [];
-  page.planifierCalcul();         // la minuterie de 250 ms n'a pas encore tourné
+  page.planifierCalcul();         // la minuterie de 250 ms n'a pas encore tournÃ©
   repondre(derniere(), resultat(6.01));
   await calcul;
   assert.equal(page.etat.dernier, null);
   assert.equal(elements.get("exporter").disabled, true);
 });
 
-test("revenir au départ ferme la boucle, une seule fois", () => {
+test("revenir au dÃ©part ferme la boucle, une seule fois", () => {
   const { page, elements } = charger();
   page.ajouterPoint({ lat: 43.3, lng: 6 });
-  assert.equal(elements.get("boucler").disabled, true);      // un seul point : rien à boucler
+  assert.equal(elements.get("boucler").disabled, true);      // un seul point : rien Ã  boucler
   page.ajouterPoint({ lat: 43.31, lng: 6.01 });
   assert.equal(elements.get("boucler").disabled, false);
   page.boucler();
-  // Tableaux nés dans le contexte de la page : comparés par leur JSON.
+  // Tableaux nÃ©s dans le contexte de la page : comparÃ©s par leur JSON.
   assert.equal(JSON.stringify(page.etat.points.map((p) => [p.lat, p.lon])), "[[43.3,6],[43.31,6.01],[43.3,6]]");
-  assert.equal(elements.get("boucler").disabled, true);      // déjà revenu au départ
+  assert.equal(elements.get("boucler").disabled, true);      // dÃ©jÃ  revenu au dÃ©part
   page.boucler();
   assert.equal(page.etat.points.length, 3);
 });
@@ -850,7 +850,7 @@ test("pointeur d'attente et barre de progression le temps du calcul", async () =
   const calcul = page.calculer();
   assert.equal(corps.classList.contains("calcul"), true);
   assert.equal(elements.get("progression").hidden, false);
-  assert.match(elements.get("progressionTexte").textContent, /Préparation/);
+  assert.match(elements.get("progressionTexte").textContent, /PrÃ©paration/);
   repondre(derniere(), resultat(6.01));
   await calcul;
   assert.equal(corps.classList.contains("calcul"), false);
@@ -860,27 +860,27 @@ test("pointeur d'attente et barre de progression le temps du calcul", async () =
 test("en anglais, la page traduit ses textes et les erreurs du serveur", async () => {
   const { page, elements, document, derniere } = charger();
   page.appliquerLangue("en");
-  assert.equal(document.title, "hike2gpx — plan a route");
+  assert.equal(document.title, "hike2gpx â€” plan a route");
   assert.equal(elements.get("tab-trace").textContent, "Route");
   assert.equal(elements.get("tab-reglages").textContent, "Settings");
   assert.equal(elements.get("panelTabs")["aria-label"], "Hiking tools");
-  assert.match(page.ts("Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier"), /ATKIS path missing/);
+  assert.match(page.ts("Chemin ATKIS absent d'OpenStreetMap : existence et accÃ¨s Ã  vÃ©rifier"), /ATKIS path missing/);
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   await page.calculer();
   assert.equal(elements.get("statut").textContent, "Place a second point.");
-  const refus = { erreur: "Itinéraire refusé : …", code: "itineraire_refuse",
-    valeurs: { nature: "Clôture", statut: "blocked", distance_m: 1500 } };
+  const refus = { erreur: "ItinÃ©raire refusÃ© : â€¦", code: "itineraire_refuse",
+    valeurs: { nature: "ClÃ´ture", statut: "blocked", distance_m: 1500 } };
   assert.equal(page.texteErreur(refus), "Route refused: it passes a blocking crossing (Fence, 1.50 km from the start).");
   assert.equal(page.texteErreur({ erreur: "Calcul trop long : rapprochez les points." }),
     "Calculation too long: bring the points closer.");
   page.appliquerLangue("fr");
-  assert.equal(document.title, "hike2gpx — tracer un parcours");
+  assert.equal(document.title, "hike2gpx â€” tracer un parcours");
   assert.equal(elements.get("tab-trace").textContent, "Parcours");
-  assert.equal(elements.get("tab-reglages").textContent, "Réglages");
-  assert.equal(elements.get("statut").textContent, "Posez un deuxième point.");
+  assert.equal(elements.get("tab-reglages").textContent, "RÃ©glages");
+  assert.equal(elements.get("statut").textContent, "Posez un deuxiÃ¨me point.");
 });
 
-test("plein écran : la carte seule, puis la page revient", () => {
+test("plein Ã©cran : la carte seule, puis la page revient", () => {
   const { page, corps } = charger();
   page.basculerPleinEcran();
   assert.equal(corps.classList.contains("plein-ecran"), true);
@@ -888,17 +888,17 @@ test("plein écran : la carte seule, puis la page revient", () => {
   assert.equal(corps.classList.contains("plein-ecran"), false);
 });
 
-test("le calque OSM montre clôtures et franchissements sans itinéraire", async () => {
+test("le calque OSM montre clÃ´tures et franchissements sans itinÃ©raire", async () => {
   const { page, carte, requetes } = charger();
   carte.hasLayer = (layer) => layer === page.CALQUES.osm.groupe;
   const lecture = page.rafraichirCalques();
   const osm = requetes.find((r) => r.url.startsWith("/api/osm?"));
-  repondre(osm, { voies: [], barrieres: [{ id: 7, nature: "Clôture", pts: [[43.3, 6], [43.31, 6]] }],
+  repondre(osm, { voies: [], barrieres: [{ id: 7, nature: "ClÃ´ture", pts: [[43.3, 6], [43.31, 6]] }],
     franchissements: [
-      { cle: "noeud-8", statut: "uncertain", raison: "Franchissement à vérifier sur place",
+      { cle: "noeud-8", statut: "uncertain", raison: "Franchissement Ã  vÃ©rifier sur place",
         nature: "Portail", lat: 43.3, lon: 6.01, osm: "node/8" },
-      { cle: "ligne-7", statut: "blocked", raison: "Accès interdit ou privé",
-        nature: "Clôture", lat: 43.31, lon: 6.01, osm: "way/7" },
+      { cle: "ligne-7", statut: "blocked", raison: "AccÃ¨s interdit ou privÃ©",
+        nature: "ClÃ´ture", lat: 43.31, lon: 6.01, osm: "way/7" },
     ], bornes: [43.3, 6, 43.35, 6.05] });
   await lecture;
   assert.equal(page.etat.points.length, 0);
@@ -910,9 +910,9 @@ test("le calque OSM montre clôtures et franchissements sans itinéraire", async
   assert.ok(couches.slice(1).every((c) => c.options.pane === "obstaclesOsm"));
 });
 
-test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tuiles déjà lues", async () => {
-  // Journal du 2026-10-19 : chaque déplacement ajoutait ses lectures à celles
-  // des vues quittées, et la vue demandée était élargie de 15 %.
+test("calques : la vue seule, une vue quittÃ©e coupÃ©e, rien de relu dans les tuiles dÃ©jÃ  lues", async () => {
+  // Journal du 2026-10-19 : chaque dÃ©placement ajoutait ses lectures Ã  celles
+  // des vues quittÃ©es, et la vue demandÃ©e Ã©tait Ã©largie de 15 %.
   const { page, requetes, carte } = charger();
   carte.hasLayer = (layer) => layer === page.CALQUES.osm.groupe || layer === page.CALQUES.bdtopo.groupe;
   const calques = () => requetes.filter((r) => /^\/api\/(osm|bdtopo)\?/.test(r.url));
@@ -928,11 +928,11 @@ test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tu
   repondre(bdtopoB, { troncons: [], bornes: [43.4, 6.2, 43.45, 6.25] });
   await seconde;
   assert.deepEqual(JSON.parse(JSON.stringify(page.CALQUES.osm.charge)), { s: 43.4, w: 6.2, n: 43.45, e: 6.25 });
-  // Un petit déplacement dans les tuiles déjà lues : rien à redemander.
+  // Un petit dÃ©placement dans les tuiles dÃ©jÃ  lues : rien Ã  redemander.
   carte.vue = { s: 43.42, w: 6.22, n: 43.44, e: 6.245 };
   await page.rafraichirCalques();
   assert.equal(calques().length, 4);
-  // Zoom trop faible pendant une lecture : coupée, et le serveur prévenu.
+  // Zoom trop faible pendant une lecture : coupÃ©e, et le serveur prÃ©venu.
   carte.vue = { s: 43.31, w: 6.01, n: 43.33, e: 6.04 };
   const troisieme = page.rafraichirCalques();
   carte.getZoom = () => 12;
@@ -944,8 +944,8 @@ test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tu
   assert.equal(typeof vue, "number");
 });
 
-test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcul reprend", async () => {
-  // Décision de Nico du 2026-10-19 : aucun bouton. Le serveur télécharge ce
+test("donnÃ©es hors ligne : tÃ©lÃ©chargÃ©es d'elles-mÃªmes, suivies, et le calcul reprend", async () => {
+  // DÃ©cision de Nico du 2026-10-19 : aucun bouton. Le serveur tÃ©lÃ©charge ce
   // qui manque, la page le montre et relance le calcul qui attendait.
   const { page, elements, requetes } = charger();
   const texte = () => elements.get("extraitTexte").textContent;
@@ -955,103 +955,103 @@ test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcu
   page.afficherExtrait({ en_cours: null, brouter: null });
   assert.equal(elements.get("extraitOsm").hidden, true);
   assert.equal(elements.get("brouterEnCours").hidden, true);
-  // Overpass en panne pendant un calcul : le serveur a lancé l'extrait.
-  page.afficherErreur({ erreur: "Overpass ne répond pas : barrières non vérifiées (HTTP 502).",
+  // Overpass en panne pendant un calcul : le serveur a lancÃ© l'extrait.
+  page.afficherErreur({ erreur: "Overpass ne rÃ©pond pas : barriÃ¨res non vÃ©rifiÃ©es (HTTP 502).",
     extrait_en_cours: { id: "paca", nom } });
-  assert.equal(statut(), `Overpass ne répond pas ; l'extrait OSM ${nom} se télécharge, le calcul reprendra de lui-même.`);
+  assert.equal(statut(), `Overpass ne rÃ©pond pas ; l'extrait OSM ${nom} se tÃ©lÃ©charge, le calcul reprendra de lui-mÃªme.`);
   assert.equal(page.etat.donneesAttendues.extrait, "paca");
   assert.ok(requetes.some((r) => r.url.startsWith("/api/extrait?")));
   page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "telechargement", fraction: 0.42, voies: 0 }, brouter: null });
-  assert.equal(texte(), `Données OSM hors ligne : téléchargement de l'extrait ${nom}, 42 %`);
-  // Sa barre suit le téléchargement, puis va et vient pendant l'import.
+  assert.equal(texte(), `DonnÃ©es OSM hors ligne : tÃ©lÃ©chargement de l'extrait ${nom}, 42 %`);
+  // Sa barre suit le tÃ©lÃ©chargement, puis va et vient pendant l'import.
   const piste = elements.get("extraitPiste");
   assert.equal(piste.hidden, false);
   assert.equal(piste.classList.contains("indeterminee"), false);
   assert.equal(elements.get("extraitBarre").style.width, "42%");
   page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "import", fraction: 1, voies: 210710 }, brouter: null });
-  assert.match(texte(), /^Données OSM hors ligne : import de l'extrait .*, 210.710 voies lues…$/);
+  assert.match(texte(), /^DonnÃ©es OSM hors ligne : import de l'extrait .*, 210.710 voies luesâ€¦$/);
   assert.equal(piste.classList.contains("indeterminee"), true);
   assert.equal(elements.get("extraitBarre").style.width, "");
-  // L'extrait est là, mais une tuile BRouter arrive encore : on attend toujours.
+  // L'extrait est lÃ , mais une tuile BRouter arrive encore : on attend toujours.
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: { moteur: false, segments: ["E0_N45"] } });
-  assert.equal(elements.get("brouterTexte").textContent, "Données BRouter : téléchargement en cours (E0_N45)…");
+  assert.equal(elements.get("brouterTexte").textContent, "DonnÃ©es BRouter : tÃ©lÃ©chargement en cours (E0_N45)â€¦");
   assert.equal(elements.get("brouterEnCours").hidden, false);
   assert.equal(piste.hidden, true);
   assert.equal(page.etat.donneesAttendues.extrait, "paca");
-  // Tout est arrivé : l'extrait sert, et le calcul qui attendait repart.
+  // Tout est arrivÃ© : l'extrait sert, et le calcul qui attendait repart.
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
-  assert.equal(texte(), `Données OSM hors ligne : extrait ${nom} du 18/10/2026, renouvelé tous les 30 jours.`);
+  assert.equal(texte(), `DonnÃ©es OSM hors ligne : extrait ${nom} du 18/10/2026, renouvelÃ© tous les 30 jours.`);
   assert.equal(elements.get("brouterEnCours").hidden, true);
   assert.equal(page.etat.donneesAttendues, false);
   page.appliquerLangue("en");
   assert.equal(texte(), `Offline OSM data: ${nom} extract of 18/10/2026, renewed every 30 days.`);
-  // Moteur et tuile BRouter manquants : même attente, sans bouton.
+  // Moteur et tuile BRouter manquants : mÃªme attente, sans bouton.
   page.appliquerLangue("fr");
-  page.afficherErreur({ erreur: "Données BRouter absentes pour cette zone.", segments_manquants: ["E0_N45"],
+  page.afficherErreur({ erreur: "DonnÃ©es BRouter absentes pour cette zone.", segments_manquants: ["E0_N45"],
     brouter_en_cours: { moteur: true, segments: ["E0_N45"] } });
-  assert.equal(statut(), "Téléchargement des données BRouter (moteur BRouter, E0_N45) : le calcul reprendra de lui-même.");
+  assert.equal(statut(), "TÃ©lÃ©chargement des donnÃ©es BRouter (moteur BRouter, E0_N45) : le calcul reprendra de lui-mÃªme.");
   assert.equal(page.etat.donneesAttendues.extrait, null);
 });
 
-test("cascade : le Var sert aussitôt, la PACA se prépare sans faire attendre", () => {
-  // Nico, 2026-10-20 : « on a la main rapidement sur le var (garéoult), on
-  // peut travailler, pendant ce temps paca se prépare ».
+test("cascade : le Var sert aussitÃ´t, la PACA se prÃ©pare sans faire attendre", () => {
+  // Nico, 2026-10-20 : Â« on a la main rapidement sur le var (garÃ©oult), on
+  // peut travailler, pendant ce temps paca se prÃ©pare Â».
   const { page, elements, requetes } = charger();
   const texte = () => elements.get("extraitTexte").textContent;
   const paca = "Provence Alpes-Cote-d'Azur";
   const var_ = { id: "fr-var", nom: "Var", date: "2026-10-19T01:38:06Z" };
-  page.afficherErreur({ erreur: "Overpass ne répond pas : barrières non vérifiées (HTTP 502).",
+  page.afficherErreur({ erreur: "Overpass ne rÃ©pond pas : barriÃ¨res non vÃ©rifiÃ©es (HTTP 502).",
     extrait_en_cours: { id: "fr-var", nom: "Var" } });
   page.debutLecture("osm", 1, "chemins OSM");
   page.afficherExtrait({ en_cours: { id: "fr-var", nom: "Var", etape: "import", fraction: 1, voies: 184075 }, brouter: null });
   assert.equal(page.etat.donneesAttendues.extrait, "fr-var");
   const lectures = () => requetes.filter((r) => r.url.startsWith("/api/osm?")).length;
   const avant = lectures();
-  // Le Var installé, la PACA part dans la seconde : le calcul reprend et le
+  // Le Var installÃ©, la PACA part dans la seconde : le calcul reprend et le
   // calque se relit dans le Var, sans attendre la PACA.
   page.afficherExtrait({ en_cours: { id: "provence-alpes-cote-d-azur", nom: paca, etape: "telechargement",
     fraction: 0.12, voies: 0, relais: true }, installe: var_, brouter: null });
   assert.equal(page.etat.donneesAttendues, false);
   assert.equal(lectures(), avant + 1);
-  assert.equal(texte(), `Données OSM hors ligne : extrait Var du 19/10/2026 ; la région ${paca} se télécharge pour prendre le relais, 12 %`);
+  assert.equal(texte(), `DonnÃ©es OSM hors ligne : extrait Var du 19/10/2026 ; la rÃ©gion ${paca} se tÃ©lÃ©charge pour prendre le relais, 12 %`);
   page.afficherExtrait({ en_cours: { id: "provence-alpes-cote-d-azur", nom: paca, etape: "import",
     fraction: 1, voies: 210710, relais: true }, installe: var_, brouter: null });
-  assert.match(texte(), /^Données OSM hors ligne : extrait Var du 19\/10\/2026 ; la région .* s'importe pour prendre le relais, 210.710 voies lues…$/);
+  assert.match(texte(), /^DonnÃ©es OSM hors ligne : extrait Var du 19\/10\/2026 ; la rÃ©gion .* s'importe pour prendre le relais, 210.710 voies luesâ€¦$/);
   page.appliquerLangue("en");
-  assert.match(texte(), /^Offline OSM data: Var extract of 19\/10\/2026; the .* region is importing to take over, 210.710 ways read…$/);
+  assert.match(texte(), /^Offline OSM data: Var extract of 19\/10\/2026; the .* region is importing to take over, 210.710 ways readâ€¦$/);
   page.appliquerLangue("fr");
-  // La PACA installée : c'est elle qui sert.
+  // La PACA installÃ©e : c'est elle qui sert.
   const installe = { id: "provence-alpes-cote-d-azur", nom: paca, date: "2026-10-18T20:25:06Z" };
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini", relais: true }, installe, brouter: null });
-  assert.equal(texte(), `Données OSM hors ligne : extrait ${paca} du 18/10/2026, renouvelé tous les 30 jours.`);
+  assert.equal(texte(), `DonnÃ©es OSM hors ligne : extrait ${paca} du 18/10/2026, renouvelÃ© tous les 30 jours.`);
 });
 
 test("chargement des calques : la note suit les tuiles lues, barre comprise", () => {
-  // Nico, 2026-10-20 : « Chargement des chemins OSM… » sans barre de progression.
+  // Nico, 2026-10-20 : Â« Chargement des chemins OSMâ€¦ Â» sans barre de progression.
   const { page, elements } = charger();
   const note = () => elements.get("noteCalquesTexte").textContent;
   page.debutLecture("osm", 1, "chemins OSM");
   const piste = elements.get("noteCalquesPiste");
-  assert.equal(note(), "Chargement des chemins OSM… (la première fois, jusqu'à une minute)");
+  assert.equal(note(), "Chargement des chemins OSMâ€¦ (la premiÃ¨re fois, jusqu'Ã  une minute)");
   assert.equal(piste.hidden, false);
   assert.equal(piste.classList.contains("indeterminee"), true);
   page.afficherLectures({ osm: { faites: 2, total: 6, duree_s: 12.4 } });
-  assert.equal(note(), "Chargement des chemins OSM… 2 sur 6 tuiles · 12 s");
+  assert.equal(note(), "Chargement des chemins OSMâ€¦ 2 sur 6 tuiles Â· 12 s");
   assert.equal(piste.classList.contains("indeterminee"), false);
   assert.equal(elements.get("noteCalquesBarre").style.width, "33%");
-  // Deux calques à la fois : une note, leurs tuiles additionnées.
+  // Deux calques Ã  la fois : une note, leurs tuiles additionnÃ©es.
   page.debutLecture("bdtopo", 1, "chemins BD TOPO (IGN)");
   page.afficherLectures({ osm: { faites: 3, total: 6, duree_s: 20 }, bdtopo: { faites: 6, total: 6, duree_s: 3 } });
-  assert.equal(note(), "Chargement des chemins OSM et chemins BD TOPO (IGN)… 9 sur 12 tuiles · 20 s");
-  // La fin d'une vue périmée ne retire pas la lecture de la vue suivante.
+  assert.equal(note(), "Chargement des chemins OSM et chemins BD TOPO (IGN)â€¦ 9 sur 12 tuiles Â· 20 s");
+  // La fin d'une vue pÃ©rimÃ©e ne retire pas la lecture de la vue suivante.
   assert.equal(page.finLecture("osm", 0), true);
   assert.equal(page.finLecture("osm", 1), true);
   assert.equal(page.finLecture("bdtopo", 1), false);
 });
 
-test("extrait installé pendant la lecture des chemins OSM : elle repart sur lui", () => {
-  // Essai du 2026-10-20 : l'extrait Corse installé en 16 s, la lecture partie
-  // avant lui attendait encore Overpass (HTTP 504, 502) deux minutes après.
+test("extrait installÃ© pendant la lecture des chemins OSM : elle repart sur lui", () => {
+  // Essai du 2026-10-20 : l'extrait Corse installÃ© en 16 s, la lecture partie
+  // avant lui attendait encore Overpass (HTTP 504, 502) deux minutes aprÃ¨s.
   const { page, requetes, carte } = charger();
   carte.hasLayer = () => true;
   const lues = (cle) => requetes.filter((r) => r.url.startsWith(`/api/${cle}?`)).length;
@@ -1061,16 +1061,16 @@ test("extrait installé pendant la lecture des chemins OSM : elle repart sur lui
   const installe = { id: "corse", nom: "Corse", date: "2026-10-18T20:25:06Z" };
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
   assert.equal(lues("osm"), 2);
-  assert.equal(lues("bdtopo"), 1);          // la BD TOPO ne dépend pas de l'extrait
-  // Déjà installé : un nouvel état « fini » ne relance rien.
+  assert.equal(lues("bdtopo"), 1);          // la BD TOPO ne dÃ©pend pas de l'extrait
+  // DÃ©jÃ  installÃ© : un nouvel Ã©tat Â« fini Â» ne relance rien.
   page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
   assert.equal(lues("osm"), 2);
 });
 
-test("vues datées : le serveur ne lit que la plus récente, et la note ne reste pas figée", async () => {
-  // Calque figé du 2026-10-20 : une requête plus ancienne, arrivée après la
-  // plus récente, passait au serveur pour la vue en cours. Les vues portent
-  // désormais leur date, strictement croissante.
+test("vues datÃ©es : le serveur ne lit que la plus rÃ©cente, et la note ne reste pas figÃ©e", async () => {
+  // Calque figÃ© du 2026-10-20 : une requÃªte plus ancienne, arrivÃ©e aprÃ¨s la
+  // plus rÃ©cente, passait au serveur pour la vue en cours. Les vues portent
+  // dÃ©sormais leur date, strictement croissante.
   const { page, elements, requetes, carte } = charger();
   carte.hasLayer = (groupe) => groupe === page.CALQUES.osm.groupe;
   const premiere = page.rafraichirCalques();
@@ -1081,11 +1081,11 @@ test("vues datées : le serveur ne lit que la plus récente, et la note ne reste
   const dates = osm.map((r) => Number(new URL(r.url, "http://h").searchParams.get("vue")));
   assert.equal(dates.length, 2);
   assert.ok(dates[0] > 0 && dates[1] > dates[0]);
-  // Remplacée malgré tout (une autre page ouverte) : pas de chargement sans fin.
-  repondre(osm[1], { erreur: "Vue remplacée par une autre.", code: "vue_remplacee" });
+  // RemplacÃ©e malgrÃ© tout (une autre page ouverte) : pas de chargement sans fin.
+  repondre(osm[1], { erreur: "Vue remplacÃ©e par une autre.", code: "vue_remplacee" });
   await seconde;
   assert.equal(elements.get("noteCalques").hidden, true);
-  // L'arrêt envoyé au serveur porte aussi sa date.
+  // L'arrÃªt envoyÃ© au serveur porte aussi sa date.
   carte.vue = { s: 43.51, w: 6.31, n: 43.54, e: 6.36 };
   page.rafraichirCalques();
   carte.getZoom = () => 10;
@@ -1096,7 +1096,7 @@ test("vues datées : le serveur ne lit que la plus récente, et la note ne reste
   assert.ok(corps.vue > dates[1]);
 });
 
-test("un bouton unique vide les caches locaux après confirmation", () => {
+test("un bouton unique vide les caches locaux aprÃ¨s confirmation", () => {
   const { page, elements, requetes, confirmations } = charger();
   page.afficherDonnees({
     osm: { fichiers: 42, octets: 12_400_000 }, bdtopo: { fichiers: 0, octets: 0 },
