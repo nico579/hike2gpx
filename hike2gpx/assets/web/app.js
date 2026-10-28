@@ -186,10 +186,11 @@ const TEXTES = {
     "horsLigne.case": "Case {nom}",
     "horsLigne.prete": "Prête hors ligne : {taille}, OSM du {date}.",
     "horsLigne.absente": "Pas encore disponible hors ligne.",
+    "horsLigne.absenteServeur": "Publiée par le serveur, pas encore sur cet ordinateur : elle se téléchargera d'elle-même dès qu'un parcours ou les chemins de la carte s'en serviront.",
+    "horsLigne.telechargerMaintenant": "Télécharger maintenant",
     "horsLigne.serveur": "Sur le serveur : {taille}, OSM du {osm}{officiels}.",
     "horsLigne.serveurOfficiels": ", chemins officiels du {date}",
     "horsLigne.serveurAJour": "À jour avec le serveur.",
-    "horsLigne.telecharger": "Télécharger depuis le serveur",
     "horsLigne.telechargerMaj": "Mettre à jour depuis le serveur",
     "horsLigne.enPreparation": "En préparation.",
     "horsLigne.preparerVue": "Préparer la vue actuelle",
@@ -413,10 +414,11 @@ const TEXTES = {
     "horsLigne.case": "Area {nom}",
     "horsLigne.prete": "Ready offline: {taille}, OSM of {date}.",
     "horsLigne.absente": "Not available offline yet.",
+    "horsLigne.absenteServeur": "Published by the server, not on this computer yet: it will download by itself as soon as a route or the map's paths use it.",
+    "horsLigne.telechargerMaintenant": "Download now",
     "horsLigne.serveur": "On the server: {taille}, OSM of {osm}{officiels}.",
     "horsLigne.serveurOfficiels": ", official paths of {date}",
     "horsLigne.serveurAJour": "Up to date with the server.",
-    "horsLigne.telecharger": "Download from the server",
     "horsLigne.telechargerMaj": "Update from the server",
     "horsLigne.enPreparation": "Being prepared.",
     "horsLigne.preparerVue": "Prepare the current view",
@@ -1486,25 +1488,29 @@ function bulleCase(nom) {
     div.append(paragraphe(t("horsLigne.enPreparation")), bouton(t("horsLigne.arreter"), arreterLot));
     return div;
   }
+  // Une case que publie le serveur se télécharge (d'elle-même, ou tout de
+  // suite) : la préparer ici, une heure de calcul, n'aurait pas de sens.
+  const surServeur = lotsServeur.find((l) => l.case === nom);
   div.append(paragraphe(lotCase
     ? t("horsLigne.prete", { taille: tailleTexte(lotCase.octets), date: (lotCase.sources?.osm || "").slice(0, 10) })
-    : t("horsLigne.absente")));
+    : t(surServeur ? "horsLigne.absenteServeur" : "horsLigne.absente")));
   const [s, o, n, e] = boiteCase(nom);
   const b = carte.getBounds();
   const vueDansCase = b.getSouth() >= s && b.getNorth() <= n && b.getWest() >= o && b.getEast() <= e;
-  if (vueDansCase) {
+  if (vueDansCase && !surServeur) {
     div.append(bouton(t("horsLigne.preparerVue"), () => preparerCase(nom,
       [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])));
   }
-  div.append(bouton(lotCase ? t("horsLigne.mettreAJour") : t("horsLigne.preparerCase"), () => preparerCase(nom)));
-  const surServeur = lotsServeur.find((l) => l.case === nom);
+  if (!surServeur) {
+    div.append(bouton(lotCase ? t("horsLigne.mettreAJour") : t("horsLigne.preparerCase"), () => preparerCase(nom)));
+  }
   if (surServeur) {
     const officiels = Object.entries(surServeur.sources || {}).find(([cle]) => !["osm", "relief", "rd5"].includes(cle));
     div.append(paragraphe(t("horsLigne.serveur", { taille: tailleTexte(surServeur.octets),
       osm: (surServeur.sources?.osm || "").slice(0, 10),
       officiels: officiels ? t("horsLigne.serveurOfficiels", { date: String(officiels[1]).slice(0, 10) }) : "" })));
     if (surServeur.etat === "a_jour") div.append(paragraphe(t("horsLigne.serveurAJour")));
-    else div.append(bouton(t(surServeur.etat === "ancien" ? "horsLigne.telechargerMaj" : "horsLigne.telecharger"),
+    else div.append(bouton(t(surServeur.etat === "ancien" ? "horsLigne.telechargerMaj" : "horsLigne.telechargerMaintenant"),
       () => telechargerCase(nom)));
   }
   if (paysCarte === "fr") ajouterFonds(div, nom, vueDansCase ? [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()] : null);
