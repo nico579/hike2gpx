@@ -1,5 +1,5 @@
 # Essai, pas production : les étapes de cache de bundles.yml, sur une petite
-# case française (W10_N45, la Bretagne), sans fabriquer ni publier de lot. Deux
+# case française (W5_N45, cinq régions), sans fabriquer ni publier de lot. Deux
 # exécutions : la première télécharge et garde, la seconde doit reprendre.
 name: Essai cache BD TOPO
 
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
-      CASE: W10_N45
+      CASE: W5_N45
       HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,7 +39,7 @@ jobs:
         if: steps.bdtopo.outputs.editions != ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ env.HIKE2GPX_HOME }}/bdtopo-regions
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
           key: bdtopo-${{ env.CASE }}-${{ steps.bdtopo.outputs.editions }}
           restore-keys: bdtopo-${{ env.CASE }}-
 
@@ -64,5 +64,5 @@ jobs:
         if: ${{ !cancelled() && steps.bdtopo-complet.outputs.oui == '1' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ env.HIKE2GPX_HOME }}/bdtopo-regions
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
           key: bdtopo-${{ env.CASE }}-${{ steps.bdtopo.outputs.editions }}
