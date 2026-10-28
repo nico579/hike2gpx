@@ -100,7 +100,24 @@ def test_un_fond_arrete_reprend_ou_il_en_etait(tmp_path):
     base.close()
 
 
-def test_cle_refusee_et_zone_hors_de_france(tmp_path):
+def test_un_refus_passager_ne_coupe_pas_le_fond(tmp_path, monkeypatch):
+    # Constaté sur une case : un 401 isolé au milieu de milliers de tuiles acceptées.
+    attentes = []
+    monkeypatch.setattr(fonds.time, "sleep", attentes.append)
+    sain, refus = service(), [True]
+
+    def ouvrir(requete, timeout=None):
+        if refus and "TILEMATRIX=13" in requete.full_url:
+            refus.pop()
+            raise urllib.error.HTTPError(requete.full_url, 401, "Unauthorized", {}, None)
+        return sain(requete, timeout)
+    fonds.fabriquer(tmp_path / "f.mbtiles", "scan25", ZONE, (12, 13), "cle", ouvrir=ouvrir, debit=0)
+    assert attentes == [2], "un seul nouvel essai, deux secondes après"
+
+
+def test_cle_refusee_et_zone_hors_de_france(tmp_path, monkeypatch):
+    attentes = []
+    monkeypatch.setattr(fonds.time, "sleep", attentes.append)
     with pytest.raises(fonds.ErreurFond, match="clé"):
         fonds.fabriquer(tmp_path / "a.mbtiles", "scan25", ZONE, (12, 12), "cle", ouvrir=service(statut=403), debit=0)
     with pytest.raises(fonds.ErreurFond, match="clé IGN"):

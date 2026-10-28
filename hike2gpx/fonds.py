@@ -132,8 +132,12 @@ class _Debit:
 
 def _telecharger_tuile(url: str, ouvrir, debit: _Debit, continuer) -> bytes | None:
     """Le contenu de la tuile, None hors couverture (404, ou 400 hors de la
-    matrice) ; trois essais sur une coupure ou un serveur surchargé."""
-    for essai in range(3):
+    matrice) ; quatre essais, espacés de 2, 4 puis 8 s, sur une coupure ou un
+    refus. Un refus de la clé (401, 403) n'est pas toujours définitif : mesuré
+    le 2026-10-28, le service a répondu 401 une fois, après 9 000 tuiles, à
+    une clé qu'il acceptait de nouveau l'instant d'après. Refusée quatre fois
+    de suite, la clé est jugée fausse."""
+    for essai in range(4):
         if not continuer():
             raise Abandon()
         debit.attendre()
@@ -143,13 +147,14 @@ def _telecharger_tuile(url: str, ouvrir, debit: _Debit, continuer) -> bytes | No
         except urllib.error.HTTPError as exc:
             if exc.code in (400, 404):
                 return None
-            if exc.code in (401, 403):
-                raise ErreurFond("Le service de l'IGN refuse la clé (réglages).") from exc
             erreur = exc
         except (OSError, http.client.HTTPException) as exc:
             erreur = exc
-        time.sleep(2 * (essai + 1))
-    raise ErreurFond(f"Tuiles de l'IGN injoignables ({erreur}).")
+        if essai < 3:
+            time.sleep(2 ** (essai + 1))
+    if isinstance(erreur, urllib.error.HTTPError) and erreur.code in (401, 403):
+        raise ErreurFond("Le service de l'IGN refuse la clé (réglages).") from erreur
+    raise ErreurFond(f"Tuiles de l'IGN injoignables ({erreur}).") from erreur
 
 
 def _ouvrir_base(chemin: Path) -> sqlite3.Connection:
