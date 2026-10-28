@@ -121,3 +121,16 @@ def test_une_region_deja_gardee_n_est_pas_retelechargee(tmp_path, monkeypatch):
     monkeypatch.setattr(br, "_telecharger", lambda *a: pytest.fail("rien à télécharger"))
     assert br.geopackage(tmp_path, "R93", {"nom": NOM, "date": "2026-09-15", "fichiers": []}).name == \
         f"{NOM}.troncons.sqlite"
+
+
+def test_la_lecture_d_emprise_passe_par_la_cle_des_troncons(tmp_path):
+    # Sans clé primaire, chaque emprise parcourait la table entière d'une région.
+    import sqlite3
+    from test_case import _geopackage_bdtopo
+    _geopackage_bdtopo(tmp_path / "complet.gpkg", [("TRONROUT1", "83063", [[(43.330, 6.040), (43.331, 6.042)]])])
+    br._garder_les_troncons(tmp_path / "complet.gpkg", tmp_path / "troncons.sqlite")
+    with sqlite3.connect(tmp_path / "troncons.sqlite") as base:
+        plan = " ".join(str(l) for l in base.execute(
+            "EXPLAIN QUERY PLAN SELECT t.cleabs FROM rtree_troncon_de_route_geometrie r "
+            "JOIN troncon_de_route t ON t.fid = r.id WHERE r.minx <= 1 AND r.maxx >= 0"))
+    assert "SCAN t" not in plan and "INTEGER PRIMARY KEY" in plan
