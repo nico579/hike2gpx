@@ -31,8 +31,9 @@ class ErreurArchive(RuntimeError):
 
 
 def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essais: int = ESSAIS) -> None:
-    """fichier = {"url", "octets", "md5"} : téléchargé dans cible, repris là où
-    il s'est arrêté (Range), puis contrôlé par son MD5 ; sans MD5 (le flux de
+    """fichier = {"url", "octets", "md5" ou "sha256"} : téléchargé dans cible,
+    repris là où il s'est arrêté (Range), puis contrôlé par son empreinte (le
+    SHA-256 du catalogue STAC de swisstopo, le MD5 de l'IGN) ; sans empreinte (le flux de
     l'ČÚZK n'en donne pas), par sa taille seule, l'archive zip contrôlant
     ensuite chaque fichier par son CRC. Une coupure qui a fait avancer le
     téléchargement ne compte pas : le serveur de l'ČÚZK (6,7 Go, 1 Mo/s vu de
@@ -53,12 +54,13 @@ def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essai
                 sans_progres = 0 if apres > deja else sans_progres + 1
                 journal.info("%s coupé à %.0f Mo (%s), reprise", cible.name, apres / 1e6, exc)
                 continue
-        if fichier.get("md5"):
-            h = hashlib.md5()
+        algorithme = next((a for a in ("sha256", "md5") if fichier.get(a)), None)
+        if algorithme:
+            h = hashlib.new(algorithme)
             with open(cible, "rb") as f:
                 while bloc := f.read(BLOC):
                     h.update(bloc)
-            if h.hexdigest() == fichier["md5"]:
+            if h.hexdigest() == fichier[algorithme]:
                 return
         elif cible.stat().st_size == fichier["octets"]:
             return

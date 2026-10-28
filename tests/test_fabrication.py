@@ -458,13 +458,15 @@ def test_la_commande_cells_et_bundles_bulk(tmp_path, monkeypatch, capsys):
     assert __main__.main(["cells", "--provider", "swisstlm3d"]) == 0
     assert capsys.readouterr().out.split() == ["E10_N45", "E5_N45"]
     assert __main__.main(["cells", "--provider", "swisstlm3d", "--bulk-only"]) == 0
-    assert capsys.readouterr().out.split() == [], "swissTLM3D n'a pas encore de lecture en bloc"
+    assert capsys.readouterr().out.split() == ["E10_N45", "E5_N45"], "swissTLM3D se lit en bloc"
+    assert __main__.main(["cells", "--provider", "atkis", "--bulk-only"]) == 0
+    assert capsys.readouterr().out.split() == [], "ATKIS n'a pas encore de lecture en bloc"
     demandes = {}
     monkeypatch.setattr(brouter.Installation, "installee", lambda self: True)
     monkeypatch.setattr(fabrication, "lecteurs_en_bloc", lambda dossier: ({"ign": "lecteur"}, {"ign": "édition"}))
     monkeypatch.setattr(fabrication, "fabriquer_lots", lambda *a, **o: demandes.update(o) or {"E5_N45": "fabriqué"})
     assert __main__.main(["bundles", "E5_N45", "--bulk", "--output", str(tmp_path / "lots")]) == 0
-    assert demandes["fournisseurs"] == ["ign", "zabaged"] and demandes["troncons"] == {"ign": "lecteur"}
+    assert demandes["fournisseurs"] == ["ign", "swisstlm3d", "zabaged"] and demandes["troncons"] == {"ign": "lecteur"}
     assert "laissés de côté" in capsys.readouterr().out
 
 
