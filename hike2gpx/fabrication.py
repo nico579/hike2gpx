@@ -295,11 +295,21 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     suivi("compilation", 0, 1)
     installation.preparer_maison()
     aire = (zone[2] - zone[0]) * (zone[3] - zone[1])
+    journal.info("Lot %s : compilation, %.1f Go libres, %.1f Go à compiler", case,
+                 shutil.disk_usage(travail).free / 1e9, (travail / "enrichi.osm.pbf").stat().st_size / 1e9)
     segments = brouter.fabriquer_tuiles(installation, travail / "enrichi.osm.pbf", travail / "construction",
                                         relief=bef, tas=TAS_CASE if aire > AIRE_VUE else "1g")
     rd5 = segments / f"{case}.rd5"
     if not rd5.is_file():
-        raise brouter.ErreurBRouter(f"La compilation n'a pas produit {case}.rd5.")
+        # Sans erreur de Java mais sans tuile : dire ce qui a été produit, la
+        # place restante et la fin de ce qu'a écrit WayLinker.
+        produits = sorted(p.name for p in segments.iterdir()) if segments.is_dir() else []
+        sortie_linker = segments.parent / "WayLinker.log"
+        fin = sortie_linker.read_text(encoding="utf-8", errors="replace").strip()[-600:] \
+            if sortie_linker.is_file() else ""
+        raise brouter.ErreurBRouter(
+            f"La compilation n'a pas produit {case}.rd5 (produits : {', '.join(produits) or 'aucun'} ; "
+            f"{shutil.disk_usage(travail).free / 1e9:.1f} Go libres). WayLinker : {fin or 'rien'}")
     shutil.move(rd5, sortie / f"{case}.rd5")
     shutil.rmtree(travail, ignore_errors=True)
     suivi("compilation", 1, 1)
