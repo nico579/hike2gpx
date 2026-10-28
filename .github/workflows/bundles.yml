@@ -102,7 +102,11 @@ jobs:
           # de l'IGN ne répond pas : chaque case lira alors ses régions elle-même.
           EDITIONS=$(python -c "import sys; from hike2gpx import bdtopo_regions, lot; l = bdtopo_regions.Lecteur(None); r = sorted({x for c in sys.argv[1:] for x in l.regions(*lot.boite_case(c))}); print('_'.join(x + '.' + l.edition(x)['date'] for x in r))" $CASES) || EDITIONS=""
           echo "éditions : ${EDITIONS:-aucune}"
-          if [ -n "$EDITIONS" ]; then echo "cle=bdtopo-$EDITIONS" >> "$GITHUB_OUTPUT"; fi
+          # « v2 » : le format des bases réduites (fid clé primaire, PR #57). À
+          # changer avec lui, sans quoi le cache rendrait l'ancien format.
+          if [ -n "$EDITIONS" ]; then
+            echo "editions=$EDITIONS" >> "$GITHUB_OUTPUT"; echo "cle=bdtopo-v2-$EDITIONS" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Reprendre les tronçons BD TOPO
         id: cache
@@ -114,16 +118,16 @@ jobs:
           # de clé exacte, la dernière gardée rend les régions inchangées.
           path: ${{ runner.workspace }}/donnees/bdtopo-regions
           key: ${{ steps.editions.outputs.cle }}
-          restore-keys: bdtopo-
+          restore-keys: bdtopo-v2-
 
       - name: Télécharger les régions nouvelles
         if: steps.editions.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
         env:
-          CLE: ${{ steps.editions.outputs.cle }}
+          EDITIONS: ${{ steps.editions.outputs.editions }}
         run: |
           # Une région déjà là à la bonne édition n'est pas retéléchargée ;
           # les éditions plus anciennes sont effacées (bdtopo_regions.geopackage).
-          time python -c "import logging, sys; logging.basicConfig(level=logging.INFO); from hike2gpx import bdtopo_regions; [bdtopo_regions.geopackage(sys.argv[1], e.split('.')[0]) for e in sys.argv[2].removeprefix('bdtopo-').split('_')]" "$HIKE2GPX_HOME" "$CLE"
+          time python -c "import logging, sys; logging.basicConfig(level=logging.INFO); from hike2gpx import bdtopo_regions; [bdtopo_regions.geopackage(sys.argv[1], e.split('.')[0]) for e in sys.argv[2].split('_')]" "$HIKE2GPX_HOME" "$EDITIONS"
           du -sh "$HIKE2GPX_HOME/bdtopo-regions"; ls -la "$HIKE2GPX_HOME/bdtopo-regions"
 
       - name: Garder les tronçons BD TOPO
