@@ -1159,10 +1159,18 @@ class Application:
         calcul, un calque, pas un survol de la carte) se télécharge de lui-même
         en tâche de fond, sur le modèle des extraits OSM ; il prend le relais
         dès qu'il est installé (décision de Nico du 2026-10-28). Un seul lot à
-        la fois. La décision se prend sur le dernier catalogue lu, que la page
-        demande dès son ouverture : rien ici n'attend GitHub, et sans catalogue
-        rien ne part. Vrai si un lot automatique est en route pour la zone :
-        le mode à la volée l'attend alors sans télécharger d'extrait."""
+        la fois. La décision se prend sur le dernier catalogue lu ; jamais lu,
+        il se lit ici une fois (une fraction de seconde), sans quoi la première
+        vue de la page lancerait l'extrait OSM avant de savoir qu'un lot existe
+        (essai de Nico du 2026-10-28). Un échec vaut pour une heure. Vrai si un
+        lot automatique est en route pour la zone : le mode à la volée
+        l'attend alors sans télécharger d'extrait."""
+        if getattr(self, "_catalogue", None) is None and not self._echec_recent("catalogue"):
+            try:
+                self._lire_catalogue()
+            except depot.ErreurDepot as exc:
+                self._echecs_lots["catalogue"] = time.monotonic()
+                journal.warning("Lots du serveur : %s ; nouvel essai automatique dans une heure", exc)
         with self._verrou_lot:
             if self._fil_lot is not None and self._fil_lot.is_alive():
                 return bool(self._lot.get("auto"))

@@ -331,6 +331,9 @@ def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypat
     # Décision de Nico du 2026-10-19 : pas de bouton. Le calque des chemins OSM
     # (ou un calcul) lance l'extrait ; survoler la carte (/api/extrait) non.
     a = appli.Application(tmp_path)
+    # Aucun lot du serveur ici : la volée seule (le catalogue, lu une fois par
+    # la première demande, est un petit fichier de GitHub, pas Geofabrik).
+    monkeypatch.setattr(appli.depot, "lire_catalogue", lambda url, ouvrir=None: {"lots": []})
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
     lancees = []
     monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: lancees.append(region["id"]) or True)

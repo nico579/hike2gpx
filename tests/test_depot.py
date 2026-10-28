@@ -149,9 +149,10 @@ def test_le_lot_du_serveur_se_telecharge_de_lui_meme(tmp_path, monkeypatch):
     monkeypatch.setattr(depot.urllib.request, "urlopen", ouvrir)
     a = appli.Application(tmp_path / "donnees")
     ailleurs, zone = (47.0, 2.0, 47.01, 2.01), (43.30, 5.50, 43.31, 5.51)
-    assert a._lot_automatique(zone, "essai") is False, "catalogue jamais lu : rien n'attend GitHub"
-    a.catalogue_lots()                                            # la page le lit à son ouverture
+    # Jamais lu, le catalogue se lit à la première demande : la première vue de
+    # la page sait déjà qu'un lot existe, et ne lance pas d'extrait.
     assert a._lot_automatique(ailleurs, "essai") is False, "rien au catalogue pour cette zone"
+    assert a._catalogue is not None
     assert a._lot_automatique(zone, "essai") is True
     assert a._avec_lot_automatique({})["lot_en_cours"]["auto"] is True, "la page suit l'avancement"
     a._fil_lot.join(10)
