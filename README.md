@@ -259,7 +259,11 @@ ways to get its bundle:
 - **download it from the server.** The French cells are built every week and
   published on [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles);
   the grid shows them in blue. The Var cell, 247 MB, arrives in a few tens of
-  seconds, resumed after a cut, each file checked before installation.
+  seconds, resumed after a cut, each file checked before installation. No
+  click needed: as soon as a route or the map's paths touch a published cell,
+  its bundle downloads by itself, and on-the-fly mode serves meanwhile. A
+  bundle from the server also renews itself when the server publishes a newer
+  one.
 - **prepare it on this computer**, for the current view or the whole cell,
   anywhere in the world. Where a national provider exists (IGN BD TOPO, ATKIS,
   ZABAGED, swissTLM3D, BDOT10k), its paths are merged into OpenStreetMap and
