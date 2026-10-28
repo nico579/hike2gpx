@@ -1,0 +1,51 @@
+# Essai, pas production : la case E15_N50 (Basse-Silésie et ouest de la Pologne) fabriquée
+# comme le fait bundles.yml, avec la lecture en bloc de la BDOT10k, sans rien
+# publier. Le lot reste un jour en artefact de l'exécution, pour l'examiner.
+name: Essai BDOT10k en bloc (E15_N50)
+
+on:
+  push:
+    branches: [essai/bdot10k-case]
+
+permissions:
+  contents: read
+
+jobs:
+  case:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    env:
+      CASE: E15_N50
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+          df -h "$RUNNER_TEMP"
+
+      - name: Fabriquer la case
+        run: |
+          # Le disque et la mémoire suivis pendant la fabrication.
+          ( while true; do echo "suivi : $(df -h --output=used,avail "$RUNNER_TEMP" | tail -1) ; $(free -g | awk '/Mem/ {print "mémoire " $3 " Go"}')"; sleep 300; done ) &
+          time python -m hike2gpx bundles "$CASE" --bulk --output "$RUNNER_TEMP/lots"
+
+      - name: Bilan
+        if: ${{ !cancelled() }}
+        run: |
+          ls -la "$RUNNER_TEMP/lots/$CASE" "$HIKE2GPX_HOME/bdot10k-powiaty" || true
+          python -c "import json, sys; m = json.load(open(sys.argv[1])); print(json.dumps({k: v for k, v in m.items() if k != 'fichiers'}, ensure_ascii=False, indent=1))" "$RUNNER_TEMP/lots/$CASE/manifest.json"
+          python -c "import gzip, json, sys, collections; f = json.load(gzip.open(sys.argv[1], 'rt')); print(len(f), 'franchissements', collections.Counter(x.get('source') for x in f).most_common())" "$RUNNER_TEMP/lots/$CASE/franchissements.json.gz" || true
+          df -h "$RUNNER_TEMP"
+
+      - name: Garder le lot pour examen
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lot-essai-${{ env.CASE }}
+          path: ${{ runner.temp }}/lots
+          retention-days: 1
