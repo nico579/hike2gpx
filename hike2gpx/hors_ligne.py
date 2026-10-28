@@ -8,6 +8,11 @@ et le reste dans le dossier de la case :
   hors-ligne/segments/E5_N40.rd5
   hors-ligne/E5_N40/manifest.json, franchissements.json.gz, calques.mbtiles
 
+Les fonds de carte (fonds.py) se rangent à part, un MBTiles chacun, sans
+manifeste : ils ne sont pas des lots et n'entrent jamais dans une publication.
+
+  hors-ligne/fonds/E5_N40-scan25.mbtiles, E5_N40-scan25-vue-3fa2c1.mbtiles
+
 Règle unique : un parcours dont la zone tient dans un lot (l'emprise enrichie
 d'un lot enrichi, la zone d'un lot OSM) se calcule et s'affiche sur ce lot
 seul, sans Overpass, WFS ni RD5 téléchargée ; sinon, tout se fait à la volée.
@@ -17,10 +22,11 @@ from __future__ import annotations
 import gzip
 import json
 import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from . import lot
+from . import fonds, lot
 
 
 class ErreurLot(ValueError):
@@ -35,12 +41,34 @@ class HorsLigne:
         # pas celle des RD5 enrichies ; un dossier à part pour ne pas les mêler.
         self.segments_osm = self.racine / "segments-osm"
         self._franchissements = {}      # case -> liste, lue une fois
+        self.dossier_fonds = self.racine / "fonds"
 
     def lots(self) -> list:
         """Manifestes des lots installés."""
         if not self.racine.is_dir():
             return []
         return [json.loads(m.read_text(encoding="utf-8")) for m in sorted(self.racine.glob("*/manifest.json"))]
+
+    def fonds(self) -> list:
+        """Les fonds de carte installés, décrits par fonds.decrire ; un fichier
+        illisible (copie interrompue, autre format) est ignoré."""
+        if not self.dossier_fonds.is_dir():
+            return []
+        decrits = []
+        for chemin in sorted(self.dossier_fonds.glob("*.mbtiles")):
+            try:
+                decrits.append(fonds.decrire(chemin))
+            except (OSError, sqlite3.Error, KeyError, ValueError):
+                continue
+        return decrits
+
+    def chemin_fond(self, nom: str) -> Path | None:
+        """Le fichier du fond installé de ce nom, ou None : un nom venu d'une
+        requête ne désigne jamais rien hors du dossier des fonds."""
+        if not fonds.nom_valide(nom):
+            return None
+        chemin = self.dossier_fonds / f"{nom}.mbtiles"
+        return chemin if chemin.is_file() else None
 
     def installer(self, source: Path) -> dict:
         """Installe le lot du dossier source après vérification de chaque fichier

@@ -187,7 +187,7 @@ def test_calques_de_la_page_lus_dans_le_lot(tmp_path, monkeypatch):
 def test_routes_des_lots(tmp_path):
     a = appli.Application(tmp_path / "donnees")
     get, post = a.routes()
-    assert get["hors_ligne"]() == {"lots": []}
+    assert get["hors_ligne"]() == {"lots": [], "fonds": []}
     assert post["installer_lot"]({"chemin": str(tmp_path / "absent")})["erreur"]
     reponse = post["installer_lot"]({"chemin": str(fabriquer_lot(tmp_path / "lot"))})
     assert reponse["installe"] == "E5_N40" and reponse["lots"][0]["emprise_enrichie"] == EMPRISE

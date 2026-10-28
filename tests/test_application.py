@@ -608,10 +608,11 @@ def test_routes_init_annonce_l_application(tmp_path):
     # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
     # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
     # installer_lot, preparer_lot, arreter_lot, telecharger_lot : les lots de
-    # case pour le hors ligne (hors_ligne.py, fabrication.py, depot.py).
+    # case pour le hors ligne (hors_ligne.py, fabrication.py, depot.py) ;
+    # preparer_fond : le fond de carte d'une case ou d'une vue (fonds.py).
     assert set(post) == {"itineraire", "disponibilite", "reglages", "moteur", "denivele", "communes", "langue",
                          "arreter_calques", "donnees", "ouvrir_journaux", "installer_lot", "preparer_lot",
-                         "arreter_lot", "telecharger_lot"}
+                         "arreter_lot", "telecharger_lot", "preparer_fond"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):

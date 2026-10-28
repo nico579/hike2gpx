@@ -22,8 +22,8 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import (__version__, brouter, communes, depot, fabrication, franchissements, geofabrik, hors_ligne, journaux,
-               maison, osmfr, providers)
+from . import (__version__, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik, hors_ligne,
+               journaux, lot, maison, osmfr, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -1061,7 +1061,8 @@ class Application:
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
                 "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux,
                 "installer_lot": self.installer_lot, "preparer_lot": self.preparer_lot,
-                "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot, **post_langue}
+                "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot,
+                "preparer_fond": self.preparer_fond, **post_langue}
         return get, post
 
     CATALOGUE_TTL_S = 600.0
@@ -1133,23 +1134,71 @@ class Application:
         l'installe. corps : {"case": "E5_N40", "zone": [sud, ouest, nord, est]}
         (zone facultative, dans la case). Tout fournisseur national qui touche
         la zone entre au lot, plusieurs pour une case frontalière."""
+        case, zone, erreur = self._case_et_zone(corps)
+        if erreur:
+            return {"erreur": erreur}
+        return self._lancer_tache(self._fabriquer_lot, case, zone, "debut")
+
+    @staticmethod
+    def _case_et_zone(corps) -> tuple:
+        """(case, zone, erreur) d'une demande de préparation ; zone facultative."""
         corps = corps or {}
         case = corps.get("case")
         if not isinstance(case, str) or not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", case):
-            return {"erreur": "Case BRouter invalide."}
+            return None, None, "Case BRouter invalide."
         zone = corps.get("zone")
         if zone is not None and not (isinstance(zone, list) and len(zone) == 4
                                      and all(isinstance(v, (int, float)) for v in zone)):
-            return {"erreur": "Zone invalide."}
+            return None, None, "Zone invalide."
+        return case, zone, None
+
+    def _lancer_tache(self, cible, case, zone, etape) -> dict:
+        """Une préparation hors ligne en tâche de fond, une seule à la fois :
+        un lot ou un fond de carte, suivis par la même note de la page."""
         with self._verrou_lot:
             if self._fil_lot is not None and self._fil_lot.is_alive():
                 return {"erreur": "Un lot se prépare déjà.", "lot_en_cours": dict(self._lot)}
-            self._lot = {"actif": True, "case": case, "zone": zone, "etape": "debut",
+            self._lot = {"actif": True, "case": case, "zone": zone, "etape": etape,
                          "faites": 0, "total": 0, "debut": time.time(), "arreter": False}
-            self._fil_lot = threading.Thread(target=self._fabriquer_lot, args=(case, zone), daemon=True,
-                                             name=f"lot-{case}")
+            self._fil_lot = threading.Thread(target=cible, args=(case, zone), daemon=True, name=f"lot-{case}")
             self._fil_lot.start()
         return {"lot_en_cours": self.lot_en_cours()}
+
+    def preparer_fond(self, corps) -> dict:
+        """Télécharge en tâche de fond le fond de carte d'une case ou d'une vue
+        (fonds.py) : le SCAN 25 avec la clé IGN, le Plan IGN sans. corps comme
+        pour preparer_lot. Le fond reste sur ce PC, jamais publié."""
+        case, zone, erreur = self._case_et_zone(corps)
+        if erreur:
+            return {"erreur": erreur}
+        return self._lancer_tache(self._fabriquer_fond, case, zone, "fond")
+
+    def _fabriquer_fond(self, case, zone) -> None:
+        cle = self.reglages()["cle_ign"]
+        source = fonds.source_pour(cle)
+        if zone:
+            # Une vue s'arrête aux bords de sa case, comme un lot.
+            s, o, n, e = lot.boite_case(case)
+            zone = (max(zone[0], s), max(zone[1], o), min(zone[2], n), min(zone[3], e))
+            zooms, nom = fonds.zooms_vue(zone), fonds.nom_fond(case, source, zone)
+        else:
+            zone, zooms, nom = lot.boite_case(case), fonds.ZOOMS_CASE, fonds.nom_fond(case, source)
+        debut = time.monotonic()
+        try:
+            decrit = fonds.fabriquer(self.hors_ligne.dossier_fonds / f"{nom}.mbtiles", source, zone, zooms, cle,
+                                     suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
+                                     continuer=lambda: not self._lot.get("arreter"))
+        except fonds.Abandon:
+            # Le fichier .part reste : la même demande reprendra où elle s'est arrêtée.
+            journal.info("Fond %s : arrêté après %.0f s", nom, time.monotonic() - debut)
+            self._lot.update(actif=False, erreur="Fond de carte arrêté.")
+        except Exception as exc:          # réseau, clé refusée, disque : la page l'affiche
+            journal.exception("Fond %s : en erreur après %.0f s", nom, time.monotonic() - debut)
+            self._lot.update(actif=False, erreur=str(exc))
+        else:
+            journal.info("Fond %s : %d Mo, zooms %d-%d, en %.0f s", nom, decrit["octets"] // 10 ** 6, *zooms,
+                         time.monotonic() - debut)
+            self._lot.update(actif=False, etape="fini", fond=nom)
 
     def _fabriquer_lot(self, case, zone) -> None:
         travail = self.hors_ligne.racine / f".fabrication-{case}"
@@ -1188,8 +1237,9 @@ class Application:
         return {"lot_en_cours": self.lot_en_cours()}
 
     def lots_hors_ligne(self) -> dict:
-        """Lots installés : case, type, couverture, sources, taille et péremption."""
-        return {"lots": [self._lot_resume(m) for m in self.hors_ligne.lots()]}
+        """Lots installés : case, type, couverture, sources, taille et péremption ;
+        et les fonds de carte (fonds.decrire)."""
+        return {"lots": [self._lot_resume(m) for m in self.hors_ligne.lots()], "fonds": self.hors_ligne.fonds()}
 
     def _lot_resume(self, m) -> dict:
         limite = time.time() - self.reglages()["renouvellement_jours"] * 86400

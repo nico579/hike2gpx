@@ -117,7 +117,7 @@ function charger(preferences = {}, documentGpx = null) {
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
-    + " grilleCases, chargerLots, preparerCase, suivreLot, bulleCase, casesVisibles, nomCase, boiteCase,"
+    + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, bulleCase, casesVisibles, nomCase, boiteCase,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -155,18 +155,67 @@ test("les cases hors ligne se dessinent depuis les réglages, selon leur état",
   assert.equal(requetes.length, avant, "ni requête au serveur");
 });
 
+test("le bouton « Hors ligne » de la carte montre la grille et dit quoi en faire", async () => {
+  const { page, elements, requetes, stockage } = charger();
+  const bouton = elements.get("offlineButton");
+  bouton.click();
+  assert.equal(elements.get("showOfflineGrid").checked, true, "la case des réglages suit le bouton");
+  assert.equal(bouton["aria-pressed"], "true");
+  assert.equal(bouton.classList.contains("actif"), true);
+  assert.equal(elements.get("offlineHint").hidden, false);
+  assert.match(elements.get("offlineHint").textContent,
+    /^Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou son fond de carte\.$/);
+  assert.equal(stockage.get("hike2gpx.casesHorsLigne"), "1");
+  assert.ok(requetes.some((r) => r.url === "/api/hors_ligne"), "les lots installés sont relus");
+  page.appliquerLangue("en");
+  assert.match(elements.get("offlineHint").textContent, /^Click an area: download its bundle/);
+  bouton.click();
+  assert.equal(elements.get("showOfflineGrid").checked, false);
+  assert.equal(bouton["aria-pressed"], "false");
+  assert.equal(elements.get("offlineHint").hidden, true);
+  assert.equal(page.grilleCases.layers.length, 0);
+});
+
 test("une case absente se prépare sur la vue actuelle ou en entier", async () => {
   const { page, requetes } = charger();
   const bulle = page.bulleCase("E5_N40");
   const boutons = bulle.enfants.filter((e) => e.type === "button");
   assert.deepEqual(boutons.map((b) => b.textContent),
-    ["Préparer la vue actuelle", "Préparer toute la case (environ une heure)"]);
+    ["Préparer la vue actuelle", "Préparer toute la case (environ une heure)",
+      "Fond de carte de la vue (Plan IGN)", "Fond de carte de toute la case (Plan IGN, zooms 6 à 13, environ 45 min)"]);
   boutons[0].click();
   const vue = requetes.findLast((r) => r.url === "/api/preparer_lot");
   assert.deepEqual(JSON.parse(vue.options.body), { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });
   boutons[1].click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_lot").options.body),
     { case: "E5_N40" });
+  boutons[2].click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
+    { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });
+  boutons[3].click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
+    { case: "E5_N40" });
+});
+
+test("un fond de carte installé devient la « Carte hors ligne », lue sur le PC", async () => {
+  const { page, requetes } = charger();
+  assert.equal(page.fonds().horsLigne, undefined, "aucun fond : pas de carte hors ligne");
+  const charge = page.chargerFonds();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [
+    { nom: "E5_N40-scan25-vue-3fa2c1", zone: [43.3, 5.97, 43.36, 6.11], zoom: [6, 16], source: "scan25", octets: 12e6 },
+    { nom: "E5_N40-scan25", zone: [40, 5, 45, 10], zoom: [6, 13], source: "scan25", octets: 4e8 }] });
+  await charge;
+  const groupe = page.fonds().horsLigne;
+  assert.ok(groupe, "le fond hors ligne parmi les fonds");
+  assert.ok(page.controle().fonds["Carte hors ligne"]);
+  // La case d'abord, la vue par-dessus ; chacune bornée à sa zone.
+  assert.deepEqual(groupe.layers.map((c) => c.url),
+    ["/fonds/E5_N40-scan25/{z}/{x}/{y}", "/fonds/E5_N40-scan25-vue-3fa2c1/{z}/{x}/{y}"]);
+  assert.equal(groupe.layers[1].options.maxNativeZoom, 16);
+  assert.equal(JSON.stringify(groupe.layers[0].options.bounds), "[[40,5],[45,10]]");
+  const bulle = page.bulleCase("E5_N40");
+  assert.ok(bulle.enfants.some((e) => /^Fond de carte hors ligne : vue SCAN 25 12 Mo, toute la case SCAN 25 400 Mo/
+    .test(e.textContent ?? e.enfants?.join(""))), "la bulle dit les fonds de la case");
 });
 
 test("la note suit la préparation hors ligne, puis la case est prête", async () => {

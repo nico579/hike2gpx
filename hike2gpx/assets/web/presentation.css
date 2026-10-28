@@ -214,6 +214,9 @@ body.hide-elevation .elevation-panel,body.hide-map-toolbar .map-widget-toolbar{d
 .map-providers-info-button{border:0;padding:0;font-family:inherit;line-height:1;text-decoration:none;cursor:pointer}
 .map-widget-button{height:38px;border:1px solid #e0e6ed;border-radius:8px;background:#fff;box-shadow:0 2px 8px #243b5310;color:#344860;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 11px;font-size:11px;cursor:pointer}
 .layers-trigger{border-color:#d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px)}
+.offline-trigger{border-color:#d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px)}
+.map-widget-button.actif{border-color:var(--accent);color:var(--accent);font-weight:600}
+.map-offline-hint{max-width:300px;margin:0;padding:7px 10px;border:1px solid #d9e5f18c;border-radius:8px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 2px 8px #243b5310;color:#344860;font-size:11px;line-height:1.35}
 .map-widget-button:hover{background:#f5f8fc;color:var(--accent)}
 .map-widget-button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .map-widget-button .chevron{width:13px;height:13px;transition:transform .18s}
