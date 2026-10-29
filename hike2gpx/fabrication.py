@@ -33,9 +33,18 @@ journal = logging.getLogger(__name__)
 ATTRIBUTION = "© contributeurs OpenStreetMap (ODbL) ; itinéraires BRouter (brouter.de)"
 MARGE_LECTURE = 0.001       # degrés lus autour d'un bloc, plus que la marge d'une tuile du zoom 14
 BORD_DEG = 1e-6             # rogné au nord et à l'est d'une tuile pour ne pas lire ses voisines
-# Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° dense
-# en demande quatre ou cinq.
-TAS_CASE, AIRE_VUE = "4500m", 1.0       # au-delà d'1 degré carré, le tas d'une case
+# Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° en
+# demande bien plus. 4,5 Go ne suffisaient pas aux Alpes (E5_N45, GitHub
+# Actions, 2026-10-29 : WayLinker en OutOfMemoryError) ; une case prend donc
+# 70 % de la mémoire de la machine, au plus 12 Go (11 Go sur GitHub Actions).
+AIRE_VUE = 1.0                          # au-delà d'1 degré carré, le tas d'une case
+
+
+def tas_case() -> str:
+    memoire = brouter.memoire_physique()
+    if memoire is None:
+        return "4500m"
+    return f"{max(1500, min(12000, int(0.7 * memoire / 1e6)))}m"
 
 
 class Abandon(Exception):
@@ -229,6 +238,30 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
         sources, **autres)
 
 
+def _sans_tuile(case: str, construction: Path, travail: Path) -> str:
+    """Le message d'une compilation finie sans erreur de Java mais sans la
+    tuile de la case. Essai GitHub Actions du 2026-10-28 : E5_N45, les huit
+    voisines écrites, pas elle, 77 Go libres, WayLinker muet ; la machine
+    efface ensuite tout. Le message garde donc ce qu'il faut pour comprendre :
+    les tuiles produites, les fichiers intermédiaires de la case dans chaque
+    dossier de BRouter (avec leur taille), et la fin de la sortie des étapes."""
+    segments = construction / "segments"
+    produits = sorted(p.name for p in segments.iterdir()) if segments.is_dir() else []
+    intermediaires = []
+    for d in sorted(p for p in construction.iterdir() if p.is_dir() and p.name != "segments"):
+        tous = list(d.iterdir())
+        siens = [f"{p.name} {p.stat().st_size / 1e6:.1f} Mo" for p in sorted(tous) if p.name.startswith(case)]
+        intermediaires.append(f"{d.name} ({len(tous)} fichiers) : {', '.join(siens) or 'rien pour la case'}")
+    sorties = []
+    for etape in ("OsmFastCutter", "PosUnifier", "WayLinker"):
+        log = construction / f"{etape}.log"
+        texte = log.read_text(encoding="utf-8", errors="replace").strip() if log.is_file() else ""
+        sorties.append(f"{etape} : {texte[-400:] or 'rien'}")
+    return (f"La compilation n'a pas produit {case}.rd5 (produits : {', '.join(produits) or 'aucun'} ; "
+            f"{shutil.disk_usage(travail).free / 1e9:.1f} Go libres). Intermédiaires : {' ; '.join(intermediaires)}. "
+            + " | ".join(sorties))
+
+
 def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons, suivi, continuer):
     """La RD5 enrichie de la zone dans sortie ; rend (franchissements, dates OSM)."""
     travail = sortie / "travail"
@@ -298,18 +331,10 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     journal.info("Lot %s : compilation, %.1f Go libres, %.1f Go à compiler", case,
                  shutil.disk_usage(travail).free / 1e9, (travail / "enrichi.osm.pbf").stat().st_size / 1e9)
     segments = brouter.fabriquer_tuiles(installation, travail / "enrichi.osm.pbf", travail / "construction",
-                                        relief=bef, tas=TAS_CASE if aire > AIRE_VUE else "1g")
+                                        relief=bef, tas=tas_case() if aire > AIRE_VUE else "1g")
     rd5 = segments / f"{case}.rd5"
     if not rd5.is_file():
-        # Sans erreur de Java mais sans tuile : dire ce qui a été produit, la
-        # place restante et la fin de ce qu'a écrit WayLinker.
-        produits = sorted(p.name for p in segments.iterdir()) if segments.is_dir() else []
-        sortie_linker = segments.parent / "WayLinker.log"
-        fin = sortie_linker.read_text(encoding="utf-8", errors="replace").strip()[-600:] \
-            if sortie_linker.is_file() else ""
-        raise brouter.ErreurBRouter(
-            f"La compilation n'a pas produit {case}.rd5 (produits : {', '.join(produits) or 'aucun'} ; "
-            f"{shutil.disk_usage(travail).free / 1e9:.1f} Go libres). WayLinker : {fin or 'rien'}")
+        raise brouter.ErreurBRouter(_sans_tuile(case, segments.parent, travail))
     shutil.move(rd5, sortie / f"{case}.rd5")
     shutil.rmtree(travail, ignore_errors=True)
     suivi("compilation", 1, 1)
