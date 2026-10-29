@@ -33,9 +33,18 @@ journal = logging.getLogger(__name__)
 ATTRIBUTION = "© contributeurs OpenStreetMap (ODbL) ; itinéraires BRouter (brouter.de)"
 MARGE_LECTURE = 0.001       # degrés lus autour d'un bloc, plus que la marge d'une tuile du zoom 14
 BORD_DEG = 1e-6             # rogné au nord et à l'est d'une tuile pour ne pas lire ses voisines
-# Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° dense
-# en demande quatre ou cinq.
-TAS_CASE, AIRE_VUE = "4500m", 1.0       # au-delà d'1 degré carré, le tas d'une case
+# Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° en
+# demande bien plus. 4,5 Go ne suffisaient pas aux Alpes (E5_N45, GitHub
+# Actions, 2026-10-29 : WayLinker en OutOfMemoryError) ; une case prend donc
+# 70 % de la mémoire de la machine, au plus 12 Go (11 Go sur GitHub Actions).
+AIRE_VUE = 1.0                          # au-delà d'1 degré carré, le tas d'une case
+
+
+def tas_case() -> str:
+    memoire = brouter.memoire_physique()
+    if memoire is None:
+        return "4500m"
+    return f"{max(1500, min(12000, int(0.7 * memoire / 1e6)))}m"
 
 
 class Abandon(Exception):
@@ -322,7 +331,7 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     journal.info("Lot %s : compilation, %.1f Go libres, %.1f Go à compiler", case,
                  shutil.disk_usage(travail).free / 1e9, (travail / "enrichi.osm.pbf").stat().st_size / 1e9)
     segments = brouter.fabriquer_tuiles(installation, travail / "enrichi.osm.pbf", travail / "construction",
-                                        relief=bef, tas=TAS_CASE if aire > AIRE_VUE else "1g")
+                                        relief=bef, tas=tas_case() if aire > AIRE_VUE else "1g")
     rd5 = segments / f"{case}.rd5"
     if not rd5.is_file():
         raise brouter.ErreurBRouter(_sans_tuile(case, segments.parent, travail))
