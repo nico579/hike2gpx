@@ -28,7 +28,7 @@ import sys
 import threading
 import time
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import shapely
@@ -43,6 +43,10 @@ BORD_DEG = 1e-6             # rogné au nord et à l'est d'une tuile pour ne pas
 # Actions (16 Go). La fusion d'E0_N45 seule y prenait 3 à 4 h 40 sur un
 # cœur, et la case dépassait la limite de 6 h d'une tâche (2026-11-01).
 PROCESSUS_FUSION_MAX = 4
+# Extraits Geofabrik installés en même temps : deux suffisent à occuper le
+# réseau sans multiplier les demandes au serveur de Geofabrik, ni le disque
+# des fichiers en cours d'import.
+EXTRAITS_EN_PARALLELE = 2
 # Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° dense
 # en demande quatre ou cinq.
 TAS_CASE, AIRE_VUE = "4500m", 1.0       # au-delà d'1 degré carré, le tas d'une case
@@ -196,22 +200,12 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
         installation.telecharger_segment(case, vers=sortie)
         suivi("rd5", 1, 1)
 
-    manquantes = regions_a_installer(dossier, zone)
-    for k, region in enumerate(manquantes):
-        if not continuer():
-            raise Abandon()
-        suivi("extraits", k, len(manquantes))
-        try:
-            geofabrik.installer(dossier, region, continuer=continuer)
-        except geofabrik.Abandon as exc:    # l'arrêt demandé pendant l'extrait arrête le lot
-            raise Abandon() from exc
-        except geofabrik.ExtraitEcarte as exc:
-            # Une région transversale sans sous-régions (les Alpes, 2,2 Go) peut
-            # encore être trop grosse : ses tuiles, en mer, restent sans données.
-            # Le message de l'exception parle d'Overpass, qui ne sert pas aux lots.
-            journal.warning("Lot %s : extrait %s écarté (%s), ses tuiles restent vides", case, region["id"],
-                            str(exc).split(",")[0])
-    suivi("extraits", len(manquantes), len(manquantes))
+    lire = _lecteur(dossier, fournisseurs, troncons or {}) if fournisseurs else None
+    # Les archives des fournisseurs (BD TOPO par régions) se téléchargent
+    # pendant les extraits OSM plutôt qu'après : deux attentes de réseau
+    # indépendantes, d'une heure chacune ou presque pour E0_N45.
+    _installer_extraits(dossier, case, regions_a_installer(dossier, zone), suivi, continuer,
+                        preparation=(lambda: lire.preparer(*zone)) if hasattr(lire, "preparer") else None)
 
     if not fournisseurs:
         tous, dates = _calques(dossier, case, boite, zone, sortie, ATTRIBUTION, suivi, continuer)
@@ -219,8 +213,7 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
         sources, autres = {"osm": max((d for d in dates if d), default=None), "rd5": "brouter.de"}, \
             {"type": "osm", "zone": list(zone), "attribution": ATTRIBUTION}
     else:
-        lire = _lecteur(dossier, fournisseurs, troncons or {})
-        noms = ", ".join(providers.source(s).nom for s in fournisseurs)
+        noms =", ".join(providers.source(s).nom for s in fournisseurs)
         attribution = (f"© contributeurs OpenStreetMap (ODbL) ; chemins {noms} ; "
                        f"{relief.ATTRIBUTION} ; itinéraires BRouter")
         franchissements, dates = _enrichir(dossier, installation, case, boite, zone, sortie, fournisseurs[0], lire,
@@ -322,6 +315,48 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     return list(registre.franchissements.values()), dates
 
 
+def _installer_extraits(dossier, case, regions, suivi, continuer, preparation=None) -> None:
+    """Installe les extraits Geofabrik manquants, EXTRAITS_EN_PARALLELE à la
+    fois, et lance pendant ce temps preparation() s'il y en a une
+    (téléchargement des archives d'un fournisseur). Chaque extrait s'importe
+    dans son propre processus : le parallélisme est réel. Le 2026-11-01, les
+    17 extraits d'E0_N45 avaient pris 1 h 44 un par un.
+
+    Les fils d'exécution sont tous finis au retour : la fusion en damier
+    exige un processus sans autre fil (processus_paralleles)."""
+    faits = 0
+    suivi("extraits", 0, len(regions))
+    with ThreadPoolExecutor(EXTRAITS_EN_PARALLELE + (1 if preparation else 0),
+                            thread_name_prefix="extraits") as groupe:
+        archives = groupe.submit(preparation) if preparation else None
+        taches = {groupe.submit(geofabrik.installer, dossier, region, continuer=continuer): region
+                  for region in regions}
+        try:
+            for tache in as_completed(taches):
+                region = taches[tache]
+                try:
+                    tache.result()
+                except geofabrik.Abandon as exc:    # l'arrêt demandé pendant l'extrait arrête le lot
+                    raise Abandon() from exc
+                except geofabrik.ExtraitEcarte as exc:
+                    # Une région transversale sans sous-régions (les Alpes, 2,2 Go)
+                    # peut encore être trop grosse : ses tuiles, en mer, restent
+                    # sans données. Le message de l'exception parle d'Overpass,
+                    # qui ne sert pas aux lots.
+                    journal.warning("Lot %s : extrait %s écarté (%s), ses tuiles restent vides", case,
+                                    region["id"], str(exc).split(",")[0])
+                faits += 1
+                suivi("extraits", faits, len(regions))
+                if not continuer():
+                    raise Abandon()
+            if archives is not None:
+                archives.result()           # une archive introuvable arrête le lot, comme avant
+        except BaseException:
+            for tache in taches:
+                tache.cancel()
+            raise
+
+
 def _elements_maille(dossier, m_sud: float, m_ouest: float) -> list:
     """Les éléments OSM d'une maille et de sa couronne, lus dans les extraits."""
     elements = []
@@ -334,7 +369,7 @@ def _elements_maille(dossier, m_sud: float, m_ouest: float) -> list:
     return elements
 
 
-def processus_fusion() -> int:
+def processus_paralleles() -> int:
     """Combien de processus pour la fusion en damier ; 1, la boucle d'origine.
 
     Le damier repose sur fork : les fils héritent du lecteur de tronçons et
@@ -375,7 +410,7 @@ def _fusion_isolee(k: int):
 
 def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, continuer, processus=None):
     """Fusionne les mailles dans le registre : en damier sur plusieurs
-    processus quand c'est possible (processus_fusion), sinon une à une.
+    processus quand c'est possible (processus_paralleles), sinon une à une.
 
     Damier 2×2 : quatre phases, chacune faite de mailles dont aucune n'est
     voisine d'une autre, pas même par un coin. Une phase se fusionne en
@@ -384,7 +419,7 @@ def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, cont
     mailles, puis la phase suivante voit leurs bouts. Une maille ne partage
     ses bouts qu'avec ses voisines : celles-ci, d'une autre phase, les
     trouvent comme dans la boucle d'origine."""
-    processus = processus_fusion() if processus is None else processus
+    processus = processus_paralleles() if processus is None else processus
     preparer = getattr(troncons, "preparer", None)
     if processus > 1 and preparer is None:
         processus = 1               # un lecteur qui ne sait pas se préparer : voir _lecteur
@@ -471,55 +506,105 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
         sud, ouest, nord, est = fr.bornes_tuile(i, j)
         return (fr.voies_affichables(sud, ouest, nord - BORD_DEG, est - BORD_DEG, dossier, en_ligne=False),
                 fr.franchissements_tuile(i, j, dossier, en_ligne=False) if franchissements is None else [])
-    blocs = lot.blocs(*zone)
-    try:
-        for k, (x10, y10) in enumerate(blocs):
-            if not continuer():
-                raise Abandon()
-            suivi("calques", k, len(blocs))
-            o, s, e, n = lot.bornes_tuile(lot.ZOOM_BLOC, x10, y10)
-            lecture = (max(s, zone[0]) - MARGE_LECTURE, max(o, zone[1]) - MARGE_LECTURE,
-                       min(n, zone[2]) + MARGE_LECTURE, min(e, zone[3]) + MARGE_LECTURE)
-            couches = {"voies": [], "barrieres": [], "franchissements": []}
-            for i, j in _tuiles(lecture):
-                extraits = geofabrik.extraits_de_tuile(dossier, i, j)
-                if not extraits:            # mer, ou région sans extrait : rien à lire sans réseau
-                    continue
-                dates.update(e.get("date") for e in extraits)
-                v, franchissements_tuile = lire(i, j)
-                couches["voies"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
-                                      {"id": x["id"], "genre": x["genre"]}) for x in v["voies"]
+    def bloc(x10, y10):
+        """Les couches d'un bloc, ses franchissements analysés et ses dates
+        OSM, sans rien écrire : en série ici, ou dans un processus fils."""
+        tous_bloc, dates_bloc = {}, set()
+        o, s, e, n = lot.bornes_tuile(lot.ZOOM_BLOC, x10, y10)
+        lecture = (max(s, zone[0]) - MARGE_LECTURE, max(o, zone[1]) - MARGE_LECTURE,
+                   min(n, zone[2]) + MARGE_LECTURE, min(e, zone[3]) + MARGE_LECTURE)
+        couches = {"voies": [], "barrieres": [], "franchissements": []}
+        for i, j in _tuiles(lecture):
+            extraits = geofabrik.extraits_de_tuile(dossier, i, j)
+            if not extraits:            # mer, ou région sans extrait : rien à lire sans réseau
+                continue
+            dates_bloc.update(e.get("date") for e in extraits)
+            v, franchissements_tuile = lire(i, j)
+            couches["voies"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
+                                  {"id": x["id"], "genre": x["genre"]}) for x in v["voies"]
+                                 if len(x["pts"]) > 1]
+            couches["barrieres"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
+                                      {"id": x["id"], "nature": x["nature"]}) for x in v["barrieres"]
                                      if len(x["pts"]) > 1]
-                couches["barrieres"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
-                                          {"id": x["id"], "nature": x["nature"]}) for x in v["barrieres"]
-                                         if len(x["pts"]) > 1]
-                for f in franchissements_tuile:
-                    tous[f["cle"]] = f
-                    if f["statut"] in ("blocked", "uncertain"):
-                        couches["franchissements"].append(
-                            (shapely.Point(f["lon"], f["lat"]),
-                             {c: f.get(c) for c in ("cle", "statut", "raison", "nature", "osm")}))
-            if a_montrer:
-                boite_lecture = shapely.box(lecture[1], lecture[0], lecture[3], lecture[2])
-                couches["franchissements"] += [a_montrer[r] for r in arbre.query(boite_lecture)]
-            if troncons is not None:
-                vus = set()
-                for t in troncons(*lecture):
-                    if (t["source"], t["id"]) not in vus and len(t["pts"]) > 1:
-                        vus.add((t["source"], t["id"]))
-                        # Une couche par fournisseur : le calque IGN ne montre pas les chemins suisses.
-                        couche = lot.couche_officielle(providers.source(t["source"]).calque)
-                        couches.setdefault(couche, []).append(
-                            (shapely.LineString([(lo, la) for la, lo in t["pts"]]),
-                             {"id": t["id"], "nature": t.get("nature"), "acces_pieton": t.get("acces_pieton"),
-                              "prive": t.get("prive")}))
-            calques.ajouter_bloc(x10, y10, couches)
+            for f in franchissements_tuile:
+                tous_bloc[f["cle"]] = f
+                if f["statut"] in ("blocked", "uncertain"):
+                    couches["franchissements"].append(
+                        (shapely.Point(f["lon"], f["lat"]),
+                         {c: f.get(c) for c in ("cle", "statut", "raison", "nature", "osm")}))
+        if a_montrer:
+            boite_lecture = shapely.box(lecture[1], lecture[0], lecture[3], lecture[2])
+            couches["franchissements"] += [a_montrer[r] for r in arbre.query(boite_lecture)]
+        if troncons is not None:
+            vus = set()
+            for t in troncons(*lecture):
+                if (t["source"], t["id"]) not in vus and len(t["pts"]) > 1:
+                    vus.add((t["source"], t["id"]))
+                    # Une couche par fournisseur : le calque IGN ne montre pas les chemins suisses.
+                    couche = lot.couche_officielle(providers.source(t["source"]).calque)
+                    couches.setdefault(couche, []).append(
+                        (shapely.LineString([(lo, la) for la, lo in t["pts"]]),
+                         {"id": t["id"], "nature": t.get("nature"), "acces_pieton": t.get("acces_pieton"),
+                          "prive": t.get("prive")}))
+        return couches, tous_bloc, dates_bloc
+
+    blocs = lot.blocs(*zone)
+    # Comme pour la fusion : un lecteur de tronçons en ligne, avec son cache
+    # sur disque, garde la boucle en série.
+    processus = processus_paralleles() if troncons is None or hasattr(troncons, "preparer") else 1
+    try:
+        if processus <= 1:
+            for k, (x10, y10) in enumerate(blocs):
+                if not continuer():
+                    raise Abandon()
+                suivi("calques", k, len(blocs))
+                couches, tous_bloc, dates_bloc = bloc(x10, y10)
+                tous.update(tous_bloc)
+                dates |= dates_bloc
+                calques.ajouter_bloc(x10, y10, couches)
+        else:
+            # Comme la fusion : les blocs se lisent et s'encodent dans des
+            # processus fils, le parent seul écrit la base. Près d'une heure
+            # sur un cœur pour 300 blocs (E0_N40, 2026-11-01).
+            suivi(f"calques en parallèle ({processus} processus)", 0, len(blocs))
+            _CALQUES.update(bloc=bloc, emprise=calques.emprise, troncons=troncons)
+            with ProcessPoolExecutor(processus, mp_context=multiprocessing.get_context("fork")) as groupe:
+                taches = [groupe.submit(_calque_isole, x10, y10) for x10, y10 in blocs]
+                try:
+                    for k, tache in enumerate(as_completed(taches), start=1):
+                        tuiles, champs, tous_bloc, dates_bloc, apportes = tache.result()
+                        calques.ecrire_bloc(tuiles, champs)
+                        tous.update(tous_bloc)
+                        dates |= dates_bloc
+                        if hasattr(troncons, "apportes"):
+                            troncons.apportes.update(apportes)
+                        suivi("calques", k, len(blocs))
+                        if not continuer():
+                            raise Abandon()
+                except BaseException:
+                    for tache in taches:
+                        tache.cancel()
+                    raise
     except BaseException:
         calques.abandonner()        # sous Windows, la base ouverte bloquerait le prochain essai
         raise
+    finally:
+        _CALQUES.clear()
     suivi("calques", len(blocs), len(blocs))
     calques.fermer()
     return tous, dates
+
+
+# Contexte des calques en parallèle, hérité au fork comme _FUSION.
+_CALQUES: dict = {}
+
+
+def _calque_isole(x10: int, y10: int):
+    """Lit et encode un bloc de calques dans un processus fils."""
+    c = _CALQUES
+    couches, tous_bloc, dates_bloc = c["bloc"](x10, y10)
+    tuiles, champs = lot.encoder_bloc(c["emprise"], x10, y10, couches)
+    return tuiles, champs, tous_bloc, dates_bloc, set(getattr(c["troncons"], "apportes", ()))
 
 
 def nettoyer(sortie: Path) -> None:
