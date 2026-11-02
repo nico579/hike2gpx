@@ -159,6 +159,14 @@ def _lecteur(dossier, fournisseurs: list, troncons: dict):
     # Les fournisseurs qui ont rendu au moins un tronçon : un contour de pays
     # déborde en mer (la France au-dessus du Cotentin touche W5_N50, anglaise).
     lire.apportes = set()
+    # Préparation d'avance (téléchargements) avant une fusion en damier :
+    # seulement si chaque lecteur sait la faire. Un lecteur en ligne, avec son
+    # cache sur disque, garde la fusion maille par maille.
+    if all(hasattr(lecteur, "preparer") for lecteur in lecteurs.values()):
+        def preparer(sud, ouest, nord, est):
+            for lecteur in lecteurs.values():
+                lecteur.preparer(sud, ouest, nord, est)
+        lire.preparer = preparer
     return lire
 
 
@@ -360,7 +368,9 @@ def _fusion_isolee(k: int):
     registre.isoler()
     registre.fusionner(_elements_maille(c["dossier"], m_sud, m_ouest), a_fusionner, m_sud, m_ouest,
                        source=c["source"])
-    return k, registre.apport()
+    # Les fournisseurs vus par la copie du lecteur propre à ce fils : le
+    # manifeste ne déclare que ceux qui ont apporté des tronçons.
+    return k, {**registre.apport(), "apportes": set(getattr(c["troncons"], "apportes", ()))}
 
 
 def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, continuer, processus=None):
@@ -375,6 +385,13 @@ def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, cont
     ses bouts qu'avec ses voisines : celles-ci, d'une autre phase, les
     trouvent comme dans la boucle d'origine."""
     processus = processus_fusion() if processus is None else processus
+    preparer = getattr(troncons, "preparer", None)
+    if processus > 1 and preparer is None:
+        processus = 1               # un lecteur qui ne sait pas se préparer : voir _lecteur
+    if processus > 1 and mailles:
+        # Tout ce que les fils liraient en même temps est téléchargé ici, une fois.
+        preparer(min(s for s, _ in mailles), min(o for _, o in mailles),
+                 max(s for s, _ in mailles) + cases.MAILLE_DEG, max(o for _, o in mailles) + cases.MAILLE_DEG)
     if processus <= 1:
         for k, (m_sud, m_ouest) in enumerate(mailles):
             if not continuer():
@@ -418,6 +435,8 @@ def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, cont
                     raise
             for k in sorted(apports):
                 if apports[k]:
+                    if hasattr(troncons, "apportes"):
+                        troncons.apportes.update(apports[k]["apportes"])
                     registre.integrer(apports[k])
     finally:
         _FUSION.clear()

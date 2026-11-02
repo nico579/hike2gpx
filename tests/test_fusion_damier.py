@@ -102,10 +102,22 @@ SENTIER_GRILLE = {"type": "way", "id": 7, "nodes": [71, 72, 73, 74], "tags": {"h
                   "geometry": [{"lat": 43.4, "lon": x} for x in (5.8, 6.0, 6.2, 6.4)]}
 
 
-def fusion_grille(processus, monkeypatch):
+def lecteur_grille(preparable=True):
+    """Comme fabrication._lecteur : un lecteur qui note ses fournisseurs, et
+    sait se préparer d'avance quand ses lecteurs le savent."""
+    def lire(sud, ouest, nord, est):
+        trouves = [t for t in LIGNES if sud <= t["pts"][0][0] < nord and ouest <= t["pts"][0][1] < est]
+        lire.apportes.update("ign" for _ in trouves[:1])
+        return trouves
+    lire.apportes, lire.preparations = set(), []
+    if preparable:
+        lire.preparer = lambda *zone: lire.preparations.append(zone)
+    return lire
+
+
+def fusion_grille(processus, monkeypatch, lire=None):
     monkeypatch.setattr(fabrication, "_elements_maille", lambda dossier, sud, ouest: [SENTIER_GRILLE])
-    lire = lambda sud, ouest, nord, est: [t for t in LIGNES if sud <= t["pts"][0][0] < nord
-                                          and ouest <= t["pts"][0][1] < est]
+    lire = lire or lecteur_grille()
     registre = case.Registre(premier_noeud=1000, premiere_voie=1000)
     etapes = []
     fabrication._fusionner_mailles(None, registre, case.mailles(*GRILLE), lire, "ign",
@@ -114,11 +126,35 @@ def fusion_grille(processus, monkeypatch):
     return registre, etapes
 
 
+def test_sans_preparation_possible_la_fusion_reste_en_serie(monkeypatch):
+    lire = lecteur_grille(preparable=False)
+    _, etapes = fusion_grille(4, monkeypatch, lire)
+    assert "fusion" in etapes and not any(e.startswith("fusion en damier") for e in etapes)
+
+
+def test_le_lecteur_bd_topo_telecharge_chaque_region_une_fois(monkeypatch, tmp_path):
+    from hike2gpx import bdtopo_regions
+    telechargees = []
+    monkeypatch.setattr(bdtopo_regions, "regions_de_zone", lambda *zone: ["R11", "R24"])
+    monkeypatch.setattr(bdtopo_regions, "derniere_edition", lambda region: {"nom": region, "date": "2026-09-15"})
+    monkeypatch.setattr(bdtopo_regions, "geopackage",
+                        lambda dossier, region, edition: telechargees.append(region) or tmp_path / region)
+    lecteur = bdtopo_regions.Lecteur(tmp_path)
+    lecteur.preparer(45.0, 0.0, 50.0, 5.0)
+    lecteur.preparer(46.0, 1.0, 46.25, 1.25)
+    assert telechargees == ["R11", "R24"]
+
+
 @pytest.mark.skipif(sys.platform != "linux", reason="le damier repose sur fork, Linux seulement")
 def test_damier_donne_le_meme_reseau_que_la_boucle(monkeypatch):
     serie, _ = fusion_grille(1, monkeypatch)
-    damier, etapes = fusion_grille(2, monkeypatch)
+    lire = lecteur_grille()
+    damier, etapes = fusion_grille(2, monkeypatch, lire)
     assert etapes[0] == "fusion en damier (2 processus)"
+    # Préparé une fois, dans le parent, sur l'emprise des mailles ; les
+    # fournisseurs vus par les fils remontent au lecteur du parent.
+    assert lire.preparations == [GRILLE]
+    assert lire.apportes == {"ign"}
     assert len(serie.voies) == len(LIGNES)
     assert geometries(damier) == geometries(serie)
     assert partages(damier) == partages(serie)
