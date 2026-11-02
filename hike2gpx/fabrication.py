@@ -21,8 +21,14 @@ import functools
 import gzip
 import json
 import logging
+import multiprocessing
+import os
 import shutil
+import sys
+import threading
 import time
+from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import shapely
@@ -33,6 +39,10 @@ journal = logging.getLogger(__name__)
 ATTRIBUTION = "© contributeurs OpenStreetMap (ODbL) ; itinéraires BRouter (brouter.de)"
 MARGE_LECTURE = 0.001       # degrés lus autour d'un bloc, plus que la marge d'une tuile du zoom 14
 BORD_DEG = 1e-6             # rogné au nord et à l'est d'une tuile pour ne pas lire ses voisines
+# Processus de la fusion en damier : les 4 cœurs d'un exécuteur GitHub
+# Actions (16 Go). La fusion d'E0_N45 seule y prenait 3 à 4 h 40 sur un
+# cœur, et la case dépassait la limite de 6 h d'une tâche (2026-11-01).
+PROCESSUS_FUSION_MAX = 4
 # Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° dense
 # en demande quatre ou cinq.
 TAS_CASE, AIRE_VUE = "4500m", 1.0       # au-delà d'1 degré carré, le tas d'une case
@@ -251,21 +261,7 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
                 stock.ajouter(geofabrik.elements_des_extraits(extraits, i, j))
         noeud, voie = stock.maxima()
         registre = cases.Registre(noeud + 1, voie + 1)
-
-        for k, (m_sud, m_ouest) in enumerate(mailles):
-            if not continuer():
-                raise Abandon()
-            suivi("fusion", k, len(mailles))
-            a_fusionner = troncons(m_sud, m_ouest, m_sud + cases.MAILLE_DEG, m_ouest + cases.MAILLE_DEG)
-            if a_fusionner:
-                elements = []
-                for i, j in fr.tuiles_zone(m_sud - cases.HALO_DEG, m_ouest - cases.HALO_DEG,
-                                           m_sud + cases.MAILLE_DEG + cases.HALO_DEG,
-                                           m_ouest + cases.MAILLE_DEG + cases.HALO_DEG):
-                    extraits = geofabrik.extraits_de_tuile(dossier, i, j)
-                    if extraits:
-                        elements += geofabrik.elements_des_extraits(extraits, i, j)
-                registre.fusionner(elements, a_fusionner, m_sud, m_ouest, source=source)
+        _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, continuer)
         suivi("fusion", len(mailles), len(mailles))
 
         suivi("compilation", 0, 1)
@@ -316,6 +312,117 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     # Un franchissement d'une maille du bord peut tomber hors de la zone : il
     # reste, BRouter le connaît.
     return list(registre.franchissements.values()), dates
+
+
+def _elements_maille(dossier, m_sud: float, m_ouest: float) -> list:
+    """Les éléments OSM d'une maille et de sa couronne, lus dans les extraits."""
+    elements = []
+    for i, j in fr.tuiles_zone(m_sud - cases.HALO_DEG, m_ouest - cases.HALO_DEG,
+                               m_sud + cases.MAILLE_DEG + cases.HALO_DEG,
+                               m_ouest + cases.MAILLE_DEG + cases.HALO_DEG):
+        extraits = geofabrik.extraits_de_tuile(dossier, i, j)
+        if extraits:
+            elements += geofabrik.elements_des_extraits(extraits, i, j)
+    return elements
+
+
+def processus_fusion() -> int:
+    """Combien de processus pour la fusion en damier ; 1, la boucle d'origine.
+
+    Le damier repose sur fork : les fils héritent du lecteur de tronçons et
+    du registre sans rien sérialiser. Pas de fork sous Windows ; sous macOS,
+    Python le déconseille. Et jamais depuis un processus qui a déjà d'autres
+    fils d'exécution (l'application et son serveur web) : un verrou tenu au
+    moment du fork resterait pris à jamais dans le fils. Reste la ligne de
+    commande sous Linux, celle du serveur des lots."""
+    if (sys.platform != "linux" or "fork" not in multiprocessing.get_all_start_methods()
+            or threading.active_count() > 1):
+        return 1
+    return max(1, min(PROCESSUS_FUSION_MAX, os.cpu_count() or 1))
+
+
+# Contexte de la fusion en damier, hérité par les fils au fork : le lecteur
+# de tronçons est une fermeture, et le registre est gros. Rien ne transite
+# par sérialisation que le rang de la maille et son apport.
+_FUSION: dict = {}
+
+
+def _fusion_isolee(k: int):
+    """Fusionne la maille k dans un processus fils ; rend (k, apport ou None)."""
+    c = _FUSION
+    registre = c["registre"]
+    if not isinstance(registre.identifiants, cases.IdentifiantsPartages):
+        registre.identifiants = cases.IdentifiantsPartages(registre.identifiants.premier_noeud, c["compteurs"])
+    m_sud, m_ouest = c["mailles"][k]
+    a_fusionner = c["troncons"](m_sud, m_ouest, m_sud + cases.MAILLE_DEG, m_ouest + cases.MAILLE_DEG)
+    if not a_fusionner:
+        return k, None
+    registre.isoler()
+    registre.fusionner(_elements_maille(c["dossier"], m_sud, m_ouest), a_fusionner, m_sud, m_ouest,
+                       source=c["source"])
+    return k, registre.apport()
+
+
+def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, continuer, processus=None):
+    """Fusionne les mailles dans le registre : en damier sur plusieurs
+    processus quand c'est possible (processus_fusion), sinon une à une.
+
+    Damier 2×2 : quatre phases, chacune faite de mailles dont aucune n'est
+    voisine d'une autre, pas même par un coin. Une phase se fusionne en
+    parallèle, chaque fils partant du registre tel que les phases
+    précédentes l'ont laissé ; ses apports sont intégrés dans l'ordre des
+    mailles, puis la phase suivante voit leurs bouts. Une maille ne partage
+    ses bouts qu'avec ses voisines : celles-ci, d'une autre phase, les
+    trouvent comme dans la boucle d'origine."""
+    processus = processus_fusion() if processus is None else processus
+    if processus <= 1:
+        for k, (m_sud, m_ouest) in enumerate(mailles):
+            if not continuer():
+                raise Abandon()
+            suivi("fusion", k, len(mailles))
+            a_fusionner = troncons(m_sud, m_ouest, m_sud + cases.MAILLE_DEG, m_ouest + cases.MAILLE_DEG)
+            if a_fusionner:
+                registre.fusionner(_elements_maille(dossier, m_sud, m_ouest), a_fusionner, m_sud, m_ouest,
+                                   source=source)
+        return
+
+    contexte = multiprocessing.get_context("fork")
+    compteurs = {"noeud": contexte.Value("q", registre.identifiants._noeud),
+                 "voie": contexte.Value("q", registre.identifiants._voie)}
+    phases = defaultdict(list)
+    for k, (m_sud, m_ouest) in enumerate(mailles):
+        rang = (round(m_sud / cases.MAILLE_DEG) % 2, round(m_ouest / cases.MAILLE_DEG) % 2)
+        phases[rang].append(k)
+    faites = 0
+    # Annoncé dans le journal du serveur : la fusion en série et en damier
+    # n'ont pas du tout la même durée.
+    suivi(f"fusion en damier ({processus} processus)", 0, len(mailles))
+    try:
+        for rang in sorted(phases):
+            _FUSION.update(registre=registre, mailles=mailles, troncons=troncons, dossier=dossier,
+                           source=source, compteurs=compteurs)
+            apports = {}
+            with ProcessPoolExecutor(processus, mp_context=contexte) as groupe:
+                taches = [groupe.submit(_fusion_isolee, k) for k in phases[rang]]
+                try:
+                    for tache in as_completed(taches):
+                        k, apport = tache.result()
+                        apports[k] = apport
+                        faites += 1
+                        suivi("fusion", faites, len(mailles))
+                        if not continuer():
+                            raise Abandon()
+                except BaseException:
+                    for tache in taches:
+                        tache.cancel()
+                    raise
+            for k in sorted(apports):
+                if apports[k]:
+                    registre.integrer(apports[k])
+    finally:
+        _FUSION.clear()
+    registre.identifiants._noeud = compteurs["noeud"].value
+    registre.identifiants._voie = compteurs["voie"].value
 
 
 def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, *, franchissements=None,
