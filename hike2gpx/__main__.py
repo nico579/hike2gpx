@@ -55,7 +55,10 @@ def main(argv=None) -> int:
     bundles.add_argument("--zone", type=float, nargs=4, metavar=("SOUTH", "WEST", "NORTH", "EAST"),
                          help="limit every cell to this area, e.g. the region covered by --gpkg")
     bundles.add_argument("--force", action="store_true", help="rebuild bundles that are up to date")
-    catalogue = sous.add_parser("catalog", help="write the catalog of built bundles, for a bundle depot",
+    bundles.add_argument("--data-only", action="store_true",
+                         help="only download what the cells need (OSM extracts, provider archives) into the data "
+                              "folder, build nothing: the first half of a build split over two machines")
+    catalogue =sous.add_parser("catalog", help="write the catalog of built bundles, for a bundle depot",
                                 description="Write catalog.json, listing each bundle of BUNDLES/CELL with the size, "
                                             "SHA-256 and URL of its files, relative to the catalog.")
     catalogue.add_argument("bundles", type=Path, help="directory of built bundles, one per cell")
@@ -159,7 +162,8 @@ def lots(dossier, args) -> int:
     bilan = fabrication.fabriquer_lots(dossier, installation, args.cells, args.output,
                                        zone=tuple(args.zone) if args.zone else None, fournisseurs=fournisseurs,
                                        troncons=troncons, editions=editions, forcer=args.force,
-                                       ecrire=lambda texte: print(texte, flush=True))
+                                       ecrire=lambda texte: print(texte, flush=True),
+                                       donnees_seules=args.data_only)
     return 1 if any(etat.startswith("erreur") for etat in bilan.values()) else 0
 
 

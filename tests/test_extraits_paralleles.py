@@ -75,3 +75,19 @@ def test_aucun_fil_ne_survit_pour_laisser_le_damier_possible(monkeypatch):
     avant = threading.active_count()
     lancer(monkeypatch, preparation=lambda: time.sleep(0.05))
     assert threading.active_count() == avant
+
+
+def test_donnees_seules_telecharge_sans_rien_fabriquer(monkeypatch, tmp_path):
+    preparees, fabriquees = [], []
+    monkeypatch.setattr(fabrication, "renouveler_extraits", lambda dossier, zone: [])
+    monkeypatch.setattr(fabrication, "fournisseurs_de_zone", lambda dossier, zone: ["ign"])
+    monkeypatch.setattr(fabrication, "date_osm", lambda dossier, zone: None)
+    monkeypatch.setattr(fabrication, "lot_a_jour", lambda *a, **k: False)
+    monkeypatch.setattr(fabrication, "preparer_donnees",
+                        lambda dossier, case, zone, fournisseurs, troncons, suivi, continuer:
+                        preparees.append((case, fournisseurs)))
+    monkeypatch.setattr(fabrication, "fabriquer", lambda *a, **k: fabriquees.append(a))
+    bilan = fabrication.fabriquer_lots(tmp_path, None, ["E0_N45"], tmp_path / "lots", ecrire=lambda t: None,
+                                       donnees_seules=True)
+    assert bilan == {"E0_N45": "données prêtes"}
+    assert preparees == [("E0_N45", ["ign"])] and fabriquees == []

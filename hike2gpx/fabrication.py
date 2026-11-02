@@ -200,12 +200,7 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
         installation.telecharger_segment(case, vers=sortie)
         suivi("rd5", 1, 1)
 
-    lire = _lecteur(dossier, fournisseurs, troncons or {}) if fournisseurs else None
-    # Les archives des fournisseurs (BD TOPO par régions) se téléchargent
-    # pendant les extraits OSM plutôt qu'après : deux attentes de réseau
-    # indépendantes, d'une heure chacune ou presque pour E0_N45.
-    _installer_extraits(dossier, case, regions_a_installer(dossier, zone), suivi, continuer,
-                        preparation=(lambda: lire.preparer(*zone)) if hasattr(lire, "preparer") else None)
+    lire = preparer_donnees(dossier, case, zone, fournisseurs, troncons, suivi, continuer)
 
     if not fournisseurs:
         tous, dates = _calques(dossier, case, boite, zone, sortie, ATTRIBUTION, suivi, continuer)
@@ -313,6 +308,23 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     # Un franchissement d'une maille du bord peut tomber hors de la zone : il
     # reste, BRouter le connaît.
     return list(registre.franchissements.values()), dates
+
+
+def preparer_donnees(dossier, case, zone, fournisseurs, troncons, suivi, continuer):
+    """Tout ce que fabriquer() télécharge avant de calculer : les extraits
+    Geofabrik de la zone et, pendant ce temps, les archives des fournisseurs
+    (BD TOPO par régions) ; deux attentes de réseau indépendantes, d'une heure
+    chacune ou presque pour E0_N45, qui se recouvrent au lieu de s'additionner.
+    Rend le lecteur de tronçons (None pour un lot OSM).
+
+    Seule aussi, pour `bundles --data-only` : le serveur des lots la fait dans
+    une tâche à part, dont les données passent à la suivante. Une coupure du
+    calcul ne fait plus perdre les téléchargements, et chaque moitié a ses
+    6 heures à elle."""
+    lire = _lecteur(dossier, fournisseurs, troncons or {}) if fournisseurs else None
+    _installer_extraits(dossier, case, regions_a_installer(dossier, zone), suivi, continuer,
+                        preparation=(lambda: lire.preparer(*zone)) if hasattr(lire, "preparer") else None)
+    return lire
 
 
 def _installer_extraits(dossier, case, regions, suivi, continuer, preparation=None) -> None:
@@ -665,12 +677,14 @@ def _mettre_en_place(travail: Path, cible: Path) -> None:
 
 def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, racine: Path, *,
                    zone: tuple | None = None, fournisseurs: list | None = None, troncons: dict | None = None,
-                   editions: dict | None = None, forcer: bool = False, ecrire=print) -> dict:
+                   editions: dict | None = None, forcer: bool = False, ecrire=print,
+                   donnees_seules: bool = False) -> dict:
     """Fabrique les lots de plusieurs cases dans racine/CASE, l'une après
     l'autre ; rend {case: "fabriqué" | "à jour" | "hors zone" | "erreur : …"}.
     Un lot à jour est sauté (forcer le refait), une erreur n'arrête pas les
     cases suivantes. zone limite chaque case (le GeoPackage d'une seule région) ;
-    fournisseurs, troncons et editions comme pour fabriquer."""
+    fournisseurs, troncons et editions comme pour fabriquer. donnees_seules :
+    seulement les téléchargements (preparer_donnees), bilan « données prêtes »."""
     racine = Path(racine)
     racine.mkdir(parents=True, exist_ok=True)
     bilan = {}
@@ -709,6 +723,11 @@ def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, rac
                 if etape != derniere[0] or dixieme > derniere[1]:
                     ecrire(f"{case} : {etape} {faites}/{total} ({time.monotonic() - debut:.0f} s)")
                     derniere[:] = [etape, dixieme]
+            if donnees_seules:
+                preparer_donnees(dossier, case, utile, de_la_case, troncons, suivi, lambda: True)
+                bilan[case] = "données prêtes"
+                ecrire(f"{case} : données prêtes en {time.monotonic() - debut:.0f} s")
+                continue
             fabriquer(dossier, installation, case, travail, zone=None if utile == boite else utile,
                       fournisseurs=de_la_case, troncons=troncons, editions=editions_case, suivi=suivi)
             _mettre_en_place(travail, racine / case)
