@@ -101,6 +101,31 @@ def encoder_tuile(x: int, y: int, couches: dict, emprise: tuple) -> bytes | None
     return gzip.compress(brut, 6)
 
 
+def encoder_bloc(emprise: tuple, x10: int, y10: int, couches: dict) -> tuple:
+    """Les tuiles du zoom 14 d'un bloc du zoom 10, sans rien écrire : (tuiles
+    [(x, y, données)], champs {calque: {attribut: type}}). Sans effet de bord,
+    elle peut tourner dans un processus à part (fabrication._calques)."""
+    sud, ouest, nord, est = emprise
+    pretes, champs = {}, {}
+    for nom, objets in couches.items():
+        geometries = [g for g, _ in objets]
+        proprietes = [_proprietes(p) for _, p in objets]
+        for p in proprietes:
+            for k, v in p.items():
+                champs.setdefault(nom, {})[k] = "String" if isinstance(v, str) else "Number"
+        pretes[nom] = (shapely.STRtree(geometries) if geometries else None, geometries, proprietes)
+    facteur = 2 ** (ZOOM - ZOOM_BLOC)
+    o, s, e, n = bornes_tuile(ZOOM_BLOC, x10, y10)
+    tuiles = []
+    for x, y in tuiles_emprise(ZOOM, max(s, sud), max(o, ouest), min(n, nord), min(e, est)):
+        if not (x10 * facteur <= x < (x10 + 1) * facteur and y10 * facteur <= y < (y10 + 1) * facteur):
+            continue
+        donnees = encoder_tuile(x, y, pretes, emprise)
+        if donnees is not None:
+            tuiles.append((x, y, donnees))
+    return tuiles, champs
+
+
 def _vers_mercator(xy):
     mx, my = mercator(xy[:, 0], xy[:, 1])
     return np.column_stack([mx, my])
@@ -122,31 +147,21 @@ class Calques:
         self.tuiles = 0
 
     def ajouter_bloc(self, x10: int, y10: int, couches: dict) -> int:
-        """Encode les tuiles du zoom 14 d'un bloc du zoom 10. couches : {nom: [(géométrie
-        lon/lat, propriétés)]}, lues sur le bloc et sa marge. Rend le nombre de tuiles."""
-        sud, ouest, nord, est = self.emprise
-        pretes = {}
-        for nom, objets in couches.items():
-            geometries = [g for g, _ in objets]
-            proprietes = [_proprietes(p) for _, p in objets]
-            for p in proprietes:
-                for k, v in p.items():
-                    self.champs.setdefault(nom, {})[k] = "String" if isinstance(v, str) else "Number"
-            pretes[nom] = (shapely.STRtree(geometries) if geometries else None, geometries, proprietes)
-        facteur = 2 ** (ZOOM - ZOOM_BLOC)
-        o, s, e, n = bornes_tuile(ZOOM_BLOC, x10, y10)
-        dedans = tuiles_emprise(ZOOM, max(s, sud), max(o, ouest), min(n, nord), min(e, est))
-        ecrites = 0
-        for x, y in dedans:
-            if not (x10 * facteur <= x < (x10 + 1) * facteur and y10 * facteur <= y < (y10 + 1) * facteur):
-                continue
-            donnees = encoder_tuile(x, y, pretes, self.emprise)
-            if donnees is not None:
-                self.base.execute("INSERT INTO tiles VALUES (?, ?, ?, ?)", (ZOOM, x, 2 ** ZOOM - 1 - y, donnees))
-                ecrites += 1
+        """Encode les tuiles du zoom 14 d'un bloc du zoom 10 et les écrit. couches :
+        {nom: [(géométrie lon/lat, propriétés)]}, lues sur le bloc et sa marge.
+        Rend le nombre de tuiles."""
+        return self.ecrire_bloc(*encoder_bloc(self.emprise, x10, y10, couches))
+
+    def ecrire_bloc(self, tuiles: list, champs: dict) -> int:
+        """Écrit les tuiles d'un bloc déjà encodé (encoder_bloc), éventuellement
+        dans un autre processus : seule l'écriture passe par cette base."""
+        for nom, types in champs.items():
+            self.champs.setdefault(nom, {}).update(types)
+        self.base.executemany("INSERT INTO tiles VALUES (?, ?, ?, ?)",
+                              [(ZOOM, x, 2 ** ZOOM - 1 - y, donnees) for x, y, donnees in tuiles])
         self.base.commit()
-        self.tuiles += ecrites
-        return ecrites
+        self.tuiles += len(tuiles)
+        return len(tuiles)
 
     def abandonner(self) -> None:
         """Ferme la base sans la finir (arrêt, erreur) : sous Windows, un fichier

@@ -83,10 +83,10 @@ def test_identifiants_partages_par_blocs():
 
 def test_processus_un_seul_hors_linux_ou_avec_d_autres_fils(monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")
-    assert fabrication.processus_fusion() == 1
+    assert fabrication.processus_paralleles() == 1
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(fabrication.threading, "active_count", lambda: 2)
-    assert fabrication.processus_fusion() == 1
+    assert fabrication.processus_paralleles() == 1
 
 
 # Une grille de 3 × 3 mailles : une ligne et une colonne de tronçons qui
@@ -163,3 +163,49 @@ def test_damier_donne_le_meme_reseau_que_la_boucle(monkeypatch):
     assert len(partages(damier)) == 23
     assert len({n for ids, _ in damier.voies.values() for n in ids}) == len(
         {n for ids, _ in serie.voies.values() for n in ids})
+
+
+# ------------------------------------------------------------- calques en parallèle
+
+from test_fabrication import mode_en_ligne  # noqa: E402,F401  (fixture)
+
+ZONE_CALQUES = (43.0, 5.5, 44.0, 6.5)      # plusieurs blocs du zoom 10
+
+
+def tuiles_mbtiles(chemin):
+    import sqlite3
+    with sqlite3.connect(chemin) as base:
+        return sorted(base.execute("SELECT zoom_level, tile_column, tile_row, tile_data FROM tiles"))
+
+
+def calques(dossier, processus, monkeypatch):
+    from hike2gpx import lot
+    monkeypatch.setattr(fabrication, "processus_paralleles", lambda: processus)
+    dossier.mkdir()
+    etapes = []
+    tous, dates = fabrication._calques(None, "E5_N40", lot.boite_case("E5_N40"), ZONE_CALQUES, dossier, "essai",
+                                       lambda e, f, t: etapes.append(e), lambda: True)
+    return tuiles_mbtiles(dossier / "calques.mbtiles"), tous, dates, etapes
+
+
+def test_encoder_puis_ecrire_donne_le_meme_bloc_qu_ajouter(tmp_path):
+    from hike2gpx import lot
+    import shapely
+    couches = {"voies": [(shapely.LineString([(6.01, 43.31), (6.02, 43.32)]), {"id": 1, "genre": "sentier"})]}
+    boite = lot.boite_case("E5_N40")
+    x10, y10 = lot.tuile_du_point(lot.ZOOM_BLOC, 6.015, 43.315)
+    un, deux = lot.Calques(tmp_path / "a.mbtiles", "a", boite, ""), lot.Calques(tmp_path / "b.mbtiles", "b", boite, "")
+    assert un.ajouter_bloc(x10, y10, couches) == deux.ecrire_bloc(*lot.encoder_bloc(boite, x10, y10, couches)) > 0
+    assert un.champs == deux.champs
+    un.fermer()
+    deux.fermer()
+    assert [r[:3] for r in tuiles_mbtiles(tmp_path / "a.mbtiles")] == [r[:3] for r in tuiles_mbtiles(tmp_path / "b.mbtiles")]
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="les calques en parallèle reposent sur fork")
+def test_calques_en_parallele_identiques_a_la_serie(tmp_path, mode_en_ligne, monkeypatch):
+    serie = calques(tmp_path / "serie", 1, monkeypatch)
+    parallele = calques(tmp_path / "parallele", 2, monkeypatch)
+    assert parallele[3][0] == "calques en parallèle (2 processus)"
+    assert serie[0] and parallele[0] == serie[0]
+    assert parallele[1] == serie[1] and parallele[2] == serie[2]
