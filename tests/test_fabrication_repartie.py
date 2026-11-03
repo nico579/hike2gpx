@@ -13,7 +13,7 @@ import pytest
 
 from hike2gpx import fabrication, lot
 
-from test_fabrication import CHEMIN_IGN, ZONE, Compilation, lire_pbf, mode_en_ligne, osm_installe  # noqa: F401
+from test_fabrication import CHEMIN_IGN, ZONE, Compilation
 
 
 @pytest.fixture

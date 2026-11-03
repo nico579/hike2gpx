@@ -3,7 +3,7 @@
 python mesurer.py DOSSIER_MAILLES FICHIER.gpkg
 Les vues sont celles relevées dans les journaux du service le 25 octobre.
 """
-import gzip, json, sqlite3, struct, sys, time
+import gzip, json, sqlite3, sys, time
 from pathlib import Path
 import shapely
 

@@ -1,7 +1,6 @@
 import gzip
 import json
 import re
-import sqlite3
 
 import pytest
 
@@ -25,6 +24,10 @@ class Installation:
 def mode_en_ligne(monkeypatch):
     """Le code du mode en ligne, simulé : une tuile couverte par un extrait installé."""
     lus = []
+    # Un seul processus : sous Linux, les calques partent dans des fils (fork)
+    # et ce que les doublures y notent ne revient pas au test (CI, 2026-11-03).
+    # Un test du parallélisme repose ensuite processus_paralleles lui-même.
+    monkeypatch.setattr(fabrication, "processus_paralleles", lambda: 1)
     monkeypatch.setattr(geofabrik, "extraits_de_tuile",
                         lambda dossier, i, j: [{"id": "paca", "date": "2026-10-25T21:21:21Z"}] if (i, j) == TUILE else [])
     monkeypatch.setattr(geofabrik, "regions", lambda dossier: [])
