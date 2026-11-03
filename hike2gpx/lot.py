@@ -182,6 +182,28 @@ class Calques:
         self.base.close()
 
 
+def assembler_calques(parties: list, cible: Path, nom: str, emprise: tuple, attribution: str) -> int:
+    """Réunit les bases de calques faites à part (fabrication._calques, part
+    i/K) en une seule : leurs tuiles, et l'union des champs de chaque calque
+    lus dans leurs métadonnées. Rend le nombre de tuiles."""
+    calques = Calques(cible, nom, emprise, attribution)
+    try:
+        for partie in parties:
+            with closing(sqlite3.connect(f"file:{Path(partie).resolve().as_posix()}?mode=ro", uri=True)) as base:
+                ligne = base.execute("SELECT value FROM metadata WHERE name = 'json'").fetchone()
+                couches = json.loads(ligne[0]).get("vector_layers", []) if ligne else []
+                champs = {c["id"]: c.get("fields", {}) for c in couches}
+                tuiles = [(x, 2 ** ZOOM - 1 - rang, donnees) for x, rang, donnees in base.execute(
+                    "SELECT tile_column, tile_row, tile_data FROM tiles WHERE zoom_level = ?", (ZOOM,))]
+            calques.ecrire_bloc(tuiles, champs)
+    except BaseException:
+        calques.abandonner()
+        raise
+    total = calques.tuiles
+    calques.fermer()
+    return total
+
+
 class Sources:
     """Ce que montrent les calques d'une case, lu bloc par bloc, avec les règles
     de la page (franchissements.voies_affichables) : les voies praticables OSM

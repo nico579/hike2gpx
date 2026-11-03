@@ -88,6 +88,6 @@ def test_donnees_seules_telecharge_sans_rien_fabriquer(monkeypatch, tmp_path):
                         preparees.append((case, fournisseurs)))
     monkeypatch.setattr(fabrication, "fabriquer", lambda *a, **k: fabriquees.append(a))
     bilan = fabrication.fabriquer_lots(tmp_path, None, ["E0_N45"], tmp_path / "lots", ecrire=lambda t: None,
-                                       donnees_seules=True)
+                                       etape="donnees")
     assert bilan == {"E0_N45": "données prêtes"}
     assert preparees == [("E0_N45", ["ign"])] and fabriquees == []

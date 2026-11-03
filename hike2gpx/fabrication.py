@@ -32,6 +32,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 from pathlib import Path
 
 import shapely
+from nico579_commons import atomique
 
 from . import brouter, case as cases, franchissements as fr, geofabrik, lot, providers, relief
 
@@ -47,6 +48,15 @@ PROCESSUS_FUSION_MAX = 4
 # réseau sans multiplier les demandes au serveur de Geofabrik, ni le disque
 # des fichiers en cours d'import.
 EXTRAITS_EN_PARALLELE = 2
+# Ce que l'étape « calcul » laisse aux étapes « calques » et « fin » d'une
+# fabrication répartie (fabriquer(etape=…)).
+ETAT_CALCUL = "etat-calcul.json"
+ETAPES = ("tout", "donnees", "calcul", "calques", "fin")
+
+
+class ErreurEtape(RuntimeError):
+    """Une étape d'une fabrication répartie ne trouve pas ce que la précédente
+    devait laisser."""
 # Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° dense
 # en demande quatre ou cinq.
 TAS_CASE, AIRE_VUE = "4500m", 1.0       # au-delà d'1 degré carré, le tas d'une case
@@ -176,14 +186,21 @@ def _lecteur(dossier, fournisseurs: list, troncons: dict):
 
 def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Path, *, zone: tuple | None = None,
               fournisseurs: list | None = None, troncons: dict | None = None, editions: dict | None = None,
-              suivi=None, continuer=None) -> Path:
+              suivi=None, continuer=None, etape: str = "tout", part: tuple | None = None) -> Path | None:
     """Fabrique le lot de la case dans sortie (vide ou absent) et rend le chemin
     du manifeste. zone : une partie de la case (par défaut la case entière).
     fournisseurs : les fournisseurs nationaux à fusionner, par défaut tous
     ceux qui touchent la zone ; aucun, c'est un lot OSM. troncons : {source:
     lecture(sud, ouest, nord, est)} pour remplacer celle du service (le
     GeoPackage du serveur), editions : {source: édition} pour le manifeste.
-    suivi(etape, faites, total) ; continuer() faux arrête (Abandon)."""
+    suivi(etape, faites, total) ; continuer() faux arrête (Abandon).
+
+    etape répartit un lot enrichi sur plusieurs machines, dans le même dossier
+    sortie passé de l'une à l'autre : « calcul » (fusion, RD5, relief, puis
+    ETAT_CALCUL), « calques » avec part (i, K) (un bloc sur K), « fin » avec
+    part (_, K) (réunit les K parts, écrit le manifeste). Les deux premières
+    rendent None. « tout », le défaut, fait tout d'un coup, comme
+    l'application."""
     suivi = suivi or (lambda etape, faites, total: None)
     continuer = continuer or (lambda: True)
     boite = lot.boite_case(case)
@@ -200,9 +217,15 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
         installation.telecharger_segment(case, vers=sortie)
         suivi("rd5", 1, 1)
 
-    lire = preparer_donnees(dossier, case, zone, fournisseurs, troncons, suivi, continuer)
+    if etape == "fin" and fournisseurs:
+        # Rien à lire ni à télécharger : les K parts et l'état du calcul suffisent.
+        lire = _lecteur(dossier, fournisseurs, troncons or {})
+    else:
+        lire = preparer_donnees(dossier, case, zone, fournisseurs, troncons, suivi, continuer)
 
     if not fournisseurs:
+        # Un lot OSM n'a rien à répartir : l'étape « calcul » le fait en entier,
+        # les suivantes le trouvent fait (fabriquer_lots).
         tous, dates = _calques(dossier, case, boite, zone, sortie, ATTRIBUTION, suivi, continuer)
         franchissements = list(tous.values())
         sources, autres = {"osm": max((d for d in dates if d), default=None), "rd5": "brouter.de"}, \
@@ -211,10 +234,47 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
         noms =", ".join(providers.source(s).nom for s in fournisseurs)
         attribution = (f"© contributeurs OpenStreetMap (ODbL) ; chemins {noms} ; "
                        f"{relief.ATTRIBUTION} ; itinéraires BRouter")
-        franchissements, dates = _enrichir(dossier, installation, case, boite, zone, sortie, fournisseurs[0], lire,
-                                           suivi, continuer)
-        _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer,
-                 franchissements=franchissements, troncons=lire)
+        etat = sortie / ETAT_CALCUL
+        if etape in ("tout", "calcul"):
+            franchissements, dates = _enrichir(dossier, installation, case, boite, zone, sortie, fournisseurs[0],
+                                               lire, suivi, continuer)
+            if etape == "calcul":
+                # Ce que les étapes suivantes, sur d'autres machines, doivent savoir.
+                with gzip.open(sortie / "franchissements.json.gz", "wt", encoding="utf-8") as f:
+                    json.dump(franchissements, f, ensure_ascii=False)
+                atomique.ecrire_json(etat, {"dates": sorted(d for d in dates if d),
+                                            "apportes": sorted(lire.apportes)})
+                return None
+        else:
+            lu = atomique.lire_json(etat, None)
+            if not isinstance(lu, dict):
+                raise ErreurEtape(f"{case} : l'étape « calcul » n'a pas laissé {ETAT_CALCUL}.")
+            with gzip.open(sortie / "franchissements.json.gz", "rt", encoding="utf-8") as f:
+                franchissements = json.load(f)
+            dates = set(lu["dates"])
+            lire.apportes.update(lu["apportes"])
+        if etape == "calques":
+            _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer,
+                     franchissements=franchissements, troncons=lire, part=part)
+            atomique.ecrire_json(sortie / (nom_part(*part) + ".json"), {"apportes": sorted(lire.apportes)})
+            return None
+        if etape == "fin":
+            i_k = [nom_part(i, part[1]) for i in range(1, part[1] + 1)]
+            manquantes = [n for n in i_k if not (sortie / n).is_file()]
+            if manquantes:
+                raise ErreurEtape(f"{case} : calques incomplets, il manque {', '.join(manquantes)}.")
+            for n in i_k:
+                lire.apportes.update((atomique.lire_json(sortie / (n + ".json"), {}) or {}).get("apportes", ()))
+            suivi("assemblage des calques", 0, 1)
+            lot.assembler_calques([sortie / n for n in i_k], sortie / "calques.mbtiles", case, boite, attribution)
+            for n in i_k:
+                (sortie / n).unlink()
+                (sortie / (n + ".json")).unlink(missing_ok=True)
+            etat.unlink(missing_ok=True)
+            suivi("assemblage des calques", 1, 1)
+        else:
+            _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer,
+                     franchissements=franchissements, troncons=lire)
         # Le manifeste ne déclare que les fournisseurs qui ont réellement apporté
         # des tronçons ; les demandés restent notés, pour savoir si le lot est à jour.
         apportes = [s for s in fournisseurs if s in lire.apportes]
@@ -492,12 +552,16 @@ def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, cont
 
 
 def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, *, franchissements=None,
-             troncons=None):
+             troncons=None, part=None):
     """Les calques de la zone dans sortie/calques.mbtiles. Voies et barrières
     viennent du code du mode en ligne ; les franchissements de la fusion s'ils
     sont donnés, sinon de l'analyse en ligne ; troncons ajoute la couche des
-    chemins officiels. Rend (franchissements de l'analyse en ligne, dates OSM)."""
-    calques = lot.Calques(sortie / "calques.mbtiles", case, boite, attribution)
+    chemins officiels. Rend (franchissements de l'analyse en ligne, dates OSM).
+    part (i, K) : seulement un bloc sur K, à partir du i-ième, dans sa propre
+    base (nom_part), pour une fabrication répartie sur plusieurs machines ;
+    lot.assembler_calques les réunit."""
+    nom = "calques.mbtiles" if part is None else nom_part(*part)
+    calques = lot.Calques(sortie / nom, case, boite, attribution)
     tous, dates = {}, set()
     a_montrer = None
     if franchissements is not None:
@@ -561,6 +625,10 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
         return couches, tous_bloc, dates_bloc
 
     blocs = lot.blocs(*zone)
+    if part is not None:
+        # Un bloc sur K plutôt qu'une bande : les zones denses se répartissent.
+        i, k = part
+        blocs = blocs[i - 1::k]
     # Comme pour la fusion : un lecteur de tronçons en ligne, avec son cache
     # sur disque, garde la boucle en série.
     processus = processus_paralleles() if troncons is None or hasattr(troncons, "preparer") else 1
@@ -605,6 +673,11 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
     suivi("calques", len(blocs), len(blocs))
     calques.fermer()
     return tous, dates
+
+
+def nom_part(i: int, k: int) -> str:
+    """La base des calques de la part i sur k."""
+    return f"calques.{i}-{k}.mbtiles"
 
 
 # Contexte des calques en parallèle, hérité au fork comme _FUSION.
@@ -678,13 +751,19 @@ def _mettre_en_place(travail: Path, cible: Path) -> None:
 def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, racine: Path, *,
                    zone: tuple | None = None, fournisseurs: list | None = None, troncons: dict | None = None,
                    editions: dict | None = None, forcer: bool = False, ecrire=print,
-                   donnees_seules: bool = False) -> dict:
+                   etape: str = "tout", part: tuple | None = None) -> dict:
     """Fabrique les lots de plusieurs cases dans racine/CASE, l'une après
     l'autre ; rend {case: "fabriqué" | "à jour" | "hors zone" | "erreur : …"}.
     Un lot à jour est sauté (forcer le refait), une erreur n'arrête pas les
     cases suivantes. zone limite chaque case (le GeoPackage d'une seule région) ;
-    fournisseurs, troncons et editions comme pour fabriquer. donnees_seules :
-    seulement les téléchargements (preparer_donnees), bilan « données prêtes »."""
+    fournisseurs, troncons et editions comme pour fabriquer. etape (ETAPES) :
+    « donnees », seulement les téléchargements (bilan « données prêtes ») ;
+    « calcul », « calques » (part i/K) et « fin » (part _/K), une fabrication
+    répartie sur plusieurs machines (voir fabriquer)."""
+    if etape not in ETAPES:
+        raise ValueError(f"étape inconnue : {etape}")
+    if etape in ("calques", "fin") and part is None:
+        raise ValueError(f"l'étape {etape} demande une part i/K")
     racine = Path(racine)
     racine.mkdir(parents=True, exist_ok=True)
     bilan = {}
@@ -723,14 +802,31 @@ def fabriquer_lots(dossier, installation: brouter.Installation, cases: list, rac
                 if etape != derniere[0] or dixieme > derniere[1]:
                     ecrire(f"{case} : {etape} {faites}/{total} ({time.monotonic() - debut:.0f} s)")
                     derniere[:] = [etape, dixieme]
-            if donnees_seules:
+            if etape == "donnees":
                 preparer_donnees(dossier, case, utile, de_la_case, troncons, suivi, lambda: True)
                 bilan[case] = "données prêtes"
                 ecrire(f"{case} : données prêtes en {time.monotonic() - debut:.0f} s")
                 continue
-            fabriquer(dossier, installation, case, travail, zone=None if utile == boite else utile,
-                      fournisseurs=de_la_case, troncons=troncons, editions=editions_case, suivi=suivi)
-            _mettre_en_place(travail, racine / case)
+            # Une fabrication répartie garde son dossier d'une machine à l'autre
+            # (racine/.CASE.etapes, passé par artefact) ; « tout » travaille à part.
+            dossier_lot = racine / f".{case}.etapes" if etape != "tout" else travail
+            if etape in ("calques", "fin") and not de_la_case:
+                # Un lot OSM, fait en entier à l'étape « calcul ».
+                bilan[case] = "rien à faire"
+                ecrire(f"{case} : rien à faire à l'étape {etape} (lot OSM, fait au calcul)")
+                continue
+            if etape == "calcul":
+                nettoyer(dossier_lot)
+            manifeste = fabriquer(dossier, installation, case, dossier_lot, zone=None if utile == boite else utile,
+                                  fournisseurs=de_la_case, troncons=troncons, editions=editions_case, suivi=suivi,
+                                  etape=etape, part=part)
+            if manifeste is None:
+                bilan[case] = f"{etape} fait"
+                ecrire(f"{case} : étape {etape}{f' {part[0]}/{part[1]}' if part else ''} faite "
+                       f"en {time.monotonic() - debut:.0f} s")
+                continue
+            _mettre_en_place(dossier_lot, racine / case)
+            nettoyer(dossier_lot)
             octets = sum(f.stat().st_size for f in (racine / case).iterdir())
             bilan[case] = "fabriqué"
             ecrire(f"{case} : fabriqué, {octets / 1e6:.1f} Mo en {time.monotonic() - debut:.0f} s")
