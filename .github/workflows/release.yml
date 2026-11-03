@@ -1,8 +1,10 @@
-name: Release (programmes des 3 systèmes)
+name: Release (programmes des 3 systèmes et application Android)
 
 # Construit le programme hike2gpx sur chaque système (PyInstaller n'est pas un
 # compilateur croisé : chaque binaire naît sur son système), l'éprouve par son
-# auto-test, puis le publie au tag. Même schéma que gpxsolar.
+# auto-test, puis le publie au tag. Même schéma que gpxsolar. L'application
+# Android est construite à côté, signée de la clé du projet, et publiée dans la
+# même release (hike2gpx-android.apk), comme celle de gpx2elev.
 #
 # Déclenchement :
 #   - push d'un tag v*      (git tag v0.2.0 && git push origin v0.2.0) : publie
@@ -105,9 +107,66 @@ jobs:
             dist/hike2gpx-*.tar.gz
             dist/hike2gpx-*.sha256
 
+  android:
+    name: application Android
+    # Les PR qui touchent android/ ont leur propre essai (android.yml) ; ici,
+    # seulement ce qui se publie : le tag, ou le lancement à la main.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          submodules: true              # BRouter 1.7.10, compilé dans l'APK
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      # Sans la clé du projet, Gradle signerait d'une clé née sur le runner :
+      # l'APK s'installerait une fois, puis Android refuserait chaque mise à
+      # jour (signature différente). Mieux vaut ne rien publier.
+      - name: Restaurer la clé de signature du projet
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64" \
+            || { echo "::error::secret ANDROID_KEYSTORE_BASE64 absent : pas d'APK signé"; exit 1; }
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/debug.keystore
+          chmod 600 android/app/debug.keystore
+
+      - name: Tests unitaires et APK signé
+        working-directory: android
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleRelease
+
+      - name: Vérifier la signature et emballer
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          "$apksigner" verify --print-certs "$apk"
+          mkdir -p dist
+          cp "$apk" dist/hike2gpx-android.apk
+          (cd dist && sha256sum hike2gpx-android.apk > hike2gpx-android.apk.sha256)
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: asset-android
+          if-no-files-found: error
+          path: dist/hike2gpx-android.apk*
+
+      - name: Effacer la clé de signature
+        if: always()
+        run: rm -f android/app/debug.keystore
+
   publish:
     name: publier la release
-    needs: build
+    needs: [build, android]
     if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publier)
     runs-on: ubuntu-latest
     permissions:
@@ -129,13 +188,15 @@ jobs:
         run: |
           set -euo pipefail
           for fichier in hike2gpx-windows-x86_64.zip hike2gpx-linux-x86_64.tar.gz \
-                         hike2gpx-macos-arm64.zip hike2gpx-macos-x86_64.zip; do
+                         hike2gpx-macos-arm64.zip hike2gpx-macos-x86_64.zip \
+                         hike2gpx-android.apk; do
             test -s "$fichier" && test -s "$fichier.sha256"
           done
           {
             printf '## hike2gpx %s\n\n' "$TAG"
             printf 'Programme autonome : Python, ses bibliothèques et Java (pour BRouter) sont dedans, rien à installer. '
             printf 'Décompresser l’archive de son système puis lancer hike2gpx (sous macOS, hike2gpx.app, macOS 15 ou plus).\n\n'
+            printf 'Sur le téléphone : installer hike2gpx-android.apk (Android 8 ou plus).\n\n'
             printf '| Fichier | SHA256 |\n|---|---|\n'
             for sha in *.sha256; do
               printf '| `%s` | `%s` |\n' "${sha%.sha256}" "$(cut -d' ' -f1 "$sha")"
