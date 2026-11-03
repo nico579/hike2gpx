@@ -1,7 +1,8 @@
 # L'application Android : tests unitaires (JVM) et APK de débogage, à chaque
 # demande de fusion qui touche android/, et à la demande. L'APK, signé de la
 # clé de débogage que Gradle crée sur place, s'installe à la main sur un
-# téléphone ; il n'est pas publié.
+# téléphone ; il n'est pas publié. Le type release est construit aussi, pour
+# éprouver avant le tag ce que publie release.yml (signé là de la clé du projet).
 name: Android
 
 on:
@@ -31,7 +32,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Tests unitaires et APK
         working-directory: android
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
