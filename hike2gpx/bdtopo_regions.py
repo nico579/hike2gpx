@@ -15,11 +15,13 @@ archives régionales, GeoPackage « tous thèmes », quatre fois par an :
 from __future__ import annotations
 
 import logging
+import http.client
 import re
 import shutil
 import sqlite3
 import subprocess
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -49,9 +51,32 @@ def regions_de_zone(sud: float, ouest: float, nord: float, est: float) -> list:
     return sorted({f"R{f['properties']['code_insee']}" for f in donnees.get("features", [])})
 
 
-def _atom(url: str) -> ET.Element:
-    with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT), timeout=60) as reponse:
-        return ET.fromstring(reponse.read())
+# Le flux des éditions est lu au début de chaque tâche d'une case (le lot
+# est-il à jour ?) : un 504 passager de la Géoplateforme y faisait tomber la
+# case entière (E0_N45 et E5_N45 à deux minutes d'écart, 2026-11-03). Même
+# règle que providers.core.lire_json, avec plus de patience : 10, 20, 30 puis
+# 40 s entre cinq essais.
+ESSAIS_ATOM, PAUSE_ATOM_S = 5, 10.0
+
+
+def _atom(url: str, ouvrir=urllib.request.urlopen, pause=time.sleep) -> ET.Element:
+    """Le flux ATOM de l'IGN. Une erreur 5xx ou 429, un délai, une coupure ou
+    un XML tronqué se retentent ; une autre erreur 4xx ne guérit pas."""
+    derniere = None
+    for essai in range(ESSAIS_ATOM):
+        try:
+            with ouvrir(urllib.request.Request(url, headers=AGENT), timeout=60) as reponse:
+                return ET.fromstring(reponse.read())
+        except urllib.error.HTTPError as exc:
+            if exc.code < 500 and exc.code != 429:
+                raise
+            derniere = exc
+        except (OSError, ET.ParseError, http.client.HTTPException) as exc:     # délai, coupure, XML tronqué
+            derniere = exc
+        if essai < ESSAIS_ATOM - 1:
+            journal.info("BD TOPO : flux des éditions en échec (%s), nouvel essai", derniere)
+            pause(PAUSE_ATOM_S * (essai + 1))
+    raise derniere
 
 
 def derniere_edition(region: str, lire=_atom) -> dict:
