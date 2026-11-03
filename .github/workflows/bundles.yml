@@ -114,11 +114,11 @@ jobs:
           # de l'IGN ne répond pas : chaque case lira alors ses régions elle-même.
           EDITIONS=$(python -c "import sys; from hike2gpx import bdtopo_regions, lot; l = bdtopo_regions.Lecteur(None); r = sorted({x for c in sys.argv[1:] for x in l.regions(*lot.boite_case(c))}); print('_'.join(x + '.' + l.edition(x)['date'] for x in r))" $CASES) || EDITIONS=""
           echo "éditions : ${EDITIONS:-aucune}"
-          # « v1 » : le format des bases réduites (bdtopo_regions._garder_les_troncons).
-          # À changer avec lui, sans quoi le cache rendrait l'ancien format : la
-          # PR #57 (fid clé primaire), si elle est fusionnée, passe à « v2 ».
+          # « v2 » : le format des bases réduites (bdtopo_regions._garder_les_troncons),
+          # fid clé primaire depuis la PR #57. À changer avec lui, sans quoi le
+          # cache rendrait l'ancien format.
           if [ -n "$EDITIONS" ]; then
-            echo "editions=$EDITIONS" >> "$GITHUB_OUTPUT"; echo "cle=bdtopo-v1-$EDITIONS" >> "$GITHUB_OUTPUT"
+            echo "editions=$EDITIONS" >> "$GITHUB_OUTPUT"; echo "cle=bdtopo-v2-$EDITIONS" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Reprendre les tronçons BD TOPO
@@ -131,7 +131,7 @@ jobs:
           # de clé exacte, la dernière gardée rend les régions inchangées.
           path: ${{ runner.workspace }}/donnees/bdtopo-regions
           key: ${{ steps.editions.outputs.cle }}
-          restore-keys: bdtopo-v1-
+          restore-keys: bdtopo-v2-
 
       - name: Télécharger les régions nouvelles
         if: steps.editions.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
