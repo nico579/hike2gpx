@@ -58,35 +58,20 @@ ETAPES = ("tout", "donnees", "calcul", "calques", "fin")
 class ErreurEtape(RuntimeError):
     """Une étape d'une fabrication répartie ne trouve pas ce que la précédente
     devait laisser."""
-# Mémoire de Java pour compiler : 1 Go suffit à une vue (moins d'1 degré
-# carré). Une case de 5° en demande au moins 4,5 Go, et bien plus quand elle
-# est dense : WayLinker charge d'un bloc tous les nœuds d'une tuile, et
-# E5_N45 (Alpes, 500 Mo de voies) dépassait 4,5 Go (OutOfMemoryError,
-# 2026-11-01). Le tas d'une case prend donc 70 % de la mémoire disponible au
-# moment de compiler, entre ces deux bornes (Mo).
-AIRE_VUE = 1.0
-TAS_CASE_MIN, TAS_CASE_MAX = 4500, 12000
 
 
-def memoire_disponible_mo() -> int | None:
-    """La mémoire que le système peut encore donner (MemAvailable de Linux,
-    cache libérable compris), en Mo ; None ailleurs ou illisible."""
-    try:
-        with open("/proc/meminfo", encoding="ascii") as f:
-            for ligne in f:
-                if ligne.startswith("MemAvailable:"):
-                    return int(ligne.split()[1]) // 1024
-    except (OSError, ValueError, IndexError):
-        pass
-    return None
+# Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° en
+# demande bien plus. 4,5 Go ne suffisaient pas aux Alpes (E5_N45, GitHub
+# Actions, 2026-10-29 : WayLinker en OutOfMemoryError) ; une case prend donc
+# 70 % de la mémoire de la machine, au plus 12 Go (11 Go sur GitHub Actions).
+AIRE_VUE = 1.0                          # au-delà d'1 degré carré, le tas d'une case
 
 
-def tas_case(disponible=memoire_disponible_mo) -> str:
-    """Le tas de Java pour compiler une case entière (voir TAS_CASE_MIN)."""
-    mo = disponible()
-    if mo is None:
-        return f"{TAS_CASE_MIN}m"
-    return f"{max(TAS_CASE_MIN, min(TAS_CASE_MAX, mo * 7 // 10))}m"
+def tas_case() -> str:
+    memoire = brouter.memoire_physique()
+    if memoire is None:
+        return "4500m"
+    return f"{max(1500, min(12000, int(0.7 * memoire / 1e6)))}m"
 
 
 class Abandon(Exception):
@@ -322,6 +307,30 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
         sources, **autres)
 
 
+def _sans_tuile(case: str, construction: Path, travail: Path) -> str:
+    """Le message d'une compilation finie sans erreur de Java mais sans la
+    tuile de la case. Essai GitHub Actions du 2026-10-28 : E5_N45, les huit
+    voisines écrites, pas elle, 77 Go libres, WayLinker muet ; la machine
+    efface ensuite tout. Le message garde donc ce qu'il faut pour comprendre :
+    les tuiles produites, les fichiers intermédiaires de la case dans chaque
+    dossier de BRouter (avec leur taille), et la fin de la sortie des étapes."""
+    segments = construction / "segments"
+    produits = sorted(p.name for p in segments.iterdir()) if segments.is_dir() else []
+    intermediaires = []
+    for d in sorted(p for p in construction.iterdir() if p.is_dir() and p.name != "segments"):
+        tous = list(d.iterdir())
+        siens = [f"{p.name} {p.stat().st_size / 1e6:.1f} Mo" for p in sorted(tous) if p.name.startswith(case)]
+        intermediaires.append(f"{d.name} ({len(tous)} fichiers) : {', '.join(siens) or 'rien pour la case'}")
+    sorties = []
+    for etape in ("OsmFastCutter", "PosUnifier", "WayLinker"):
+        log = construction / f"{etape}.log"
+        texte = log.read_text(encoding="utf-8", errors="replace").strip() if log.is_file() else ""
+        sorties.append(f"{etape} : {texte[-400:] or 'rien'}")
+    return (f"La compilation n'a pas produit {case}.rd5 (produits : {', '.join(produits) or 'aucun'} ; "
+            f"{shutil.disk_usage(travail).free / 1e9:.1f} Go libres). Intermédiaires : {' ; '.join(intermediaires)}. "
+            + " | ".join(sorties))
+
+
 def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons, suivi, continuer):
     """La RD5 enrichie de la zone dans sortie ; rend (franchissements, dates OSM)."""
     travail = sortie / "travail"
@@ -356,8 +365,7 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     (travail / "osm.sqlite").unlink()
     # Le réseau fusionné de toute la case est écrit : n'en garder que les
     # franchissements. Il restait sinon en mémoire pendant la compilation, que
-    # Java fait à côté avec plusieurs Go (E5_N45, 2026-11-01 : OutOfMemoryError
-    # dans WayLinker).
+    # Java fait à côté avec plusieurs Go (E5_N45 : OutOfMemoryError dans WayLinker).
     franchissements = list(registre.franchissements.values())
     del registre
     gc.collect()
@@ -381,22 +389,13 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     suivi("compilation", 0, 1)
     installation.preparer_maison()
     aire = (zone[2] - zone[0]) * (zone[3] - zone[1])
-    tas = tas_case() if aire > AIRE_VUE else "1g"
-    journal.info("Lot %s : compilation, %.1f Go libres, %.1f Go à compiler, tas Java %s", case,
-                 shutil.disk_usage(travail).free / 1e9, (travail / "enrichi.osm.pbf").stat().st_size / 1e9, tas)
+    journal.info("Lot %s : compilation, %.1f Go libres, %.1f Go à compiler", case,
+                 shutil.disk_usage(travail).free / 1e9, (travail / "enrichi.osm.pbf").stat().st_size / 1e9)
     segments = brouter.fabriquer_tuiles(installation, travail / "enrichi.osm.pbf", travail / "construction",
-                                        relief=bef, tas=tas)
+                                        relief=bef, tas=tas_case() if aire > AIRE_VUE else "1g")
     rd5 = segments / f"{case}.rd5"
     if not rd5.is_file():
-        # Sans erreur de Java mais sans tuile : dire ce qui a été produit, la
-        # place restante et la fin de ce qu'a écrit WayLinker.
-        produits = sorted(p.name for p in segments.iterdir()) if segments.is_dir() else []
-        sortie_linker = segments.parent / "WayLinker.log"
-        fin = sortie_linker.read_text(encoding="utf-8", errors="replace").strip()[-600:] \
-            if sortie_linker.is_file() else ""
-        raise brouter.ErreurBRouter(
-            f"La compilation n'a pas produit {case}.rd5 (produits : {', '.join(produits) or 'aucun'} ; "
-            f"{shutil.disk_usage(travail).free / 1e9:.1f} Go libres, tas Java {tas}). WayLinker : {fin or 'rien'}")
+        raise brouter.ErreurBRouter(_sans_tuile(case, segments.parent, travail))
     shutil.move(rd5, sortie / f"{case}.rd5")
     shutil.rmtree(travail, ignore_errors=True)
     suivi("compilation", 1, 1)

@@ -203,3 +203,30 @@ def test_un_transfert_coupe_n_est_jamais_publie(tmp_path, monkeypatch):
     # Un RD5 tronqué d'avant ce contrôle ne passe plus pour présent : il se retélécharge.
     (installation.segments / "E5_N40.rd5").write_bytes(contenu[:300])
     assert not installation.segment_present("E5_N40")
+
+
+def test_java_a_court_de_memoire_arrete_la_fabrication(tmp_path, monkeypatch):
+    # GitHub Actions, 2026-10-29 : WayLinker en OutOfMemoryError rendait 0,
+    # et la case finissait sans sa RD5, sans erreur.
+    import subprocess
+    from types import SimpleNamespace
+    (tmp_path / "programme" / "lib").mkdir(parents=True)
+    (tmp_path / "programme" / "lib" / "a.jar").write_bytes(b"")
+    inst = SimpleNamespace(programme=tmp_path / "programme", jar=tmp_path / "brouter.jar", creation=tmp_path)
+    sorties = {"OsmFastCutter": "ok", "PosUnifier": "ok",
+               "WayLinker": "Exception in thread main java.lang.OutOfMemoryError: Java heap space"}
+
+    def lancer(commande, **options):
+        classe = next(e for e in commande if e.startswith("btools")).rsplit(".", 1)[-1]
+        return subprocess.CompletedProcess(commande, 0, sorties[classe], "")
+    monkeypatch.setattr(brouter.enfants, "lancer", lancer)
+    with pytest.raises(brouter.ErreurBRouter, match=r"WayLinker\) : mémoire de Java insuffisante \(-Xmx4500m\)"):
+        brouter.fabriquer_tuiles(inst, tmp_path / "a.osm.pbf", tmp_path / "construction", tas="4500m")
+
+
+def test_le_tas_d_une_case_suit_la_memoire_de_la_machine(monkeypatch):
+    from hike2gpx import fabrication
+    assert 1e9 < brouter.memoire_physique() < 1e13, "la mémoire de cette machine se lit"
+    for memoire, tas in ((16e9, "11200m"), (64e9, "12000m"), (4e9, "2800m"), (1e9, "1500m"), (None, "4500m")):
+        monkeypatch.setattr(brouter, "memoire_physique", lambda m=memoire: m)
+        assert fabrication.tas_case() == tas
