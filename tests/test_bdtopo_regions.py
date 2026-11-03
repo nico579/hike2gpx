@@ -153,3 +153,43 @@ def test_la_lecture_d_emprise_passe_par_la_cle_des_troncons(tmp_path):
             "EXPLAIN QUERY PLAN SELECT t.cleabs FROM rtree_troncon_de_route_geometrie r "
             "JOIN troncon_de_route t ON t.fid = r.id WHERE r.minx <= 1 AND r.maxx >= 0"))
     assert "SCAN t" not in plan and "INTEGER PRIMARY KEY" in plan
+
+
+def _ouvrir_qui_repond(*reponses):
+    """Faux urlopen : chaque appel rend la réponse suivante, ou la lève."""
+    import io
+    import urllib.error
+    restantes = list(reponses)
+    appels = []
+
+    def ouvrir(demande, timeout):
+        appels.append(demande.full_url)
+        reponse = restantes.pop(0)
+        if isinstance(reponse, int):
+            raise urllib.error.HTTPError(demande.full_url, reponse, "erreur", {}, io.BytesIO())
+        return io.BytesIO(reponse)
+    return ouvrir, appels
+
+
+def test_le_flux_des_editions_retente_un_504_passager():
+    # 2026-11-03 : un 504 de la Géoplateforme au début du calcul a fait tomber
+    # E0_N45 et E5_N45 ; il passait la minute suivante.
+    ouvrir, appels = _ouvrir_qui_repond(504, 504, b"<feed xmlns='http://www.w3.org/2005/Atom'/>")
+    pauses = []
+    assert br._atom("https://x/flux", ouvrir, pauses.append).tag.endswith("feed")
+    assert len(appels) == 3 and pauses == [10.0, 20.0]
+
+
+def test_le_flux_des_editions_ne_retente_pas_un_404():
+    ouvrir, appels = _ouvrir_qui_repond(404)
+    pauses = []
+    with pytest.raises(Exception, match="404"):
+        br._atom("https://x/flux", ouvrir, pauses.append)
+    assert len(appels) == 1 and pauses == []
+
+
+def test_le_flux_des_editions_abandonne_apres_cinq_essais():
+    ouvrir, appels = _ouvrir_qui_repond(*[503] * br.ESSAIS_ATOM)
+    with pytest.raises(Exception, match="503"):
+        br._atom("https://x/flux", ouvrir, lambda s: None)
+    assert len(appels) == br.ESSAIS_ATOM
