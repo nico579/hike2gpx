@@ -60,6 +60,25 @@ def test_un_telechargement_coupe_reprend_ou_il_s_est_arrete(tmp_path):
     assert demandes == ["bytes=5000-"] and cible.read_bytes() == CONTENU
 
 
+def test_des_coupures_qui_avancent_ne_font_pas_abandonner(tmp_path):
+    # Essai GitHub Actions du 2026-10-28 : R93 et R44, plusieurs Go, abandonnées
+    # après trois coupures ; une fermeture propre avant la fin effaçait tout.
+    morceaux = [CONTENU[i:i + 3000] for i in range(0, len(CONTENU), 3000)]
+    pauses = []
+
+    def ouvrir(demande, timeout):
+        plage = demande.get_header("Range")
+        debut = int(plage[6:-1]) if plage else 0
+        morceau = next(m for i, m in enumerate(morceaux) if i * 3000 == debut)
+        if len(pauses) % 2:
+            raise ConnectionResetError("coupure")      # une coupure sans le moindre octet
+        return Reponse(morceau, 206 if plage else 200)  # fermée proprement après un morceau
+    br._telecharger({"url": "https://x/a.7z", "octets": len(CONTENU), "md5": hashlib.md5(CONTENU).hexdigest()},
+                    tmp_path / "a.7z", ouvrir, pauses.append)
+    assert (tmp_path / "a.7z").read_bytes() == CONTENU
+    assert len(pauses) > br.ECHECS_MAX, "bien plus de coupures que d'échecs admis, toutes reprises"
+
+
 def test_un_fichier_altere_est_refuse(tmp_path):
     with pytest.raises(br.ErreurArchive, match="altéré"):
         br._telecharger({"url": "https://x/a.7z", "octets": len(CONTENU), "md5": "0" * 32}, tmp_path / "a.7z",

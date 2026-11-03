@@ -20,9 +20,10 @@ function charger(preferences = {}, documentGpx = null) {
     return { disabled: true, hidden: false, checked: false, textContent: "", value: "", dataset: {},
       style: { setProperty(name, value) { this[name] = value; } },
       classList: { toggle(c, oui) { (oui ?? !classes.has(c)) ? classes.add(c) : classes.delete(c); },
-        contains: (c) => classes.has(c) },
+        add: (c) => classes.add(c), contains: (c) => classes.has(c) },
       enfants: [], ecouteurs: {},
       append(...e) { this.enfants.push(...e); }, replaceChildren(...e) { this.enfants = e; },
+      after(...e) { this.suivants = e; },
       setAttribute(name, value) { this[name] = value; },
       addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() { this.removed = true; },
       click() { for (const action of this.ecouteurs.click || []) action(); } };
@@ -33,7 +34,8 @@ function charger(preferences = {}, documentGpx = null) {
     fitBounds(bounds, options) { this.fit = { bounds, options }; return this; },
     on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
       ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
-    hasLayer() { return false; }, getZoom() { return this.zoom; }, invalidateSize() {},
+    hasLayer() { return false; }, getZoom() { return this.zoom; }, setZoom(zoom) { this.zoom = zoom; return this; },
+    invalidateSize() {},
     closePopup() { this.popup = null; },
     getCenter() { return { lat: (this.vue.s + this.vue.n) / 2, lng: (this.vue.w + this.vue.e) / 2 }; },
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
@@ -81,7 +83,9 @@ function charger(preferences = {}, documentGpx = null) {
       tileLayer: Object.assign((url, options) => Object.assign(couche(), { url, options }),
         { wms: (url, options) => Object.assign(couche(), { url, options }) }),
       CRS: { EPSG4326: { code: "EPSG:4326" } }, divIcon: (options) => ({ options }),
-      control: { layers: (fonds, calques) => Object.assign(couche(), { fonds, calques,
+      control: { scale: (options) => Object.assign(couche(), { options, conteneur: element(),
+        getContainer() { return this.conteneur; } }),
+        layers: (fonds, calques) => Object.assign(couche(), { fonds, calques,
         addOverlay(layer, name) { this.calques[name] = layer; return this; },
         removeLayer(layer) {
           for (const [name, value] of Object.entries(this.calques)) {
@@ -117,7 +121,7 @@ function charger(preferences = {}, documentGpx = null) {
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
-    + " grilleCases, chargerLots, preparerCase, suivreLot, bulleCase, casesVisibles, nomCase, boiteCase,"
+    + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, bulleCase, casesVisibles, nomCase, boiteCase,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -146,7 +150,7 @@ test("les cases hors ligne se dessinent depuis les réglages, selon leur état",
   await charge;
   const [cadre] = page.grilleCases.layers;
   assert.deepEqual(json(cadre.bounds), [[40, 5], [45, 10]]);
-  assert.equal(cadre.options.color, "#23804f", "vert : prête hors ligne");
+  assert.equal(cadre.options.color, "#1b7a3e", "vert : prête hors ligne");
   assert.match(elements.get("offlineGridStatus").textContent, /^1 case/);
   elements.get("showOfflineGrid").checked = false;
   const avant = requetes.length;
@@ -155,18 +159,94 @@ test("les cases hors ligne se dessinent depuis les réglages, selon leur état",
   assert.equal(requetes.length, avant, "ni requête au serveur");
 });
 
+test("le bouton « Hors ligne » de la carte montre la grille et dit quoi en faire", async () => {
+  const { page, elements, requetes, stockage, carte } = charger();
+  // L'échelle de la carte, à droite de la recherche de ville.
+  assert.ok(elements.get("citySubmit").suivants[0].classList.contains("echelle-entete"));
+  const bouton = elements.get("offlineButton");
+  assert.equal(carte.zoom, 14);
+  bouton.click();
+  assert.equal(carte.zoom, 6, "les cases de 5° se voient : la carte dézoome");
+  assert.equal(elements.get("showOfflineGrid").checked, true, "la case des réglages suit le bouton");
+  assert.equal(bouton["aria-pressed"], "true");
+  assert.equal(bouton.classList.contains("actif"), true);
+  assert.equal(elements.get("offlineHint").hidden, false);
+  assert.match(elements.get("offlineHint").textContent,
+    /^Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou son fond de carte\.$/);
+  assert.equal(stockage.get("hike2gpx.casesHorsLigne"), "1");
+  assert.ok(requetes.some((r) => r.url === "/api/hors_ligne"), "les lots installés sont relus");
+  page.appliquerLangue("en");
+  assert.match(elements.get("offlineHint").textContent, /^Click an area: download its bundle/);
+  bouton.click();
+  assert.equal(elements.get("showOfflineGrid").checked, false);
+  assert.equal(bouton["aria-pressed"], "false");
+  assert.equal(elements.get("offlineHint").hidden, true);
+  assert.equal(page.grilleCases.layers.length, 0);
+});
+
 test("une case absente se prépare sur la vue actuelle ou en entier", async () => {
   const { page, requetes } = charger();
   const bulle = page.bulleCase("E5_N40");
   const boutons = bulle.enfants.filter((e) => e.type === "button");
   assert.deepEqual(boutons.map((b) => b.textContent),
-    ["Préparer la vue actuelle", "Préparer toute la case (environ une heure)"]);
+    ["Préparer la vue actuelle", "Préparer toute la case (environ une heure)",
+      "Fond de carte de la vue (Plan IGN)", "Fond de carte de toute la case (Plan IGN, zooms 6 à 13, environ 45 min)"]);
   boutons[0].click();
   const vue = requetes.findLast((r) => r.url === "/api/preparer_lot");
   assert.deepEqual(JSON.parse(vue.options.body), { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });
   boutons[1].click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_lot").options.body),
     { case: "E5_N40" });
+  boutons[2].click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
+    { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });
+  boutons[3].click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
+    { case: "E5_N40" });
+});
+
+test("un fond de carte installé devient la « Carte hors ligne », lue sur le PC", async () => {
+  const { page, requetes } = charger();
+  assert.equal(page.fonds().horsLigne, undefined, "aucun fond : pas de carte hors ligne");
+  const charge = page.chargerFonds();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [
+    { nom: "E5_N40-scan25-vue-3fa2c1", zone: [43.3, 5.97, 43.36, 6.11], zoom: [6, 16], source: "scan25", octets: 12e6 },
+    { nom: "E5_N40-scan25", zone: [40, 5, 45, 10], zoom: [6, 13], source: "scan25", octets: 4e8 }] });
+  await charge;
+  const groupe = page.fonds().horsLigne;
+  assert.ok(groupe, "le fond hors ligne parmi les fonds");
+  assert.ok(page.controle().fonds["Carte hors ligne"]);
+  // La case d'abord, la vue par-dessus ; chacune bornée à sa zone.
+  assert.deepEqual(groupe.layers.map((c) => c.url),
+    ["/fonds/E5_N40-scan25/{z}/{x}/{y}", "/fonds/E5_N40-scan25-vue-3fa2c1/{z}/{x}/{y}"]);
+  assert.equal(groupe.layers[1].options.maxNativeZoom, 16);
+  assert.equal(JSON.stringify(groupe.layers[0].options.bounds), "[[40,5],[45,10]]");
+  const bulle = page.bulleCase("E5_N40");
+  assert.ok(bulle.enfants.some((e) => /^Fond de carte hors ligne : vue SCAN 25 12 Mo, toute la case SCAN 25 400 Mo/
+    .test(e.textContent ?? e.enfants?.join(""))), "la bulle dit les fonds de la case");
+});
+
+test("le partage au téléphone s'ouvre à la demande, montre son QR code et se ferme", async () => {
+  const { elements, requetes } = charger();
+  const attendre = () => new Promise((fin) => setImmediate(fin));
+  elements.get("partagerTelephone").click();
+  const ouverture = requetes.findLast((r) => r.url === "/api/partage");
+  assert.deepEqual(JSON.parse(ouverture.options.body), { ouvrir: true });
+  repondre(ouverture, { ouvert: true, url: "http://192.168.1.20:8799/depot/catalog.json", qr: "<svg>qr</svg>",
+    lien: "hike2gpx://depot?url=…", lots: ["E5_N40"], fonds: ["E5_N40-scan25"], octets: 412e6 });
+  await attendre();
+  assert.equal(elements.get("partageQr").innerHTML, "<svg>qr</svg>");
+  assert.equal(elements.get("partageOuvert").hidden, false);
+  assert.equal(elements.get("partagerTelephone").hidden, true);
+  assert.match(elements.get("partageTexte").textContent, /1 lot\(s\) et 1 fond\(s\) de carte, 412 Mo/);
+  elements.get("fermerPartage").click();
+  const fermeture = requetes.findLast((r) => r.url === "/api/partage");
+  assert.deepEqual(JSON.parse(fermeture.options.body), { ouvrir: false });
+  repondre(fermeture, { ouvert: false });
+  await attendre();
+  assert.equal(elements.get("partageQr").innerHTML, "", "le QR code s'efface : son jeton ne vaut plus");
+  assert.equal(elements.get("partageOuvert").hidden, true);
+  assert.equal(elements.get("partageTexte").hidden, true);
 });
 
 test("la note suit la préparation hors ligne, puis la case est prête", async () => {
@@ -1045,7 +1125,7 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
   bouton = elements.get("donnees").enfants[0].enfants[0];
   assert.equal(bouton.disabled, false);
   bouton.ecouteurs.click[0]();
-  assert.match(confirmations[0], /Les tuiles de fond de carte restent dans le cache du navigateur/);
+  assert.match(confirmations[0], /les lots et les fonds hors ligne/);
   assert.equal(requetes.filter((r) => r.url === "/api/donnees").length, 0);
   confirmations.reponse = true;
   bouton.ecouteurs.click[0]();

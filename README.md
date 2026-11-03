@@ -17,8 +17,9 @@ discourages the passage. In Garéoult (Var, France), BRouter's standard hiking
 profile goes through a concrete fence on a 69 m stretch; hike2gpx goes around
 it with a 435 m detour.
 
-For desktop computers: Windows, macOS and Linux. Phones will come later,
-through the BRouter app for Android.
+For desktop computers: Windows, macOS and Linux. An Android app, which
+routes offline from the bundles, is being tested in `android/`; it is not
+published yet.
 
 Installed from a release, hike2gpx updates itself, like the other nico579
 applications: when a newer version is published, a banner on the page and the
@@ -251,13 +252,18 @@ hike2gpx works with bundles: everything one 5° BRouter cell needs (routing
 data, official paths, crossings, map layers), each file checked against the
 SHA-256 of a manifest.
 
-Tick "Show offline areas (5°)" in the settings and the map shows the grid of cells.
-A click on a cell offers two ways to get its bundle:
+The "Offline" button at the top of the map (or the "Show offline areas (5°)"
+box in the settings) shows the grid of cells. A click on a cell offers two
+ways to get its bundle:
 
 - **download it from the server.** The French cells are built every week and
   published on [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles);
   the grid shows them in blue. The Var cell, 247 MB, arrives in a few tens of
-  seconds, resumed after a cut, each file checked before installation.
+  seconds, resumed after a cut, each file checked before installation. No
+  click needed: as soon as a route or the map's paths touch a published cell,
+  its bundle downloads by itself, and on-the-fly mode serves meanwhile. A
+  bundle from the server also renews itself when the server publishes a newer
+  one.
 - **prepare it on this computer**, for the current view or the whole cell,
   anywhere in the world. Where a national provider exists (IGN BD TOPO, ATKIS,
   ZABAGED, swissTLM3D, BDOT10k), its paths are merged into OpenStreetMap and
@@ -272,6 +278,36 @@ meaning: unticked, the official paths stay in the bundle but routing may not
 use them. Caches renew themselves; a bundle older than the renewal delay asks
 first. A cell crossing a border takes every provider whose country it touches:
 E5_N45 merges IGN and swissTLM3D paths, each read on its own country only.
+
+A cell you no longer need, after a trip for instance, is removed from its
+popup: "Remove from this computer" deletes its bundle and its base maps. The
+"Clear cache" button in the settings starts over from scratch: caches, offline
+bundles and maps included. A server bundle downloads again in seconds; a
+bundle or map prepared on the computer has to be made again.
+
+That leaves the map itself. In France, the same popup also prepares the
+**offline base map**: the tiles the page shows, SCAN 25 if you have an IGN
+key, Plan IGN otherwise, stored on this computer in an MBTiles file. It then
+appears among the base maps as "Offline map". A screen view goes down to
+zoom 16, where trails show: around Garéoult, 631 tiles, 12 MB of SCAN 25
+(27 MB of Plan IGN), a little over a minute. A whole cell stops at zoom 13,
+for the overview: cell E5_N40 weighs 151 MB of SCAN 25 and takes about three
+quarters of an hour, because hike2gpx spares the IGN service (ten tiles per
+second at most). An interrupted base map resumes where it stopped. SCAN 25
+is not open data, so a base map stays on your computer: it is never
+published.
+
+### Sharing with the phone
+
+The phone takes the server's bundles from GitHub. What only your computer
+has, bundles prepared outside the server's countries and base maps, it gets
+from the computer, over Wi-Fi. In the settings, "Share with the phone" shows
+a QR code: scan it with hike2gpx on the phone, on the same network. The
+computer then serves its bundles and base maps, each file checked against
+its hash on arrival and resumed after a cut. Sharing stays closed until you
+open it, listens on the local network only, and its code changes every time
+it opens; "Stop sharing" closes it. The protocol is described in
+[docs/architecture/partage-telephone.md](docs/architecture/partage-telephone.md).
 
 ### Building bundles from the command line
 

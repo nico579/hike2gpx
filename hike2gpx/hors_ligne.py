@@ -8,6 +8,11 @@ et le reste dans le dossier de la case :
   hors-ligne/segments/E5_N40.rd5
   hors-ligne/E5_N40/manifest.json, franchissements.json.gz, calques.mbtiles
 
+Les fonds de carte (fonds.py) se rangent à part, un MBTiles chacun, sans
+manifeste : ils ne sont pas des lots et n'entrent jamais dans une publication.
+
+  hors-ligne/fonds/E5_N40-scan25.mbtiles, E5_N40-scan25-vue-3fa2c1.mbtiles
+
 Règle unique : un parcours dont la zone tient dans un lot (l'emprise enrichie
 d'un lot enrichi, la zone d'un lot OSM) se calcule et s'affiche sur ce lot
 seul, sans Overpass, WFS ni RD5 téléchargée ; sinon, tout se fait à la volée.
@@ -17,10 +22,21 @@ from __future__ import annotations
 import gzip
 import json
 import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from . import lot
+from . import fonds, lot
+
+# Note de provenance d'un lot venu du dépôt du serveur, à côté du manifeste
+# (que le lot publié ne change pas) : ce lot est un cache, renouvelé tout seul.
+# Un lot préparé sur l'ordinateur n'en a pas.
+ORIGINE = "origine.json"
+
+
+def touche(boite, zone) -> bool:
+    """Les boîtes (sud, ouest, nord, est) se chevauchent-elles ?"""
+    return boite[0] < zone[2] and zone[0] < boite[2] and boite[1] < zone[3] and zone[1] < boite[3]
 
 
 class ErreurLot(ValueError):
@@ -35,6 +51,7 @@ class HorsLigne:
         # pas celle des RD5 enrichies ; un dossier à part pour ne pas les mêler.
         self.segments_osm = self.racine / "segments-osm"
         self._franchissements = {}      # case -> liste, lue une fois
+        self.dossier_fonds = self.racine / "fonds"
 
     def lots(self) -> list:
         """Manifestes des lots installés."""
@@ -42,9 +59,71 @@ class HorsLigne:
             return []
         return [json.loads(m.read_text(encoding="utf-8")) for m in sorted(self.racine.glob("*/manifest.json"))]
 
-    def installer(self, source: Path) -> dict:
+    def fonds(self) -> list:
+        """Les fonds de carte installés, décrits par fonds.decrire ; un fichier
+        illisible (copie interrompue, autre format) est ignoré."""
+        if not self.dossier_fonds.is_dir():
+            return []
+        decrits = []
+        for chemin in sorted(self.dossier_fonds.glob("*.mbtiles")):
+            try:
+                decrits.append(fonds.decrire(chemin))
+            except (OSError, sqlite3.Error, KeyError, ValueError):
+                continue
+        return decrits
+
+    def chemin_fond(self, nom: str) -> Path | None:
+        """Le fichier du fond installé de ce nom, ou None : un nom venu d'une
+        requête ne désigne jamais rien hors du dossier des fonds."""
+        if not fonds.nom_valide(nom):
+            return None
+        chemin = self.dossier_fonds / f"{nom}.mbtiles"
+        return chemin if chemin.is_file() else None
+
+    def origine(self, case: str) -> dict | None:
+        """La provenance notée à l'installation du lot de cette case : un dict
+        pour un lot du dépôt, None pour un lot préparé sur l'ordinateur."""
+        try:
+            origine = json.loads((self.racine / case / ORIGINE).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return origine if isinstance(origine, dict) else None
+
+    def supprimer(self, case: str) -> int:
+        """Retire de l'ordinateur tout ce qui sert la case hors ligne : son lot, sa RD5
+        et ses fonds de carte (un voyage fini, une case qu'on ne visitera
+        plus). Les moteurs BRouter qui lisent la RD5 sont arrêtés avant, par
+        l'appelant. Rend les octets libérés."""
+        fichiers = [self.segments / f"{case}.rd5", self.segments_osm / f"{case}.rd5",
+                    *self.dossier_fonds.glob(f"{case}-*.mbtiles")]
+        dossier = self.racine / case
+        if dossier.is_dir():
+            fichiers += [p for p in dossier.iterdir() if p.is_file()]
+        fichiers = [p for p in fichiers if p.is_file()]
+        octets = sum(p.stat().st_size for p in fichiers)
+        for p in fichiers:
+            p.unlink()
+        shutil.rmtree(dossier, ignore_errors=True)
+        self._oublier()
+        return octets
+
+    def vider(self) -> None:
+        """Tous les lots et les fonds de carte retirés, pour repartir de zéro :
+        ceux du serveur se retéléchargent vite."""
+        if self.racine.is_dir():
+            shutil.rmtree(self.racine)
+        self._oublier()
+
+    def _oublier(self) -> None:
+        """Ce qui a été lu des lots retirés ne sert plus."""
+        self._franchissements.clear()
+        lot._tuile_decodee.cache_clear()
+
+    def installer(self, source: Path, origine: dict | None = None) -> dict:
         """Installe le lot du dossier source après vérification de chaque fichier
-        contre le manifeste. Remplace un lot plus ancien de la même case."""
+        contre le manifeste. Remplace un lot plus ancien de la même case.
+        origine : la provenance d'un lot venu du dépôt ({"depot": adresse du
+        catalogue}), notée à côté du manifeste ; None pour un lot préparé ici."""
         source = Path(source)
         try:
             manifeste = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
@@ -74,6 +153,8 @@ class HorsLigne:
             if f["nom"] != rd5:
                 shutil.copy2(source / f["nom"], provisoire / f["nom"])
         shutil.copy2(source / "manifest.json", provisoire / "manifest.json")
+        if origine:
+            (provisoire / ORIGINE).write_text(json.dumps(origine, ensure_ascii=False), encoding="utf-8")
         shutil.copy2(source / rd5, segments / f".{rd5}.part")
         shutil.rmtree(self.racine / case, ignore_errors=True)
         provisoire.replace(self.racine / case)
