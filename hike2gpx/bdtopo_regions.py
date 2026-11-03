@@ -19,6 +19,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -78,9 +79,10 @@ def derniere_edition(region: str, lire=_atom) -> dict:
     return {"nom": nom, "date": nom[-10:], "fichiers": sorted(fichiers, key=lambda f: f["url"])}
 
 
-def _telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen) -> None:
-    """Le fichier, repris là où il s'est arrêté (Range), puis contrôlé par son MD5."""
-    en_bloc.telecharger(fichier, cible, ouvrir)
+def _telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, pause=time.sleep) -> None:
+    """Le fichier, repris là où il s'est arrêté (Range), puis contrôlé par son
+    MD5 : en_bloc.telecharger, commun à tous les téléchargements en bloc."""
+    en_bloc.telecharger(fichier, cible, ouvrir, pause=pause)
 
 
 def geopackage(dossier, region: str, edition: dict | None = None) -> Path:
@@ -133,10 +135,16 @@ def geopackage(dossier, region: str, edition: dict | None = None) -> Path:
 
 def _garder_les_troncons(gpkg: Path, cible: Path) -> None:
     """La table des tronçons de route et son index RTree, copiés du GeoPackage
-    complet dans une base à part, avec les seules colonnes que lit la fusion."""
+    complet dans une base à part, avec les seules colonnes que lit la fusion.
+    La clé fid y reste la clé primaire : l'index RTree renvoie des fid, et un
+    CREATE TABLE … AS SELECT l'aurait réduite à une colonne ordinaire, que
+    chaque lecture d'emprise aurait parcourue en entier."""
     with closing(sqlite3.connect(str(cible), uri=True)) as base:     # uri : ATTACH en lecture seule
         base.execute("ATTACH DATABASE ? AS complet", (f"file:{gpkg.resolve().as_posix()}?mode=ro",))
-        base.execute("CREATE TABLE troncon_de_route AS SELECT fid, cleabs, nature, acces_pieton, prive, "
+        base.execute("CREATE TABLE troncon_de_route (fid INTEGER PRIMARY KEY, cleabs TEXT, nature TEXT, "
+                     "acces_pieton TEXT, prive INTEGER, insee_commune_gauche TEXT, insee_commune_droite TEXT, "
+                     "geometrie BLOB)")
+        base.execute("INSERT INTO troncon_de_route SELECT fid, cleabs, nature, acces_pieton, prive, "
                      "insee_commune_gauche, insee_commune_droite, geometrie FROM complet.troncon_de_route")
         base.execute("CREATE VIRTUAL TABLE rtree_troncon_de_route_geometrie USING rtree(id, minx, maxx, miny, maxy)")
         base.execute("INSERT INTO rtree_troncon_de_route_geometrie "
@@ -173,12 +181,21 @@ class Lecteur:
         """L'édition de la BD TOPO pour le manifeste : la plus récente des régions."""
         return max((self.edition(r)["date"] for r in self.regions(sud, ouest, nord, est)), default=None)
 
-    def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
-        from .case import troncons_gpkg
-        vus, resultat = set(), []
+    def preparer(self, sud: float, ouest: float, nord: float, est: float) -> None:
+        """Télécharge d'avance les régions de l'emprise, sans rien lire. La
+        fusion en damier (fabrication._fusionner_mailles) l'appelle avant de
+        créer ses processus : chacun aurait sinon téléchargé la même archive
+        dans le même dossier, et le premier fini l'effaçait sous les autres
+        (R11, essai Actions du 2026-11-02)."""
         for region in self.regions(sud, ouest, nord, est):
             if region not in self._gpkg:
                 self._gpkg[region] = geopackage(self.dossier, region, self.edition(region))
+
+    def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
+        from .case import troncons_gpkg
+        vus, resultat = set(), []
+        self.preparer(sud, ouest, nord, est)
+        for region in self.regions(sud, ouest, nord, est):
             # Un tronçon qui passe la limite de deux régions est dans les deux.
             for t in troncons_gpkg(self._gpkg[region], sud, ouest, nord, est):
                 if t["id"] not in vus:

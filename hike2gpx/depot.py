@@ -14,6 +14,10 @@ relative à celle du catalogue : l'application n'a besoin que de cette adresse.
 Une publication GitHub est une liste plate : les fichiers y prennent le nom
 de leur case en préfixe (E5_N40.calques.mbtiles) ; un dossier servi tel quel
 garde ses sous-dossiers (E5_N40/calques.mbtiles).
+
+Servi par un PC à son téléphone (partage.py), le catalogue liste aussi ses
+fonds de carte, dans une clé facultative « fonds » (docs/architecture/
+partage-telephone.md) ; une publication n'en a jamais.
 """
 from __future__ import annotations
 
@@ -59,22 +63,38 @@ def ecrire_catalogue(racine: Path, publication: Path | None = None) -> Path:
     for manifeste in sorted(racine.glob("*/manifest.json")):
         dossier = manifeste.parent
         m = json.loads(manifeste.read_text(encoding="utf-8"))
-        fichiers = [*m["fichiers"], {"nom": "manifest.json", "octets": manifeste.stat().st_size,
-                                     "sha256": lot.empreinte(manifeste)}]
-        for f in fichiers:
-            if publication:
-                f["url"] = f"{m['case']}.{f['nom']}"
+        if publication:
+            entree = entree_lot(m, manifeste, lambda nom, case=m["case"]: f"{case}.{nom}")
+            for f in entree["fichiers"]:
                 shutil.copy2(dossier / f["nom"], cible / f["url"])
-            else:
-                f["url"] = f"{dossier.name}/{f['nom']}"
-        lots.append({"case": m["case"], "type": m.get("type", "enrichi"), "format": m.get("format"),
-                     "fournisseurs": m.get("fournisseurs", []), "zone": m.get("zone"),
-                     "emprise_enrichie": m.get("emprise_enrichie"), "sources": m.get("sources", {}),
-                     "octets": sum(f["octets"] for f in fichiers), "fichiers": fichiers})
+        else:
+            entree = entree_lot(m, manifeste, lambda nom, sous=dossier.name: f"{sous}/{nom}")
+        lots.append(entree)
     chemin = cible / "catalog.json"
-    chemin.write_text(json.dumps({"format": FORMAT, "genere": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                                  "lots": lots}, indent=1, ensure_ascii=False), encoding="utf-8")
+    chemin.write_text(json.dumps(catalogue(lots), indent=1, ensure_ascii=False), encoding="utf-8")
     return chemin
+
+
+def entree_lot(m: dict, manifeste: Path, url) -> dict:
+    """L'entrée d'un lot au catalogue : ses fichiers (ceux du manifeste et le
+    manifeste lui-même), chacun avec l'adresse url(nom)."""
+    fichiers = [*m["fichiers"], {"nom": "manifest.json", "octets": Path(manifeste).stat().st_size,
+                                 "sha256": lot.empreinte(manifeste)}]
+    fichiers = [{**f, "url": url(f["nom"])} for f in fichiers]
+    return {"case": m["case"], "type": m.get("type", "enrichi"), "format": m.get("format"),
+            "fournisseurs": m.get("fournisseurs", []), "zone": m.get("zone"),
+            "emprise_enrichie": m.get("emprise_enrichie"), "sources": m.get("sources", {}),
+            "octets": sum(f["octets"] for f in fichiers), "fichiers": fichiers}
+
+
+def catalogue(lots: list, fonds: list | None = None) -> dict:
+    """Le catalogue lui-même. Les fonds de carte (partage.py) n'y figurent que
+    servis par un PC à son téléphone, jamais dans une publication ; un lecteur
+    qui ne les connaît pas ignore la clé « fonds »."""
+    contenu = {"format": FORMAT, "genere": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "lots": lots}
+    if fonds is not None:
+        contenu["fonds"] = fonds
+    return contenu
 
 
 # ------------------------------------------------------------------ téléchargement (application)

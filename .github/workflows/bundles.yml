@@ -20,6 +20,18 @@ on:
         description: Version de hike2gpx qui fabrique
         type: string
         default: main
+  # Essai depuis ce dépôt, sur une branche, avant de toucher au serveur : la
+  # même fabrication, mais rien n'est publié (voir PUBLIER).
+  workflow_dispatch:
+    inputs:
+      cases:
+        description: Cases BRouter à fabriquer, séparées par des espaces
+        type: string
+        default: E0_N45
+      ref:
+        description: Version de hike2gpx qui fabrique
+        type: string
+        default: main
 
 permissions:
   contents: write                   # publier sur le dépôt appelant
@@ -61,13 +73,96 @@ jobs:
           echo "cases : $CASES"
           echo "cases=$(jq -cn --arg c "$CASES" '$c | split(" ") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
 
-  case:
+  bdtopo:
+    # Les tronçons BD TOPO de toutes les régions françaises des cases, préparés
+    # une fois et gardés par actions/cache : l'IGN ne publie une édition que
+    # quatre fois par an, inutile de retélécharger chaque semaine ses archives
+    # régionales (11 Go de 7z pour les cinq régions de W5_N45). Une seule entrée
+    # pour toutes les cases, et non une par case : une région touche jusqu'à
+    # quatre cases, et ces 35 copies (une dizaine de Go compressés) rempliraient
+    # à elles seules les 10 Go de cache d'un dépôt.
     needs: liste
-    name: case ${{ matrix.case }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    outputs:
+      cle: ${{ steps.editions.outputs.cle }}
+    env:
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+      CASES: ${{ join(fromJSON(needs.liste.outputs.cases), ' ') }}
+    steps:
+      - name: Checkout hike2gpx
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - id: editions
+        run: |
+          # Les régions que touchent les cases et leur dernière édition
+          # (« R53.2026-09-15_R75.2026-06-15… ») : la clé du cache, qui ne change
+          # qu'avec une édition nouvelle. Vide hors de France, ou si le catalogue
+          # de l'IGN ne répond pas : chaque case lira alors ses régions elle-même.
+          EDITIONS=$(python -c "import sys; from hike2gpx import bdtopo_regions, lot; l = bdtopo_regions.Lecteur(None); r = sorted({x for c in sys.argv[1:] for x in l.regions(*lot.boite_case(c))}); print('_'.join(x + '.' + l.edition(x)['date'] for x in r))" $CASES) || EDITIONS=""
+          echo "éditions : ${EDITIONS:-aucune}"
+          # « v2 » : le format des bases réduites (bdtopo_regions._garder_les_troncons),
+          # fid clé primaire depuis la PR #57. À changer avec lui, sans quoi le
+          # cache rendrait l'ancien format.
+          if [ -n "$EDITIONS" ]; then
+            echo "editions=$EDITIONS" >> "$GITHUB_OUTPUT"; echo "cle=bdtopo-v2-$EDITIONS" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Reprendre les tronçons BD TOPO
+        id: cache
+        if: steps.editions.outputs.cle != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # runner.workspace est le parent de github.workspace : c'est
+          # HIKE2GPX_HOME écrit sans « .. », que actions/cache refuse. À défaut
+          # de clé exacte, la dernière gardée rend les régions inchangées.
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
+          key: ${{ steps.editions.outputs.cle }}
+          restore-keys: bdtopo-v2-
+
+      - name: Télécharger les régions nouvelles
+        if: steps.editions.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
+        env:
+          EDITIONS: ${{ steps.editions.outputs.editions }}
+        run: |
+          # Une région déjà là à la bonne édition n'est pas retéléchargée ;
+          # les éditions plus anciennes sont effacées (bdtopo_regions.geopackage).
+          time python -c "import logging, sys; logging.basicConfig(level=logging.INFO); from hike2gpx import bdtopo_regions; [bdtopo_regions.geopackage(sys.argv[1], e.split('.')[0]) for e in sys.argv[2].split('_')]" "$HIKE2GPX_HOME" "$EDITIONS"
+          du -sh "$HIKE2GPX_HOME/bdtopo-regions"; ls -la "$HIKE2GPX_HOME/bdtopo-regions"
+
+      - name: Garder les tronçons BD TOPO
+        if: steps.editions.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
+          key: ${{ steps.editions.outputs.cle }}
+
+  # Première moitié d'une case : ses téléchargements (extraits Geofabrik,
+  # archives BD TOPO), près de deux heures pour E0_N45, passés à la tâche
+  # « case » par un artefact. Chaque moitié a ses 6 heures, et une coupure du
+  # calcul se relance seule (« Re-run failed jobs ») sans tout retélécharger.
+  donnees:
+    needs: [liste, bdtopo]
+    # Sans la préparation BD TOPO (échouée), chaque case lit ses régions elle-même.
+    if: ${{ !cancelled() && needs.liste.result == 'success' }}
+    name: données ${{ matrix.case }}
     runs-on: ubuntu-24.04
     timeout-minutes: 355
     strategy:
-      fail-fast: false              # une case en échec n'arrête pas les autres
+      fail-fast: false
       matrix:
         case: ${{ fromJSON(needs.liste.outputs.cases) }}
     env:
@@ -93,13 +188,102 @@ jobs:
 
       - name: Reprendre le lot publié
         run: |
+          # Un lot à jour n'a besoin d'aucune donnée : rien n'est téléchargé.
+          mkdir -p "$RUNNER_TEMP/publie" "$RUNNER_TEMP/lots/$CASE"
+          gh release download bundles --repo "$GITHUB_REPOSITORY" --pattern "$CASE.*" \
+              --dir "$RUNNER_TEMP/publie" || true
+          for f in "$RUNNER_TEMP"/publie/"$CASE".*; do
+            [ -e "$f" ] || continue        # aucun fichier : le motif reste tel quel
+            mv "$f" "$RUNNER_TEMP/lots/$CASE/${f##*/$CASE.}"
+          done
+
+      - name: Reprendre les tronçons BD TOPO
+        if: needs.bdtopo.outputs.cle != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.workspace }}/donnees/bdtopo-regions
+          key: ${{ needs.bdtopo.outputs.cle }}
+
+      - name: Télécharger les données de la case
+        run: python -m hike2gpx bundles "$CASE" --bulk --stage data --output "$RUNNER_TEMP/lots"
+
+      - name: Ne garder que les régions de la case
+        run: |
+          # Le cache rend toutes les régions françaises des cases : l'artefact
+          # de la case n'emporte que les siennes. Le service de l'IGN muet, il
+          # les emporte toutes, rien de pire.
+          python -c "import sys, pathlib; from hike2gpx import bdtopo_regions, lot; garder = set(bdtopo_regions.regions_de_zone(*lot.boite_case(sys.argv[2]))); [p.unlink() for p in pathlib.Path(sys.argv[1], 'bdtopo-regions').glob('*.troncons.sqlite') if not any(f'_{r}_' in p.name for r in garder)]" "$HIKE2GPX_HOME" "$CASE" \
+            || echo "régions de la case inconnues : toutes gardées"
+
+      - name: Taille des données
+        run: |
+          mkdir -p "$HIKE2GPX_HOME"
+          du -sh "$HIKE2GPX_HOME"/* 2>/dev/null || true
+          du -sh "$HIKE2GPX_HOME"; df -h "$HIKE2GPX_HOME"
+
+      - name: Garder les données pour la case
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: donnees-${{ matrix.case }}
+          # Le même dossier que HIKE2GPX_HOME, sans « .. », refusé par les actions d'artefact.
+          path: ${{ runner.workspace }}/donnees
+          include-hidden-files: true
+          compression-level: 1        # des bases SQLite déjà denses : vite plutôt que petit
+          retention-days: 1
+
+  case:
+    needs: [liste, donnees]
+    # Une case dont les données ont échoué se fabrique quand même : elle
+    # télécharge alors elle-même ce qui lui manque, comme avant le découpage.
+    if: ${{ !cancelled() && needs.liste.result == 'success' }}
+    name: case ${{ matrix.case }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false              # une case en échec n'arrête pas les autres
+      matrix:
+        case: ${{ fromJSON(needs.liste.outputs.cases) }}
+    env:
+      CASE: ${{ matrix.case }}
+      GH_TOKEN: ${{ github.token }}
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+      # Lancé depuis ce dépôt (essai), rien n'est publié.
+      PUBLIER: ${{ github.repository != 'nico579/hike2gpx' }}
+    steps:
+      - name: Checkout hike2gpx
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - name: Reprendre les données de la case
+        continue-on-error: true       # absentes : la fabrication les télécharge elle-même
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: donnees-${{ matrix.case }}
+          # Le même dossier que HIKE2GPX_HOME, sans « .. », refusé par les actions d'artefact.
+          path: ${{ runner.workspace }}/donnees
+
+      - name: Reprendre le lot publié
+        run: |
           # Le lot déjà publié de la case, rangé comme bundles le range : un lot à
           # jour (mêmes éditions OSM et BD TOPO) est alors sauté.
           mkdir -p "$RUNNER_TEMP/publie" "$RUNNER_TEMP/lots/$CASE"
           gh release download bundles --repo "$GITHUB_REPOSITORY" --pattern "$CASE.*" \
               --dir "$RUNNER_TEMP/publie" || true
           for f in "$RUNNER_TEMP"/publie/"$CASE".*; do
-            [ -e "$f" ] && mv "$f" "$RUNNER_TEMP/lots/$CASE/${f##*/$CASE.}"
+            [ -e "$f" ] || continue        # aucun fichier : le motif reste tel quel
+            mv "$f" "$RUNNER_TEMP/lots/$CASE/${f##*/$CASE.}"
           done
           ls -la "$RUNNER_TEMP/lots/$CASE"
 
@@ -116,11 +300,13 @@ jobs:
             mv "$RUNNER_TEMP/$ACTIF" "$BEF" && echo "RELIEF_PUBLIE=1" >> "$GITHUB_ENV" && echo "relief repris : $ACTIF"
           fi
 
-      - name: Fabriquer la case
-        run: python -m hike2gpx bundles "$CASE" --bulk --output "$RUNNER_TEMP/lots"
+      - name: Calculer la case
+        # Fusion, RD5 et relief ; les calques suivent sur PARTS machines. Un lot
+        # OSM, sans rien à répartir, se fait ici en entier.
+        run: python -m hike2gpx bundles "$CASE" --bulk --stage compute --output "$RUNNER_TEMP/lots"
 
       - name: Publier le relief
-        if: env.RELIEF_PUBLIE != '1'
+        if: env.RELIEF_PUBLIE != '1' && env.PUBLIER == 'true'
         run: |
           [ -f "$BEF" ] || { echo "pas de relief de case entière à publier"; exit 0; }
           gh release view bundles --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
@@ -128,6 +314,122 @@ jobs:
                  --notes "Lots hors ligne des cases BRouter, refaits chaque semaine. Catalogue : catalog.json." || true
           cp "$BEF" "$RUNNER_TEMP/$ACTIF"
           gh release upload bundles "$RUNNER_TEMP/$ACTIF" --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Garder le calcul pour les calques
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          # Tout le dossier des lots : le calcul (.CASE.etapes, caché), le lot
+          # publié repris, et le lot entier d'une case OSM.
+          name: etapes-${{ matrix.case }}
+          path: ${{ runner.temp }}/lots
+          include-hidden-files: true
+          retention-days: 1
+
+  # Les calques d'une case, un bloc sur PARTS par machine : près d'une heure et
+  # demie d'une traite pour E0_N45. PARTS vaut 4 : la liste « part » ci-dessous
+  # et le « --part 4/4 » de la tâche « fin » vont ensemble.
+  calques:
+    needs: [liste, donnees, case]
+    if: ${{ !cancelled() && needs.liste.result == 'success' }}
+    name: calques ${{ matrix.case }} ${{ matrix.part }}/4
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      matrix:
+        case: ${{ fromJSON(needs.liste.outputs.cases) }}
+        part: [1, 2, 3, 4]
+    env:
+      CASE: ${{ matrix.case }}
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+    steps:
+      - name: Checkout hike2gpx
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - name: Reprendre les données de la case
+        continue-on-error: true       # absentes : les calques les téléchargent eux-mêmes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: donnees-${{ matrix.case }}
+          path: ${{ runner.workspace }}/donnees
+
+      - name: Reprendre le calcul
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: etapes-${{ matrix.case }}
+          path: ${{ runner.temp }}/lots
+
+      - name: Calques, part ${{ matrix.part }}/4
+        run: python -m hike2gpx bundles "$CASE" --bulk --stage layers --part ${{ matrix.part }}/4 --output "$RUNNER_TEMP/lots"
+
+      - name: Garder la part
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: calques-${{ matrix.case }}-${{ matrix.part }}
+          path: ${{ runner.temp }}/lots/.${{ matrix.case }}.etapes/calques.${{ matrix.part }}-4.*
+          include-hidden-files: true
+          if-no-files-found: ignore   # lot OSM ou à jour : pas de part
+          retention-days: 1
+
+  fin:
+    needs: [liste, calques]
+    if: ${{ !cancelled() && needs.liste.result == 'success' }}
+    name: fin ${{ matrix.case }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        case: ${{ fromJSON(needs.liste.outputs.cases) }}
+    env:
+      CASE: ${{ matrix.case }}
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+    steps:
+      - name: Checkout hike2gpx
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - name: Reprendre le calcul
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: etapes-${{ matrix.case }}
+          path: ${{ runner.temp }}/lots
+
+      - name: Reprendre les parts des calques
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: calques-${{ matrix.case }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/lots/.${{ matrix.case }}.etapes
+
+      - name: Assembler le lot
+        # Refuse de finir si une part manque : jamais de calques à trous.
+        run: python -m hike2gpx bundles "$CASE" --bulk --stage finish --part 4/4 --output "$RUNNER_TEMP/lots"
 
       - name: Garder le lot pour la publication
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -140,8 +442,10 @@ jobs:
           retention-days: 1
 
   publier:
-    needs: case
-    if: ${{ !cancelled() }}         # les cases réussies sont publiées même si une autre a échoué
+    needs: fin
+    # Les cases réussies sont publiées même si une autre a échoué ; jamais
+    # depuis ce dépôt, où le workflow ne tourne qu'en essai.
+    if: ${{ !cancelled() && github.repository != 'nico579/hike2gpx' }}
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}

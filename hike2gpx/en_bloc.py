@@ -13,6 +13,7 @@ import hashlib
 import http.client
 import logging
 import shutil
+import time
 import sqlite3
 import urllib.request
 from contextlib import closing
@@ -30,14 +31,18 @@ class ErreurArchive(RuntimeError):
     pass
 
 
-def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essais: int = ESSAIS) -> None:
+def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essais: int = ESSAIS,
+                pause=time.sleep) -> None:
     """fichier = {"url", "octets", "md5"} : téléchargé dans cible, repris là où
     il s'est arrêté (Range), puis contrôlé par son MD5 ; sans MD5 (le flux de
     l'ČÚZK n'en donne pas), par sa taille seule, l'archive zip contrôlant
     ensuite chaque fichier par son CRC. Une coupure qui a fait avancer le
     téléchargement ne compte pas : le serveur de l'ČÚZK (6,7 Go, 1 Mo/s vu de
-    GitHub Actions) coupe parfois ; seuls « essais » échecs de suite sans
-    progrès arrêtent."""
+    GitHub Actions) coupe parfois, et celui de l'IGN ferme parfois proprement
+    avant la fin, sans erreur (BD TOPO, essai du 2026-10-28, R93 et R44
+    abandonnées après trois coupures) : un fichier encore incomplet reprend au
+    lieu de repartir de zéro. Seuls « essais » échecs de suite sans progrès
+    arrêtent."""
     sans_progres = 0
     while sans_progres < essais:
         deja = cible.stat().st_size if cible.exists() else 0
@@ -49,9 +54,11 @@ def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essai
                     with open(cible, mode) as f:
                         shutil.copyfileobj(reponse, f, BLOC)
             except (OSError, http.client.HTTPException) as exc:     # coupure : l'essai suivant reprend
-                apres = cible.stat().st_size if cible.exists() else 0
+                journal.info("%s coupé (%s), reprise", cible.name, exc)
+            apres = cible.stat().st_size if cible.exists() else 0
+            if apres < fichier["octets"]:
                 sans_progres = 0 if apres > deja else sans_progres + 1
-                journal.info("%s coupé à %.0f Mo (%s), reprise", cible.name, apres / 1e6, exc)
+                pause(min(60, 5 * (sans_progres + 1)))
                 continue
         if fichier.get("md5"):
             h = hashlib.md5()

@@ -45,6 +45,40 @@ class Identifiants:
         return self._voie - 1
 
 
+class IdentifiantsPartages(Identifiants):
+    """Les mêmes compteurs, partagés entre les processus d'une fusion en
+    damier (fabrication._fusionner_mailles). Chaque processus en prend des
+    blocs : les identifiants restent presque contigus (au plus un bloc
+    entamé par maille), sans plage fixe à dimensionner d'avance ni
+    renumérotation après coup. Le créateur de tuiles BRouter paie en mémoire
+    le plus grand identifiant (useDenseMaps), d'où des blocs petits.
+    compteurs : {"noeud": Value, "voie": Value} de multiprocessing."""
+
+    BLOC = 10_000
+
+    def __init__(self, premier_noeud: int, compteurs: dict):
+        self.premier_noeud = premier_noeud
+        self._compteurs = compteurs
+        self._plages = {"noeud": [0, 0], "voie": [0, 0]}
+
+    def _suivant(self, genre: str) -> int:
+        plage = self._plages[genre]
+        if plage[0] == plage[1]:
+            compteur = self._compteurs[genre]
+            with compteur.get_lock():
+                plage[0] = compteur.value
+                compteur.value += self.BLOC
+            plage[1] = plage[0] + self.BLOC
+        plage[0] += 1
+        return plage[0] - 1
+
+    def noeud(self) -> int:
+        return self._suivant("noeud")
+
+    def voie(self) -> int:
+        return self._suivant("voie")
+
+
 def _position(p, a, b) -> float:
     """Abscisse (0 à 1) de la projection de p sur le segment a-b."""
     echelle = math.cos(math.radians(a[0]))
@@ -122,6 +156,50 @@ class Registre:
                 gardes += 1
         return {"voies_osm": len(origine), "troncons": len(a_moi), "ajoutes": ajoutes,
                 "raccords": raccords, "franchissements": gardes}
+
+    # ------------------------------------------- fusion en damier (processus)
+
+    def isoler(self) -> None:
+        """Prépare la fusion d'une maille dans un processus fils : ce qu'elle
+        ajoute est relevé à part (apport()), les bouts déjà connus restent."""
+        self._bouts_avant = dict(self.bouts)
+        self._bords_avant = {cle: len(v) for cle, v in self.bords.items()}
+        self.noeuds, self.voies, self.raccords, self.franchissements = {}, {}, {}, {}
+
+    def apport(self) -> dict:
+        """Ce que la maille isolée a ajouté, à rendre au registre commun."""
+        return {"noeuds": self.noeuds, "voies": self.voies, "raccords": self.raccords,
+                "franchissements": self.franchissements,
+                "bouts": {p: n for p, n in self.bouts.items() if self._bouts_avant.get(p) != n},
+                "bords": {cle: v[self._bords_avant.get(cle, 0):] for cle, v in self.bords.items()
+                          if len(v) > self._bords_avant.get(cle, 0)}}
+
+    def integrer(self, apport: dict) -> None:
+        """Ajoute l'apport d'une maille fusionnée à part. Deux mailles d'une
+        même phase ne sont jamais voisines, mais un tronçon qui enjamberait
+        toute une maille peut leur faire créer chacune un nœud au même bout :
+        le premier intégré reste, l'autre est renommé en lui partout."""
+        renomme = {}
+        for p, n in apport["bouts"].items():
+            deja = self.bouts.get(p)
+            if deja is not None and deja != n:
+                renomme[n] = deja
+            else:
+                self.bouts[p] = n
+        for wid, (ids, tags) in apport["voies"].items():
+            self.voies[wid] = ([renomme.get(n, n) for n in ids], tags)
+        for n, p in apport["noeuds"].items():
+            if n not in renomme:
+                self.noeuds.setdefault(n, p)
+        for wid, par_rang in apport["raccords"].items():
+            for rang, positions in par_rang.items():
+                cible = self.raccords.setdefault(wid, {}).setdefault(rang, {})
+                for n, x in positions.items():
+                    cible[renomme.get(n, n)] = x
+        for cle, f in apport["franchissements"].items():
+            self.franchissements.setdefault(cle, f)
+        for cle, entrees in apport["bords"].items():
+            self.bords[cle].extend(entrees)
 
     def noeuds_corriges(self, wid: int, refs: list) -> list:
         """Les nœuds d'une voie OSM, raccords de toutes les mailles insérés."""

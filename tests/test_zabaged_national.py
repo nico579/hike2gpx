@@ -145,7 +145,7 @@ def test_les_coupures_qui_avancent_ne_comptent_pas(tmp_path):
     morceaux = [contenu[:2000], contenu[2000:4000], contenu[4000:6000], contenu[6000:8000], contenu[8000:10000],
                 contenu[10000:]]
     cible = tmp_path / "z.zip"
-    en_bloc.telecharger({"url": URL, "octets": len(contenu), "md5": None}, cible, ouvrir)
+    en_bloc.telecharger({"url": URL, "octets": len(contenu), "md5": None}, cible, ouvrir, pause=lambda s: None)
     assert cible.read_bytes() == contenu and demandes[1] == "bytes=2000-" and len(demandes) == 6
 
 
@@ -153,7 +153,8 @@ def test_sans_progres_le_telechargement_abandonne(tmp_path):
     def ouvrir(demande, timeout):
         raise OSError("refusé")
     with pytest.raises(en_bloc.ErreurArchive):
-        en_bloc.telecharger({"url": URL, "octets": 10, "md5": None}, tmp_path / "z.zip", ouvrir)
+        en_bloc.telecharger({"url": URL, "octets": 10, "md5": None}, tmp_path / "z.zip", ouvrir,
+                            pause=lambda s: None)
 
 
 def test_zabaged_se_lit_en_bloc():

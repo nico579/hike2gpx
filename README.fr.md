@@ -16,8 +16,9 @@ barrière, le juge, puis interdit ou décourage son passage. À Garéoult (Var),
 le profil Randonnée standard de BRouter franchit une clôture en béton pour un
 trajet de 69 m ; hike2gpx la contourne par un détour de 435 m.
 
-Pour ordinateur : Windows, macOS et Linux. Le téléphone viendra plus tard,
-par l'application BRouter pour Android.
+Pour ordinateur : Windows, macOS et Linux. Une application Android, qui
+calcule hors ligne avec les lots, est en essai dans `android/` : elle n'est
+pas encore publiée.
 
 Installé depuis une release, hike2gpx se met à jour tout seul, comme les
 autres applications de nico579 : quand une version plus récente est publiée,
@@ -253,16 +254,19 @@ hike2gpx travaille avec des lots : tout ce dont une case BRouter de 5° a besoin
 (données de routage, chemins officiels, franchissements, calques), chaque
 fichier vérifié contre l'empreinte SHA-256 d'un manifeste.
 
-Cochez « Afficher les cases hors ligne (5°) » dans les réglages, et la carte montre
-la grille des cases. Un clic sur une case propose deux façons d'obtenir son
-lot :
+Le bouton « Hors ligne », en haut de la carte (ou la case « Afficher les cases
+hors ligne (5°) » des réglages), montre la grille des cases. Un clic sur une
+case propose deux façons d'obtenir son lot :
 
 - **le télécharger depuis le serveur.** Les cases de la France sont fabriquées
   chaque semaine et publiées sur
   [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles) ; la grille
   les montre en bleu. La case du Var, 247 Mo, arrive en quelques dizaines de
   secondes, reprise après une coupure, chaque fichier vérifié avant
-  l'installation.
+  l'installation. Pas besoin de cliquer : dès qu'un calcul ou les chemins de
+  la carte touchent une case publiée, son lot se télécharge de lui-même, et
+  le mode à la volée sert en attendant. Un lot venu du serveur se renouvelle
+  aussi tout seul quand le serveur en publie un plus récent.
 - **le préparer sur ce PC**, pour la vue affichée ou la case entière, partout
   dans le monde. Là où un fournisseur national existe (BD TOPO de l'IGN,
   ATKIS, ZABAGED, swissTLM3D, BDOT10k), ses chemins sont fusionnés dans
@@ -278,6 +282,37 @@ emprunter. Les caches se renouvellent d'eux-mêmes ; un lot plus vieux que le
 délai de renouvellement demande d'abord. Une case qui chevauche une frontière
 prend tous les fournisseurs dont le pays la touche : E5_N45 réunit les chemins
 de l'IGN et de swissTLM3D, chacun lu sur son seul pays.
+
+Une case dont on n'a plus besoin, après un voyage par exemple, se retire par
+sa bulle : « Supprimer de cet ordinateur » efface son lot et ses fonds de
+carte. Le bouton « Vider le cache » des réglages, lui, repart de zéro : caches, lots et
+fonds hors ligne compris. Un lot du serveur se retélécharge en quelques
+secondes ; un lot ou un fond préparé sur l'ordinateur est à refaire.
+
+Reste la carte elle-même. En France, la même bulle prépare aussi le **fond de
+carte hors ligne** : les tuiles que la page affiche, le SCAN 25 si vous avez
+une clé IGN, sinon le Plan IGN, rangées sur ce PC dans un fichier MBTiles. Il
+apparaît ensuite parmi les fonds sous le nom « Carte hors ligne ». Une vue
+d'écran se prend jusqu'au zoom 16, celui des sentiers : autour de Garéoult,
+631 tuiles, 12 Mo en SCAN 25 (27 Mo en Plan IGN), un peu plus d'une minute.
+Une case entière s'arrête au zoom 13, pour la vue d'ensemble : la case
+E5_N40 fait 151 Mo en SCAN 25 et demande environ trois quarts d'heure, car
+hike2gpx ménage le service de l'IGN (dix tuiles par seconde au plus). Un fond
+interrompu reprend où il s'était arrêté. Le SCAN 25 n'étant pas une donnée
+libre, un fond reste sur votre PC : il n'est jamais publié.
+
+### Partager au téléphone
+
+Le téléphone prend les lots du serveur sur GitHub. Ce que seul votre PC
+possède, les lots préparés hors des pays du serveur et les fonds de carte, il
+le reçoit de lui, par le Wi-Fi. Dans les réglages, « Partager au téléphone »
+affiche un QR code : scannez-le avec hike2gpx sur le téléphone, connecté au
+même réseau. Le PC sert alors ses lots et ses fonds, chaque fichier vérifié
+par son empreinte à l'arrivée, repris après une coupure. Le partage est fermé
+tant que vous ne l'ouvrez pas, n'écoute que sur le réseau local, et son code
+change à chaque ouverture ; « Arrêter le partage » le referme. Le détail du
+protocole est dans
+[docs/architecture/partage-telephone.md](docs/architecture/partage-telephone.md).
 
 ### Fabriquer des lots en ligne de commande
 

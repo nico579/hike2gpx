@@ -22,8 +22,8 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import (__version__, brouter, communes, depot, fabrication, franchissements, geofabrik, hors_ligne, journaux,
-               maison, osmfr, providers)
+from . import (__version__, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik, hors_ligne,
+               journaux, lot, maison, osmfr, partage, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -232,6 +232,13 @@ class Application:
         self._verrou_lot = threading.Lock()
         self._lot = {"actif": False}
         self._fil_lot = None
+        # Lots du serveur téléchargés d'eux-mêmes (_lot_automatique) : case ou
+        # "catalogue" -> instant du dernier échec ; et les cases retirées à la
+        # main pendant la séance, qui ne reviennent pas toutes seules.
+        self._echecs_lots = {}
+        self._lots_retires = set()
+        # Le partage au téléphone (partage.py), fermé tant qu'on ne l'ouvre pas.
+        self.partage = partage.Partage(self.hors_ligne)
         self.preferences = self.dossier / "preferences.json"
         self.serveur = None
         self.serveur_maison = None
@@ -328,6 +335,11 @@ class Application:
             return s.port
 
     def arreter(self) -> None:
+        self.partage.fermer()
+        self._arreter_moteurs()
+
+    def _arreter_moteurs(self) -> None:
+        """Les moteurs BRouter arrêtés ; ils repartent d'eux-mêmes au prochain calcul."""
         with self._verrou_moteur:
             for serveur in (self.serveur, self.serveur_maison, self.serveur_lot_osm):
                 if serveur is not None:
@@ -447,7 +459,7 @@ class Application:
             self._temps_etapes, self._etape_courante = {}, None
             self._avancer("debut", 0.02)
             try:
-                reponse = self._itineraire(payload)
+                reponse = self._avec_lot_automatique(self._itineraire(payload))
             except Exception:
                 journal.exception("Itinéraire : erreur inattendue après %.1f s (%s)",
                                   time.monotonic() - self._debut_calcul, self._detail_des_etapes())
@@ -487,8 +499,16 @@ class Application:
         # Un calcul est un usage réel de la région : son extrait OSM part en
         # tâche de fond s'il manque, Overpass servant en attendant ; de même le
         # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
-        # Un lot installé qui couvre la zone suffit : rien à télécharger.
-        couvert = bool(self.hors_ligne.lot_couvrant(zone))
+        # Un lot installé qui couvre la zone suffit : rien à télécharger. Le lot
+        # que publie le serveur pour la zone se télécharge de lui-même, plus
+        # vite que la volée (Overpass, tuiles BRouter) : le calcul l'attend,
+        # la page le relance à son arrivée (essai de Nico du 2026-10-28, les
+        # deux se chevauchaient).
+        lot_attendu = self._lot_automatique(zone, "calcul d'itinéraire")
+        if lot_attendu and not self.hors_ligne.lot_couvrant(zone):
+            return {"erreur": "Le lot hors ligne de la zone se télécharge : le calcul reprendra à son arrivée.",
+                    "code": "attente_lot"}
+        couvert = lot_attendu or bool(self.hors_ligne.lot_couvrant(zone))
         extrait = None if couvert else self._extrait_automatique(zone, "calcul d'itinéraire")
         if not self.installation.installee():
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True,
@@ -681,12 +701,17 @@ class Application:
         numero = self._prendre_vue("osm", vue)
         if numero is None:
             return self._calque("osm", zone, None, None)
-        # Un lot installé qui couvre la vue la montre seul, sans réseau ni extrait.
+        # Le lot du serveur pour la vue se télécharge de lui-même, comme pour
+        # un calcul ; un lot installé qui couvre la vue la montre seul, sans
+        # réseau ni extrait.
+        lot_attendu = self._lot_automatique(zone, "calque des chemins OSM") if zone else False
         lire_lot = self._lecture_du_lot(zone, "osm")
         if lire_lot:
-            return self._calque("osm", zone, lire_lot, numero)
-        extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone else None
-        resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
+            return self._avec_lot_automatique(self._calque("osm", zone, lire_lot, numero))
+        if lot_attendu:                 # rien à la volée : la page relit le calque à l'arrivée du lot
+            return self._avec_lot_automatique({"attente_lot": True})
+        extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone and not lot_attendu else None
+        resultat = self._avec_lot_automatique(self._calque("osm", zone, franchissements.voies_affichables, numero))
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
 
     def calque_officiel(self, source, zone, vue=None) -> dict:
@@ -695,8 +720,12 @@ class Application:
             if not fournisseur.disponible(bornes):
                 return {"troncons": []}
             return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
-        return self._calque(fournisseur.calque, zone, self._lecture_du_lot(zone, fournisseur.calque) or lire,
-                           self._prendre_vue(fournisseur.calque, vue))
+        numero = self._prendre_vue(fournisseur.calque, vue)
+        lot_attendu = self._lot_automatique(zone, f"calque {fournisseur.nom}") if numero is not None and zone else False
+        lire_lot = self._lecture_du_lot(zone, fournisseur.calque)
+        if lot_attendu and not lire_lot:
+            return self._avec_lot_automatique({"attente_lot": True})
+        return self._avec_lot_automatique(self._calque(fournisseur.calque, zone, lire_lot or lire, numero))
 
     def _lecture_du_lot(self, zone, calque):
         """Lecture du calque dans un lot installé qui couvre la zone, ou None.
@@ -840,8 +869,18 @@ class Application:
         details = self._detail_sources_osm(zone, overpass)
         if zone is None:
             return {"pret": False, "source": None, "attente": "zone", "details": details}
+        # Un lot installé qui couvre la zone suffit au calcul, RD5 comprise
+        # (règle unique) : l'indicateur le dit au lieu de compter les extraits
+        # et les tuiles BRouter (capture de Nico du 2026-10-28).
+        lot_local = self.hors_ligne.lot_couvrant(zone)
+        if lot_local:
+            details["lot"] = {"nom": lot_local["case"], "etat": "disponible"}
+        elif self._lot.get("actif") and self._lot.get("case") in brouter.segments_zone(*zone):
+            details["lot"] = {"nom": self._lot["case"], "etat": "telechargement"}
         if not self.installation.installee():
             return {"pret": False, "source": None, "attente": "moteur", "details": details}
+        if lot_local:
+            return {"pret": True, "source": "lot", "nom": lot_local["case"], "details": details}
         if any(not self.installation.segment_present(n) for n in brouter.segments_zone(*zone)):
             return {"pret": False, "source": None, "attente": "segments", "details": details}
         tuiles = franchissements.tuiles_zone(*zone)
@@ -922,7 +961,8 @@ class Application:
         action, cible = corps.get("action"), corps.get("cible")
         taches = geofabrik.telechargements(self.dossier)
         if action == "vider_cache":
-            if taches.occupee() or (self._fil_brouter and self._fil_brouter.is_alive()) or self._lectures:
+            if taches.occupee() or (self._fil_brouter and self._fil_brouter.is_alive()) or self._lectures \
+                    or (self._fil_lot and self._fil_lot.is_alive()):
                 return {"erreur": "Un téléchargement ou une lecture est en cours. Réessayez après sa fin."}
             if not self._verrou_calcul.acquire(blocking=False):
                 return {"erreur": "Un calcul est en cours. Réessayez après sa fin."}
@@ -944,7 +984,12 @@ class Application:
                     for p in extraits.iterdir() if extraits.is_dir() else []:
                         if p.is_file():
                             p.unlink()
-                    journal.info("Caches locaux OSM, IGN, gpx2elev et BRouter vidés depuis les réglages")
+                    # Les lots et les fonds aussi, pour repartir de zéro
+                    # (décision de Nico du 2026-10-28) : ceux du serveur
+                    # se retéléchargent vite.
+                    self.hors_ligne.vider()
+                    journal.info("Caches locaux OSM, IGN, gpx2elev et BRouter, lots et fonds hors ligne "
+                                 "vidés depuis les réglages")
                 finally:
                     self._verrou_denivele.release()
             finally:
@@ -1054,6 +1099,7 @@ class Application:
                "progression": self.progression, "journal": self.lire_journal, "donnees": self.donnees,
                "disponibilite": self.disponibilite, "hors_ligne": self.lots_hors_ligne,
                "lot_en_cours": self.lot_en_cours, "catalogue_lots": self.catalogue_lots,
+               "partage": self.partage.etat,
                **get_langue}
         post = {"itineraire": self.itineraire, "disponibilite": self.disponibilite_parcours,
                 "reglages": self.enregistrer_reglages,
@@ -1061,31 +1107,143 @@ class Application:
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
                 "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux,
                 "installer_lot": self.installer_lot, "preparer_lot": self.preparer_lot,
-                "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot, **post_langue}
+                "supprimer_case": self.supprimer_case,
+                "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot,
+                "preparer_fond": self.preparer_fond, "partage": self.partager, **post_langue}
         return get, post
 
     CATALOGUE_TTL_S = 600.0
 
+    def _lire_catalogue(self) -> dict:
+        """Le catalogue du dépôt, relu au plus toutes les CATALOGUE_TTL_S ;
+        depot.ErreurDepot s'il est injoignable."""
+        cache = getattr(self, "_catalogue", None)
+        if cache is None or time.monotonic() - cache[0] > self.CATALOGUE_TTL_S:
+            cache = (time.monotonic(), depot.lire_catalogue(self.depot_lots))
+            self._catalogue = cache
+        return cache[1]
+
+    @staticmethod
+    def _etat_au_catalogue(entree: dict, local: dict | None) -> str:
+        """absent, a_jour, ou ancien : le serveur ne publie que vers l'avant, un
+        lot dont les sources diffèrent de celles du catalogue est plus ancien."""
+        if local is None:
+            return "absent"
+        return "a_jour" if local.get("sources") == entree.get("sources") else "ancien"
+
     def catalogue_lots(self) -> dict:
         """Les lots que publie le dépôt du serveur (depot.py), avec pour chacun
         son état sur ce PC : absent, installé et à jour, ou plus ancien."""
-        cache = getattr(self, "_catalogue", None)
-        if cache is None or time.monotonic() - cache[0] > self.CATALOGUE_TTL_S:
-            try:
-                cache = (time.monotonic(), depot.lire_catalogue(self.depot_lots))
-            except depot.ErreurDepot as exc:
-                journal.warning("Dépôt des lots : %s", exc)
-                return {"erreur": str(exc), "lots": []}
-            self._catalogue = cache
+        try:
+            catalogue = self._lire_catalogue()
+        except depot.ErreurDepot as exc:
+            journal.warning("Dépôt des lots : %s", exc)
+            return {"erreur": str(exc), "lots": []}
         installes = {m["case"]: m for m in self.hors_ligne.lots()}
-        lots = []
-        for entree in cache[1]["lots"]:
-            local = installes.get(entree["case"])
-            etat = "absent" if local is None else \
-                "a_jour" if local.get("sources") == entree.get("sources") else "ancien"
-            lots.append({k: entree.get(k) for k in ("case", "type", "fournisseurs", "zone", "sources", "octets")}
-                        | {"etat": etat})
+        lots = [{k: entree.get(k) for k in ("case", "type", "fournisseurs", "zone", "sources", "octets")}
+                | {"etat": self._etat_au_catalogue(entree, installes.get(entree["case"]))}
+                for entree in catalogue["lots"]]
         return {"lots": lots, "depot": self.depot_lots}
+
+    # Après un échec (catalogue injoignable, réseau, place disque, arrêt par
+    # la page), pas de nouvel essai automatique avant une heure, comme les
+    # extraits OSM.
+    REESSAI_LOT_S = 3600.0
+
+    def _echec_recent(self, cle: str) -> bool:
+        return time.monotonic() - self._echecs_lots.get(cle, -self.REESSAI_LOT_S) < self.REESSAI_LOT_S
+
+    def _lots_a_telecharger(self, catalogue: dict, zone) -> list:
+        """Les entrées du catalogue à télécharger pour la zone : le lot de
+        chaque case qu'elle touche, quand il manque ici, ou qu'il vient du dépôt
+        et que le catalogue en a un plus récent. Un lot préparé sur cet
+        ordinateur n'est jamais remplacé tout seul (la page propose sa mise à
+        jour), ni une case retirée à la main pendant la séance."""
+        cases = set(brouter.segments_zone(*zone))
+        installes = {m["case"]: m for m in self.hors_ligne.lots()}
+        a_faire = []
+        for entree in catalogue["lots"]:
+            case = entree["case"]
+            couverture = entree.get("zone") if entree.get("type") == "osm" else entree.get("emprise_enrichie")
+            if case not in cases or case in self._lots_retires or self._echec_recent(case) \
+                    or not couverture or not hors_ligne.touche(couverture, zone):
+                continue
+            etat = self._etat_au_catalogue(entree, installes.get(case))
+            if etat == "absent" or (etat == "ancien" and self.hors_ligne.origine(case) is not None):
+                a_faire.append(entree)
+        return a_faire
+
+    def _lot_automatique(self, zone, raison: str) -> bool:
+        """Le lot que publie le serveur pour une case qui sert vraiment (un
+        calcul, un calque, pas un survol de la carte) se télécharge de lui-même
+        en tâche de fond, sur le modèle des extraits OSM ; il prend le relais
+        dès qu'il est installé (décision de Nico du 2026-10-28). Un seul lot à
+        la fois. La décision se prend sur le dernier catalogue lu ; jamais lu,
+        il se lit ici une fois (une fraction de seconde), sans quoi la première
+        vue de la page lancerait l'extrait OSM avant de savoir qu'un lot existe
+        (essai de Nico du 2026-10-28). Un échec vaut pour une heure. Vrai si un
+        lot automatique est en route pour la zone : le mode à la volée
+        l'attend alors sans télécharger d'extrait."""
+        if getattr(self, "_catalogue", None) is None and not self._echec_recent("catalogue"):
+            try:
+                self._lire_catalogue()
+            except depot.ErreurDepot as exc:
+                self._echecs_lots["catalogue"] = time.monotonic()
+                journal.warning("Lots du serveur : %s ; nouvel essai automatique dans une heure", exc)
+        with self._verrou_lot:
+            if self._fil_lot is not None and self._fil_lot.is_alive():
+                return bool(self._lot.get("auto"))
+            cache = getattr(self, "_catalogue", None)
+            a_faire = self._lots_a_telecharger(cache[1], zone) if cache else []
+            if not a_faire:
+                return False
+            self._lot = {"actif": True, "auto": True, "case": a_faire[0]["case"], "zone": a_faire[0].get("zone"),
+                         "etape": "telechargement", "faites": 0, "total": a_faire[0].get("octets", 0),
+                         "debut": time.time(), "arreter": False}
+            self._fil_lot = threading.Thread(target=self._telecharger_lots_auto, args=(a_faire, raison),
+                                             daemon=True, name="lot-automatique")
+            self._fil_lot.start()
+            return True
+
+    def _telecharger_lots_auto(self, a_faire: list, raison: str) -> None:
+        for i, entree in enumerate(a_faire):
+            case = entree["case"]
+            if self._lot.get("arreter"):
+                break
+            if i:
+                self._lot = {"actif": True, "auto": True, "case": case, "zone": entree.get("zone"),
+                             "etape": "telechargement", "faites": 0, "total": entree.get("octets", 0),
+                             "debut": time.time(), "arreter": False}
+            journal.info("Lot %s : téléchargement automatique depuis le serveur (%s)", case, raison)
+            self._telecharger_lot(entree)
+            if "erreur" in self._lot:
+                self._echecs_lots[case] = time.monotonic()
+
+    def _avec_lot_automatique(self, reponse: dict) -> dict:
+        """La réponse d'un calcul ou d'un calque, avec l'état du lot qui se
+        télécharge tout seul, pour que la page en suive l'avancement."""
+        if self._lot.get("actif") and self._lot.get("auto"):
+            return {**reponse, "lot_en_cours": self.lot_en_cours()}
+        return reponse
+
+    def supprimer_case(self, corps) -> dict:
+        """Retire de l'ordinateur le lot et les fonds d'une case, depuis sa bulle sur la
+        carte. corps : {"case": "E5_N40"}. Rend {"octets"} libérés, ou {"erreur"}."""
+        case, _, erreur = self._case_et_zone(corps)
+        if erreur:
+            return {"erreur": erreur}
+        if self._fil_lot and self._fil_lot.is_alive():
+            return {"erreur": "Un lot se prépare. Réessayez après sa fin."}
+        if not self._verrou_calcul.acquire(blocking=False):
+            return {"erreur": "Un calcul est en cours. Réessayez après sa fin."}
+        try:
+            self._arreter_moteurs()       # un moteur garde la RD5 ouverte : Windows refuserait de l'effacer
+            octets = self.hors_ligne.supprimer(case)
+            self._lots_retires.add(case)    # elle ne revient pas toute seule pendant la séance
+        finally:
+            self._verrou_calcul.release()
+        journal.info("Case %s retirée de l'ordinateur depuis la carte : %d octets libérés", case, octets)
+        return {"octets": octets}
 
     def telecharger_lot(self, corps) -> dict:
         """Télécharge en tâche de fond le lot d'une case depuis le dépôt du
@@ -1113,7 +1271,11 @@ class Application:
                               suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
                               continuer=lambda: not self._lot.get("arreter"))
             self._lot["etape"] = "installation"
-            self.hors_ligne.installer(travail)
+            # Une RD5 ouverte par BRouter ne se remplace pas sous Windows : les
+            # moteurs s'arrêtent entre deux calculs et repartent au suivant.
+            with self._verrou_calcul:
+                self._arreter_moteurs()
+                self.hors_ligne.installer(travail, origine={"depot": self.depot_lots})
         except depot.Abandon:
             journal.info("Lot %s : téléchargement arrêté après %.0f s", case, time.monotonic() - debut)
             self._lot.update(actif=False, erreur="Téléchargement arrêté.")
@@ -1133,23 +1295,71 @@ class Application:
         l'installe. corps : {"case": "E5_N40", "zone": [sud, ouest, nord, est]}
         (zone facultative, dans la case). Tout fournisseur national qui touche
         la zone entre au lot, plusieurs pour une case frontalière."""
+        case, zone, erreur = self._case_et_zone(corps)
+        if erreur:
+            return {"erreur": erreur}
+        return self._lancer_tache(self._fabriquer_lot, case, zone, "debut")
+
+    @staticmethod
+    def _case_et_zone(corps) -> tuple:
+        """(case, zone, erreur) d'une demande de préparation ; zone facultative."""
         corps = corps or {}
         case = corps.get("case")
         if not isinstance(case, str) or not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", case):
-            return {"erreur": "Case BRouter invalide."}
+            return None, None, "Case BRouter invalide."
         zone = corps.get("zone")
         if zone is not None and not (isinstance(zone, list) and len(zone) == 4
                                      and all(isinstance(v, (int, float)) for v in zone)):
-            return {"erreur": "Zone invalide."}
+            return None, None, "Zone invalide."
+        return case, zone, None
+
+    def _lancer_tache(self, cible, case, zone, etape) -> dict:
+        """Une préparation hors ligne en tâche de fond, une seule à la fois :
+        un lot ou un fond de carte, suivis par la même note de la page."""
         with self._verrou_lot:
             if self._fil_lot is not None and self._fil_lot.is_alive():
                 return {"erreur": "Un lot se prépare déjà.", "lot_en_cours": dict(self._lot)}
-            self._lot = {"actif": True, "case": case, "zone": zone, "etape": "debut",
+            self._lot = {"actif": True, "case": case, "zone": zone, "etape": etape,
                          "faites": 0, "total": 0, "debut": time.time(), "arreter": False}
-            self._fil_lot = threading.Thread(target=self._fabriquer_lot, args=(case, zone), daemon=True,
-                                             name=f"lot-{case}")
+            self._fil_lot = threading.Thread(target=cible, args=(case, zone), daemon=True, name=f"lot-{case}")
             self._fil_lot.start()
         return {"lot_en_cours": self.lot_en_cours()}
+
+    def preparer_fond(self, corps) -> dict:
+        """Télécharge en tâche de fond le fond de carte d'une case ou d'une vue
+        (fonds.py) : le SCAN 25 avec la clé IGN, le Plan IGN sans. corps comme
+        pour preparer_lot. Le fond reste sur ce PC, jamais publié."""
+        case, zone, erreur = self._case_et_zone(corps)
+        if erreur:
+            return {"erreur": erreur}
+        return self._lancer_tache(self._fabriquer_fond, case, zone, "fond")
+
+    def _fabriquer_fond(self, case, zone) -> None:
+        cle = self.reglages()["cle_ign"]
+        source = fonds.source_pour(cle)
+        if zone:
+            # Une vue s'arrête aux bords de sa case, comme un lot.
+            s, o, n, e = lot.boite_case(case)
+            zone = (max(zone[0], s), max(zone[1], o), min(zone[2], n), min(zone[3], e))
+            zooms, nom = fonds.zooms_vue(zone), fonds.nom_fond(case, source, zone)
+        else:
+            zone, zooms, nom = lot.boite_case(case), fonds.ZOOMS_CASE, fonds.nom_fond(case, source)
+        debut = time.monotonic()
+        try:
+            decrit = fonds.fabriquer(self.hors_ligne.dossier_fonds / f"{nom}.mbtiles", source, zone, zooms, cle,
+                                     suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
+                                     continuer=lambda: not self._lot.get("arreter"))
+        except fonds.Abandon:
+            # Le fichier .part reste : la même demande reprendra où elle s'est arrêtée.
+            journal.info("Fond %s : arrêté après %.0f s", nom, time.monotonic() - debut)
+            self._lot.update(actif=False, erreur="Fond de carte arrêté.")
+        except Exception as exc:          # réseau, clé refusée, disque : la page l'affiche
+            journal.exception("Fond %s : en erreur après %.0f s", nom, time.monotonic() - debut)
+            self._lot.update(actif=False, erreur=str(exc))
+        else:
+            journal.info("Fond %s : %d Mo, zooms %d-%d, en %.0f s", nom, decrit["octets"] // 10 ** 6, *zooms,
+                         time.monotonic() - debut)
+            self._lot.update(actif=False, etape="fini", fond=nom)
 
     def _fabriquer_lot(self, case, zone) -> None:
         travail = self.hors_ligne.racine / f".fabrication-{case}"
@@ -1163,7 +1373,9 @@ class Application:
             fabrication.fabriquer(self.dossier, self.installation, case, travail,
                                   zone=tuple(zone) if zone else None, suivi=suivi, continuer=lambda: not self._lot.get("arreter"))
             self._lot["etape"] = "installation"
-            self.hors_ligne.installer(travail)
+            with self._verrou_calcul:
+                self._arreter_moteurs()
+                self.hors_ligne.installer(travail)
         except fabrication.Abandon:
             journal.info("Lot %s : fabrication arrêtée après %.0f s", case, time.monotonic() - debut)
             self._lot.update(actif=False, erreur="Fabrication arrêtée.")
@@ -1175,6 +1387,17 @@ class Application:
             self._lot.update(actif=False, etape="fini")
         finally:
             fabrication.nettoyer(travail)
+
+    def partager(self, corps) -> dict:
+        """Ouvre ({"ouvrir": true}) ou ferme le partage au téléphone. Chaque
+        ouverture tire un nouveau jeton : le QR code précédent ne vaut plus."""
+        if not (corps or {}).get("ouvrir"):
+            return self.partage.fermer()
+        try:
+            return self.partage.ouvrir()
+        except (partage.ErreurPartage, OSError) as exc:
+            journal.warning("Partage : %s", exc)
+            return {"ouvert": False, "erreur": str(exc)}
 
     def lot_en_cours(self) -> dict:
         """État de la fabrication en cours ou de la dernière : étape, avancement, durée."""
@@ -1188,8 +1411,9 @@ class Application:
         return {"lot_en_cours": self.lot_en_cours()}
 
     def lots_hors_ligne(self) -> dict:
-        """Lots installés : case, type, couverture, sources, taille et péremption."""
-        return {"lots": [self._lot_resume(m) for m in self.hors_ligne.lots()]}
+        """Lots installés : case, type, couverture, sources, taille et péremption ;
+        et les fonds de carte (fonds.decrire)."""
+        return {"lots": [self._lot_resume(m) for m in self.hors_ligne.lots()], "fonds": self.hors_ligne.fonds()}
 
     def _lot_resume(self, m) -> dict:
         limite = time.time() - self.reglages()["renouvellement_jours"] * 86400

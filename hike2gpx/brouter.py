@@ -301,6 +301,25 @@ class Installation:
         return _telecharger(SEGMENTS_URL + f"{nom}.rd5", (vers or self.segments) / f"{nom}.rd5", valider=rd5_entier)
 
 
+def memoire_physique() -> int | None:
+    """La mémoire vive de la machine en octets, ou None si illisible."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            class Etat(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            etat = Etat(dwLength=ctypes.sizeof(Etat))
+            return etat.ullTotalPhys if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(etat)) else None
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (AttributeError, OSError, ValueError):
+        return None
+
+
 def java() -> str:
     """Le Java qui fait tourner BRouter. Le programme figé n'emploie que celui
     qu'il embarque (_internal/jre, posé par build.py), la version éprouvée
@@ -359,9 +378,18 @@ def fabriquer_tuiles(inst: Installation, pbf: Path, dossier: Path, *, relief: Pa
     for etape in etapes:
         r = enfants.lancer(commande + etape, cwd=dossier, capture_output=True, text=True, encoding="utf-8",
                            errors="replace", stdin=subprocess.DEVNULL, **options)
+        classe = next(e for e in etape if e.startswith("btools")).rsplit(".", 1)[-1]
+        # La sortie de chaque étape reste à côté (WayLinker.log…) : une étape
+        # peut finir sans erreur et sans tuile (essai GitHub Actions du
+        # 2026-10-28, E5_N45), et il faut alors savoir ce qu'elle a dit.
+        (dossier / f"{classe}.log").write_text(f"{r.stdout or ''}\n{r.stderr or ''}", encoding="utf-8")
         if r.returncode:
-            classe = next(e for e in etape if e.startswith("btools")).rsplit(".", 1)[-1]
             raise ErreurBRouter(f"Fabrication des tuiles impossible ({classe}) : {(r.stderr or r.stdout).strip()[-300:]}")
+        # Java peut manquer de mémoire et rendre quand même 0 : l'étape a
+        # alors sauté des tuiles en silence (E5_N45 sans sa RD5, 2026-10-29).
+        if "OutOfMemoryError" in f"{r.stdout}{r.stderr}":
+            raise ErreurBRouter(f"Fabrication des tuiles impossible ({classe}) : mémoire de Java insuffisante "
+                                f"(-Xmx{tas}).")
     return dossier / "segments"
 
 

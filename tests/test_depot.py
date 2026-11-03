@@ -91,6 +91,10 @@ def test_telecharger_un_lot_reprend_une_coupure_et_verifie_tout(tmp_path, monkey
     assert (tmp_path / "travail" / "E5_N40.rd5").read_bytes() == (tmp_path / "lots" / "E5_N40" / "E5_N40.rd5").read_bytes()
     assert ("E5_N40.E5_N40.rd5", "bytes=700-") in demandes, "la coupure reprend où elle s'était arrêtée"
     assert suivi[-1][0] == suivi[-1][1] == catalogue["lots"][0]["octets"]
+    # Une seule barre pour tout le lot : le total couvre tous ses fichiers et
+    # l'avancement ne recule jamais d'un fichier au suivant.
+    assert {total for _, total in suivi} == {catalogue["lots"][0]["octets"]}
+    assert [f for f, _ in suivi] == sorted(f for f, _ in suivi)
     from hike2gpx import hors_ligne
     assert hors_ligne.HorsLigne(tmp_path / "donnees").installer(tmp_path / "travail")["case"] == "E5_N40"
 
@@ -132,3 +136,34 @@ def test_un_depot_injoignable_n_empeche_rien(tmp_path, monkeypatch):
     monkeypatch.setattr(depot.urllib.request, "urlopen", refuser)
     reponse = appli.Application(tmp_path / "donnees").catalogue_lots()
     assert reponse["lots"] == [] and "illisible" in reponse["erreur"]
+
+
+def test_le_lot_du_serveur_se_telecharge_de_lui_meme(tmp_path, monkeypatch):
+    # Décision de Nico du 2026-10-28 : la case qui sert vraiment (un calcul, un
+    # calque) reçoit d'elle-même le lot du serveur, qui prend le relais du
+    # mode à la volée.
+    from hike2gpx import application as appli
+    fabriquer_lot(tmp_path / "lots" / "E5_N40")
+    depot.ecrire_catalogue(tmp_path / "lots", tmp_path / "publication")
+    ouvrir, _ = servir(tmp_path / "publication")
+    monkeypatch.setattr(depot.urllib.request, "urlopen", ouvrir)
+    a = appli.Application(tmp_path / "donnees")
+    ailleurs, zone = (47.0, 2.0, 47.01, 2.01), (43.30, 5.50, 43.31, 5.51)
+    # Jamais lu, le catalogue se lit à la première demande : la première vue de
+    # la page sait déjà qu'un lot existe, et ne lance pas d'extrait.
+    assert a._lot_automatique(ailleurs, "essai") is False, "rien au catalogue pour cette zone"
+    assert a._catalogue is not None
+    assert a._lot_automatique(zone, "essai") is True
+    assert a._avec_lot_automatique({})["lot_en_cours"]["auto"] is True, "la page suit l'avancement"
+    a._fil_lot.join(10)
+    assert a.lot_en_cours()["etape"] == "fini" and a.hors_ligne.origine("E5_N40") == {"depot": a.depot_lots}
+    assert a._lot_automatique(zone, "essai") is False, "à jour : rien à refaire"
+    # Plus récent au serveur : un lot du dépôt se renouvelle, un lot préparé ici non.
+    a._catalogue[1]["lots"][0]["sources"] = {"osm": "2026-11-01T00:00:00Z"}
+    assert [e["case"] for e in a._lots_a_telecharger(a._catalogue[1], zone)] == ["E5_N40"]
+    (a.hors_ligne.racine / "E5_N40" / "origine.json").unlink()
+    assert a._lots_a_telecharger(a._catalogue[1], zone) == []
+    # Retirée à la main, la case ne revient pas d'elle-même pendant la séance.
+    (a.hors_ligne.racine / "E5_N40" / "origine.json").write_text("{}")
+    a.supprimer_case({"case": "E5_N40"})
+    assert a._lots_a_telecharger(a._catalogue[1], zone) == []

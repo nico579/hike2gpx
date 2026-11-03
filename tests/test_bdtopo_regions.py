@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from hike2gpx import bdtopo_regions as br
+from hike2gpx import bdtopo_regions as br, en_bloc
 
 NOM = "BDTOPO_3-5_TOUSTHEMES_GPKG_LAMB93_R93_2026-09-15"
 CONTENU = b"archive 7z de la BD TOPO" * 1000
@@ -58,6 +58,25 @@ def test_un_telechargement_coupe_reprend_ou_il_s_est_arrete(tmp_path):
     br._telecharger({"url": "https://x/a.7z", "octets": len(CONTENU), "md5": hashlib.md5(CONTENU).hexdigest()},
                     cible, ouvrir)
     assert demandes == ["bytes=5000-"] and cible.read_bytes() == CONTENU
+
+
+def test_des_coupures_qui_avancent_ne_font_pas_abandonner(tmp_path):
+    # Essai GitHub Actions du 2026-10-28 : R93 et R44, plusieurs Go, abandonnées
+    # après trois coupures ; une fermeture propre avant la fin effaçait tout.
+    morceaux = [CONTENU[i:i + 3000] for i in range(0, len(CONTENU), 3000)]
+    pauses = []
+
+    def ouvrir(demande, timeout):
+        plage = demande.get_header("Range")
+        debut = int(plage[6:-1]) if plage else 0
+        morceau = next(m for i, m in enumerate(morceaux) if i * 3000 == debut)
+        if len(pauses) % 2:
+            raise ConnectionResetError("coupure")      # une coupure sans le moindre octet
+        return Reponse(morceau, 206 if plage else 200)  # fermée proprement après un morceau
+    br._telecharger({"url": "https://x/a.7z", "octets": len(CONTENU), "md5": hashlib.md5(CONTENU).hexdigest()},
+                    tmp_path / "a.7z", ouvrir, pauses.append)
+    assert (tmp_path / "a.7z").read_bytes() == CONTENU
+    assert len(pauses) > en_bloc.ESSAIS, "bien plus de coupures que d'échecs admis, toutes reprises"
 
 
 def test_un_fichier_altere_est_refuse(tmp_path):
@@ -121,3 +140,16 @@ def test_une_region_deja_gardee_n_est_pas_retelechargee(tmp_path, monkeypatch):
     monkeypatch.setattr(br, "_telecharger", lambda *a: pytest.fail("rien à télécharger"))
     assert br.geopackage(tmp_path, "R93", {"nom": NOM, "date": "2026-09-15", "fichiers": []}).name == \
         f"{NOM}.troncons.sqlite"
+
+
+def test_la_lecture_d_emprise_passe_par_la_cle_des_troncons(tmp_path):
+    # Sans clé primaire, chaque emprise parcourait la table entière d'une région.
+    import sqlite3
+    from test_case import _geopackage_bdtopo
+    _geopackage_bdtopo(tmp_path / "complet.gpkg", [("TRONROUT1", "83063", [[(43.330, 6.040), (43.331, 6.042)]])])
+    br._garder_les_troncons(tmp_path / "complet.gpkg", tmp_path / "troncons.sqlite")
+    with sqlite3.connect(tmp_path / "troncons.sqlite") as base:
+        plan = " ".join(str(l) for l in base.execute(
+            "EXPLAIN QUERY PLAN SELECT t.cleabs FROM rtree_troncon_de_route_geometrie r "
+            "JOIN troncon_de_route t ON t.fid = r.id WHERE r.minx <= 1 AND r.maxx >= 0"))
+    assert "SCAN t" not in plan and "INTEGER PRIMARY KEY" in plan
