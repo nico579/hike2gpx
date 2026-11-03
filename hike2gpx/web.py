@@ -4,6 +4,7 @@ des autres applications de nico579."""
 from __future__ import annotations
 
 import logging
+import sqlite3
 import subprocess
 import threading
 import webbrowser
@@ -12,7 +13,7 @@ from urllib.parse import parse_qs, quote, urlsplit
 
 from nico579_commons import maj, serveweb
 
-from . import __version__, bureau, geofabrik, osmfr, providers
+from . import __version__, bureau, fonds, geofabrik, osmfr, providers
 from .application import Application, configurer_journal, lire_vue, lire_zone
 
 journal = logging.getLogger(__name__)
@@ -87,6 +88,12 @@ class Handler(serveweb.Handler):
             self.end_headers()
             self.wfile.write(corps)
             return
+        if chemin.startswith("/fonds/"):
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            self.envoyer_tuile(chemin)
+            return
         if self.path.split("?", 1)[0] == "/journal.txt":
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)
@@ -94,6 +101,31 @@ class Handler(serveweb.Handler):
             self.send_static(self.journal_path, "text/plain; charset=utf-8", cache="no-store")
             return
         super().do_GET()
+
+    hors_ligne = None       # posé par demarrer : les fonds de carte installés
+
+    def envoyer_tuile(self, chemin: str) -> None:
+        """/fonds/<nom>/<z>/<x>/<y> : une tuile d'un fond de carte installé
+        (fonds.py), que la page affiche sans réseau. 404 hors du fond."""
+        morceaux = chemin.split("/")[2:]
+        if len(morceaux) != 4 or not all(m.isascii() and m.isdigit() for m in morceaux[1:]) or self.hors_ligne is None:
+            self.send_error(404)
+            return
+        fichier = self.hors_ligne.chemin_fond(morceaux[0])
+        z, x, y = (int(m) for m in morceaux[1:])
+        try:
+            tuile = fonds.lire_tuile(fichier, z, x, y) if fichier and z <= 24 else None
+        except sqlite3.Error:
+            tuile = None
+        if tuile is None:
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "image/png" if tuile[:4] == b"\x89PNG" else "image/jpeg")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Content-Length", str(len(tuile)))
+        self.end_headers()
+        self.wfile.write(tuile)
 
 
 def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, installateur=None):
@@ -107,6 +139,7 @@ def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, ins
         get, post = {**get, **get_maj}, {**post, **post_maj}
     handler = type("Hike2gpxHandler", (Handler,), {})   # chaque serveur garde ses routes
     handler.journal_path = configurer_journal(application.dossier)
+    handler.hors_ligne = application.hors_ligne
     serveur, port = serveweb.premier_port_libre(HOST, port, plage, trusted_host="", gui_dir=GUI,
                                                 api_routes=get, post_routes=post, handler=handler,
                                                 favicon=bureau.ICONE)

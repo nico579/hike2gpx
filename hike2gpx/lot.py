@@ -13,11 +13,13 @@ l'application affiche un calque par case, sans fusionner les fichiers.
 """
 from __future__ import annotations
 
+import functools
 import gzip
 import hashlib
 import json
 import math
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import mapbox_vector_tile
@@ -99,6 +101,31 @@ def encoder_tuile(x: int, y: int, couches: dict, emprise: tuple) -> bytes | None
     return gzip.compress(brut, 6)
 
 
+def encoder_bloc(emprise: tuple, x10: int, y10: int, couches: dict) -> tuple:
+    """Les tuiles du zoom 14 d'un bloc du zoom 10, sans rien écrire : (tuiles
+    [(x, y, données)], champs {calque: {attribut: type}}). Sans effet de bord,
+    elle peut tourner dans un processus à part (fabrication._calques)."""
+    sud, ouest, nord, est = emprise
+    pretes, champs = {}, {}
+    for nom, objets in couches.items():
+        geometries = [g for g, _ in objets]
+        proprietes = [_proprietes(p) for _, p in objets]
+        for p in proprietes:
+            for k, v in p.items():
+                champs.setdefault(nom, {})[k] = "String" if isinstance(v, str) else "Number"
+        pretes[nom] = (shapely.STRtree(geometries) if geometries else None, geometries, proprietes)
+    facteur = 2 ** (ZOOM - ZOOM_BLOC)
+    o, s, e, n = bornes_tuile(ZOOM_BLOC, x10, y10)
+    tuiles = []
+    for x, y in tuiles_emprise(ZOOM, max(s, sud), max(o, ouest), min(n, nord), min(e, est)):
+        if not (x10 * facteur <= x < (x10 + 1) * facteur and y10 * facteur <= y < (y10 + 1) * facteur):
+            continue
+        donnees = encoder_tuile(x, y, pretes, emprise)
+        if donnees is not None:
+            tuiles.append((x, y, donnees))
+    return tuiles, champs
+
+
 def _vers_mercator(xy):
     mx, my = mercator(xy[:, 0], xy[:, 1])
     return np.column_stack([mx, my])
@@ -120,31 +147,21 @@ class Calques:
         self.tuiles = 0
 
     def ajouter_bloc(self, x10: int, y10: int, couches: dict) -> int:
-        """Encode les tuiles du zoom 14 d'un bloc du zoom 10. couches : {nom: [(géométrie
-        lon/lat, propriétés)]}, lues sur le bloc et sa marge. Rend le nombre de tuiles."""
-        sud, ouest, nord, est = self.emprise
-        pretes = {}
-        for nom, objets in couches.items():
-            geometries = [g for g, _ in objets]
-            proprietes = [_proprietes(p) for _, p in objets]
-            for p in proprietes:
-                for k, v in p.items():
-                    self.champs.setdefault(nom, {})[k] = "String" if isinstance(v, str) else "Number"
-            pretes[nom] = (shapely.STRtree(geometries) if geometries else None, geometries, proprietes)
-        facteur = 2 ** (ZOOM - ZOOM_BLOC)
-        o, s, e, n = bornes_tuile(ZOOM_BLOC, x10, y10)
-        dedans = tuiles_emprise(ZOOM, max(s, sud), max(o, ouest), min(n, nord), min(e, est))
-        ecrites = 0
-        for x, y in dedans:
-            if not (x10 * facteur <= x < (x10 + 1) * facteur and y10 * facteur <= y < (y10 + 1) * facteur):
-                continue
-            donnees = encoder_tuile(x, y, pretes, self.emprise)
-            if donnees is not None:
-                self.base.execute("INSERT INTO tiles VALUES (?, ?, ?, ?)", (ZOOM, x, 2 ** ZOOM - 1 - y, donnees))
-                ecrites += 1
+        """Encode les tuiles du zoom 14 d'un bloc du zoom 10 et les écrit. couches :
+        {nom: [(géométrie lon/lat, propriétés)]}, lues sur le bloc et sa marge.
+        Rend le nombre de tuiles."""
+        return self.ecrire_bloc(*encoder_bloc(self.emprise, x10, y10, couches))
+
+    def ecrire_bloc(self, tuiles: list, champs: dict) -> int:
+        """Écrit les tuiles d'un bloc déjà encodé (encoder_bloc), éventuellement
+        dans un autre processus : seule l'écriture passe par cette base."""
+        for nom, types in champs.items():
+            self.champs.setdefault(nom, {}).update(types)
+        self.base.executemany("INSERT INTO tiles VALUES (?, ?, ?, ?)",
+                              [(ZOOM, x, 2 ** ZOOM - 1 - y, donnees) for x, y, donnees in tuiles])
         self.base.commit()
-        self.tuiles += ecrites
-        return ecrites
+        self.tuiles += len(tuiles)
+        return len(tuiles)
 
     def abandonner(self) -> None:
         """Ferme la base sans la finir (arrêt, erreur) : sous Windows, un fichier
@@ -163,6 +180,28 @@ class Calques:
         self.base.commit()
         self.base.execute("VACUUM")
         self.base.close()
+
+
+def assembler_calques(parties: list, cible: Path, nom: str, emprise: tuple, attribution: str) -> int:
+    """Réunit les bases de calques faites à part (fabrication._calques, part
+    i/K) en une seule : leurs tuiles, et l'union des champs de chaque calque
+    lus dans leurs métadonnées. Rend le nombre de tuiles."""
+    calques = Calques(cible, nom, emprise, attribution)
+    try:
+        for partie in parties:
+            with closing(sqlite3.connect(f"file:{Path(partie).resolve().as_posix()}?mode=ro", uri=True)) as base:
+                ligne = base.execute("SELECT value FROM metadata WHERE name = 'json'").fetchone()
+                couches = json.loads(ligne[0]).get("vector_layers", []) if ligne else []
+                champs = {c["id"]: c.get("fields", {}) for c in couches}
+                tuiles = [(x, 2 ** ZOOM - 1 - rang, donnees) for x, rang, donnees in base.execute(
+                    "SELECT tile_column, tile_row, tile_data FROM tiles WHERE zoom_level = ?", (ZOOM,))]
+            calques.ecrire_bloc(tuiles, champs)
+    except BaseException:
+        calques.abandonner()
+        raise
+    total = calques.tuiles
+    calques.fermer()
+    return total
 
 
 class Sources:
@@ -257,41 +296,67 @@ def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: floa
         else {couche_officielle(calque): "troncons", "troncons": "troncons"}
     resultat = {c: [] for c in couches.values()}
     vus = set()
-    with sqlite3.connect(f"file:{Path(mbtiles).resolve().as_posix()}?mode=ro", uri=True) as base:
-        for x, y in tuiles_emprise(ZOOM, sud, ouest, nord, est):
-            ligne = base.execute("SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? "
-                                 "AND tile_row = ?", (ZOOM, x, 2 ** ZOOM - 1 - y)).fetchone()
-            if ligne is None:
-                continue
-            o, s, e, n = bornes_tuile(ZOOM, x, y)
-            mx0, my0 = mercator(o, s)
-            mx1, my1 = mercator(e, n)
-
-            def latlon(p):
-                my = my1 - p[1] / ETENDUE * (my1 - my0)
-                lat = math.degrees(2 * math.atan(math.exp(my / RAYON)) - math.pi / 2)
-                return [round(lat, 6), round(o + p[0] / ETENDUE * (e - o), 6)]
-
-            tuile = mapbox_vector_tile.decode(gzip.decompress(ligne[0]), default_options={"y_coord_down": True})
-            for nom in couches:
-                for objet in tuile.get(nom, {}).get("features", []):
-                    g, props = objet["geometry"], dict(objet["properties"])
-                    if g["type"] == "Point":
-                        if props.get("cle") in vus:
-                            continue
-                        vus.add(props.get("cle"))
-                        props["lat"], props["lon"] = latlon(g["coordinates"])
-                        resultat[couches[nom]].append(props)
+    chemin = Path(mbtiles).resolve()
+    date = chemin.stat().st_mtime_ns         # un lot réinstallé ne sert jamais d'anciennes tuiles
+    for x, y in tuiles_emprise(ZOOM, sud, ouest, nord, est):
+        tuile = _tuile_decodee(str(chemin), date, x, y)
+        for nom in couches:
+            for objet in tuile.get(nom, ()):
+                if "lat" in objet:              # un franchissement, vu une fois
+                    if objet.get("cle") in vus:
                         continue
-                    parties = [g["coordinates"]] if g["type"] == "LineString" else g["coordinates"]
-                    for partie in parties:
-                        ligne = shapely.LineString([latlon(p)[::-1] for p in partie])
-                        coupee = shapely.clip_by_rect(ligne, o, s, e, n)
-                        for morceau in shapely.get_parts(shapely.line_merge(coupee)) if not coupee.is_empty else []:
-                            if morceau.geom_type == "LineString" and len(morceau.coords) > 1:
-                                resultat[couches[nom]].append({**props, "pts": [[round(la, 6), round(lo, 6)]
-                                                                       for lo, la in morceau.coords]})
+                    vus.add(objet.get("cle"))
+                resultat[couches[nom]].append(dict(objet))
     return resultat
+
+
+@functools.lru_cache(maxsize=512)
+def _tuile_decodee(chemin: str, date: int, x: int, y: int) -> dict:
+    """Les objets d'une tuile du lot, décodés et en [lat, lon], gardés en mémoire :
+    un déplacement de la carte ne décode que les tuiles neuves du bord de la vue
+    (sans ce cache, chaque déplacement redécodait les 49 tuiles d'une vue, 3 à 4 s).
+    Une ligne est recoupée aux bords de sa tuile, sans la marge, pour ne rien
+    dessiner deux fois. Toutes les couches d'un coup : les calques OSM et officiel
+    lisent les mêmes tuiles. Rend {couche: (objet, …)}."""
+    with closing(sqlite3.connect(f"file:{Path(chemin).as_posix()}?mode=ro", uri=True)) as base:
+        ligne = base.execute("SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? "
+                             "AND tile_row = ?", (ZOOM, x, 2 ** ZOOM - 1 - y)).fetchone()
+    if ligne is None:
+        return {}
+    o, s, e, n = bornes_tuile(ZOOM, x, y)
+    _, my0 = mercator(o, s)
+    _, my1 = mercator(e, n)
+
+    def lonlat(points) -> np.ndarray:
+        """Les points de la tuile (unités MVT) en [lon, lat], tous d'un coup."""
+        p = np.asarray(points, dtype=float).reshape(-1, 2)
+        my = my1 - p[:, 1] / ETENDUE * (my1 - my0)
+        lats = np.degrees(2 * np.arctan(np.exp(my / RAYON)) - np.pi / 2)
+        return np.round(np.column_stack([o + p[:, 0] / ETENDUE * (e - o), lats]), 6)
+
+    objets = {}
+    tuile = mapbox_vector_tile.decode(gzip.decompress(ligne[0]), default_options={"y_coord_down": True})
+    for nom, couche in tuile.items():
+        objets[nom] = liste = []
+        for objet in couche.get("features", []):
+            g, props = objet["geometry"], dict(objet["properties"])
+            if g["type"] == "Point":
+                props["lon"], props["lat"] = (float(v) for v in lonlat(g["coordinates"])[0])
+                liste.append(props)
+                continue
+            parties = [g["coordinates"]] if g["type"] == "LineString" else g["coordinates"]
+            for partie in parties:
+                brut = np.asarray(partie, dtype=float)
+                if len(brut) > 1 and brut.min() >= 0 and brut.max() <= ETENDUE:
+                    # Dans la tuile, hors de la marge : rien à recouper.
+                    liste.append({**props, "pts": lonlat(brut)[:, ::-1].tolist()})
+                    continue
+                coupee = shapely.clip_by_rect(shapely.LineString(lonlat(brut)), o, s, e, n)
+                for morceau in shapely.get_parts(shapely.line_merge(coupee)) if not coupee.is_empty else []:
+                    if morceau.geom_type == "LineString" and len(morceau.coords) > 1:
+                        points = np.round(shapely.get_coordinates(morceau), 6)
+                        liste.append({**props, "pts": points[:, ::-1].tolist()})
+    return {nom: tuple(liste) for nom, liste in objets.items()}
 
 
 def blocs(sud: float, ouest: float, nord: float, est: float) -> list:

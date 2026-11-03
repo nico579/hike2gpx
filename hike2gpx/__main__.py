@@ -14,6 +14,16 @@ from nico579_commons.dossiers import Dossiers
 from . import __version__, brouter, franchissements, providers
 
 DOSSIERS = Dossiers("hike2gpx", variable_home="HIKE2GPX_HOME")
+# --stage de bundles, vers les étapes de fabrication.fabriquer_lots.
+ETAPES_CLI = {"all": "tout", "data": "donnees", "compute": "calcul", "layers": "calques", "finish": "fin"}
+
+
+def _part(texte: str) -> tuple:
+    """« I/K » pour --part : la part I sur K, 1 ≤ I ≤ K."""
+    trouve = re.fullmatch(r"(\d+)/(\d+)", texte)
+    if not trouve or not 1 <= int(trouve.group(1)) <= int(trouve.group(2)):
+        raise argparse.ArgumentTypeError(f"expected I/K with 1 <= I <= K, got {texte}")
+    return int(trouve.group(1)), int(trouve.group(2))
 
 
 def main(argv=None) -> int:
@@ -55,7 +65,14 @@ def main(argv=None) -> int:
     bundles.add_argument("--zone", type=float, nargs=4, metavar=("SOUTH", "WEST", "NORTH", "EAST"),
                          help="limit every cell to this area, e.g. the region covered by --gpkg")
     bundles.add_argument("--force", action="store_true", help="rebuild bundles that are up to date")
-    catalogue = sous.add_parser("catalog", help="write the catalog of built bundles, for a bundle depot",
+    bundles.add_argument("--stage", choices=sorted(ETAPES_CLI), default="all",
+                         help="split a build over several machines, the output folder passed from one to the next: "
+                              "data (download OSM extracts and provider archives into the data folder), compute "
+                              "(merge, RD5, relief), layers (one part of the layers, with --part I/K), finish "
+                              "(join the K parts of the layers, write the manifest); all, the default, does "
+                              "everything at once")
+    bundles.add_argument("--part", type=_part, metavar="I/K", help="with --stage layers or finish: part I of K")
+    catalogue =sous.add_parser("catalog", help="write the catalog of built bundles, for a bundle depot",
                                 description="Write catalog.json, listing each bundle of BUNDLES/CELL with the size, "
                                             "SHA-256 and URL of its files, relative to the catalog.")
     catalogue.add_argument("bundles", type=Path, help="directory of built bundles, one per cell")
@@ -76,6 +93,10 @@ def main(argv=None) -> int:
         for cellule in args.cells:
             if not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", cellule):
                 parser.error(f"invalid BRouter cell: {cellule}")
+        if args.stage in ("layers", "finish") and args.part is None:
+            parser.error(f"--stage {args.stage} needs --part I/K")
+        if args.part is not None and args.stage not in ("layers", "finish"):
+            parser.error("--part goes with --stage layers or finish")
         if args.osm_only and (args.providers or args.gpkg or args.bulk):
             parser.error("--osm-only excludes --provider, --gpkg and --bulk")
         if args.gpkg and args.bulk:
@@ -159,7 +180,8 @@ def lots(dossier, args) -> int:
     bilan = fabrication.fabriquer_lots(dossier, installation, args.cells, args.output,
                                        zone=tuple(args.zone) if args.zone else None, fournisseurs=fournisseurs,
                                        troncons=troncons, editions=editions, forcer=args.force,
-                                       ecrire=lambda texte: print(texte, flush=True))
+                                       ecrire=lambda texte: print(texte, flush=True),
+                                       etape=ETAPES_CLI[args.stage], part=args.part)
     return 1 if any(etat.startswith("erreur") for etat in bilan.values()) else 0
 
 

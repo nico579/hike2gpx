@@ -27,6 +27,9 @@ dependencies = [
     # niveau de détail maximal, et découpage exact sur la zone sélectionnée.
     "mapbox-vector-tile>=2.2,<3",
     "shapely>=2.2,<3",
+    # QR code du partage au téléphone (partage.py), en SVG pour la page :
+    # norme ISO/IEC 18004, Python pur, sans aucune dépendance.
+    "segno>=1.6,<2",
 ]
 
 [project.optional-dependencies]

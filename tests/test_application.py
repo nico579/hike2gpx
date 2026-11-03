@@ -327,10 +327,26 @@ def test_extrait_signale_le_pays_et_abandonne_l_ancienne_region(tmp_path, monkey
                            franchissements.tuile_du_point(40.415, -3.705)]
 
 
+def test_les_calques_attendent_le_lot_qui_se_telecharge(tmp_path, monkeypatch):
+    # Essai de Nico du 2026-10-28 : la volée commençait, puis le lot ; les deux
+    # se chevauchaient. Le lot de la zone arrive plus vite : rien à la volée.
+    a = appli.Application(tmp_path)
+    monkeypatch.setattr(a, "_lot_automatique", lambda zone, raison: True)
+    monkeypatch.setattr(franchissements, "voies_affichables",
+                        lambda *z, **o: pytest.fail("lecture à la volée pendant le téléchargement du lot"))
+    monkeypatch.setattr(a, "_extrait_automatique", lambda *z: pytest.fail("extrait pendant le lot"))
+    vue = (43.30, 6.00, 43.34, 6.08)
+    assert a.calque_osm(vue)["attente_lot"] is True
+    assert a.calque_officiel("ign", vue)["attente_lot"] is True
+
+
 def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypatch):
     # Décision de Nico du 2026-10-19 : pas de bouton. Le calque des chemins OSM
     # (ou un calcul) lance l'extrait ; survoler la carte (/api/extrait) non.
     a = appli.Application(tmp_path)
+    # Aucun lot du serveur ici : la volée seule (le catalogue, lu une fois par
+    # la première demande, est un petit fichier de GitHub, pas Geofabrik).
+    monkeypatch.setattr(appli.depot, "lire_catalogue", lambda url, ouvrir=None: {"lots": []})
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
     lancees = []
     monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: lancees.append(region["id"]) or True)
@@ -608,10 +624,13 @@ def test_routes_init_annonce_l_application(tmp_path):
     # Plus de téléchargement à la demande depuis la carte (tuile, extrait) : tout
     # part de lui-même ; seuls les réglages actualisent ou vident (donnees).
     # installer_lot, preparer_lot, arreter_lot, telecharger_lot : les lots de
-    # case pour le hors ligne (hors_ligne.py, fabrication.py, depot.py).
+    # case pour le hors ligne (hors_ligne.py, fabrication.py, depot.py) ;
+    # preparer_fond : le fond de carte d'une case ou d'une vue (fonds.py) ;
+    # partage : ouvrir ou fermer le partage au téléphone (partage.py) ;
+    # supprimer_case : retirer de l'ordinateur le lot et les fonds d'une case.
     assert set(post) == {"itineraire", "disponibilite", "reglages", "moteur", "denivele", "communes", "langue",
                          "arreter_calques", "donnees", "ouvrir_journaux", "installer_lot", "preparer_lot",
-                         "arreter_lot", "telecharger_lot"}
+                         "arreter_lot", "telecharger_lot", "preparer_fond", "partage", "supprimer_case"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
@@ -717,7 +736,8 @@ def test_les_donnees_telechargees_se_voient_et_se_videent(tmp_path, monkeypatch)
 
 def test_vider_cache_unique_efface_toutes_les_donnees_locales(tmp_path):
     donnees_d_essai(tmp_path)
-    for dossier, nom in (("gpx2elev", "profil.json"), ("brouter/maison", "etat.json")):
+    for dossier, nom in (("gpx2elev", "profil.json"), ("brouter/maison", "etat.json"),
+                         ("hors-ligne/E5_N40", "manifest.json"), ("hors-ligne/fonds", "E5_N40-scan25.mbtiles")):
         p = tmp_path / dossier / nom
         p.parent.mkdir(parents=True)
         p.write_text("{}")
@@ -730,6 +750,16 @@ def test_vider_cache_unique_efface_toutes_les_donnees_locales(tmp_path):
     assert not (tmp_path / "brouter" / "maison").exists()
     assert not list((tmp_path / "brouter" / "segments4").glob("*.rd5"))
     assert not list(geofabrik.dossier_extraits(tmp_path).iterdir())
+    assert not (tmp_path / "hors-ligne").exists(), "les lots et les fonds aussi, pour repartir de zéro"
+
+
+def test_supprimer_une_case_depuis_la_carte(tmp_path):
+    a = appli.Application(tmp_path)
+    assert "erreur" in a.supprimer_case({"case": "../E5_N40"})
+    (tmp_path / "hors-ligne" / "fonds").mkdir(parents=True)
+    (tmp_path / "hors-ligne" / "fonds" / "E5_N40-scan25.mbtiles").write_bytes(b"fond")
+    assert a.supprimer_case({"case": "E5_N40"}) == {"octets": 4}
+    assert not list((tmp_path / "hors-ligne" / "fonds").iterdir())
 
 
 def test_vider_cache_refuse_pendant_un_calcul(tmp_path):

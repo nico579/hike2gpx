@@ -99,6 +99,7 @@ const TEXTES = {
     "disponibilite.info.titre": "Sources du prochain calcul",
     "disponibilite.info.verification": "Vérification des données en cours…",
     "disponibilite.info.overpass": "Overpass",
+    "disponibilite.info.lot": "Lot hors ligne",
     "disponibilite.info.local": "Extrait OSM local",
     "disponibilite.info.regional": "Extrait OSM régional",
     "disponibilite.info.brouter": "BRouter",
@@ -128,8 +129,11 @@ const TEXTES = {
     "donnees.viderTout": "Vider le cache",
     "donnees.aideCache": "Détail des caches vidés",
     "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins officiels, les extraits OSM téléchargés, les données BRouter et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte, conservées dans le cache du navigateur, ne sont pas effacées.",
-    "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter ? Elles seront retéléchargées au besoin. Les tuiles de fond de carte restent dans le cache du navigateur.",
-    "donnees.vide": "Cache local vidé. Les tuiles du fond de carte restent gérées par le navigateur.",
+    "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter, ainsi que les lots et les fonds hors ligne ? Les données en ligne et les lots du serveur seront retéléchargés au besoin ; les lots et les fonds préparés sur cet ordinateur seront à refaire. Les tuiles de fond de carte affichées restent dans le cache du navigateur.",
+    "donnees.vide": "Cache local vidé, lots et fonds hors ligne compris. Les tuiles du fond de carte affiché restent gérées par le navigateur.",
+    "horsLigne.supprimer": "Supprimer de cet ordinateur",
+    "horsLigne.confirmerSuppression": "Retirer de cet ordinateur le lot et les fonds de carte de la case {nom} ({taille}) ? Un lot du serveur se retélécharge ; un lot ou un fond préparé sur cet ordinateur sera à refaire.",
+    "horsLigne.supprimee": "Case {nom} retirée de cet ordinateur : {taille} libérés.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
     "unite.mo": "Mo",
     "pied": "Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins et cartes officiels selon le pays, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.",
@@ -169,6 +173,7 @@ const TEXTES = {
     "fond.osmRando": "OSM rando",
     "fond.osm": "OSM",
     "fond.satellite": "Satellite",
+    "fond.horsLigne": "Carte hors ligne",
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
@@ -176,13 +181,17 @@ const TEXTES = {
     "reglages.casesHorsLigne": "Afficher les cases hors ligne (5°)",
     "reglages.casesNombre": "{nombre} case(s) prête(s) · vert : prête, bleu : sur le serveur, orange : en préparation, gris : à préparer",
     "reglages.casesAucune": "Aucune case prête hors ligne. Cliquez une case de la carte pour la préparer.",
+    "horsLigne.bouton": "Hors ligne",
+    "horsLigne.boutonTitre": "Afficher les cases hors ligne (5°) : lots et fonds de carte pour marcher sans réseau",
+    "horsLigne.aide": "Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou son fond de carte.",
     "horsLigne.case": "Case {nom}",
     "horsLigne.prete": "Prête hors ligne : {taille}, OSM du {date}.",
     "horsLigne.absente": "Pas encore disponible hors ligne.",
+    "horsLigne.absenteServeur": "Publiée par le serveur, pas encore sur cet ordinateur : elle se téléchargera d'elle-même dès qu'un parcours ou les chemins de la carte s'en serviront.",
+    "horsLigne.telechargerMaintenant": "Télécharger maintenant",
     "horsLigne.serveur": "Sur le serveur : {taille}, OSM du {osm}{officiels}.",
     "horsLigne.serveurOfficiels": ", chemins officiels du {date}",
     "horsLigne.serveurAJour": "À jour avec le serveur.",
-    "horsLigne.telecharger": "Télécharger depuis le serveur",
     "horsLigne.telechargerMaj": "Mettre à jour depuis le serveur",
     "horsLigne.enPreparation": "En préparation.",
     "horsLigne.preparerVue": "Préparer la vue actuelle",
@@ -190,6 +199,9 @@ const TEXTES = {
     "horsLigne.mettreAJour": "Mettre à jour",
     "horsLigne.arreter": "Arrêter",
     "horsLigne.avancement": "Préparation hors ligne de {nom} : {etape}{compte}, depuis {duree}",
+    "horsLigne.attenteCalques": "Chemins de la carte : en attente du lot hors ligne de la zone, qui se télécharge.",
+    "horsLigne.attenteCalcul": "Le lot hors ligne de la zone se télécharge : le calcul reprendra dès son arrivée.",
+    "horsLigne.automatique": "Lot de la case {nom}, téléchargé de lui-même depuis le serveur :{compte}, depuis {duree}. Il prendra le relais du mode à la volée.",
     "horsLigne.fini": "Case {nom} prête hors ligne.",
     "horsLigne.perime": "Le lot hors ligne de {nom} date du {date}, au-delà du délai de renouvellement. Le mettre à jour ?",
     "horsLigne.plusTard": "Plus tard",
@@ -204,6 +216,17 @@ const TEXTES = {
     "horsLigne.etape.fusion": "fusion des chemins officiels",
     "horsLigne.etape.relief": "relief",
     "horsLigne.etape.compilation": "itinéraires BRouter",
+    "horsLigne.etape.fond": "fond de carte",
+    "horsLigne.fonds": "Fond de carte hors ligne : {liste}.",
+    "horsLigne.fondVue": "vue",
+    "horsLigne.fondCase": "toute la case",
+    "horsLigne.preparerFondVue": "Fond de carte de la vue ({source})",
+    "horsLigne.preparerFondCase": "Fond de carte de toute la case ({source}, zooms 6 à 13, environ {duree})",
+    "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
+    "partage.ouvrir": "Partager au téléphone",
+    "partage.fermer": "Arrêter le partage",
+    "partage.ouvert": "Scannez ce code avec hike2gpx sur le téléphone, sur le même Wi-Fi : {lots} lot(s) et {fonds} fond(s) de carte, {taille}. Le code change à chaque partage.",
+    "partage.erreur": "Partage impossible : {erreur}",
     "pleinEcran.entrer": "Plein écran",
     "pleinEcran.quitter": "Quitter le plein écran",
     "etape.debut": "Préparation du calcul",
@@ -305,6 +328,7 @@ const TEXTES = {
     "disponibilite.info.titre": "Sources for the next route",
     "disponibilite.info.verification": "Checking data…",
     "disponibilite.info.overpass": "Overpass",
+    "disponibilite.info.lot": "Offline bundle",
     "disponibilite.info.local": "Local OSM extract",
     "disponibilite.info.regional": "Regional OSM extract",
     "disponibilite.info.brouter": "BRouter",
@@ -334,8 +358,11 @@ const TEXTES = {
     "donnees.viderTout": "Clear cache",
     "donnees.aideCache": "Details of cleared caches",
     "donnees.detailCache": "This clears Overpass responses and OSM crossings, official paths, downloaded OSM extracts, BRouter data and gpx2elev elevation models. They are downloaded again when needed. Background map tiles held in the browser cache are not cleared.",
-    "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data? It will download again when needed. Background map tiles remain in the browser cache.",
-    "donnees.vide": "Local cache cleared. Background map tiles remain managed by the browser.",
+    "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data, and the offline bundles and maps? Online data and the server's bundles will download again when needed; bundles and maps prepared on this computer will have to be made again. Displayed background map tiles remain in the browser cache.",
+    "donnees.vide": "Local cache cleared, offline bundles and maps included. Displayed background map tiles remain managed by the browser.",
+    "horsLigne.supprimer": "Remove from this computer",
+    "horsLigne.confirmerSuppression": "Remove the bundle and the background maps of the {nom} area from this computer ({taille})? A server bundle downloads again; a bundle or map prepared on this computer will have to be made again.",
+    "horsLigne.supprimee": "{nom} area removed from this computer: {taille} freed.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
     "unite.mo": "MB",
     "pied": "Barriers and paths © OpenStreetMap contributors (ODbL), official paths and maps according to the country, routing by BRouter. A barrier missing from OpenStreetMap cannot be avoided: the ground always has the last word.",
@@ -375,6 +402,7 @@ const TEXTES = {
     "fond.osmRando": "OSM hiking",
     "fond.osm": "OSM",
     "fond.satellite": "Satellite",
+    "fond.horsLigne": "Offline map",
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
@@ -382,13 +410,17 @@ const TEXTES = {
     "reglages.casesHorsLigne": "Show offline areas (5°)",
     "reglages.casesNombre": "{nombre} area(s) ready · green: ready, blue: on the server, orange: being prepared, gray: to prepare",
     "reglages.casesAucune": "No area is ready offline yet. Click an area on the map to prepare it.",
+    "horsLigne.bouton": "Offline",
+    "horsLigne.boutonTitre": "Show the offline areas (5°): bundles and base maps to hike with no network",
+    "horsLigne.aide": "Click an area: download its bundle from the server, prepare the view or the whole area, or its base map.",
     "horsLigne.case": "Area {nom}",
     "horsLigne.prete": "Ready offline: {taille}, OSM of {date}.",
     "horsLigne.absente": "Not available offline yet.",
+    "horsLigne.absenteServeur": "Published by the server, not on this computer yet: it will download by itself as soon as a route or the map's paths use it.",
+    "horsLigne.telechargerMaintenant": "Download now",
     "horsLigne.serveur": "On the server: {taille}, OSM of {osm}{officiels}.",
     "horsLigne.serveurOfficiels": ", official paths of {date}",
     "horsLigne.serveurAJour": "Up to date with the server.",
-    "horsLigne.telecharger": "Download from the server",
     "horsLigne.telechargerMaj": "Update from the server",
     "horsLigne.enPreparation": "Being prepared.",
     "horsLigne.preparerVue": "Prepare the current view",
@@ -396,6 +428,9 @@ const TEXTES = {
     "horsLigne.mettreAJour": "Update",
     "horsLigne.arreter": "Stop",
     "horsLigne.avancement": "Preparing {nom} for offline use: {etape}{compte}, for {duree}",
+    "horsLigne.attenteCalques": "Map paths: waiting for the area's offline bundle, which is downloading.",
+    "horsLigne.attenteCalcul": "The area's offline bundle is downloading: the route will be computed as soon as it arrives.",
+    "horsLigne.automatique": "Bundle of the {nom} area, downloading by itself from the server:{compte}, for {duree}. It will take over from on-the-fly mode.",
     "horsLigne.fini": "Area {nom} ready offline.",
     "horsLigne.perime": "The offline data of {nom} dates from {date}, past the refresh delay. Update it?",
     "horsLigne.plusTard": "Later",
@@ -410,6 +445,17 @@ const TEXTES = {
     "horsLigne.etape.fusion": "merging official paths",
     "horsLigne.etape.relief": "elevation",
     "horsLigne.etape.compilation": "BRouter routing data",
+    "horsLigne.etape.fond": "base map",
+    "horsLigne.fonds": "Offline base map: {liste}.",
+    "horsLigne.fondVue": "view",
+    "horsLigne.fondCase": "whole area",
+    "horsLigne.preparerFondVue": "Base map of the view ({source})",
+    "horsLigne.preparerFondCase": "Base map of the whole area ({source}, zooms 6 to 13, about {duree})",
+    "horsLigne.fondFini": "Base map {nom} ready offline.",
+    "partage.ouvrir": "Share with the phone",
+    "partage.fermer": "Stop sharing",
+    "partage.ouvert": "Scan this code with hike2gpx on the phone, on the same Wi-Fi: {lots} bundle(s) and {fonds} base map(s), {taille}. The code changes with every share.",
+    "partage.erreur": "Sharing failed: {erreur}",
     "pleinEcran.entrer": "Full screen",
     "pleinEcran.quitter": "Exit full screen",
     "etape.debut": "Preparing the calculation",
@@ -553,6 +599,7 @@ function appliquerLangue(code) {
   rafraichirCalques();
   afficherExtrait(etat.extrait);
   afficherDonnees();
+  afficherEntreeHorsLigne();
   afficherStatut(...etat.statut);
   if (etat.dernier) ecrireResultat(etat.dernier);
   afficherDisponibilite(derniereDisponibilite);
@@ -580,6 +627,9 @@ async function api(route, corps, signal) {
   const reponse = await fetch(`/api/${route}`, options);
   const donnees = await reponse.json().catch(() => ({}));
   if (!reponse.ok) throw new Error(donnees.error || `HTTP ${reponse.status}`);
+  // Un calcul ou un calque a lancé de lui-même le lot du serveur de la zone :
+  // la page suit son avancement, comme celui d'un lot demandé à la main.
+  if (donnees.lot_en_cours?.auto && donnees.lot_en_cours.actif && !minuterieLot) suivreLot();
   return donnees;
 }
 
@@ -606,6 +656,11 @@ let paysCarte = Object.hasOwn(window.HIKE2GPX_MAP_PROVIDERS, vueInitiale.pays)
   ? vueInitiale.pays : (vueInitiale.hors_france === true ? "autre" : "fr");
 let horsFrance = paysCarte !== "fr";
 const carte = L.map("carte").setView([vueInitiale.lat, vueInitiale.lon], vueInitiale.zoom);
+// L'échelle de la carte, dans l'en-tête à droite de la recherche de ville
+// (demande de Nico du 2026-10-28) ; Leaflet la tient à jour où qu'elle soit.
+const echelle = L.control.scale({ imperial: false, maxWidth: 120 }).addTo(carte).getContainer();
+echelle.classList.add("echelle-entete");
+$("citySubmit").after(echelle);
 carte.on("contextmenu", (evenement) => {
   const { lat, lng } = evenement.latlng;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
@@ -731,7 +786,8 @@ function afficherDisponibilite(d) {
   $("readiness").classList.toggle("available", pret);
   $("readiness").classList.toggle("unavailable", !pret);
   $("readinessText").textContent = t(pret ? "disponibilite.oui" : "disponibilite.non");
-  $("readiness").title = pret ? `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`
+  $("readiness").title = pret ? (d.source === "lot" ? `${t("disponibilite.info.lot")} : ${d.nom}`
+    : `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`)
     : t(`disponibilite.attente.${d?.attente || "osm"}`);
   $("readinessInfo").setAttribute("aria-label", t("disponibilite.info.titre"));
   const details = d?.details;
@@ -744,7 +800,9 @@ function afficherDisponibilite(d) {
     return `${t(`disponibilite.info.${cle}`)}${source.nom ? ` (${source.nom})` : ""} : `
       + t(`disponibilite.etat.${source.etat}`);
   };
+  // Un lot installé (ou qui se télécharge) passe en tête : il sert seul.
   $("readinessInfoText").textContent = [t("disponibilite.info.titre"),
+    ...(details.lot ? [extrait("lot")] : []),
     `${t("disponibilite.info.overpass")} : ${t(`disponibilite.etat.${details.overpass}`)}`,
     extrait("local"), extrait("regional"),
     `${t("disponibilite.info.brouter")} : ${t(d.attente === "moteur" || d.attente === "segments"
@@ -1048,6 +1106,13 @@ async function chargerCalque(cle, zone) {
     noteCalques(`${nom} : ${ts(donnees.erreur)}`);
     return;
   }
+  if (donnees.attente_lot) {
+    // Le lot de la zone se télécharge : rien à la volée, le calque se relit
+    // depuis le lot à son arrivée (suivreLot).
+    calque.charge = null;
+    noteCalques(t("horsLigne.attenteCalques"));
+    return;
+  }
   calque.groupe.clearLayers();
   DESSINS[cle](calque.groupe, donnees);
   // Les tuiles lues débordent la vue : tant qu'elle y reste, rien à redemander.
@@ -1298,6 +1363,7 @@ function construireFonds() {
   couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
+  if (fondsInstalles.length) couchesFonds.horsLigne = coucheHorsLigne();
   // presentation.js place la légende dans le contrôle Leaflet. La récupérer
   // avant de le retirer, sinon elle disparaît du DOM au changement de pays.
   const legende = $("mapLegend");
@@ -1336,6 +1402,34 @@ let lotsInstalles = [];
 let lotsServeur = [];            // le catalogue du dépôt (catalogue_lots), avec l'état de chaque lot ici
 let lotEnCours = { actif: false };
 let minuterieLot = null;
+let lotSuivi = false;       // un lot suivi était en cours : à sa fin, calques et calcul repartent
+// Les fonds de carte téléchargés sur ce PC (fonds.py) : un MBTiles chacun,
+// servi tuile par tuile par /fonds/<nom>/{z}/{x}/{y}, sans réseau.
+let fondsInstalles = [];
+
+// Un seul fond « Carte hors ligne » : une couche par fichier, bornée à sa
+// zone, la case sous ses vues, chacune agrandie au-delà de son zoom le plus fin.
+function coucheHorsLigne() {
+  const groupe = L.layerGroup();
+  const ordre = [...fondsInstalles].sort((a, b) => a.zoom[1] - b.zoom[1]);
+  for (const f of ordre) {
+    const [s, o, n, e] = f.zone;
+    L.tileLayer(`/fonds/${encodeURIComponent(f.nom)}/{z}/{x}/{y}`, { bounds: [[s, o], [n, e]],
+      minNativeZoom: f.zoom[0], maxNativeZoom: f.zoom[1], maxZoom: 19,
+      attribution: '© <a href="https://www.ign.fr/">IGN</a>' }).addTo(groupe);
+  }
+  return groupe;
+}
+
+// Relus au démarrage et après chaque préparation : un fond de plus ou de
+// moins refait le contrôle des fonds.
+async function chargerFonds() {
+  try {
+    const avant = JSON.stringify(fondsInstalles.map((f) => f.nom));
+    fondsInstalles = (await api("hors_ligne")).fonds || [];
+    if (JSON.stringify(fondsInstalles.map((f) => f.nom)) !== avant) construireFonds();
+  } catch (_) { /* serveur injoignable : pas de fond hors ligne */ }
+}
 
 function nomCase(lat, lon) {
   const la = Math.floor(lat / CASE_DEG) * CASE_DEG, lo = Math.floor(lon / CASE_DEG) * CASE_DEG;
@@ -1365,14 +1459,17 @@ function etatCase(nom) {
   return lotsServeur.some((l) => l.case === nom) ? "serveur" : "absente";
 }
 
+// Sur un fond chargé (SCAN 25, relief), un voile de 5 à 8 % ne se voyait
+// pas : les cases prêtes et celles du serveur ont un trait plein et épais et
+// un fond franc ; seule la case vide reste discrète.
 const STYLES_CASE = {
-  prete: { color: "#23804f", weight: 2, fillColor: "#23804f", fillOpacity: 0.08 },
-  preparation: { color: "#e07b00", weight: 2, dashArray: "6 4", fillColor: "#e07b00", fillOpacity: 0.08 },
+  prete: { color: "#1b7a3e", weight: 3.5, fillColor: "#23a04f", fillOpacity: 0.3 },
+  preparation: { color: "#e07b00", weight: 3.5, dashArray: "8 5", fillColor: "#e07b00", fillOpacity: 0.25 },
   // Un fond presque transparent : un clic dans la case ouvre sa bulle, comme
   // les mailles du serveur ; décocher la grille rend les clics au tracé.
   absente: { color: "#37474f", weight: 1.5, dashArray: "5 5", fillColor: "#37474f", fillOpacity: 0.03 },
   // Pas encore ici, mais publiée par le serveur : un clic propose de la télécharger.
-  serveur: { color: "#1565c0", weight: 2, dashArray: "5 5", fillColor: "#1565c0", fillOpacity: 0.05 },
+  serveur: { color: "#1565c0", weight: 3, fillColor: "#1e88e5", fillOpacity: 0.18 },
 };
 
 function tailleTexte(octets) {
@@ -1401,28 +1498,102 @@ function bulleCase(nom) {
     div.append(paragraphe(t("horsLigne.enPreparation")), bouton(t("horsLigne.arreter"), arreterLot));
     return div;
   }
+  // Une case que publie le serveur se télécharge (d'elle-même, ou tout de
+  // suite) : la préparer ici, une heure de calcul, n'aurait pas de sens.
+  const surServeur = lotsServeur.find((l) => l.case === nom);
   div.append(paragraphe(lotCase
     ? t("horsLigne.prete", { taille: tailleTexte(lotCase.octets), date: (lotCase.sources?.osm || "").slice(0, 10) })
-    : t("horsLigne.absente")));
+    : t(surServeur ? "horsLigne.absenteServeur" : "horsLigne.absente")));
   const [s, o, n, e] = boiteCase(nom);
   const b = carte.getBounds();
   const vueDansCase = b.getSouth() >= s && b.getNorth() <= n && b.getWest() >= o && b.getEast() <= e;
-  if (vueDansCase) {
+  if (vueDansCase && !surServeur) {
     div.append(bouton(t("horsLigne.preparerVue"), () => preparerCase(nom,
       [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])));
   }
-  div.append(bouton(lotCase ? t("horsLigne.mettreAJour") : t("horsLigne.preparerCase"), () => preparerCase(nom)));
-  const surServeur = lotsServeur.find((l) => l.case === nom);
+  if (!surServeur) {
+    div.append(bouton(lotCase ? t("horsLigne.mettreAJour") : t("horsLigne.preparerCase"), () => preparerCase(nom)));
+  }
   if (surServeur) {
     const officiels = Object.entries(surServeur.sources || {}).find(([cle]) => !["osm", "relief", "rd5"].includes(cle));
     div.append(paragraphe(t("horsLigne.serveur", { taille: tailleTexte(surServeur.octets),
       osm: (surServeur.sources?.osm || "").slice(0, 10),
       officiels: officiels ? t("horsLigne.serveurOfficiels", { date: String(officiels[1]).slice(0, 10) }) : "" })));
     if (surServeur.etat === "a_jour") div.append(paragraphe(t("horsLigne.serveurAJour")));
-    else div.append(bouton(t(surServeur.etat === "ancien" ? "horsLigne.telechargerMaj" : "horsLigne.telecharger"),
+    else div.append(bouton(t(surServeur.etat === "ancien" ? "horsLigne.telechargerMaj" : "horsLigne.telechargerMaintenant"),
       () => telechargerCase(nom)));
   }
+  if (paysCarte === "fr") ajouterFonds(div, nom, vueDansCase ? [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()] : null);
+  // Un voyage fini, une case qu'on ne visitera plus : son lot et ses fonds
+  // quittent l'ordinateur (décision de Nico du 2026-10-28).
+  const fondsIci = fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`));
+  if (lotCase || fondsIci.length) {
+    const octets = (lotCase?.octets || 0) + fondsIci.reduce((somme, f) => somme + (f.octets || 0), 0);
+    div.append(bouton(t("horsLigne.supprimer"), () => supprimerCase(nom, octets)));
+  }
   return div;
+}
+
+async function supprimerCase(nom, octets) {
+  if (!confirm(t("horsLigne.confirmerSuppression", { nom, taille: tailleTexte(octets) }))) return;
+  carte.closePopup();
+  const r = await api("supprimer_case", { case: nom });
+  afficherLot(r.erreur ? { case: nom, erreur: r.erreur } : {});
+  if (!r.erreur) {
+    $("lotHorsLigneTexte").textContent = t("horsLigne.supprimee", { nom, taille: tailleTexte(r.octets) });
+    $("lotHorsLigne").hidden = false;
+  }
+  await chargerLots();
+  chargerFonds();
+}
+
+// Le fond de la page, hors ligne : le SCAN 25 avec la clé IGN, le Plan IGN
+// sans. Il reste sur ce PC (et son téléphone), jamais publié.
+function ajouterFonds(div, nom, vue) {
+  const ici = fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`));
+  if (ici.length) {
+    div.append(paragraphe(t("horsLigne.fonds", { liste: ici.map((f) =>
+      `${t(f.nom.includes("-vue-") ? "horsLigne.fondVue" : "horsLigne.fondCase")} ${f.source === "scan25" ? "SCAN 25" : "Plan IGN"}`
+      + ` ${tailleTexte(f.octets)}`).join(", ") })));
+  }
+  const source = etat.cleIgn ? "SCAN 25" : "Plan IGN";
+  if (vue) div.append(bouton(t("horsLigne.preparerFondVue", { source }), () => preparerFond(nom, vue)));
+  div.append(bouton(t("horsLigne.preparerFondCase", { source, duree: "45 min" }), () => preparerFond(nom)));
+}
+
+// ------------------------------------------------------------ partage au téléphone
+// Le PC sert ses lots et ses fonds sur le Wi-Fi (partage.py), fermé par
+// défaut. Le QR code porte l'adresse du catalogue et un jeton tiré à chaque
+// ouverture ; il est dessiné par le serveur (SVG).
+function afficherPartage(r) {
+  etat.partage = r;
+  $("partagerTelephone").hidden = Boolean(r.ouvert);
+  $("partageOuvert").hidden = !r.ouvert;
+  $("partageQr").innerHTML = r.ouvert ? r.qr : "";
+  $("partageTexte").textContent = r.erreur ? t("partage.erreur", { erreur: ts(r.erreur) })
+    : r.ouvert ? t("partage.ouvert", { lots: r.lots.length, fonds: r.fonds.length, taille: tailleTexte(r.octets) }) : "";
+  $("partageTexte").hidden = !$("partageTexte").textContent;
+}
+
+async function basculerPartage(ouvrir) {
+  try {
+    afficherPartage(await api("partage", { ouvrir }));
+  } catch (e) {
+    afficherPartage({ ouvert: false, erreur: e.message });
+  }
+}
+$("partagerTelephone").addEventListener("click", () => basculerPartage(true));
+$("fermerPartage").addEventListener("click", () => basculerPartage(false));
+
+async function preparerFond(nom, zone = null) {
+  carte.closePopup();
+  const reponse = await api("preparer_fond", zone ? { case: nom, zone } : { case: nom });
+  if (reponse.erreur) {
+    afficherLot({ case: nom, erreur: reponse.erreur });
+    return;
+  }
+  if (minuterieLot) clearTimeout(minuterieLot);
+  suivreLot();
 }
 
 async function telechargerCase(nom) {
@@ -1473,9 +1644,34 @@ function basculerCases() {
   try { localStorage.setItem(CLE_CASES, $("showOfflineGrid").checked ? "1" : "0"); }
   catch (_) { /* réglage de carte non persistant */ }
   if ($("showOfflineGrid").checked) grilleCases.addTo(carte); else grilleCases.remove();
+  afficherEntreeHorsLigne();
   chargerLots();
 }
-$("showOfflineGrid").addEventListener("change", basculerCases);
+// Les cases font 5° : de près, on n'en voit qu'un morceau. Afficher la grille
+// dézoome jusqu'à en montrer plusieurs (demande de Nico du 2026-10-28) ; la
+// grille restaurée au chargement de la page garde la vue.
+const ZOOM_CASES = 6;
+function montrerCases() {
+  if ($("showOfflineGrid").checked && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
+}
+$("showOfflineGrid").addEventListener("change", () => { basculerCases(); montrerCases(); });
+
+// L'entrée du mode hors ligne, sur la carte : le bouton « Hors ligne » fait
+// la même chose que la case des réglages (les deux restent d'accord), et dit
+// en une ligne ce qu'on peut faire d'une case.
+function afficherEntreeHorsLigne() {
+  const active = $("showOfflineGrid").checked;
+  $("offlineButton").setAttribute("aria-pressed", String(active));
+  $("offlineButton").classList.toggle("actif", active);
+  $("offlineButton").title = t("horsLigne.boutonTitre");
+  $("offlineHint").textContent = active ? t("horsLigne.aide") : "";
+  $("offlineHint").hidden = !active;
+}
+$("offlineButton").addEventListener("click", () => {
+  $("showOfflineGrid").checked = !$("showOfflineGrid").checked;
+  basculerCases();
+  montrerCases();
+});
 carte.on("moveend", dessinerCases);
 
 function afficherLot(r) {
@@ -1485,12 +1681,13 @@ function afficherLot(r) {
     // Un téléchargement compte en octets, une fabrication en tuiles ou mailles.
     const compte = !r.total ? "" : r.etape === "telechargement"
       ? ` ${tailleTexte(r.faites)} / ${tailleTexte(r.total)}` : ` ${r.faites}/${r.total}`;
-    message = t("horsLigne.avancement", { nom, etape: t(`horsLigne.etape.${r.etape}`), compte,
-      duree: dureeTexte(r.duree_s || 0) });
+    const duree = dureeTexte(r.duree_s || 0);
+    message = r.auto && r.etape === "telechargement" ? t("horsLigne.automatique", { nom, compte, duree })
+      : t("horsLigne.avancement", { nom, etape: t(`horsLigne.etape.${r.etape}`), compte, duree });
   } else if (r.erreur) {
     message = t("horsLigne.erreur", { nom, erreur: ts(r.erreur) });
   } else if (r.etape === "fini") {
-    message = t("horsLigne.fini", { nom });
+    message = r.fond ? t("horsLigne.fondFini", { nom: r.fond }) : t("horsLigne.fini", { nom });
   }
   $("lotHorsLigneTexte").textContent = message;
   $("lotHorsLigne").hidden = !message;
@@ -1534,10 +1731,22 @@ async function suivreLot() {
   }
   afficherLot(lotEnCours);
   if (lotEnCours.actif) {
+    lotSuivi = true;
     minuterieLot = setTimeout(suivreLot, 2000);
     dessinerCases();
   } else {
     await chargerLots();
+    chargerFonds();         // sans l'attendre : la grille est déjà à jour
+    if (lotSuivi) {
+      // Le lot est arrivé (ou a échoué) : les calques et le calcul qui
+      // l'attendaient repartent, sur lui ou à la volée.
+      lotSuivi = false;
+      rafraichirCalques();
+      if (etat.attenteLot) {
+        etat.attenteLot = false;
+        if (etat.points.length >= 2) planifierCalcul();
+      }
+    }
   }
 }
 
@@ -1565,6 +1774,7 @@ function restaurerCases() {
   try { $("showOfflineGrid").checked = localStorage.getItem(CLE_CASES) === "1"; }
   catch (_) { /* pas de préférence */ }
   if ($("showOfflineGrid").checked) grilleCases.addTo(carte);
+  afficherEntreeHorsLigne();
   chargerLots();
   suivreLot();
 }
@@ -1830,6 +2040,12 @@ function boutonAction(libelle, action) {
 }
 
 function afficherErreur(reponse) {
+  if (reponse.code === "attente_lot") {
+    // Pas une erreur : le calcul attend le lot de la zone, puis reprend (suivreLot).
+    afficherStatut(() => t("horsLigne.attenteCalcul"));
+    etat.attenteLot = true;
+    return;
+  }
   effacerResultat();
   const osmIndisponible = /Overpass|barrières non vérifiées|OSM.*indisponibles/i.test(reponse.erreur || "");
   afficherStatut(() => osmIndisponible ? t("statut.donneesIndisponibles") : texteErreur(reponse), true);
@@ -2326,7 +2542,11 @@ async function agirDonnees(action, cible, confirmer) {
     const r = await api("donnees", { action, cible });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
     afficherDonnees(r);
-    if (action === "vider_cache") $("cacheStatus").textContent = t("donnees.vide");
+    if (action === "vider_cache") {
+      $("cacheStatus").textContent = t("donnees.vide");
+      chargerLots();          // les lots et les fonds hors ligne sont partis aussi
+      chargerFonds();
+    }
     majExtrait(true);       // un téléchargement lancé se suit dans le panneau
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
@@ -2358,8 +2578,13 @@ async function demarrer() {
   }
   restaurerCalques();     // avant le contrôle des fonds, pour que ses cases soient cochées
   construireFonds();
+  chargerFonds();         // le fond hors ligne s'y ajoute s'il y en a
+  // Le catalogue du serveur, lu dès l'ouverture : un calcul ou un calque peut
+  // alors faire venir de lui-même le lot de sa zone (_lot_automatique).
+  api("catalogue_lots").then((r) => { lotsServeur = r.lots || []; }).catch(() => {});
   rafraichirCalques();
   restaurerCases();       // lots installés, et fabrication en cours si la page a été rechargée
+  api("partage").then(afficherPartage).catch(() => {});   // un partage resté ouvert, page rechargée
 }
 
 demarrer();

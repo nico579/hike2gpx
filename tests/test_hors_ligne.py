@@ -49,6 +49,33 @@ def test_installer_range_la_rd5_avec_les_segments(tmp_path):
     assert not list(h.racine.glob(".*")) and not list(h.segments.glob(".*")), "aucun reste provisoire"
 
 
+
+def test_supprimer_une_case_ne_retire_qu_elle(tmp_path):
+    # Un voyage fini : la case quitte l'ordinateur, lot, RD5 et fonds ; la voisine reste.
+    h = hors_ligne.HorsLigne(tmp_path / "donnees")
+    h.installer(fabriquer_lot(tmp_path / "lot"))
+    h.installer(fabriquer_lot(tmp_path / "voisin", case="E10_N40"))
+    h.dossier_fonds.mkdir(parents=True)
+    for nom in ("E5_N40-scan25", "E5_N40-planign-vue-3fa2c1", "E10_N40-scan25"):
+        (h.dossier_fonds / f"{nom}.mbtiles").write_bytes(b"fond")
+    h.calque(h.lots()[1], "osm", (43.30, 6.00, 43.36, 6.10))
+    octets = h.supprimer("E5_N40")
+    assert octets > 0 and not (h.racine / "E5_N40").exists() and not (h.segments / "E5_N40.rd5").exists()
+    assert sorted(p.stem for p in h.dossier_fonds.iterdir()) == ["E10_N40-scan25"]
+    assert [m["case"] for m in h.lots()] == ["E10_N40"] and (h.segments / "E10_N40.rd5").is_file()
+    assert lot._tuile_decodee.cache_info().currsize == 0, "rien de la case retirée ne reste en mémoire"
+    assert h.supprimer("E5_N40") == 0, "une case déjà retirée"
+
+
+def test_vider_repart_de_zero(tmp_path):
+    h = hors_ligne.HorsLigne(tmp_path / "donnees")
+    h.installer(fabriquer_lot(tmp_path / "lot"))
+    h.vider()
+    assert not h.racine.exists() and h.lots() == [] and h.fonds() == []
+    h.vider()                                   # rien à vider : sans erreur
+    h.installer(fabriquer_lot(tmp_path / "lot"))
+    assert [m["case"] for m in h.lots()] == ["E5_N40"], "un lot se réinstalle après"
+
 def test_un_lot_altere_n_est_pas_installe(tmp_path):
     source = fabriquer_lot(tmp_path / "lot")
     contenu = bytearray((source / "calques.mbtiles").read_bytes())
@@ -150,6 +177,19 @@ def test_itineraire_hors_ligne_sans_reseau_ni_rd5_officielle(tmp_path, monkeypat
         "les franchissements du lot, filtrés sur la zone, et la coche passée au profil"
 
 
+def test_l_indicateur_compte_le_lot_installe(tmp_path, monkeypatch):
+    # Capture de Nico du 2026-10-28 : lot téléchargé, mais « Tracé indisponible »
+    # (Overpass muet, extrait régional absent, BRouter en attente).
+    a = appli.Application(tmp_path / "donnees")
+    a.hors_ligne.installer(fabriquer_lot(tmp_path / "lot"))
+    sans_reseau(a, monkeypatch)
+    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
+    d = a.disponibilite((43.30, 6.00, 43.31, 6.01))
+    assert d["pret"] is True and d["source"] == "lot" and d["nom"] == "E5_N40"
+    assert d["details"]["lot"] == {"nom": "E5_N40", "etat": "disponible"}
+    assert a.disponibilite((47.0, 2.0, 47.01, 2.01))["pret"] is False, "hors du lot : comme avant"
+
+
 def test_itineraire_sur_un_lot_osm(tmp_path, monkeypatch):
     a = appli.Application(tmp_path / "donnees")
     a.hors_ligne.installer(lot_osm(tmp_path / "lot"))
@@ -187,7 +227,7 @@ def test_calques_de_la_page_lus_dans_le_lot(tmp_path, monkeypatch):
 def test_routes_des_lots(tmp_path):
     a = appli.Application(tmp_path / "donnees")
     get, post = a.routes()
-    assert get["hors_ligne"]() == {"lots": []}
+    assert get["hors_ligne"]() == {"lots": [], "fonds": []}
     assert post["installer_lot"]({"chemin": str(tmp_path / "absent")})["erreur"]
     reponse = post["installer_lot"]({"chemin": str(fabriquer_lot(tmp_path / "lot"))})
     assert reponse["installe"] == "E5_N40" and reponse["lots"][0]["emprise_enrichie"] == EMPRISE

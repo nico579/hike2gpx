@@ -1,3 +1,7 @@
 # Les Markdown restent en LF sur toutes les plateformes : le test de la page
 # compare le tableau de couverture généré (en \n) au contenu des fichiers.
 *.md text eol=lf
+# Profils BRouter de l'application Android : comparés octet pour octet par
+# tests/test_android.py, ils gardent des fins de ligne LF partout.
+android/app/src/main/assets/brouter/** text eol=lf
+android/gradlew text eol=lf

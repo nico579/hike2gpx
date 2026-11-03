@@ -210,6 +210,25 @@ class Compilation(Installation):
         pass
 
 
+def test_une_compilation_sans_tuile_dit_ce_qu_elle_a_produit(tmp_path, osm_installe, monkeypatch):
+    # Essai GitHub Actions du 2026-10-28 : E5_N45, Java sans erreur mais sans
+    # E5_N45.rd5, et rien dans le journal pour comprendre.
+    from hike2gpx import brouter, relief
+
+    def compiler(inst, pbf, dossier, *, relief=None, tas="1g"):
+        (dossier / "segments").mkdir(parents=True)
+        (dossier / "segments" / "E10_N45.rd5").write_bytes(b"voisine")
+        (dossier / "WayLinker.log").write_text("java.io.IOException: No space left on device")
+        return dossier / "segments"
+    monkeypatch.setattr(brouter, "fabriquer_tuiles", compiler)
+    monkeypatch.setattr(relief, "fabriquer", lambda inst, boite, dossier, cache, **o: dossier / "bef")
+    with pytest.raises(brouter.ErreurBRouter, match=r"produits : E10_N45\.rd5 ; .* Go libres\)\. "
+                                                     r"WayLinker : java\.io\.IOException: No space left"):
+        fabrication.fabriquer(tmp_path / "donnees", Compilation(), "E5_N40", tmp_path / "lot", zone=ZONE,
+                              fournisseurs=["ign"], troncons={"ign": lambda *b: [CHEMIN_IGN]},
+                              editions={"ign": "2026-09-15"})
+
+
 def test_lot_enrichi_fusionne_compile_et_montre_les_chemins_officiels(tmp_path, osm_installe, monkeypatch):
     from hike2gpx import brouter, relief
     installation = Compilation()
