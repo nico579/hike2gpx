@@ -91,3 +91,4 @@ def test_donnees_seules_telecharge_sans_rien_fabriquer(monkeypatch, tmp_path):
                                        etape="donnees")
     assert bilan == {"E0_N45": "données prêtes"}
     assert preparees == [("E0_N45", ["ign"])] and fabriquees == []
+

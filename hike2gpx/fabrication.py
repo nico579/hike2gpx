@@ -18,6 +18,7 @@ Le lot contient ainsi ce que la page montre ; il sert au calcul sans réseau
 from __future__ import annotations
 
 import functools
+import gc
 import gzip
 import json
 import logging
@@ -362,6 +363,12 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     registre.ecrire_pbf(travail / "osm.osm.pbf", travail / "enrichi.osm.pbf")
     (travail / "osm.osm.pbf").unlink()
     (travail / "osm.sqlite").unlink()
+    # Le réseau fusionné de toute la case est écrit : n'en garder que les
+    # franchissements. Il restait sinon en mémoire pendant la compilation, que
+    # Java fait à côté avec plusieurs Go (E5_N45 : OutOfMemoryError dans WayLinker).
+    franchissements = list(registre.franchissements.values())
+    del registre
+    gc.collect()
 
     def suivi_relief(etape, faites, total):
         suivi("relief", faites, total)
@@ -394,7 +401,7 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     suivi("compilation", 1, 1)
     # Un franchissement d'une maille du bord peut tomber hors de la zone : il
     # reste, BRouter le connaît.
-    return list(registre.franchissements.values()), dates
+    return franchissements, dates
 
 
 def preparer_donnees(dossier, case, zone, fournisseurs, troncons, suivi, continuer):

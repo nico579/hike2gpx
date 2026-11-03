@@ -98,7 +98,10 @@ def encoder_tuile(x: int, y: int, couches: dict, emprise: tuple) -> bytes | None
     mx1, my1 = mercator(e, n)
     brut = mapbox_vector_tile.encode(calques, default_options={
         "quantize_bounds": (float(mx0), float(my0), float(mx1), float(my1)), "extents": ETENDUE})
-    return gzip.compress(brut, 6)
+    # mtime=0 : l'en-tête gzip ne porte pas l'heure de compression. Deux
+    # fabrications d'un même lot donnent ainsi les mêmes octets, même faites
+    # par morceaux sur plusieurs machines (fabrication répartie).
+    return gzip.compress(brut, 6, mtime=0)
 
 
 def encoder_bloc(emprise: tuple, x10: int, y10: int, couches: dict) -> tuple:
