@@ -167,7 +167,6 @@ def test_damier_donne_le_meme_reseau_que_la_boucle(monkeypatch):
 
 # ------------------------------------------------------------- calques en parallèle
 
-from test_fabrication import mode_en_ligne  # noqa: E402,F401  (fixture)
 
 ZONE_CALQUES = (43.0, 5.5, 44.0, 6.5)      # plusieurs blocs du zoom 10
 

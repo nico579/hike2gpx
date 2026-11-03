@@ -1,7 +1,6 @@
 import gzip
 import json
 import re
-import sqlite3
 
 import pytest
 

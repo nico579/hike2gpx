@@ -21,7 +21,6 @@ partage-telephone.md) ; une publication n'en a jamais.
 """
 from __future__ import annotations
 
-import hashlib
 import http.client
 import json
 import logging
