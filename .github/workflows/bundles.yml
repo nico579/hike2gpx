@@ -114,7 +114,8 @@ jobs:
           gh release download bundles --repo "$GITHUB_REPOSITORY" --pattern "$CASE.*" \
               --dir "$RUNNER_TEMP/publie" || true
           for f in "$RUNNER_TEMP"/publie/"$CASE".*; do
-            [ -e "$f" ] && mv "$f" "$RUNNER_TEMP/lots/$CASE/${f##*/$CASE.}"
+            [ -e "$f" ] || continue        # aucun fichier : le motif reste tel quel
+            mv "$f" "$RUNNER_TEMP/lots/$CASE/${f##*/$CASE.}"
           done
 
       - name: Télécharger les données de la case
@@ -185,7 +186,8 @@ jobs:
           gh release download bundles --repo "$GITHUB_REPOSITORY" --pattern "$CASE.*" \
               --dir "$RUNNER_TEMP/publie" || true
           for f in "$RUNNER_TEMP"/publie/"$CASE".*; do
-            [ -e "$f" ] && mv "$f" "$RUNNER_TEMP/lots/$CASE/${f##*/$CASE.}"
+            [ -e "$f" ] || continue        # aucun fichier : le motif reste tel quel
+            mv "$f" "$RUNNER_TEMP/lots/$CASE/${f##*/$CASE.}"
           done
           ls -la "$RUNNER_TEMP/lots/$CASE"
 
