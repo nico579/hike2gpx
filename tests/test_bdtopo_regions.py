@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from hike2gpx import bdtopo_regions as br
+from hike2gpx import bdtopo_regions as br, en_bloc
 
 NOM = "BDTOPO_3-5_TOUSTHEMES_GPKG_LAMB93_R93_2026-09-15"
 CONTENU = b"archive 7z de la BD TOPO" * 1000
@@ -76,7 +76,7 @@ def test_des_coupures_qui_avancent_ne_font_pas_abandonner(tmp_path):
     br._telecharger({"url": "https://x/a.7z", "octets": len(CONTENU), "md5": hashlib.md5(CONTENU).hexdigest()},
                     tmp_path / "a.7z", ouvrir, pauses.append)
     assert (tmp_path / "a.7z").read_bytes() == CONTENU
-    assert len(pauses) > br.ECHECS_MAX, "bien plus de coupures que d'échecs admis, toutes reprises"
+    assert len(pauses) > en_bloc.ESSAIS, "bien plus de coupures que d'échecs admis, toutes reprises"
 
 
 def test_un_fichier_altere_est_refuse(tmp_path):
