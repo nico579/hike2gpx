@@ -18,6 +18,7 @@ Le lot contient ainsi ce que la page montre ; il sert au calcul sans réseau
 from __future__ import annotations
 
 import functools
+import gc
 import gzip
 import json
 import logging
@@ -57,9 +58,35 @@ ETAPES = ("tout", "donnees", "calcul", "calques", "fin")
 class ErreurEtape(RuntimeError):
     """Une étape d'une fabrication répartie ne trouve pas ce que la précédente
     devait laisser."""
-# Mémoire de Java pour compiler : 1 Go suffit à une vue, une case de 5° dense
-# en demande quatre ou cinq.
-TAS_CASE, AIRE_VUE = "4500m", 1.0       # au-delà d'1 degré carré, le tas d'une case
+# Mémoire de Java pour compiler : 1 Go suffit à une vue (moins d'1 degré
+# carré). Une case de 5° en demande au moins 4,5 Go, et bien plus quand elle
+# est dense : WayLinker charge d'un bloc tous les nœuds d'une tuile, et
+# E5_N45 (Alpes, 500 Mo de voies) dépassait 4,5 Go (OutOfMemoryError,
+# 2026-11-01). Le tas d'une case prend donc 70 % de la mémoire disponible au
+# moment de compiler, entre ces deux bornes (Mo).
+AIRE_VUE = 1.0
+TAS_CASE_MIN, TAS_CASE_MAX = 4500, 12000
+
+
+def memoire_disponible_mo() -> int | None:
+    """La mémoire que le système peut encore donner (MemAvailable de Linux,
+    cache libérable compris), en Mo ; None ailleurs ou illisible."""
+    try:
+        with open("/proc/meminfo", encoding="ascii") as f:
+            for ligne in f:
+                if ligne.startswith("MemAvailable:"):
+                    return int(ligne.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def tas_case(disponible=memoire_disponible_mo) -> str:
+    """Le tas de Java pour compiler une case entière (voir TAS_CASE_MIN)."""
+    mo = disponible()
+    if mo is None:
+        return f"{TAS_CASE_MIN}m"
+    return f"{max(TAS_CASE_MIN, min(TAS_CASE_MAX, mo * 7 // 10))}m"
 
 
 class Abandon(Exception):
@@ -327,6 +354,13 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     registre.ecrire_pbf(travail / "osm.osm.pbf", travail / "enrichi.osm.pbf")
     (travail / "osm.osm.pbf").unlink()
     (travail / "osm.sqlite").unlink()
+    # Le réseau fusionné de toute la case est écrit : n'en garder que les
+    # franchissements. Il restait sinon en mémoire pendant la compilation, que
+    # Java fait à côté avec plusieurs Go (E5_N45, 2026-11-01 : OutOfMemoryError
+    # dans WayLinker).
+    franchissements = list(registre.franchissements.values())
+    del registre
+    gc.collect()
 
     def suivi_relief(etape, faites, total):
         suivi("relief", faites, total)
@@ -347,10 +381,11 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
     suivi("compilation", 0, 1)
     installation.preparer_maison()
     aire = (zone[2] - zone[0]) * (zone[3] - zone[1])
-    journal.info("Lot %s : compilation, %.1f Go libres, %.1f Go à compiler", case,
-                 shutil.disk_usage(travail).free / 1e9, (travail / "enrichi.osm.pbf").stat().st_size / 1e9)
+    tas = tas_case() if aire > AIRE_VUE else "1g"
+    journal.info("Lot %s : compilation, %.1f Go libres, %.1f Go à compiler, tas Java %s", case,
+                 shutil.disk_usage(travail).free / 1e9, (travail / "enrichi.osm.pbf").stat().st_size / 1e9, tas)
     segments = brouter.fabriquer_tuiles(installation, travail / "enrichi.osm.pbf", travail / "construction",
-                                        relief=bef, tas=TAS_CASE if aire > AIRE_VUE else "1g")
+                                        relief=bef, tas=tas)
     rd5 = segments / f"{case}.rd5"
     if not rd5.is_file():
         # Sans erreur de Java mais sans tuile : dire ce qui a été produit, la
@@ -361,13 +396,13 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
             if sortie_linker.is_file() else ""
         raise brouter.ErreurBRouter(
             f"La compilation n'a pas produit {case}.rd5 (produits : {', '.join(produits) or 'aucun'} ; "
-            f"{shutil.disk_usage(travail).free / 1e9:.1f} Go libres). WayLinker : {fin or 'rien'}")
+            f"{shutil.disk_usage(travail).free / 1e9:.1f} Go libres, tas Java {tas}). WayLinker : {fin or 'rien'}")
     shutil.move(rd5, sortie / f"{case}.rd5")
     shutil.rmtree(travail, ignore_errors=True)
     suivi("compilation", 1, 1)
     # Un franchissement d'une maille du bord peut tomber hors de la zone : il
     # reste, BRouter le connaît.
-    return list(registre.franchissements.values()), dates
+    return franchissements, dates
 
 
 def preparer_donnees(dossier, case, zone, fournisseurs, troncons, suivi, continuer):

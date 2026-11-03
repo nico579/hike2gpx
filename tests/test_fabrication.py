@@ -222,7 +222,7 @@ def test_une_compilation_sans_tuile_dit_ce_qu_elle_a_produit(tmp_path, osm_insta
         return dossier / "segments"
     monkeypatch.setattr(brouter, "fabriquer_tuiles", compiler)
     monkeypatch.setattr(relief, "fabriquer", lambda inst, boite, dossier, cache, **o: dossier / "bef")
-    with pytest.raises(brouter.ErreurBRouter, match=r"produits : E10_N45\.rd5 ; .* Go libres\)\. "
+    with pytest.raises(brouter.ErreurBRouter, match=r"produits : E10_N45\.rd5 ; .* Go libres, tas Java 1g\)\. "
                                                      r"WayLinker : java\.io\.IOException: No space left"):
         fabrication.fabriquer(tmp_path / "donnees", Compilation(), "E5_N40", tmp_path / "lot", zone=ZONE,
                               fournisseurs=["ign"], troncons={"ign": lambda *b: [CHEMIN_IGN]},

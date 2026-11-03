@@ -91,3 +91,14 @@ def test_donnees_seules_telecharge_sans_rien_fabriquer(monkeypatch, tmp_path):
                                        etape="donnees")
     assert bilan == {"E0_N45": "données prêtes"}
     assert preparees == [("E0_N45", ["ign"])] and fabriquees == []
+
+
+@pytest.mark.parametrize("disponible, tas", [
+    (None, "4500m"),        # hors Linux, ou /proc/meminfo illisible : le plancher d'avant
+    (3000, "4500m"),        # peu de mémoire : jamais moins que le plancher
+    (15000, "10500m"),      # un exécuteur GitHub (16 Go) : 70 % du disponible
+    (64000, "12000m"),      # une grosse machine : le plafond
+])
+def test_tas_java_d_une_case_selon_la_memoire(disponible, tas):
+    # E5_N45 (Alpes) manquait de mémoire dans WayLinker avec 4,5 Go fixes.
+    assert fabrication.tas_case(lambda: disponible) == tas
