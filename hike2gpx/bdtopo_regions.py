@@ -213,12 +213,21 @@ class Lecteur:
         """L'édition de la BD TOPO pour le manifeste : la plus récente des régions."""
         return max((self.edition(r)["date"] for r in self.regions(sud, ouest, nord, est)), default=None)
 
-    def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
-        from .case import troncons_gpkg
-        vus, resultat = set(), []
+    def preparer(self, sud: float, ouest: float, nord: float, est: float) -> None:
+        """Télécharge d'avance les régions de l'emprise, sans rien lire. La
+        fusion en damier (fabrication._fusionner_mailles) l'appelle avant de
+        créer ses processus : chacun aurait sinon téléchargé la même archive
+        dans le même dossier, et le premier fini l'effaçait sous les autres
+        (R11, essai Actions du 2026-11-02)."""
         for region in self.regions(sud, ouest, nord, est):
             if region not in self._gpkg:
                 self._gpkg[region] = geopackage(self.dossier, region, self.edition(region))
+
+    def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
+        from .case import troncons_gpkg
+        vus, resultat = set(), []
+        self.preparer(sud, ouest, nord, est)
+        for region in self.regions(sud, ouest, nord, est):
             # Un tronçon qui passe la limite de deux régions est dans les deux.
             for t in troncons_gpkg(self._gpkg[region], sud, ouest, nord, est):
                 if t["id"] not in vus:
