@@ -30,7 +30,9 @@
     <string name="actualiser">Relire les catalogues</string>
     <string name="source_github">GitHub : les lots hors ligne du serveur</string>
     <string name="oublier">Oublier</string>
-    <string name="aide_qr">Un PC partage ses fonds de carte. Pour l’ajouter, ouvrez « Partager au téléphone » dans ses réglages et scannez le QR code avec l’appareil photo du téléphone, sur le même Wi-Fi.</string>
+    <string name="aide_qr">Un PC partage ses fonds de carte. Pour l’ajouter, ouvrez « Partager au téléphone » dans ses réglages, puis scannez le QR code qu’il affiche, sur le même Wi-Fi.</string>
+    <string name="scanner_qr">Scanner le QR code d’un PC</string>
+    <string name="scan_invite">Visez le QR code affiché par hike2gpx sur le PC</string>
     <string name="coller_lien">Coller le lien d’un PC</string>
     <string name="ajouter_pc">Ajouter ce PC comme source ?</string>
     <string name="confirmer_pc">Catalogue : %1$s</string>

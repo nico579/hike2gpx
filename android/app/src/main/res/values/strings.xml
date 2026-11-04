@@ -32,7 +32,9 @@
     <string name="actualiser">Reload the catalogues</string>
     <string name="source_github">GitHub: the server’s offline bundles</string>
     <string name="oublier">Forget</string>
-    <string name="aide_qr">A PC shares its base maps. To add one, open “Share with the phone” in its settings and scan the QR code with the phone’s camera, on the same Wi-Fi.</string>
+    <string name="aide_qr">A PC shares its base maps. To add one, open “Share with the phone” in its settings, then scan the QR code it shows, on the same Wi-Fi.</string>
+    <string name="scanner_qr">Scan a PC’s QR code</string>
+    <string name="scan_invite">Aim at the QR code shown by hike2gpx on the PC</string>
     <string name="coller_lien">Paste a PC link</string>
     <string name="ajouter_pc">Add this PC as a source?</string>
     <string name="confirmer_pc">Catalogue: %1$s</string>

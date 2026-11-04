@@ -227,7 +227,10 @@ const TEXTES = {
     "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
     "partage.fond": "Fond pour le téléphone (vue affichée)",
-    "partage.ouvert": "Scannez ce code avec hike2gpx sur le téléphone, sur le même Wi-Fi : {lots} lot(s) et {fonds} fond(s) de carte, {taille}. Le code change à chaque partage.",
+    "partage.ouvert": "Dans hike2gpx sur le téléphone, sur le même Wi-Fi : Réglages, puis « Scanner le QR code d’un PC ». {fonds} fond(s) de carte à prendre. Le code change à chaque partage.",
+    "partage.titre": "Partager au téléphone",
+    "partage.revoir": "Afficher le QR code",
+    "partage.fermerFenetre": "Fermer",
     "partage.erreur": "Partage impossible : {erreur}",
     "pleinEcran.entrer": "Plein écran",
     "pleinEcran.quitter": "Quitter le plein écran",
@@ -458,7 +461,10 @@ const TEXTES = {
     "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
     "partage.fond": "Base map for the phone (current view)",
-    "partage.ouvert": "Scan this code with hike2gpx on the phone, on the same Wi-Fi: {lots} bundle(s) and {fonds} base map(s), {taille}. The code changes with every share.",
+    "partage.ouvert": "In hike2gpx on the phone, on the same Wi-Fi: Settings, then “Scan a PC’s QR code”. {fonds} base map(s) to take. The code changes with every share.",
+    "partage.titre": "Share with the phone",
+    "partage.revoir": "Show the QR code",
+    "partage.fermerFenetre": "Close",
     "partage.erreur": "Sharing failed: {erreur}",
     "pleinEcran.entrer": "Full screen",
     "pleinEcran.quitter": "Exit full screen",
@@ -1580,25 +1586,33 @@ function ajouterFonds(div, nom, vue) {
 // Le PC sert ses lots et ses fonds sur le Wi-Fi (partage.py), fermé par
 // défaut. Le QR code porte l'adresse du catalogue et un jeton tiré à chaque
 // ouverture ; il est dessiné par le serveur (SVG).
-function afficherPartage(r) {
+// Le QR code s'affiche dans sa fenêtre, comme lidar2map, à l'ouverture du
+// partage ou sur « Afficher le QR code » ; une page rechargée ne la rouvre pas.
+function afficherPartage(r, montrer = false) {
   etat.partage = r;
   $("partagerTelephone").hidden = Boolean(r.ouvert);
   $("partageOuvert").hidden = !r.ouvert;
   $("partageQr").innerHTML = r.ouvert ? r.qr : "";
-  $("partageTexte").textContent = r.erreur ? t("partage.erreur", { erreur: ts(r.erreur) })
-    : r.ouvert ? t("partage.ouvert", { lots: r.lots.length, fonds: r.fonds.length, taille: tailleTexte(r.octets) }) : "";
+  const ouvert = r.ouvert ? t("partage.ouvert", { lots: r.lots.length, fonds: r.fonds.length, taille: tailleTexte(r.octets) }) : "";
+  $("partageFenetreTexte").textContent = ouvert;
+  $("partageTexte").textContent = r.erreur ? t("partage.erreur", { erreur: ts(r.erreur) }) : ouvert;
   $("partageTexte").hidden = !$("partageTexte").textContent;
+  $("partageFenetre").hidden = !(r.ouvert && montrer);
 }
 
 async function basculerPartage(ouvrir) {
   try {
-    afficherPartage(await api("partage", { ouvrir }));
+    afficherPartage(await api("partage", { ouvrir }), ouvrir);
   } catch (e) {
     afficherPartage({ ouvert: false, erreur: e.message });
   }
 }
 $("partagerTelephone").addEventListener("click", () => basculerPartage(true));
 $("fermerPartage").addEventListener("click", () => basculerPartage(false));
+$("revoirQr").addEventListener("click", () => { if (etat.partage?.ouvert) $("partageFenetre").hidden = false; });
+$("fermerFenetrePartage").addEventListener("click", () => { $("partageFenetre").hidden = true; });
+$("partageFenetre").addEventListener("click", (e) => { if (e.target === $("partageFenetre")) $("partageFenetre").hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("partageFenetre").hidden = true; });
 
 // Le fond affiché, sur la vue affichée, prêt à partir au téléphone : la même
 // fabrication que la bulle d'une case (preparer_fond), là où on prépare son

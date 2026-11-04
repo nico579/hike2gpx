@@ -6,6 +6,8 @@ junit = "4.13.2"
 json = "20240303"
 # Le FileProvider qui confie l'APK de mise à jour à l'installateur, comme gpxelev.
 core = "1.13.1"
+# Le scanner du QR code d'un PC, comme watch2notif.
+zxing = "4.3.0"
 
 [libraries]
 osmdroid = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
@@ -13,6 +15,7 @@ gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 junit = { module = "junit:junit", version.ref = "junit" }
 json = { module = "org.json:json", version.ref = "json" }
 core = { module = "androidx.core:core", version.ref = "core" }
+zxing = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxing" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

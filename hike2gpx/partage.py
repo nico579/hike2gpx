@@ -101,9 +101,13 @@ def lien(url_catalogue: str, jeton: str) -> str:
 
 
 def qr_svg(texte: str) -> str:
-    """Le QR code en SVG, prêt à poser dans la page."""
+    """Le QR code en SVG, prêt à poser dans la page. omitsize donne un viewBox
+    au lieu d'une largeur fixe : la page le met à l'échelle sans jamais le
+    couper (un lien de partage fait un QR de 45 modules, plus la marge de 4
+    modules que demande la norme)."""
     tampon = io.BytesIO()
-    segno.make(texte, error="m").save(tampon, kind="svg", scale=4, border=4, xmldecl=False, svgns=True)
+    segno.make(texte, error="m").save(tampon, kind="svg", scale=8, border=4, xmldecl=False, svgns=True,
+                                      omitsize=True)
     return tampon.getvalue().decode("utf-8")
 
 
