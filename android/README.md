@@ -6,9 +6,33 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 
 ## Ce qu'elle fait
 
-L'application lit le catalogue des lots (`catalog.json`, le format de
-`hike2gpx/depot.py`) et affiche les cases disponibles avec leur taille et
-l'édition de leurs sources. Un lot se télécharge fichier par fichier ; une
+L'écran est celui de la page du PC : la carte d'abord, en plein écran. On
+touche la carte pour poser le départ, puis l'arrivée et d'éventuelles étapes ;
+« Retour » retire le dernier point, « Effacer » les retire tous. Dès qu'il y a
+deux points, l'itinéraire se calcule hors ligne et s'affiche ; « GPX »
+l'exporte.
+
+Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
+(`application._lot_automatique`) : l'application lit les catalogues à son
+lancement, et quand un parcours touche une case dont le lot manque, ou dont le
+dépôt a une édition plus récente, ce lot part aussitôt. Sur le Wi-Fi, sans
+rien demander ; sur un réseau facturé (données mobiles), après confirmation.
+Un échec ou un refus n'est pas repris avant une heure, et un lot supprimé à la
+main ne revient pas de la séance.
+
+Le bouton « Fond » choisit le fond de carte : OpenStreetMap ou OpenTopoMap en
+ligne, ou un fond hors ligne reçu d'un PC (le SCAN 25 ou le Plan IGN qu'il a
+fabriqués, `hike2gpx/fonds.py`). Les fonds qu'un PC partage et qui manquent
+au téléphone sont proposés dans la même liste, avec leur taille. Un fond est
+un MBTiles rangé sous `hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une
+même source s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le
+plus fin.
+
+Les réglages réunissent le reste : mode strict et chemins officiels, lots et
+fonds installés (mise à jour, suppression), sources.
+
+Le catalogue des lots (`catalog.json`) a le format de `hike2gpx/depot.py`.
+Un lot se télécharge fichier par fichier ; une
 coupure reprend là où elle s'est arrêtée (en-tête `Range`), et chaque fichier
 est contrôlé par son SHA-256, puis tout le lot une seconde fois contre son
 manifeste à l'installation, comme `HorsLigne.installer` sur le PC. Les

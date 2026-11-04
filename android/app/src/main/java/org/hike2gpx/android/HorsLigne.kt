@@ -112,6 +112,17 @@ class HorsLigne(dossier: File) {
         return lot
     }
 
+    /** Retire le lot d'une case, ses deux RD5 possibles comprises ; rend les octets libérés. */
+    fun supprimer(case: String): Long {
+        val dossier = File(racine, Catalogue.nomSur(case))
+        val fichiers = (dossier.walkTopDown().filter { it.isFile }.toList() +
+            listOf(File(segments, "$case.rd5"), File(segmentsOsm, "$case.rd5")).filter { it.isFile })
+        val octets = fichiers.sumOf { it.length() }
+        fichiers.forEach { it.delete() }
+        dossier.deleteRecursively()
+        return octets
+    }
+
     /** Le lot installé qui couvre toute la zone ; à égalité, l'enrichi d'abord (lot_couvrant). */
     fun lotCouvrant(zone: Zone): Lot? =
         lots().filter { lot ->

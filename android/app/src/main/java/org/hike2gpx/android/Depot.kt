@@ -77,6 +77,23 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
         return travail
     }
 
+    /**
+     * Le fichier MBTiles d'un fond de carte dans travail, repris par Range et
+     * contrôlé par son SHA-256 comme un fichier de lot ; rend le fichier reçu.
+     */
+    fun telechargerFond(fond: Fond, source: Source, travail: File,
+                        suivi: (Long, Long) -> Unit = { _, _ -> }, continuer: () -> Boolean = { true }): File {
+        travail.mkdirs()
+        val f = Fichier("${Catalogue.nomSur(fond.nom)}.mbtiles", fond.octets, fond.sha256, fond.url)
+        val cible = File(travail, f.nom)
+        val deja = if (cible.exists()) minOf(cible.length(), f.octets) else 0L
+        if (travail.usableSpace < f.octets - deja + MARGE_DISQUE)
+            throw ErreurDepot("Place insuffisante : il faut ${(f.octets - deja) / 1_000_000 + 1} Mo.")
+        var recus = deja
+        fichier(adresse(source, f.url), source, cible, f, { n -> recus += n; suivi(recus, f.octets) }, continuer)
+        return cible
+    }
+
     /** L'adresse d'un fichier, relative à celle du catalogue ; vers un PC, à la même origine. */
     fun adresse(source: Source, relative: String): URL {
         val base = URI(source.catalogue)
