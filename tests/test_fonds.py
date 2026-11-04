@@ -6,6 +6,7 @@ import sqlite3
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -52,6 +53,38 @@ def test_l_adresse_des_tuiles_est_celle_de_la_page():
     assert fonds.source_pour("ma_cle") == "scan25" and fonds.source_pour("") == "plan"
 
 
+def test_les_fonds_hors_ligne_sont_ceux_de_la_page():
+    # Même clé et même adresse que providers/<pays>.js : le PC fabrique le fond affiché.
+    providers = Path(fonds.__file__).parent / "assets" / "web" / "providers"
+    page = "\n".join(p.read_text(encoding="utf-8") for p in providers.glob("*.js"))
+    for cle, source in fonds.SOURCES.items():
+        assert f"{cle}: L.tileLayer" in page or f"fonds.{cle} = L.tileLayer" in page, cle
+        if not source.gabarit.startswith("https://data.geopf.fr/"):     # l'IGN se compose dans tuileIgn()
+            assert source.gabarit in page, cle
+    # TopPlusOpen et Kartverket rangent la rangée avant la colonne.
+    assert fonds.url_tuile("allemagne", 14, 8466, 5986).endswith("/14/5986/8466.png")
+    assert fonds.url_tuile("paysBas", 14, 8466, 5986).endswith("/14/8466/5986.png")
+
+
+def test_l_application_prepare_le_fond_affiche(tmp_path, monkeypatch):
+    a = Application(tmp_path)
+    ouvrir = service()
+    monkeypatch.setattr(urllib.request, "urlopen", ouvrir)
+    monkeypatch.setattr(fonds, "DEBIT", 0)
+    monkeypatch.setattr(fonds, "ZOOMS_VUE", (12, 12))
+    assert "erreur" in a.preparer_fond({"case": "E5_N40", "zone": list(ZONE), "source": "osm"}), \
+        "OpenStreetMap ne se garde pas hors ligne"
+    assert "clé IGN" in a.preparer_fond({"case": "E5_N40", "zone": list(ZONE), "source": "scan25"})["erreur"]
+    # IGN España : une adresse WMTS (TILEMATRIX…), celle que lit le faux service.
+    a.preparer_fond({"case": "E5_N40", "zone": list(ZONE), "source": "espagne"})
+    a._fil_lot.join(10)
+    assert a.lot_en_cours()["fond"].startswith("E5_N40-espagne-vue-")
+    [f] = a.lots_hors_ligne()["fonds"]
+    assert f["source"] == "espagne" and f["attribution"] == "© IGN España, CC BY 4.0"
+    assert ouvrir.demandes[0].full_url.startswith("https://www.ign.es/wmts/")
+    assert a.etat()["fonds_hors_ligne"]["allemagne"] == "TopPlusOpen (BKG)"
+
+
 def test_zooms_d_une_vue_et_d_une_case():
     assert fonds.zooms_vue(ZONE) == (6, 16), "une vue d'écran descend au 16"
     assert len(fonds.tuiles(ZONE, (6, 16))) == 631
@@ -67,7 +100,8 @@ def test_un_fond_s_ecrit_en_mbtiles_et_se_relit(tmp_path):
     decrit = fonds.fabriquer(chemin, "scan25", ZONE, (12, 14), "cle", suivi=lambda f, t: suivi.append((f, t)),
                              ouvrir=ouvrir, debit=0)
     assert decrit == {"nom": "E5_N40-scan25-vue-abc123", "zone": list(ZONE), "zoom": [12, 14],
-                      "source": "scan25", "format": "jpg", "octets": chemin.stat().st_size}
+                      "source": "scan25", "format": "jpg", "attribution": "© IGN",
+                      "octets": chemin.stat().st_size}
     assert suivi[-1] == (61, 61) and len(ouvrir.demandes) == 61
     assert all(r.get_header("User-agent").startswith("hike2gpx/") for r in ouvrir.demandes)
     # MBTiles 1.3 : métadonnées requises, rangées TMS (comptées depuis le sud).

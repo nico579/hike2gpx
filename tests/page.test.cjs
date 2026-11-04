@@ -186,6 +186,9 @@ test("le bouton « Hors ligne » de la carte montre la grille et dit quoi en fai
 
 test("une case absente se prépare sur la vue actuelle ou en entier", async () => {
   const { page, requetes } = charger();
+  // Ce que le serveur annonce dans /api/etat : les fonds qui se gardent hors ligne.
+  page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN", allemagne: "TopPlusOpen (BKG)" };
+  page.construireFonds();     // le Plan IGN affiché, comme au démarrage sans clé
   const bulle = page.bulleCase("E5_N40");
   const boutons = bulle.enfants.filter((e) => e.type === "button");
   assert.deepEqual(boutons.map((b) => b.textContent),
@@ -199,14 +202,20 @@ test("une case absente se prépare sur la vue actuelle ou en entier", async () =
     { case: "E5_N40" });
   boutons[2].click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
-    { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });
+    { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04], source: "plan" });
   boutons[3].click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
-    { case: "E5_N40" });
+    { case: "E5_N40", source: "plan" });
+  // Un fond qui ne se garde pas (OpenStreetMap) : pas de bouton, une explication.
+  page.etat.fondsHorsLigne = {};
+  const enLigne = page.bulleCase("E5_N40");
+  assert.equal(enLigne.enfants.filter((e) => e.type === "button").length, 2);
+  assert.ok(enLigne.enfants.some((e) => /^Ce fond reste en ligne/.test(e.textContent ?? "")));
 });
 
 test("un fond de carte installé devient la « Carte hors ligne », lue sur le PC", async () => {
   const { page, requetes } = charger();
+  page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN" };
   assert.equal(page.fonds().horsLigne, undefined, "aucun fond : pas de carte hors ligne");
   const charge = page.chargerFonds();
   repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [
@@ -222,8 +231,24 @@ test("un fond de carte installé devient la « Carte hors ligne », lue sur le P
   assert.equal(groupe.layers[1].options.maxNativeZoom, 16);
   assert.equal(JSON.stringify(groupe.layers[0].options.bounds), "[[40,5],[45,10]]");
   const bulle = page.bulleCase("E5_N40");
-  assert.ok(bulle.enfants.some((e) => /^Fond de carte hors ligne : vue SCAN 25 12 Mo, toute la case SCAN 25 400 Mo/
+  assert.ok(bulle.enfants.some((e) => /^Fond de carte hors ligne : vue SCAN 25 \(IGN\) 12 Mo, toute la case SCAN 25 \(IGN\) 400 Mo/
     .test(e.textContent ?? e.enfants?.join(""))), "la bulle dit les fonds de la case");
+});
+
+test("le fond pour le téléphone se fabrique depuis les réglages, sur la vue et le fond affichés", async () => {
+  const { page, elements, requetes } = charger();
+  page.etat.fondsHorsLigne = { plan: "Plan IGN" };
+  page.construireFonds();
+  elements.get("fondTelephone").click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
+    { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04], source: "plan" });
+  // Un fond qui reste en ligne : rien n'est demandé, la note le dit.
+  const avant = requetes.length;
+  page.etat.fondsHorsLigne = {};
+  elements.get("fondTelephone").click();
+  assert.equal(requetes.length, avant);
+  assert.match(elements.get("fondTelephoneTexte").textContent, /^Ce fond reste en ligne/);
+  assert.equal(elements.get("fondTelephoneTexte").hidden, false);
 });
 
 test("le partage au téléphone s'ouvre à la demande, montre son QR code et se ferme", async () => {

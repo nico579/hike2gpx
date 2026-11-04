@@ -302,7 +302,9 @@ class Application:
             if self.installation.segments.is_dir() else []
         return {"app": "hike2gpx", "version": __version__, "dossier": str(self.dossier),
                 "moteur_installe": self.installation.installee(), "segments": segments,
-                "brouter": brouter.VERSION, "poids_a_verifier": brouter.POIDS_A_VERIFIER}
+                "brouter": brouter.VERSION, "poids_a_verifier": brouter.POIDS_A_VERIFIER,
+                # Les fonds de la page qui se gardent hors ligne (fonds.SOURCES), et leur nom.
+                "fonds_hors_ligne": {cle: s.titre for cle, s in fonds.SOURCES.items()}}
 
     # ---------------------------------------------------------- moteur
 
@@ -1327,16 +1329,23 @@ class Application:
 
     def preparer_fond(self, corps) -> dict:
         """Télécharge en tâche de fond le fond de carte d'une case ou d'une vue
-        (fonds.py) : le SCAN 25 avec la clé IGN, le Plan IGN sans. corps comme
-        pour preparer_lot. Le fond reste sur ce PC, jamais publié."""
+        (fonds.py). corps comme pour preparer_lot, plus « source », le fond
+        affiché par la page (une clé de fonds.SOURCES) ; sans elle, le SCAN 25
+        avec la clé IGN, le Plan IGN sans. Le fond reste sur ce PC et son
+        téléphone, jamais publié."""
         case, zone, erreur = self._case_et_zone(corps)
         if erreur:
             return {"erreur": erreur}
-        return self._lancer_tache(self._fabriquer_fond, case, zone, "fond")
-
-    def _fabriquer_fond(self, case, zone) -> None:
         cle = self.reglages()["cle_ign"]
-        source = fonds.source_pour(cle)
+        source = (corps or {}).get("source") or fonds.source_pour(cle)
+        if source not in fonds.SOURCES:
+            return {"erreur": "Ce fond de carte ne se garde pas hors ligne."}
+        if fonds.SOURCES[source].cle and not cle:
+            return {"erreur": "Le SCAN 25 demande la clé IGN des réglages."}
+        return self._lancer_tache(lambda c, z: self._fabriquer_fond(c, z, source), case, zone, "fond")
+
+    def _fabriquer_fond(self, case, zone, source) -> None:
+        cle = self.reglages()["cle_ign"]
         if zone:
             # Une vue s'arrête aux bords de sa case, comme un lot.
             s, o, n, e = lot.boite_case(case)

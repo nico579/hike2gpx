@@ -85,13 +85,16 @@ Un fond de carte :
   entière, `<case>-<source>-vue-<6 hexadécimaux>` pour une vue ;
 - `zone` : `[sud, ouest, nord, est]` en degrés, comme les lots ;
 - `zoom` : `[min, max]`, une plage de deux entiers, les niveaux présents (bornes comprises) ; au-delà de `max`, on agrandit ;
-- `source` : `scan25` (SCAN 25 de l'IGN, avec clé) ou `plan` (Plan IGN,
-  Licence Ouverte) ;
+- `source` : la clé du fond dans la page et dans `fonds.SOURCES`, sans tiret :
+  `scan25` (SCAN 25 de l'IGN, avec clé), `plan` (Plan IGN, Licence Ouverte),
+  `allemagne` (TopPlusOpen, dl-de/by-2-0), `espagne` (MTN de l'IGN España),
+  `norvege` (Kartverket) ou `paysBas` (PDOK), ces trois derniers en CC BY 4.0.
+  Le téléphone la lit aussi dans le nom, deuxième mot après la case ;
 - `octets`, `sha256`, `url` : comme un fichier de lot.
 
 Le fichier est un [MBTiles 1.3](https://github.com/mapbox/mbtiles-spec/blob/master/1.3/spec.md) :
 une base SQLite, table `tiles` en rangées TMS (comptées depuis le sud), tuiles
-JPEG (`scan25`) ou PNG (`plan`) de 256 pixels en Web Mercator, et la table
+JPEG (`scan25`, `espagne`) ou PNG (les autres) de 256 pixels en Web Mercator, et la table
 `metadata` avec `name`, `format`, `type` (`baselayer`), `bounds`, `minzoom`,
 `maxzoom`, `attribution`, plus `source`.
 
