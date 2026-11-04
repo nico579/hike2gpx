@@ -110,4 +110,31 @@
     <string name="err_adresse_sans_hote">Adresse de catalogue sans hôte : %1$s</string>
     <string name="err_http_local">Un catalogue en HTTP doit être sur le réseau local : %1$s</string>
     <string name="err_adresse_non_http">Adresse de catalogue non HTTP : %1$s</string>
+
+    <!-- La mise à jour depuis les releases GitHub (MiseAJour). -->
+    <string name="maj_titre">Mise à jour</string>
+    <string name="maj_version">Version installée : %1$s</string>
+    <string name="maj_verifier">Vérifier les mises à jour</string>
+    <string name="maj_verification">Recherche d’une mise à jour…</string>
+    <string name="maj_a_jour">hike2gpx %1$s est à jour.</string>
+    <string name="maj_disponible">hike2gpx %1$s est disponible (installée : %2$s, téléchargement de %3$s). L’installer maintenant ? Vos lots et vos fonds de carte sont gardés.</string>
+    <string name="maj_installer">Installer</string>
+    <string name="maj_telechargement">Téléchargement de la mise à jour…</string>
+    <string name="maj_prete">Version %1$s téléchargée et vérifiée.</string>
+    <string name="maj_autorisation">Autorisez hike2gpx à installer des applications, puis revenez : la mise à jour reprendra.</string>
+    <string name="maj_autorisation_refusee">Installation non autorisée : la mise à jour attendra la prochaine vérification.</string>
+    <string name="maj_installateur">Impossible d’ouvrir l’installateur d’Android.</string>
+    <string name="maj_version_invalide">Version de mise à jour invalide.</string>
+    <string name="maj_reponse_invalide">Réponse de mise à jour invalide.</string>
+    <string name="maj_apk_absent">La release ne contient pas l’application Android.</string>
+    <string name="maj_empreinte_invalide">Empreinte de mise à jour invalide.</string>
+    <string name="maj_empreinte_absente">Empreinte de mise à jour absente.</string>
+    <string name="maj_apk_illisible">L’APK de mise à jour est illisible.</string>
+    <string name="maj_autre_application">L’APK ne correspond pas à cette application ou à une version plus récente.</string>
+    <string name="maj_signature">La signature de la mise à jour ne correspond pas à l’application installée.</string>
+    <string name="maj_adresse_invalide">Adresse de mise à jour invalide.</string>
+    <string name="maj_limite">GitHub limite les vérifications. Réessayez plus tard.</string>
+    <string name="maj_aucune_release">Aucune release publiée pour le moment.</string>
+    <string name="maj_indisponible">Le serveur de mises à jour est indisponible.</string>
+    <string name="maj_corrompu">Fichier de mise à jour incomplet ou corrompu.</string>
 </resources>

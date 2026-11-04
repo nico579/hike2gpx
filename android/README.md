@@ -43,6 +43,22 @@ L'APK de débogage s'installe à côté de la version publiée, sous l'identifia
 `org.hike2gpx.android.debug` et le nom « hike2gpx (essai) » : sa clé diffère,
 il ne pourrait pas la remplacer, et l'essayer n'efface rien.
 
+## Mise à jour
+
+L'application se met à jour depuis les releases GitHub, comme gpxelev et
+blink2temp (`MiseAJour.kt`, d'après leur `ReleaseUpdates.kt`). Au lancement,
+sans bruit, et à la demande dans les réglages (« Vérifier les mises à jour »),
+elle lit `releases/latest` ; une version plus récente se propose. L'APK
+`hike2gpx-android.apk` ne se télécharge que depuis GitHub en HTTPS, contrôlé
+par sa taille et son SHA-256 (le champ `digest` de l'API, sinon le fichier
+`.sha256` publié à côté), puis par son paquet, sa version et sa signature, qui
+doit être celle de l'application installée. Il passe alors à l'installateur
+d'Android par un `FileProvider` (`FournisseurMaj`, qui ne partage que
+`cache/maj`). La première fois, Android demande d'autoriser hike2gpx à
+installer des applications ; la mise à jour reprend au retour. Lots, fonds et
+réglages sont gardés. L'APK d'essai ne se compare pas aux releases au
+lancement : ce n'est pas le même paquet.
+
 Le catalogue des lots (`catalog.json`) a le format de `hike2gpx/depot.py`.
 Un lot se télécharge fichier par fichier ; une
 coupure reprend là où elle s'est arrêtée (en-tête `Range`), et chaque fichier

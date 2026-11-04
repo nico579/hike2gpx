@@ -5,6 +5,9 @@ import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.Intent
 import android.net.ConnectivityManager
+import android.net.Uri
+import android.provider.Settings
+import android.text.format.Formatter
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
@@ -70,6 +73,9 @@ class MainActivity : Activity() {
     /** Un point posé pendant une tâche : on reprend à sa fin. */
     private var aReprendre = false
     private var fenetreReglages: LinearLayout? = null
+    /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
+    private var apkEnAttente: File? = null
+    private var attenteAutorisation = false
 
     override fun onCreate(etatSauve: Bundle?) {
         super.onCreate(etatSauve)
@@ -84,6 +90,7 @@ class MainActivity : Activity() {
         appliquerFond(reglages.fond)
         lireLien(intent)
         actualiser()
+        verifierMajAuLancement()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -514,6 +521,94 @@ class MainActivity : Activity() {
             text = getString(R.string.vider_cache, octetsCaches() / 1_000_000)
             setOnClickListener { viderCache() }
         })
+
+        titre(colonne, R.string.maj_titre)
+        colonne.addView(TextView(this).apply { text = getString(R.string.maj_version, versionInstallee()) })
+        colonne.addView(Button(this).apply { setText(R.string.maj_verifier); setOnClickListener { verifierMaj() } })
+    }
+
+    // ------------------------------------------------------------------ mise à jour
+
+    /** La version installée, celle de hike2gpx/__init__.py (build.gradle.kts), sans le suffixe « -essai » de l'APK de débogage. */
+    private fun versionInstallee(): String =
+        (packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0").substringBefore('-')
+
+    /**
+     * Au lancement, sans bruit, comme le PC : une version plus récente se
+     * propose, un échec ne dit rien. L'APK d'essai (.debug) ne s'y compare pas :
+     * la release n'est pas son paquet.
+     */
+    private fun verifierMajAuLancement() {
+        if (packageName.endsWith(".debug")) return
+        Thread {
+            val publication = try {
+                ClientMaj().verifier(versionInstallee())
+            } catch (e: Exception) {
+                null
+            }
+            if (publication != null) runOnUiThread { if (!isDestroyed) proposerMaj(publication) }
+        }.start()
+    }
+
+    /** Depuis les réglages : le résultat, quel qu'il soit, s'affiche. */
+    private fun verifierMaj() {
+        etat.setText(R.string.maj_verification)
+        Thread {
+            val message = try {
+                val publication = ClientMaj().verifier(versionInstallee())
+                if (publication != null) {
+                    runOnUiThread { proposerMaj(publication) }; null
+                } else getString(R.string.maj_a_jour, versionInstallee())
+            } catch (e: Exception) {
+                texte(e)
+            }
+            if (message != null) runOnUiThread { etat.text = message }
+        }.start()
+    }
+
+    private fun proposerMaj(publication: Publication) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.maj_titre)
+            .setMessage(getString(R.string.maj_disponible, publication.version, versionInstallee(),
+                Formatter.formatShortFileSize(this, publication.octets)))
+            .setPositiveButton(R.string.maj_installer) { _, _ -> telechargerMaj(publication) }
+            .setNegativeButton(R.string.plus_tard, null)
+            .show()
+    }
+
+    /** L'APK téléchargé, contrôlé (taille, SHA-256, paquet, version, signature), puis confié à l'installateur. */
+    private fun telechargerMaj(publication: Publication) {
+        tache(R.string.maj_telechargement, true, { continuer ->
+            val apk = ClientMaj().telecharger(publication, MiseAJour.dossier(this), { faits, total ->
+                runOnUiThread { progression.progress = (1000 * faits / maxOf(total, 1)).toInt() }
+            }, continuer)
+            MiseAJour.verifier(this, apk, publication)
+            apkEnAttente = apk
+            getString(R.string.maj_prete, publication.version)
+        }, ensuite = { reussie -> if (reussie) installerMaj() })
+    }
+
+    /**
+     * L'installateur d'Android. La première fois, Android demande d'autoriser
+     * hike2gpx à installer des applications : on ouvre ce réglage, et l'on
+     * reprend au retour (onResume).
+     */
+    private fun installerMaj() {
+        val apk = apkEnAttente ?: return
+        if (!packageManager.canRequestPackageInstalls()) {
+            attenteAutorisation = true
+            etat.setText(R.string.maj_autorisation)
+            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            return
+        }
+        apkEnAttente = null
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW)
+                .setDataAndType(MiseAJour.uri(this, apk), "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        } catch (e: Exception) {
+            etat.setText(R.string.maj_installateur)
+        }
     }
 
     /** Ce que le vidage efface : lots et fonds, téléchargements interrompus, tuiles en ligne gardées par osmdroid. */
@@ -677,6 +772,10 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume(); carte.onResume()
+        if (attenteAutorisation) {
+            attenteAutorisation = false
+            if (packageManager.canRequestPackageInstalls()) installerMaj() else etat.setText(R.string.maj_autorisation_refusee)
+        }
     }
 
     override fun onPause() {

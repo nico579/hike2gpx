@@ -112,4 +112,31 @@
     <string name="err_adresse_sans_hote">Catalogue address without a host: %1$s</string>
     <string name="err_http_local">An HTTP catalogue must be on the local network: %1$s</string>
     <string name="err_adresse_non_http">Non-HTTP catalogue address: %1$s</string>
+
+    <!-- Updates from the GitHub releases (MiseAJour). -->
+    <string name="maj_titre">Update</string>
+    <string name="maj_version">Installed version: %1$s</string>
+    <string name="maj_verifier">Check for updates</string>
+    <string name="maj_verification">Checking for updates…</string>
+    <string name="maj_a_jour">hike2gpx %1$s is up to date.</string>
+    <string name="maj_disponible">hike2gpx %1$s is available (installed: %2$s, download %3$s). Install it now? Your bundles and base maps are kept.</string>
+    <string name="maj_installer">Install</string>
+    <string name="maj_telechargement">Downloading the update…</string>
+    <string name="maj_prete">Version %1$s downloaded and checked.</string>
+    <string name="maj_autorisation">Allow hike2gpx to install apps, then come back: the update will continue.</string>
+    <string name="maj_autorisation_refusee">Installation not allowed: the update will wait for the next check.</string>
+    <string name="maj_installateur">Cannot open the Android installer.</string>
+    <string name="maj_version_invalide">Invalid update version.</string>
+    <string name="maj_reponse_invalide">Invalid update response.</string>
+    <string name="maj_apk_absent">The release has no Android application.</string>
+    <string name="maj_empreinte_invalide">Invalid update hash.</string>
+    <string name="maj_empreinte_absente">The update hash is missing.</string>
+    <string name="maj_apk_illisible">The update APK cannot be read.</string>
+    <string name="maj_autre_application">The APK is not this application or not a newer version.</string>
+    <string name="maj_signature">The update signature does not match the installed application.</string>
+    <string name="maj_adresse_invalide">Invalid update address.</string>
+    <string name="maj_limite">GitHub is limiting checks. Try again later.</string>
+    <string name="maj_aucune_release">No release published yet.</string>
+    <string name="maj_indisponible">The update server is unavailable.</string>
+    <string name="maj_corrompu">Update file incomplete or corrupted.</string>
 </resources>
