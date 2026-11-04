@@ -67,6 +67,7 @@ android {
 dependencies {
     implementation(libs.osmdroid)
     implementation(libs.gson)
+    implementation(libs.core)
     testImplementation(libs.junit)
     // org.json d'Android n'existe pas sur la JVM des tests : la bibliothèque d'origine.
     testImplementation(libs.json)

@@ -4,12 +4,15 @@ osmdroid = "6.1.20"
 gson = "2.11.0"
 junit = "4.13.2"
 json = "20240303"
+# Le FileProvider qui confie l'APK de mise à jour à l'installateur, comme gpxelev.
+core = "1.13.1"
 
 [libraries]
 osmdroid = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 junit = { module = "junit:junit", version.ref = "junit" }
 json = { module = "org.json:json", version.ref = "json" }
+core = { module = "androidx.core:core", version.ref = "core" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

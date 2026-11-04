@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Le seul dossier que l'installateur d'Android peut lire : l'APK de mise à jour (MiseAJour.dossier). -->
+<paths>
+    <cache-path name="maj" path="maj/" />
+</paths>
