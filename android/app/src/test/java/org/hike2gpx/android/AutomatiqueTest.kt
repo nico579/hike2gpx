@@ -67,6 +67,17 @@ class AutomatiqueTest {
         assertEquals(listOf("E5_N40-plan" to pc2, "E5_N40-scan25" to pc1), proposes.map { it.second.nom to it.first })
     }
 
+    @Test fun vider_retire_lots_et_fonds_et_dit_ce_qui_est_libere() {
+        val hl = HorsLigne(dossier.root)
+        File(hl.segments, "E5_N40.rd5").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(100)) }
+        File(hl.racine, "E5_N40/manifest.json").apply { parentFile!!.mkdirs(); writeText("{}") }
+        File(Fonds(hl.racine).dossier, "E5_N40-plan.mbtiles").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(50)) }
+        assertEquals(152L, hl.vider())
+        assertFalse(hl.racine.exists())
+        assertTrue(hl.lots().isEmpty())
+        assertEquals(0L, hl.vider())
+    }
+
     @Test fun les_fonds_installes_se_groupent_par_source() {
         val fonds = Fonds(dossier.root)
         val recu = dossier.newFile("E5_N40-scan25.mbtiles")

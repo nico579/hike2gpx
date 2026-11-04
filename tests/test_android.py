@@ -6,6 +6,8 @@ un nouveau fournisseur dans la clé hike2gpx), le même lot donnerait deux
 itinéraires différents. Ce test le signale.
 """
 import hashlib
+import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from hike2gpx import brouter
@@ -30,3 +32,19 @@ def test_profil_enrichi_connait_les_chemins_officiels():
     profil = (ASSETS / "enrichi" / f"{brouter.PROFIL}.brf").read_text(encoding="utf-8")
     assert "assign chemins_officiels = 1" in profil
     assert brouter.CLE_IGN in (ASSETS / "enrichi" / "lookups.dat").read_text(encoding="utf-8")
+
+
+def test_l_application_parle_anglais_et_francais():
+    # L'anglais par défaut (values), le français dans values-fr, comme
+    # watch2notif : mêmes clés et mêmes arguments (%1$s, %2$d…) dans chaque
+    # phrase, pour qu'aucune ne manque ni n'inverse ses valeurs dans une langue.
+    res = ASSETS.parents[1] / "res"
+
+    def phrases(dossier):
+        racine = ET.parse(res / dossier / "strings.xml").getroot()
+        return {s.get("name"): sorted(re.findall(r"%\d\$[.0-9]*[sdf]", s.text or ""))
+                for s in racine.iter("string") if s.get("translatable") != "false"}
+
+    anglais, francais = phrases("values"), phrases("values-fr")
+    assert anglais.keys() == francais.keys(), anglais.keys() ^ francais.keys()
+    assert {k: v for k, v in anglais.items() if francais[k] != v} == {}

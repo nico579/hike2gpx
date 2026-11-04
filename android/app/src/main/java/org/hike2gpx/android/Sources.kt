@@ -31,16 +31,16 @@ object LienDepot {
         val uri = try {
             URI(lien.trim())
         } catch (e: Exception) {
-            throw ErreurDepot("Lien de dépôt illisible.", e)
+            throw ErreurDepot(R.string.err_lien_illisible, cause = e)
         }
         if (uri.scheme != "hike2gpx" || uri.host != "depot" || uri.rawQuery == null)
-            throw ErreurDepot("Ce n'est pas un lien de dépôt hike2gpx.")
+            throw ErreurDepot(R.string.err_lien_etranger)
         val parametres = uri.rawQuery.split('&').filter { '=' in it }.associate {
             URLDecoder.decode(it.substringBefore('='), "UTF-8") to URLDecoder.decode(it.substringAfter('='), "UTF-8")
         }
-        val url = parametres["url"] ?: throw ErreurDepot("Le lien ne donne pas l'adresse du catalogue.")
+        val url = parametres["url"] ?: throw ErreurDepot(R.string.err_lien_sans_url)
         val jeton = parametres["jeton"]?.takeIf { it.isNotBlank() }
-            ?: throw ErreurDepot("Le lien ne donne pas de jeton.")
+            ?: throw ErreurDepot(R.string.err_lien_sans_jeton)
         verifierAdresse(url)
         return Source(url, jeton)
     }
@@ -54,13 +54,13 @@ object LienDepot {
         val uri = try {
             URI(url)
         } catch (e: Exception) {
-            throw ErreurDepot("Adresse de catalogue illisible : $url", e)
+            throw ErreurDepot(R.string.err_adresse_illisible, listOf(url), e)
         }
-        val hote = uri.host ?: throw ErreurDepot("Adresse de catalogue sans hôte : $url")
+        val hote = uri.host ?: throw ErreurDepot(R.string.err_adresse_sans_hote, listOf(url))
         when (uri.scheme) {
             "https" -> return
-            "http" -> if (!local(hote)) throw ErreurDepot("Un catalogue en HTTP doit être sur le réseau local : $hote")
-            else -> throw ErreurDepot("Adresse de catalogue non HTTP : $url")
+            "http" -> if (!local(hote)) throw ErreurDepot(R.string.err_http_local, listOf(hote))
+            else -> throw ErreurDepot(R.string.err_adresse_non_http, listOf(url))
         }
     }
 

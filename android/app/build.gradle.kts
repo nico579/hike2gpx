@@ -39,6 +39,13 @@ android {
             // Pas de réduction R8 : BRouter n'a pas été éprouvé ainsi.
             signingConfig = signingConfigs.getByName("debug")
         }
+        // L'APK de débogage s'installe à côté de la release (autre identifiant,
+        // nom « hike2gpx (essai) » dans src/debug) : sa clé diffère, il ne
+        // pourrait pas la remplacer, et l'essayer n'efface pas les lots déjà là.
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-essai"
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

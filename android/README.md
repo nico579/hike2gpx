@@ -29,7 +29,19 @@ même source s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le
 plus fin.
 
 Les réglages réunissent le reste : mode strict et chemins officiels, lots et
-fonds installés (mise à jour, suppression), sources.
+fonds installés (mise à jour, suppression), sources, et « Vider le cache », qui
+efface comme sur le PC les lots, les fonds, les téléchargements interrompus et
+les tuiles en ligne gardées ; les lots du serveur reviennent d'eux-mêmes.
+
+L'application parle anglais ou français selon la langue du téléphone, comme
+watch2notif : l'anglais dans `res/values`, la langue par défaut, le français
+dans `res/values-fr`. Les erreurs du code métier portent la ressource de leur
+texte (`ErreurTexte`) et l'écran les traduit ; `tests/test_android.py` vérifie
+que les deux langues ont les mêmes phrases et les mêmes arguments.
+
+L'APK de débogage s'installe à côté de la version publiée, sous l'identifiant
+`org.hike2gpx.android.debug` et le nom « hike2gpx (essai) » : sa clé diffère,
+il ne pourrait pas la remplacer, et l'essayer n'efface rien.
 
 Le catalogue des lots (`catalog.json`) a le format de `hike2gpx/depot.py`.
 Un lot se télécharge fichier par fichier ; une

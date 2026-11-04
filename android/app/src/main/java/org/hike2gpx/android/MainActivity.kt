@@ -8,6 +8,7 @@ import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.database.sqlite.SQLiteDatabase
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
@@ -99,8 +100,9 @@ class MainActivity : Activity() {
             setMultiTouchControls(true)
             controller.setZoom(vue.third)
             controller.setCenter(GeoPoint(vue.first, vue.second))
-            overlays.add(CopyrightOverlay(this@MainActivity))
-            overlays.add(ScaleBarOverlay(this).apply { setAlignBottom(true); setScaleBarOffset(dp(8), dp(64)) })
+            // Au-dessus de la barre de boutons : l'attribution du fond doit rester lisible.
+            overlays.add(CopyrightOverlay(this@MainActivity).apply { setOffset(dp(8), dp(64)) })
+            overlays.add(ScaleBarOverlay(this).apply { setAlignBottom(true); setScaleBarOffset(dp(8), dp(84)) })
             overlays.add(MapEventsOverlay(object : MapEventsReceiver {
                 override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
                     ajouterPoint(Point(p.latitude, p.longitude)); return true
@@ -111,7 +113,11 @@ class MainActivity : Activity() {
         racine.addView(carte, FrameLayout.LayoutParams(-1, -1))
 
         val marge = dp(8)
-        val haut = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(VOILE) }
+        // Marges posées d'emblée : avant Android 15, l'écran ne passe pas sous
+        // les barres du système et le rappel des marges ci-dessous peut ne pas venir.
+        val haut = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setBackgroundColor(VOILE); setPadding(marge, marge, marge, marge)
+        }
         etat = TextView(this).apply { setText(R.string.etat_pret); setTextColor(0xff202020.toInt()) }
         haut.addView(etat)
         progression = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -122,7 +128,9 @@ class MainActivity : Activity() {
         haut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
         racine.addView(haut, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
-        val bas = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE) }
+        val bas = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE); setPadding(marge / 2, marge / 2, marge / 2, marge / 2)
+        }
         for ((texte, action) in listOf<Pair<Int, () -> Unit>>(
             R.string.fond to ::choisirFond,
             R.string.retour to ::retirerPoint,
@@ -257,7 +265,7 @@ class MainActivity : Activity() {
             try {
                 lus.add(source to Depot().lireCatalogue(source))
             } catch (e: ErreurDepot) {
-                echecs.add(e.message ?: source.libelle)
+                echecs.add(texte(e))
             }
         }
         val choix = choisir(lus)
@@ -339,7 +347,7 @@ class MainActivity : Activity() {
         choix.add(getString(R.string.fond_topo) to { appliquerFond("topo") })
         for ((source, fichiers) in fonds.parSource()) {
             choix.add(getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
-                fichiers.sumOf { it.length() } / 1_000_000) to { appliquerFond(source) })
+                fichiers.sumOf { it.length() } / 1_000_000) to { appliquerFond(source); cadrerSur(fichiers) })
         }
         val proposes = fondsProposes(catalogues, fonds.installes().map { it.nameWithoutExtension }.toSet())
         for ((source, fond) in proposes) {
@@ -371,6 +379,29 @@ class MainActivity : Activity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /**
+     * Un fond hors ligne ne couvre que sa zone : si la vue n'est dans aucun de
+     * ses fichiers, la carte se cadre sur le premier, d'après les bornes que
+     * tout MBTiles porte dans sa table metadata (« ouest,sud,est,nord »).
+     */
+    private fun cadrerSur(fichiers: List<File>) {
+        val boites = fichiers.mapNotNull { f ->
+            try {
+                SQLiteDatabase.openDatabase(f.path, null, SQLiteDatabase.OPEN_READONLY).use { base ->
+                    base.rawQuery("SELECT value FROM metadata WHERE name = 'bounds'", null).use { c ->
+                        if (!c.moveToFirst()) null
+                        else c.getString(0).split(',').map { it.trim().toDouble() }.takeIf { it.size == 4 }
+                            ?.let { (o, s, e, n) -> BoundingBox(n, e, s, o) }
+                    }
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+        if (boites.isEmpty() || boites.any { it.contains(carte.mapCenter) }) return
+        carte.zoomToBoundingBox(boites.first(), true, dp(24))
     }
 
     /**
@@ -477,10 +508,50 @@ class MainActivity : Activity() {
         }
         colonne.addView(TextView(this).apply { setText(R.string.aide_qr) })
         colonne.addView(Button(this).apply { setText(R.string.coller_lien); setOnClickListener { collerLien() } })
+
+        titre(colonne, R.string.titre_cache)
+        colonne.addView(Button(this).apply {
+            text = getString(R.string.vider_cache, octetsCaches() / 1_000_000)
+            setOnClickListener { viderCache() }
+        })
+    }
+
+    /** Ce que le vidage efface : lots et fonds, téléchargements interrompus, tuiles en ligne gardées par osmdroid. */
+    private fun caches(): List<File> =
+        listOf(horsLigne.racine, File(filesDir, "telechargements"), File(cacheDir, "osmdroid"))
+
+    private fun octetsCaches(): Long = caches().sumOf { d -> d.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
+
+    /**
+     * Le vidage du cache, comme sur le PC (application, action vider_cache) :
+     * tout repart de zéro, lots et fonds compris ; ceux du serveur reviennent
+     * d'eux-mêmes au prochain parcours qui en a besoin.
+     */
+    private fun viderCache() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.titre_cache)
+            .setMessage(getString(R.string.confirmer_vider_cache, octetsCaches() / 1_000_000))
+            .setPositiveButton(R.string.vider) { _, _ ->
+                if (enCours.get()) {
+                    etat.setText(R.string.etat_occupe_cache); return@setPositiveButton
+                }
+                routeur.annuler()
+                val octets = octetsCaches()
+                horsLigne.vider()
+                caches().forEach { it.deleteRecursively() }
+                retirees.clear()
+                exclues.clear()
+                effacerTrace()
+                appliquerFond(if (reglages.fond == "topo") "topo" else "osm")     // un fournisseur neuf, sur un cache neuf
+                etat.text = getString(R.string.etat_cache_vide, octets / 1_000_000)
+                remplirReglages()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun description(lot: Lot): String =
-        if (lot.osm) "OSM" else "enrichi ${lot.fournisseurs.joinToString("+")}"
+        if (lot.osm) "OSM" else getString(R.string.lot_enrichi, lot.fournisseurs.joinToString("+"))
 
     // ------------------------------------------------------------------ PC
 
@@ -491,7 +562,7 @@ class MainActivity : Activity() {
         try {
             ajouterPc(LienDepot.lire(lien))
         } catch (e: ErreurDepot) {
-            etat.text = e.message
+            etat.text = texte(e)
         }
     }
 
@@ -505,7 +576,7 @@ class MainActivity : Activity() {
                 try {
                     ajouterPc(LienDepot.lire(champ.text.toString()))
                 } catch (e: ErreurDepot) {
-                    etat.text = e.message
+                    etat.text = texte(e)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -549,7 +620,7 @@ class MainActivity : Activity() {
             contentResolver.openOutputStream(adresse)?.use { it.write(Gpx.ecrire(coordonnees).toByteArray()) }
             etat.setText(R.string.export_fait)
         } catch (e: Exception) {
-            etat.text = e.message
+            etat.text = texte(e)
         }
     }
 
@@ -575,18 +646,18 @@ class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         EXECUTEUR.execute {
             var reussie = false
-            val texte = try {
+            val bilan = try {
                 travail { !arret.get() }.also { reussie = true }
             } catch (e: Abandon) {
                 getString(R.string.etat_interrompu)
             } catch (e: Exception) {
-                e.message ?: e.toString()
+                texte(e)
             } finally {
                 enCours.set(false)
             }
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
-                etat.text = texte
+                etat.text = bilan
                 progression.visibility = View.GONE
                 arreter.visibility = View.GONE
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

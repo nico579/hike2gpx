@@ -64,6 +64,10 @@ class Fonds(horsLigne: File) {
         private val TITRES = mapOf(
             "scan25" to "SCAN 25 (IGN)",
             "plan" to "Plan IGN",
+            "allemagne" to "TopPlusOpen (BKG)",
+            "espagne" to "MTN (IGN España)",
+            "norvege" to "Toporaster (Kartverket)",
+            "paysBas" to "BRT Achtergrondkaart (PDOK)",
         )
     }
 }

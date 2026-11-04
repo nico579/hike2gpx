@@ -8,7 +8,7 @@ import org.json.JSONObject
 import java.io.File
 import java.util.Locale
 
-class ErreurCalcul(message: String) : Exception(message)
+class ErreurCalcul(texte: Int, args: List<Any> = emptyList()) : ErreurTexte(texte, args)
 
 /**
  * BRouter 1.7.10, compilé dans l'application, calcule sur la RD5 d'un lot
@@ -51,12 +51,12 @@ class Routeur(private val profils: File) {
         } finally {
             courant = null
         }
-        moteur.errorMessage?.let { throw ErreurCalcul(message(it)) }
-        val trace = moteur.foundTrack ?: throw ErreurCalcul("Aucun itinéraire trouvé.")
+        moteur.errorMessage?.let { throw erreur(it) }
+        val trace = moteur.foundTrack ?: throw ErreurCalcul(R.string.err_aucun_itineraire)
         val geojson = JSONObject(FormatJson(contexte).format(trace))
         val feature = geojson.optJSONArray("features")?.optJSONObject(0) ?: geojson
         if (feature.optJSONObject("geometry")?.optString("type") != "LineString")
-            throw ErreurCalcul("Réponse BRouter inattendue.")
+            throw ErreurCalcul(R.string.err_brouter_inattendu)
         return feature
     }
 
@@ -65,14 +65,16 @@ class Routeur(private val profils: File) {
         const val DELAI_MS = 60_000L
 
         private val MESSAGES = listOf(
-            "datafile" to "Données BRouter absentes pour cette zone.",
-            "not found" to "Aucun chemin praticable trouvé près d'un des points.",
-            "no track found" to "Aucun itinéraire ne respecte les barrières entre ces points.",
-            "target island" to "Le point d'arrivée est isolé du réseau praticable.",
-            "operation killed" to "Calcul trop long : rapprochez les points.",
+            "datafile" to R.string.err_brouter_donnees,
+            "not found" to R.string.err_brouter_introuvable,
+            "no track found" to R.string.err_brouter_barrieres,
+            "target island" to R.string.err_brouter_ile,
+            "operation killed" to R.string.err_brouter_long,
         )
 
-        fun message(brut: String): String =
-            MESSAGES.firstOrNull { brut.lowercase().contains(it.first) }?.second ?: "BRouter : ${brut.take(200)}"
+        /** L'erreur de BRouter dite en clair quand on la connaît, sinon telle quelle. */
+        fun erreur(brut: String): ErreurCalcul =
+            MESSAGES.firstOrNull { brut.lowercase().contains(it.first) }?.let { ErreurCalcul(it.second) }
+                ?: ErreurCalcul(R.string.err_brouter, listOf(brut.take(200)))
     }
 }
