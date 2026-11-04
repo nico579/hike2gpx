@@ -64,7 +64,8 @@ class MainActivity : Activity() {
     private val reperes = mutableListOf<Marker>()
     private var trace: Polyline? = null
     private var dernier: Resultat? = null
-    private var catalogues: List<Pair<Source, Catalogue>> = emptyList()
+    /** Les catalogues des PC, pour leurs fonds seulement ; null tant qu'ils n'ont pas été lus. */
+    private var cataloguesPc: List<Pair<Source, Catalogue>>? = null
     private var offres: List<Offre> = emptyList()
     /** case -> instant (SystemClock) d'un échec ou d'un refus : pas de nouvel essai automatique avant une heure. */
     private val exclues = mutableMapOf<String, Long>()
@@ -264,25 +265,33 @@ class MainActivity : Activity() {
 
     // ------------------------------------------------------------------ lots
 
-    /** Les catalogues de toutes les sources ; un PC éteint n'empêche pas GitHub. */
+    /**
+     * Le catalogue des lots, lu sur GitHub seulement (décision de Nico du
+     * 2026-11-04) : le serveur publie les lots, un PC ne sert au téléphone que
+     * ses fonds de carte (lireFondsPc). Un PC éteint ne retarde donc jamais le
+     * lancement.
+     */
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
+        val choix = choisir(listOf(Source.GITHUB to Depot().lireCatalogue(Source.GITHUB)))
+        runOnUiThread { offres = choix; remplirReglages() }
+        if (points.isEmpty()) getString(R.string.etat_pret) else getString(R.string.etat_catalogue_lu, choix.size)
+    }, ensuite = { avancer() })
+
+    /** Les fonds partagés par les PC, lus à la demande (bouton Fond, PC ajouté) ; un PC injoignable le dit sans rien bloquer. */
+    private fun lireFondsPc(ensuite: () -> Unit) = tache(R.string.etat_fonds_pc, false, { _ ->
         val lus = mutableListOf<Pair<Source, Catalogue>>()
         val echecs = mutableListOf<String>()
-        for (source in reglages.sources()) {
+        for (pc in reglages.pcs()) {
             try {
-                lus.add(source to Depot().lireCatalogue(source))
+                lus.add(pc to Depot().lireCatalogue(pc))
             } catch (e: ErreurDepot) {
                 echecs.add(texte(e))
             }
         }
-        val choix = choisir(lus)
-        runOnUiThread { catalogues = lus; offres = choix; remplirReglages() }
-        when {
-            echecs.isNotEmpty() -> echecs.joinToString("\n")
-            points.isEmpty() -> getString(R.string.etat_pret)
-            else -> getString(R.string.etat_catalogue_lu, choix.size)
-        }
-    }, ensuite = { avancer() })
+        runOnUiThread { cataloguesPc = lus }
+        if (echecs.isEmpty()) getString(R.string.etat_fonds_pc_lus, lus.sumOf { it.second.fonds.size })
+        else echecs.joinToString("\n")
+    }, ensuite = { ensuite() })
 
     /** Le lot qui manque pour le parcours : de lui-même sur le Wi-Fi, sur demande sur un réseau facturé. */
     private fun telechargerAuto(offre: Offre) {
@@ -349,6 +358,9 @@ class MainActivity : Activity() {
 
     /** Les fonds en ligne, les fonds hors ligne installés, et ceux que les PC proposent. */
     private fun choisirFond() {
+        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) {
+            lireFondsPc { choisirFond() }; return
+        }
         val choix = mutableListOf<Pair<String, () -> Unit>>()
         choix.add(getString(R.string.fond_osm) to { appliquerFond("osm") })
         choix.add(getString(R.string.fond_topo) to { appliquerFond("topo") })
@@ -356,13 +368,13 @@ class MainActivity : Activity() {
             choix.add(getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
                 fichiers.sumOf { it.length() } / 1_000_000) to { appliquerFond(source); cadrerSur(fichiers) })
         }
-        val proposes = fondsProposes(catalogues, fonds.installes().map { it.nameWithoutExtension }.toSet())
+        val proposes = fondsProposes(cataloguesPc ?: emptyList(), fonds.installes().map { it.nameWithoutExtension }.toSet())
         for ((source, fond) in proposes) {
             choix.add(getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom, fond.octets / 1_000_000,
                 source.libelle) to { telechargerFond(source, fond) })
         }
         if (reglages.pcs().isEmpty()) choix.add(getString(R.string.fond_sans_pc) to { collerLien() })
-        else if (proposes.isEmpty()) choix.add(getString(R.string.fond_relire) to { actualiser() })
+        else if (proposes.isEmpty()) choix.add(getString(R.string.fond_relire) to { cataloguesPc = null; choisirFond() })
         AlertDialog.Builder(this)
             .setTitle(R.string.titre_fond)
             .setItems(choix.map { it.first }.toTypedArray()) { _, i -> choix[i].second() }
@@ -509,7 +521,7 @@ class MainActivity : Activity() {
             ligne.addView(TextView(this).apply { text = pc.libelle }, LinearLayout.LayoutParams(0, -2, 1f))
             ligne.addView(Button(this).apply {
                 setText(R.string.oublier)
-                setOnClickListener { reglages.oublierPc(pc); remplirReglages() }
+                setOnClickListener { reglages.oublierPc(pc); cataloguesPc = null; remplirReglages() }
             })
             colonne.addView(ligne)
         }
@@ -686,7 +698,8 @@ class MainActivity : Activity() {
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 reglages.ajouterPc(source)
                 remplirReglages()
-                actualiser()
+                cataloguesPc = null
+                choisirFond()       // ce que le PC apporte au téléphone : ses fonds
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

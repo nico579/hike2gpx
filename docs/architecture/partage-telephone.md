@@ -132,3 +132,7 @@ le SHA-256 du catalogue.
    `urljoin(url, fichier.url)`, avec le même en-tête, en reprenant par `Range`
    après une coupure ; contrôler taille et SHA-256 avant d'installer.
 4. Un 401 veut dire que le partage a été fermé ou rouvert : rescanner.
+
+Depuis le 2026-11-04, l'application Android ne prend au PC que ses **fonds** :
+ses lots viennent de GitHub seulement, et la liste `lots` du catalogue d'un PC
+est ignorée. Elle ne lit ce catalogue qu'à la demande (le bouton « Fond »).

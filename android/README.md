@@ -83,7 +83,7 @@ BRouter 1.7.10 est un sous-module épinglé, compilé dans l'APK. Ses profils
 `app/src/main/assets/brouter`, écrits par `tools/profils_android.py` avec les
 fonctions mêmes du PC ; `tests/test_android.py` vérifie qu'ils n'ont pas dérivé.
 
-## Un PC comme seconde source
+## Un PC pour les fonds de carte
 
 Le PC affiche un QR code qui porte un lien
 `hike2gpx://depot?url=<adresse du catalogue, encodée>&jeton=<jeton>`.
@@ -93,8 +93,10 @@ lien peut aussi se coller à la main. Toutes les requêtes vers ce PC portent
 `Authorization: Bearer <jeton>`, et seulement vers l'origine de son catalogue.
 Le HTTP simple n'est accepté que vers le réseau local.
 
-GitHub reste la source par défaut. Pour chaque case, l'application propose le
-lot dont l'extrait OSM (`sources.osm`) est le plus récent ; à égalité, GitHub.
+Les lots se lisent sur GitHub seulement (décision du 2026-11-04) : le
+catalogue du serveur, au lancement. Un PC ne sert au téléphone que ses fonds
+de carte ; son catalogue ne se lit qu'à la demande, quand on ouvre « Fond » ou
+qu'on ajoute le PC, si bien qu'un PC éteint ne retarde jamais le lancement.
 
 ## Construire
 

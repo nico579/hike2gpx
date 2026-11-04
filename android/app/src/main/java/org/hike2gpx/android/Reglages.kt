@@ -22,9 +22,6 @@ class Reglages(context: Context) {
 
     fun oublierPc(source: Source) = enregistrer(pcs().filter { it.catalogue != source.catalogue })
 
-    /** Les sources dans l'ordre de préférence : GitHub d'abord, puis les PC. */
-    fun sources(): List<Source> = listOf(Source.GITHUB) + pcs()
-
     /** Le fond affiché : « osm », « topo », ou la source d'un fond hors ligne (« scan25 »…). */
     var fond: String
         get() = preferences.getString(FOND, "osm") ?: "osm"
