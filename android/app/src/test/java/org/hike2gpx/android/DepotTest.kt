@@ -146,7 +146,7 @@ class DepotTest {
             Depot { }.telecharger(lot(f), Source("$base/depot/catalog.json"), travail)
             fail()
         } catch (e: ErreurDepot) {
-            assertTrue(e.message!!.contains("altéré"))
+            assertEquals(R.string.err_altere, e.texte)
         }
         assertEquals(3, requetes.size)
         assertFalse(File(travail, "E5_N40.rd5").exists())
@@ -169,7 +169,7 @@ class DepotTest {
             Depot().lireCatalogue(Source("$base/depot/catalog.json", "mauvais"))
             fail()
         } catch (e: ErreurDepot) {
-            assertTrue(e.message!!.contains("jeton"))
+            assertEquals(R.string.err_jeton, e.texte)
         }
     }
 

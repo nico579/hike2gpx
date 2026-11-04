@@ -8,7 +8,7 @@ import java.net.URI
 import java.net.URL
 import java.security.MessageDigest
 
-class Abandon : Exception("Téléchargement interrompu.")
+class Abandon : Exception("abandon")
 
 /** Le SHA-256 d'un fichier, en hexadécimal (lot.empreinte). */
 fun empreinte(fichier: File): String {
@@ -39,15 +39,15 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
         val connexion = try {
             ouvrir(URL(source.catalogue), source, 0)
         } catch (e: IOException) {
-            throw ErreurDepot("Catalogue de ${source.libelle} injoignable (${e.message}).", e)
+            throw ErreurDepot(R.string.err_injoignable, listOf(source.libelle, e.message ?: e.toString()), e)
         }
         try {
             val code = connexion.responseCode
-            if (code == 401 || code == 403) throw ErreurDepot("${source.libelle} refuse le jeton : rescannez son QR code.")
-            if (code != 200) throw ErreurDepot("Catalogue de ${source.libelle} : réponse HTTP $code.")
+            if (code == 401 || code == 403) throw ErreurDepot(R.string.err_jeton, listOf(source.libelle))
+            if (code != 200) throw ErreurDepot(R.string.err_http_catalogue, listOf(source.libelle, code))
             return Catalogue.lire(connexion.inputStream.use { String(it.readBytes(), Charsets.UTF_8) })
         } catch (e: IOException) {
-            throw ErreurDepot("Catalogue de ${source.libelle} illisible (${e.message}).", e)
+            throw ErreurDepot(R.string.err_catalogue_source_illisible, listOf(source.libelle, e.message ?: e.toString()), e)
         } finally {
             connexion.disconnect()
         }
@@ -65,7 +65,7 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
         val deja = lot.fichiers.sumOf { f -> File(travail, f.nom).let { if (it.exists()) minOf(it.length(), f.octets) else 0L } }
         val manque = total - deja
         if (travail.usableSpace < manque + MARGE_DISQUE)
-            throw ErreurDepot("Place insuffisante : il faut ${manque / 1_000_000 + 1} Mo.")
+            throw ErreurDepot(R.string.err_place, listOf(manque / 1_000_000 + 1))
         var recus = 0L
         val avancer = { n: Long -> recus += n; suivi(recus, total) }
         for (f in lot.fichiers) {
@@ -77,12 +77,29 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
         return travail
     }
 
+    /**
+     * Le fichier MBTiles d'un fond de carte dans travail, repris par Range et
+     * contrôlé par son SHA-256 comme un fichier de lot ; rend le fichier reçu.
+     */
+    fun telechargerFond(fond: Fond, source: Source, travail: File,
+                        suivi: (Long, Long) -> Unit = { _, _ -> }, continuer: () -> Boolean = { true }): File {
+        travail.mkdirs()
+        val f = Fichier("${Catalogue.nomSur(fond.nom)}.mbtiles", fond.octets, fond.sha256, fond.url)
+        val cible = File(travail, f.nom)
+        val deja = if (cible.exists()) minOf(cible.length(), f.octets) else 0L
+        if (travail.usableSpace < f.octets - deja + MARGE_DISQUE)
+            throw ErreurDepot(R.string.err_place, listOf((f.octets - deja) / 1_000_000 + 1))
+        var recus = deja
+        fichier(adresse(source, f.url), source, cible, f, { n -> recus += n; suivi(recus, f.octets) }, continuer)
+        return cible
+    }
+
     /** L'adresse d'un fichier, relative à celle du catalogue ; vers un PC, à la même origine. */
     fun adresse(source: Source, relative: String): URL {
         val base = URI(source.catalogue)
         val cible = base.resolve(relative.replace(" ", "%20"))
         if (source.jeton != null && !memeOrigine(base, cible))
-            throw ErreurDepot("Fichier hors du dépôt du PC : $cible")
+            throw ErreurDepot(R.string.err_hors_depot, listOf(cible))
         return cible.toURL()
     }
 
@@ -106,7 +123,7 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
             avancer(-cible.length())
             cible.delete()                          // contenu faux : on repart de zéro
         }
-        throw ErreurDepot("${cible.name} : téléchargement impossible ou altéré.")
+        throw ErreurDepot(R.string.err_altere, listOf(cible.name))
     }
 
     private fun recevoir(url: URL, source: Source, cible: File, deja: Long,
@@ -115,9 +132,9 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
         try {
             val code = connexion.responseCode
             when {
-                code == 401 || code == 403 -> throw ErreurDepot("${source.libelle} refuse le jeton : rescannez son QR code.")
+                code == 401 || code == 403 -> throw ErreurDepot(R.string.err_jeton, listOf(source.libelle))
                 code == 416 -> return                  // déjà complet (ou trop long) : l'empreinte tranche
-                code in 400..499 -> throw ErreurDepot("${cible.name} : réponse HTTP $code.")
+                code in 400..499 -> throw ErreurDepot(R.string.err_http_fichier, listOf(cible.name, code))
                 code != 200 && code != 206 -> throw IOException("réponse HTTP $code")
             }
             // Une reprise n'est acceptée que si le serveur repart bien de là où l'on s'est arrêté.

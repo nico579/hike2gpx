@@ -1,11 +1,12 @@
 """Fonds de carte hors ligne : les tuiles raster de la page, rangées en MBTiles.
 
-La page affiche ses fonds français depuis le service WMTS de la Géoplateforme
-de l'IGN (providers/fr.js) : le SCAN 25 avec la clé IGN de l'utilisateur, le
-Plan IGN sans clé. Pour marcher sans réseau, le PC télécharge ces mêmes tuiles,
-sur une vue ou une case de 5°, et les range dans un MBTiles 1.3 : une base
-SQLite, une rangée par tuile, numérotée à la manière TMS (rangées comptées
-depuis le sud), que lisent aussi bien la page que le téléphone.
+La page affiche des fonds nationaux (providers/<pays>.js) : en France le
+SCAN 25 avec la clé IGN de l'utilisateur ou le Plan IGN, ailleurs la carte
+officielle du pays quand sa licence permet de la garder (SOURCES). Pour
+marcher sans réseau, le PC télécharge les tuiles du fond affiché, sur une vue
+ou une case de 5°, et les range dans un MBTiles 1.3 : une base SQLite, une
+rangée par tuile, numérotée à la manière TMS (rangées comptées depuis le sud),
+que lisent aussi bien la page que le téléphone.
 
 Le SCAN 25 n'est pas une donnée libre : il est téléchargé avec la clé de
 l'utilisateur, pour son seul usage. Un fond reste donc sur le PC (et sur son
@@ -36,19 +37,42 @@ from .depot import AGENT
 
 @dataclass(frozen=True)
 class Source:
-    couche: str             # couche WMTS de la Géoplateforme
-    mime: str
+    gabarit: str            # l'adresse d'une tuile : {z}, {x}, {y}, et {cle} pour un service à clé
     format: str             # « jpg » ou « png », le format MBTiles
-    cle: bool               # le service privé, avec la clé IGN
+    cle: bool               # le service privé de l'IGN, avec la clé de l'utilisateur
     titre: str
+    attribution: str
 
 
-# Les mêmes couches que la page (providers/fr.js).
+def _ign(couche: str, mime: str, cle: bool) -> str:
+    """L'adresse WMTS de la Géoplateforme, comme tuileIgn() de providers/fr.js."""
+    base = "https://data.geopf.fr/private/wmts" if cle else "https://data.geopf.fr/wmts"
+    return (f"{base}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER={couche}&STYLE=normal"
+            f"&TILEMATRIXSET=PM&FORMAT={mime}&TILEMATRIX={{z}}&TILECOL={{x}}&TILEROW={{y}}"
+            + ("&apikey={cle}" if cle else ""))
+
+
+# Les fonds de la page qu'on peut emporter hors ligne, sous la clé que leur
+# donne providers/<pays>.js : le PC fabrique le fond affiché. N'y entrent que
+# les services dont la licence permet de garder les tuiles : le SCAN 25 pour
+# l'usage de l'utilisateur, avec sa clé ; Licence Ouverte (Plan IGN),
+# dl-de/by-2-0 (TopPlusOpen) et CC BY 4.0 (IGN España, Kartverket, PDOK),
+# l'attribution suivant le fond jusque dans le MBTiles. Les autres fonds de
+# la page (photos, relief, OpenStreetMap, OpenTopoMap, Esri) restent en ligne.
 SOURCES = {
-    "scan25": Source("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", "jpg", True, "SCAN 25 (IGN)"),
-    "plan": Source("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png", "png", False, "Plan IGN"),
+    "scan25": Source(_ign("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", True), "jpg", True, "SCAN 25 (IGN)", "© IGN"),
+    "plan": Source(_ign("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png", False), "png", False, "Plan IGN", "© IGN"),
+    "allemagne": Source("https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/"
+                        "{z}/{y}/{x}.png", "png", False, "TopPlusOpen (BKG)", "© BKG, dl-de/by-2-0"),
+    "espagne": Source("https://www.ign.es/wmts/mapa-raster?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=MTN"
+                      "&STYLE=default&TILEMATRIXSET=GoogleMapsCompatible&FORMAT=image/jpeg"
+                      "&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}", "jpg", False, "MTN (IGN España)",
+                      "© IGN España, CC BY 4.0"),
+    "norvege": Source("https://cache.kartverket.no/v1/wmts/1.0.0/toporaster/default/webmercator/{z}/{y}/{x}.png",
+                      "png", False, "Toporaster (Kartverket)", "© Kartverket, CC BY 4.0"),
+    "paysBas": Source("https://service.pdok.nl/kadaster/brt-achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/"
+                      "{z}/{x}/{y}.png", "png", False, "BRT Achtergrondkaart (PDOK)", "© Kadaster / PDOK, CC BY 4.0"),
 }
-ATTRIBUTION = "© IGN"
 # Niveaux de zoom (mesurés le 2026-10-28, voir la PR) : une vue d'écran
 # descend jusqu'au 16, le plus fin du SCAN 25, où se lisent les sentiers ;
 # une case de 5° s'arrête au 13, sinon elle passerait le million de tuiles.
@@ -72,17 +96,13 @@ class Abandon(Exception):
 
 
 def source_pour(cle_ign: str) -> str:
-    """Le fond que montre la page : le SCAN 25 avec une clé, le Plan IGN sans."""
+    """Le fond français par défaut : le SCAN 25 avec une clé, le Plan IGN sans."""
     return "scan25" if cle_ign else "plan"
 
 
 def url_tuile(source: str, z: int, x: int, y: int, cle_ign: str = "") -> str:
-    """L'adresse WMTS d'une tuile, comme tuileIgn() de providers/fr.js."""
-    s = SOURCES[source]
-    base = "https://data.geopf.fr/private/wmts" if s.cle else "https://data.geopf.fr/wmts"
-    url = (f"{base}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER={s.couche}&STYLE=normal"
-           f"&TILEMATRIXSET=PM&FORMAT={s.mime}&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}")
-    return url + (f"&apikey={urllib.parse.quote(cle_ign)}" if s.cle else "")
+    """L'adresse d'une tuile, celle même que demande la page."""
+    return SOURCES[source].gabarit.format(z=z, x=x, y=y, cle=urllib.parse.quote(cle_ign))
 
 
 def nom_valide(nom: str) -> bool:
@@ -154,7 +174,7 @@ def _telecharger_tuile(url: str, ouvrir, debit: _Debit, continuer) -> bytes | No
             time.sleep(2 ** (essai + 1))
     if isinstance(erreur, urllib.error.HTTPError) and erreur.code in (401, 403):
         raise ErreurFond("Le service de l'IGN refuse la clé (réglages).") from erreur
-    raise ErreurFond(f"Tuiles de l'IGN injoignables ({erreur}).") from erreur
+    raise ErreurFond(f"Tuiles du fond injoignables ({erreur}).") from erreur
 
 
 def _ouvrir_base(chemin: Path) -> sqlite3.Connection:
@@ -204,10 +224,10 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
                 faites += len(paquet)
                 suivi(faites, len(toutes))
         if base.execute("SELECT COUNT(*) FROM tiles").fetchone()[0] == 0:
-            raise ErreurFond("Aucune tuile de l'IGN sur cette zone (hors de France ?).")
+            raise ErreurFond("Aucune tuile de ce fond sur cette zone (hors de son pays ?).")
         sud, ouest, nord, est = zone
         metadata = {"name": chemin.stem, "format": SOURCES[source].format, "type": "baselayer", "version": "1",
-                    "description": SOURCES[source].titre, "attribution": ATTRIBUTION,
+                    "description": SOURCES[source].titre, "attribution": SOURCES[source].attribution,
                     "minzoom": str(zooms[0]), "maxzoom": str(zooms[1]), "bounds": f"{ouest},{sud},{est},{nord}",
                     "center": f"{(ouest + est) / 2},{(sud + nord) / 2},{zooms[1]}",
                     # Hors spécification (admis par MBTiles 1.3) : la source, lue par la page et le partage.
@@ -232,7 +252,7 @@ def decrire(chemin: Path) -> dict:
     ouest, sud, est, nord = (float(v) for v in meta["bounds"].split(","))
     return {"nom": chemin.stem, "zone": [sud, ouest, nord, est],
             "zoom": [int(meta["minzoom"]), int(meta["maxzoom"])], "source": meta.get("source", ""),
-            "format": meta.get("format", ""), "octets": chemin.stat().st_size}
+            "format": meta.get("format", ""), "attribution": meta.get("attribution", ""), "octets": chemin.stat().st_size}
 
 
 def lire_tuile(chemin: Path, z: int, x: int, y: int) -> bytes | None:

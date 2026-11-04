@@ -67,7 +67,7 @@ class HorsLigneTest {
         try {
             h.installer(lot(altere = true)); fail()
         } catch (e: ErreurLot) {
-            assertTrue(e.message!!.contains("calques.mbtiles"))
+            assertTrue(e.args.contains("calques.mbtiles"))
         }
         assertTrue(h.lots().isEmpty())
     }

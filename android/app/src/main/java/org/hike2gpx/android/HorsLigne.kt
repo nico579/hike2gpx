@@ -36,7 +36,7 @@ data class Zone(val sud: Double, val ouest: Double, val nord: Double, val est: D
 /** Un franchissement du lot : sa position, son statut et les coupes données à BRouter. */
 data class Franchissement(val lat: Double, val lon: Double, val statut: String, val coupes: List<List<DoubleArray>>)
 
-class ErreurLot(message: String) : Exception(message)
+class ErreurLot(texte: Int, args: List<Any> = emptyList()) : ErreurTexte(texte, args)
 
 /**
  * Les lots installés pour le calcul sans réseau, rangés comme sur le PC
@@ -78,22 +78,22 @@ class HorsLigne(dossier: File) {
         val json = try {
             JSONObject(File(source, "manifest.json").readText())
         } catch (e: Exception) {
-            throw ErreurLot("Manifeste illisible : ${e.message}")
+            throw ErreurLot(R.string.err_manifeste_illisible, listOf(e.message ?: e.toString()))
         }
         val format = json.optInt("format", -1)
-        if (format !in FORMATS_LUS) throw ErreurLot("Format de lot $format inconnu (attendu : ${FORMATS_LUS.last()}).")
+        if (format !in FORMATS_LUS) throw ErreurLot(R.string.err_format_lot, listOf(format, FORMATS_LUS.last()))
         val lot = try {
             Catalogue.lot(json, avecUrl = false)
         } catch (e: Exception) {
-            throw ErreurLot("Manifeste invalide : ${e.message}")
+            throw ErreurLot(R.string.err_manifeste_invalide, listOf(e.message ?: e.toString()))
         }
         for (f in lot.fichiers) {
             val chemin = File(source, f.nom)
-            if (!chemin.isFile || chemin.length() != f.octets) throw ErreurLot("${f.nom} manquant ou de taille inattendue.")
-            if (empreinte(chemin) != f.sha256) throw ErreurLot("${f.nom} ne correspond pas à son empreinte SHA-256.")
+            if (!chemin.isFile || chemin.length() != f.octets) throw ErreurLot(R.string.err_fichier_taille, listOf(f.nom))
+            if (empreinte(chemin) != f.sha256) throw ErreurLot(R.string.err_fichier_empreinte, listOf(f.nom))
         }
         val rd5 = "${lot.case}.rd5"
-        if (lot.fichiers.none { it.nom == rd5 }) throw ErreurLot("Le lot ne contient pas $rd5.")
+        if (lot.fichiers.none { it.nom == rd5 }) throw ErreurLot(R.string.err_sans_rd5, listOf(rd5))
         // Rangé à côté, puis remplacement : un lot à moitié rangé n'est jamais lu.
         val dossierSegments = segmentsDe(lot).apply { mkdirs() }
         val provisoire = File(racine, ".${lot.case}.part")
@@ -105,11 +105,29 @@ class HorsLigne(dossier: File) {
         deplacer(File(source, rd5), rd5Provisoire)
         val final = File(racine, lot.case)
         final.deleteRecursively()
-        if (!provisoire.renameTo(final)) throw ErreurLot("Impossible de ranger le lot ${lot.case}.")
+        if (!provisoire.renameTo(final)) throw ErreurLot(R.string.err_ranger, listOf(lot.case))
         deplacer(rd5Provisoire, File(dossierSegments, rd5))
         // Une RD5 de l'autre genre (lot OSM remplacé par un lot enrichi) ne doit plus servir.
         File(if (lot.osm) segments else segmentsOsm, rd5).delete()
         return lot
+    }
+
+    /** Tous les lots et les fonds de carte retirés, pour repartir de zéro (hors_ligne.vider) ; rend les octets libérés. */
+    fun vider(): Long {
+        val octets = racine.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        racine.deleteRecursively()
+        return octets
+    }
+
+    /** Retire le lot d'une case, ses deux RD5 possibles comprises ; rend les octets libérés. */
+    fun supprimer(case: String): Long {
+        val dossier = File(racine, Catalogue.nomSur(case))
+        val fichiers = (dossier.walkTopDown().filter { it.isFile }.toList() +
+            listOf(File(segments, "$case.rd5"), File(segmentsOsm, "$case.rd5")).filter { it.isFile })
+        val octets = fichiers.sumOf { it.length() }
+        fichiers.forEach { it.delete() }
+        dossier.deleteRecursively()
+        return octets
     }
 
     /** Le lot installé qui couvre toute la zone ; à égalité, l'enrichi d'abord (lot_couvrant). */

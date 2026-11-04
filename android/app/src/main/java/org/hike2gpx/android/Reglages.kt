@@ -25,6 +25,25 @@ class Reglages(context: Context) {
     /** Les sources dans l'ordre de préférence : GitHub d'abord, puis les PC. */
     fun sources(): List<Source> = listOf(Source.GITHUB) + pcs()
 
+    /** Le fond affiché : « osm », « topo », ou la source d'un fond hors ligne (« scan25 »…). */
+    var fond: String
+        get() = preferences.getString(FOND, "osm") ?: "osm"
+        set(v) = preferences.edit().putString(FOND, v).apply()
+
+    var strict: Boolean
+        get() = preferences.getBoolean(STRICT, false)
+        set(v) = preferences.edit().putBoolean(STRICT, v).apply()
+
+    var officiels: Boolean
+        get() = preferences.getBoolean(OFFICIELS, true)
+        set(v) = preferences.edit().putBoolean(OFFICIELS, v).apply()
+
+    /** La dernière vue de la carte : latitude, longitude, zoom ; Garéoult au premier lancement. */
+    var vue: Triple<Double, Double, Double>
+        get() = preferences.getString(VUE, null)?.split(',')?.mapNotNull { it.toDoubleOrNull() }
+            ?.takeIf { it.size == 3 }?.let { Triple(it[0], it[1], it[2]) } ?: Triple(43.458, 6.045, 13.0)
+        set(v) = preferences.edit().putString(VUE, "${v.first},${v.second},${v.third}").apply()
+
     private fun enregistrer(liste: List<Source>) {
         val a = JSONArray()
         liste.forEach { a.put(JSONObject().put("catalogue", it.catalogue).put("jeton", it.jeton)) }
@@ -33,6 +52,10 @@ class Reglages(context: Context) {
 
     companion object {
         private const val PCS = "pcs"
+        private const val FOND = "fond"
+        private const val STRICT = "strict"
+        private const val OFFICIELS = "officiels"
+        private const val VUE = "vue"
 
         /**
          * Les profils BRouter des assets, recopiés à chaque démarrage là où

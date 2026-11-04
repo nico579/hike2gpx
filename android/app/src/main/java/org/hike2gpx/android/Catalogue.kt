@@ -17,7 +17,8 @@ import java.time.ZoneOffset
  * Les adresses des fichiers sont relatives à celle du catalogue. La liste
  * « fonds » (fonds de carte d'un PC) est facultative.
  */
-class ErreurDepot(message: String, cause: Throwable? = null) : Exception(message, cause)
+class ErreurDepot(texte: Int, args: List<Any> = emptyList(), cause: Throwable? = null) :
+    ErreurTexte(texte, args, cause)
 
 data class Fichier(val nom: String, val octets: Long, val sha256: String, val url: String)
 
@@ -64,21 +65,21 @@ data class Catalogue(val genere: String, val lots: List<Lot>, val fonds: List<Fo
             try {
                 val json = JSONObject(texte)
                 if (json.optInt("format", -1) != FORMAT || json.optJSONArray("lots") == null)
-                    throw ErreurDepot("Catalogue des lots d'un format inconnu.")
+                    throw ErreurDepot(R.string.err_catalogue_format)
                 val lots = json.getJSONArray("lots").objets().map { lot(it, avecUrl = true) }
                 val fonds = json.optJSONArray("fonds")?.objets()?.map { fond(it) } ?: emptyList()
                 return Catalogue(json.optString("genere"), lots, fonds)
             } catch (e: ErreurDepot) {
                 throw e
             } catch (e: Exception) {
-                throw ErreurDepot("Catalogue des lots illisible (${e.message}).", e)
+                throw ErreurDepot(R.string.err_catalogue_illisible, listOf(e.message ?: e.toString()), e)
             }
         }
 
         /** Un lot du catalogue, ou le manifeste d'un lot installé (sans adresses). */
         fun lot(json: JSONObject, avecUrl: Boolean): Lot {
             val case = json.getString("case")
-            if (!CASE.matches(case)) throw ErreurDepot("Nom de case invalide : $case")
+            if (!CASE.matches(case)) throw ErreurDepot(R.string.err_case_invalide, listOf(case))
             val fichiers = json.getJSONArray("fichiers").objets().map { fichier(it, avecUrl) }
             val sources = json.optJSONObject("sources")
             return Lot(
@@ -97,15 +98,15 @@ data class Catalogue(val genere: String, val lots: List<Lot>, val fonds: List<Fo
 
         private fun fichier(json: JSONObject, avecUrl: Boolean): Fichier {
             val sha = json.getString("sha256")
-            if (!SHA256.matches(sha)) throw ErreurDepot("Empreinte SHA-256 invalide : $sha")
+            if (!SHA256.matches(sha)) throw ErreurDepot(R.string.err_sha256, listOf(sha))
             val octets = json.getLong("octets")
-            if (octets < 0) throw ErreurDepot("Taille invalide : $octets")
+            if (octets < 0) throw ErreurDepot(R.string.err_taille, listOf(octets))
             return Fichier(nomSur(json.getString("nom")), octets, sha, if (avecUrl) json.getString("url") else "")
         }
 
         private fun fond(json: JSONObject): Fond {
             val sha = json.getString("sha256")
-            if (!SHA256.matches(sha)) throw ErreurDepot("Empreinte SHA-256 invalide : $sha")
+            if (!SHA256.matches(sha)) throw ErreurDepot(R.string.err_sha256, listOf(sha))
             return Fond(nomSur(json.getString("nom")), boite(json.optJSONArray("zone")), json.opt("zoom")?.toString() ?: "",
                 json.optString("source"), json.getLong("octets"), sha, json.getString("url"))
         }
@@ -113,7 +114,7 @@ data class Catalogue(val genere: String, val lots: List<Lot>, val fonds: List<Fo
         /** Jamais de chemin venu du catalogue : le seul nom du fichier. */
         fun nomSur(nom: String): String {
             val seul = nom.substringAfterLast('/').substringAfterLast('\\')
-            if (seul.isEmpty() || seul == "." || seul == "..") throw ErreurDepot("Nom de fichier invalide : $nom")
+            if (seul.isEmpty() || seul == "." || seul == "..") throw ErreurDepot(R.string.err_nom_fichier, listOf(nom))
             return seul
         }
 

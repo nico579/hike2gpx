@@ -223,8 +223,10 @@ const TEXTES = {
     "horsLigne.preparerFondVue": "Fond de carte de la vue ({source})",
     "horsLigne.preparerFondCase": "Fond de carte de toute la case ({source}, zooms 6 à 13, environ {duree})",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
+    "horsLigne.fondEnLigne": "Ce fond reste en ligne : choisissez une carte officielle (IGN, BKG, Kartverket…) pour l’emporter hors ligne.",
     "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
+    "partage.fond": "Fond pour le téléphone (vue affichée)",
     "partage.ouvert": "Scannez ce code avec hike2gpx sur le téléphone, sur le même Wi-Fi : {lots} lot(s) et {fonds} fond(s) de carte, {taille}. Le code change à chaque partage.",
     "partage.erreur": "Partage impossible : {erreur}",
     "pleinEcran.entrer": "Plein écran",
@@ -452,8 +454,10 @@ const TEXTES = {
     "horsLigne.preparerFondVue": "Base map of the view ({source})",
     "horsLigne.preparerFondCase": "Base map of the whole area ({source}, zooms 6 to 13, about {duree})",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
+    "horsLigne.fondEnLigne": "This base map stays online: pick an official map (IGN, BKG, Kartverket…) to take it offline.",
     "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
+    "partage.fond": "Base map for the phone (current view)",
     "partage.ouvert": "Scan this code with hike2gpx on the phone, on the same Wi-Fi: {lots} bundle(s) and {fonds} base map(s), {taille}. The code changes with every share.",
     "partage.erreur": "Sharing failed: {erreur}",
     "pleinEcran.entrer": "Full screen",
@@ -874,6 +878,7 @@ function cheminsDisponibles(chemins, points = []) {
 }
 let controleFonds = null;
 let fondActif = null;
+let cleFondActif = null;    // sa clé (providers/<pays>.js), celle d'un fond à garder hors ligne
 let couchesFonds = {};      // clé -> fond de carte Leaflet
 function ajusterRecouvrementTuiles() {
   const surzoom = Math.max(0, carte.getZoom() - (fondActif?.options?.maxNativeZoom ?? carte.getZoom()));
@@ -885,6 +890,7 @@ carte.on("baselayerchange", (e) => {
   ajusterRecouvrementTuiles();
   const cle = Object.keys(couchesFonds).find((nom) => couchesFonds[nom] === e.layer);
   if (cle) {
+    cleFondActif = cle;
     try { localStorage.setItem(`${CLE_FOND}.${paysCarte}`, cle); } catch (erreur) { /* stockage indisponible */ }
   }
 });
@@ -1372,7 +1378,8 @@ function construireFonds() {
   if (fondActif) fondActif.remove();
   const defaut = FOURNISSEURS_CARTES[paysCarte].defaultBase;
   const choix = (clePreferee && couchesFonds[clePreferee]) ? clePreferee : defaut;
-  fondActif = (couchesFonds[choix] || couchesFonds.plan || couchesFonds.osm).addTo(carte);
+  cleFondActif = [choix, "plan", "osm"].find((cle) => couchesFonds[cle]);
+  fondActif = couchesFonds[cleFondActif].addTo(carte);
   ajusterRecouvrementTuiles();
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [nomFond(cle), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES)
@@ -1416,7 +1423,7 @@ function coucheHorsLigne() {
     const [s, o, n, e] = f.zone;
     L.tileLayer(`/fonds/${encodeURIComponent(f.nom)}/{z}/{x}/{y}`, { bounds: [[s, o], [n, e]],
       minNativeZoom: f.zoom[0], maxNativeZoom: f.zoom[1], maxZoom: 19,
-      attribution: '© <a href="https://www.ign.fr/">IGN</a>' }).addTo(groupe);
+      attribution: echapper(f.attribution || "© IGN") }).addTo(groupe);
   }
   return groupe;
 }
@@ -1523,7 +1530,7 @@ function bulleCase(nom) {
     else div.append(bouton(t(surServeur.etat === "ancien" ? "horsLigne.telechargerMaj" : "horsLigne.telechargerMaintenant"),
       () => telechargerCase(nom)));
   }
-  if (paysCarte === "fr") ajouterFonds(div, nom, vueDansCase ? [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()] : null);
+  ajouterFonds(div, nom, vueDansCase ? [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()] : null);
   // Un voyage fini, une case qu'on ne visitera plus : son lot et ses fonds
   // quittent l'ordinateur (décision de Nico du 2026-10-28).
   const fondsIci = fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`));
@@ -1547,18 +1554,26 @@ async function supprimerCase(nom, octets) {
   chargerFonds();
 }
 
-// Le fond de la page, hors ligne : le SCAN 25 avec la clé IGN, le Plan IGN
-// sans. Il reste sur ce PC (et son téléphone), jamais publié.
+// Le fond affiché, hors ligne : celui que montre la page, s'il est de ceux
+// dont la licence permet de garder les tuiles (fonds.SOURCES, que le serveur
+// envoie dans son état). Il reste sur ce PC (et son téléphone), jamais publié.
 function ajouterFonds(div, nom, vue) {
+  const titres = etat.fondsHorsLigne || {};
   const ici = fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`));
   if (ici.length) {
     div.append(paragraphe(t("horsLigne.fonds", { liste: ici.map((f) =>
-      `${t(f.nom.includes("-vue-") ? "horsLigne.fondVue" : "horsLigne.fondCase")} ${f.source === "scan25" ? "SCAN 25" : "Plan IGN"}`
+      `${t(f.nom.includes("-vue-") ? "horsLigne.fondVue" : "horsLigne.fondCase")} ${titres[f.source] || f.source}`
       + ` ${tailleTexte(f.octets)}`).join(", ") })));
   }
-  const source = etat.cleIgn ? "SCAN 25" : "Plan IGN";
-  if (vue) div.append(bouton(t("horsLigne.preparerFondVue", { source }), () => preparerFond(nom, vue)));
-  div.append(bouton(t("horsLigne.preparerFondCase", { source, duree: "45 min" }), () => preparerFond(nom)));
+  const cle = cleFondActif;
+  if (cle === "horsLigne") return;
+  if (!titres[cle]) {
+    div.append(paragraphe(t("horsLigne.fondEnLigne")));
+    return;
+  }
+  const source = titres[cle];
+  if (vue) div.append(bouton(t("horsLigne.preparerFondVue", { source }), () => preparerFond(nom, vue, cle)));
+  div.append(bouton(t("horsLigne.preparerFondCase", { source, duree: "45 min" }), () => preparerFond(nom, null, cle)));
 }
 
 // ------------------------------------------------------------ partage au téléphone
@@ -1585,9 +1600,26 @@ async function basculerPartage(ouvrir) {
 $("partagerTelephone").addEventListener("click", () => basculerPartage(true));
 $("fermerPartage").addEventListener("click", () => basculerPartage(false));
 
-async function preparerFond(nom, zone = null) {
+// Le fond affiché, sur la vue affichée, prêt à partir au téléphone : la même
+// fabrication que la bulle d'une case (preparer_fond), là où on prépare son
+// téléphone. La vue s'arrête aux bords de la case de son centre, comme un lot.
+function fabriquerFondTelephone() {
+  const titres = etat.fondsHorsLigne || {};
+  const note = $("fondTelephoneTexte");
+  if (!titres[cleFondActif]) {
+    note.textContent = t("horsLigne.fondEnLigne");
+    note.hidden = false;
+    return;
+  }
+  note.hidden = true;
+  const b = carte.getBounds(), centre = carte.getCenter();
+  preparerFond(nomCase(centre.lat, centre.lng), [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()], cleFondActif);
+}
+$("fondTelephone").addEventListener("click", fabriquerFondTelephone);
+
+async function preparerFond(nom, zone, source) {
   carte.closePopup();
-  const reponse = await api("preparer_fond", zone ? { case: nom, zone } : { case: nom });
+  const reponse = await api("preparer_fond", zone ? { case: nom, zone, source } : { case: nom, source });
   if (reponse.erreur) {
     afficherLot({ case: nom, erreur: reponse.erreur });
     return;
@@ -2568,6 +2600,7 @@ async function demarrer() {
     etat.version = infos.version;
     $("version").textContent = `${infos.version}, BRouter ${infos.brouter}`;
     lienAide();
+    etat.fondsHorsLigne = infos.fonds_hors_ligne || {};
     etat.cleIgn = reglages.cle_ign || "";
     $("cleIgn").value = etat.cleIgn;
     etat.renouvellementJours = reglages.renouvellement_jours ?? 30;

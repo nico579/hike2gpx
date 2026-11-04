@@ -22,7 +22,7 @@ class Itineraire(private val horsLigne: HorsLigne, private val routeur: Routeur)
         var zone = Zone.autour(points)
         repeat(ELARGISSEMENTS) {
             val lot = horsLigne.lotCouvrant(zone)
-                ?: throw ErreurCalcul("Aucun lot installé ne couvre ce parcours : téléchargez la case qui le contient.")
+                ?: throw ErreurCalcul(R.string.err_aucun_lot)
             val liste = horsLigne.franchissements(lot, zone)
             val feature = routeur.calculer(horsLigne.segmentsDe(lot), !lot.osm, points,
                 HorsLigne.polylines(liste, strict), officiels, memoireMo)
@@ -31,14 +31,14 @@ class Itineraire(private val horsLigne: HorsLigne, private val routeur: Routeur)
             if (contient(zone, etendue)) {
                 val traverse = traverses(coords, liste, strict)
                 if (traverse != null) {
-                    val mot = if (traverse.statut == "blocked") "bloquant" else "à vérifier, en mode strict"
-                    throw ErreurCalcul("Itinéraire refusé : le tracé passe un franchissement $mot.")
+                    throw ErreurCalcul(if (traverse.statut == "blocked") R.string.err_franchit_bloquant
+                        else R.string.err_franchit_strict)
                 }
                 return Resultat(lot, feature, liste)
             }
             zone = union(zone, Zone.autour(listOf(Point(etendue.sud, etendue.ouest), Point(etendue.nord, etendue.est)), 0.1))
         }
-        throw ErreurCalcul("Le tracé sort sans cesse de la zone examinée : rapprochez les points.")
+        throw ErreurCalcul(R.string.err_zone)
     }
 
     companion object {
