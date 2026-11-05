@@ -89,13 +89,25 @@ class HorsLigne:
             return None
         return origine if isinstance(origine, dict) else None
 
+    def _fonds_des_carres(self, case: str) -> list:
+        """Les fonds des carrés de 1° (N43E006-scan25) qui tombent dans la case de 5°."""
+        s, o, n, e = lot.boite_case(case)
+        trouves = []
+        for chemin in self.dossier_fonds.glob("*-*.mbtiles") if self.dossier_fonds.is_dir() else []:
+            carre = chemin.stem.split("-", 1)[0]
+            if fonds.carre_valide(carre):
+                cs, co, _, _ = fonds.boite_carre(carre)
+                if s <= cs < n and o <= co < e:
+                    trouves.append(chemin)
+        return trouves
+
     def supprimer(self, case: str) -> int:
         """Retire de l'ordinateur tout ce qui sert la case hors ligne : son lot, sa RD5
         et ses fonds de carte (un voyage fini, une case qu'on ne visitera
         plus). Les moteurs BRouter qui lisent la RD5 sont arrêtés avant, par
         l'appelant. Rend les octets libérés."""
         fichiers = [self.segments / f"{case}.rd5", self.segments_osm / f"{case}.rd5",
-                    *self.dossier_fonds.glob(f"{case}-*.mbtiles")]
+                    *self.dossier_fonds.glob(f"{case}-*.mbtiles"), *self._fonds_des_carres(case)]
         dossier = self.racine / case
         if dossier.is_dir():
             fichiers += [p for p in dossier.iterdir() if p.is_file()]

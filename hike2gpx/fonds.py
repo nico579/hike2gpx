@@ -19,8 +19,9 @@ tuiles par seconde au plus) et le User-Agent du projet.
 from __future__ import annotations
 
 import concurrent.futures
-import hashlib
 import http.client
+import io
+import math
 import re
 import sqlite3
 import threading
@@ -73,15 +74,20 @@ SOURCES = {
     "paysBas": Source("https://service.pdok.nl/kadaster/brt-achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/"
                       "{z}/{x}/{y}.png", "png", False, "BRT Achtergrondkaart (PDOK)", "© Kadaster / PDOK, CC BY 4.0"),
 }
-# Niveaux de zoom (mesurés le 2026-10-28, voir la PR) : une vue d'écran
-# descend jusqu'au 16, le plus fin du SCAN 25, où se lisent les sentiers ;
-# une case de 5° s'arrête au 13, sinon elle passerait le million de tuiles.
-# La page agrandit au-delà (maxNativeZoom) ; au-dessous du 6, rien d'utile.
-ZOOMS_VUE = (6, 16)
-ZOOMS_CASE = (6, 13)
-# Une vue très dézoomée ne se prend pas jusqu'au 16 : on retire des niveaux
-# fins jusqu'à tenir sous ce nombre de tuiles (environ 100 Mo de SCAN 25).
-TUILES_MAX_VUE = 5000
+# Un fond couvre un carré de 1°, nommé comme les tuiles SRTM (N43E006 : de
+# 43° à 44° nord, de 6° à 7° est), et non la case de 5° du routage : une case
+# entière au zoom 16 pèserait une dizaine de Go (mesure du 2026-11-05).
+# Zooms 13 à 16 : le service de l'IGN ne sert le vrai SCAN 25 qu'à partir du
+# 15 (au 13, c'est un document à l'échelle du SCAN 100), et le 16 est sa pleine
+# résolution. Un carré en Provence : environ 60 000 tuiles, 1 Go, 2 h 30
+# (mesuré le 2026-11-05 : 19 ko par tuile, 7 tuiles par seconde).
+CARRE_DEG = 1
+ZOOMS_CARRE = (13, 16)
+CARRES_MAX = 4              # carrés fabriqués d'une seule demande (la vue affichée)
+# Toutes les tuiles en JPEG qualité 70 (décision de Nico du 2026-11-05) : les
+# PNG (Plan IGN, TopPlusOpen…) y gagnent beaucoup, le SCAN 25 un peu.
+QUALITE_JPEG = 70
+_CARRE = re.compile(r"^([NS])(\d{2})([EW])(\d{3})$")
 DEBIT = 10.0                # tuiles par seconde au plus
 FILS = 4                    # connexions simultanées
 _NOM = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
@@ -111,13 +117,38 @@ def nom_valide(nom: str) -> bool:
     return bool(_NOM.match(nom or "")) and ".." not in nom
 
 
-def nom_fond(case: str, source: str, zone: tuple | None = None) -> str:
-    """E5_N40-scan25 pour la case entière ; une vue y ajoute l'empreinte courte
-    de sa zone (E5_N40-scan25-vue-3fa2c1), pour en garder plusieurs."""
-    if zone is None:
-        return f"{case}-{source}"
-    empreinte = hashlib.sha1(",".join(f"{v:.4f}" for v in zone).encode()).hexdigest()[:6]
-    return f"{case}-{source}-vue-{empreinte}"
+def nom_fond(carre: str, source: str) -> str:
+    """N43E006-scan25 : le carré, puis la source, que le téléphone lit dans le nom."""
+    return f"{carre}-{source}"
+
+
+def nom_carre(lat: float, lon: float) -> str:
+    """Le carré de 1° du point, nommé comme une tuile SRTM : (43.3, 6.04) -> N43E006."""
+    sud, ouest = math.floor(lat), math.floor(lon)
+    return f"{'N' if sud >= 0 else 'S'}{abs(sud):02d}{'E' if ouest >= 0 else 'W'}{abs(ouest):03d}"
+
+
+def carre_valide(nom: str) -> bool:
+    trouve = _CARRE.match(nom or "")
+    return bool(trouve) and int(trouve.group(2)) <= 89 and int(trouve.group(4)) <= 180
+
+
+def boite_carre(nom: str) -> tuple:
+    """(sud, ouest, nord, est) du carré N43E006 -> (43, 6, 44, 7)."""
+    trouve = _CARRE.match(nom)
+    if not trouve or not carre_valide(nom):
+        raise ErreurFond(f"Carré invalide : {nom}")
+    sud = int(trouve.group(2)) * (1 if trouve.group(1) == "N" else -1)
+    ouest = int(trouve.group(4)) * (1 if trouve.group(3) == "E" else -1)
+    return sud, ouest, sud + CARRE_DEG, ouest + CARRE_DEG
+
+
+def carres_zone(zone: tuple) -> list:
+    """Les carrés que touche la zone (sud, ouest, nord, est), du sud-ouest au nord-est."""
+    sud, ouest, nord, est = zone
+    return [nom_carre(la + 0.5, lo + 0.5)
+            for la in range(math.floor(sud), math.ceil(nord))
+            for lo in range(math.floor(ouest), math.ceil(est))]
 
 
 def tuiles(zone: tuple, zooms: tuple) -> list:
@@ -125,12 +156,18 @@ def tuiles(zone: tuple, zooms: tuple) -> list:
     return [(z, x, y) for z in range(zooms[0], zooms[1] + 1) for x, y in lot.tuiles_emprise(z, *zone)]
 
 
-def zooms_vue(zone: tuple) -> tuple:
-    """Les niveaux d'une vue : jusqu'au 16, moins si la vue est trop grande."""
-    zmin, zmax = ZOOMS_VUE
-    while zmax > zmin and len(tuiles(zone, (zmin, zmax))) > TUILES_MAX_VUE:
-        zmax -= 1
-    return zmin, zmax
+def en_jpeg(contenu: bytes, qualite: int = QUALITE_JPEG) -> bytes:
+    """La tuile en JPEG à la qualité voulue ; un PNG transparent est posé sur du blanc."""
+    from PIL import Image
+    image = Image.open(io.BytesIO(contenu))
+    if image.mode in ("RGBA", "LA", "P"):
+        image = image.convert("RGBA")
+        fond = Image.new("RGB", image.size, (255, 255, 255))
+        fond.paste(image, mask=image.getchannel("A"))
+        image = fond
+    sortie = io.BytesIO()
+    image.convert("RGB").save(sortie, "JPEG", quality=qualite, optimize=True)
+    return sortie.getvalue()
 
 
 class _Debit:
@@ -219,14 +256,14 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
                 for (z, x, y), contenu in zip(paquet, contenus):
                     if contenu:
                         base.execute("INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
-                                     (z, x, 2 ** z - 1 - y, contenu))
+                                     (z, x, 2 ** z - 1 - y, en_jpeg(contenu)))
                 base.commit()
                 faites += len(paquet)
                 suivi(faites, len(toutes))
         if base.execute("SELECT COUNT(*) FROM tiles").fetchone()[0] == 0:
             raise ErreurFond("Aucune tuile de ce fond sur cette zone (hors de son pays ?).")
         sud, ouest, nord, est = zone
-        metadata = {"name": chemin.stem, "format": SOURCES[source].format, "type": "baselayer", "version": "1",
+        metadata = {"name": chemin.stem, "format": "jpg", "type": "baselayer", "version": "1",
                     "description": SOURCES[source].titre, "attribution": SOURCES[source].attribution,
                     "minzoom": str(zooms[0]), "maxzoom": str(zooms[1]), "bounds": f"{ouest},{sud},{est},{nord}",
                     "center": f"{(ouest + est) / 2},{(sud + nord) / 2},{zooms[1]}",

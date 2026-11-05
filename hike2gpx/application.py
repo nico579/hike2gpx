@@ -23,7 +23,7 @@ from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
 from . import (__version__, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik, hors_ligne,
-               journaux, lot, maison, osmfr, pare_feu, partage, providers)
+               journaux, maison, osmfr, pare_feu, partage, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -1330,47 +1330,52 @@ class Application:
         return {"lot_en_cours": self.lot_en_cours()}
 
     def preparer_fond(self, corps) -> dict:
-        """Télécharge en tâche de fond le fond de carte d'une case ou d'une vue
-        (fonds.py). corps comme pour preparer_lot, plus « source », le fond
-        affiché par la page (une clé de fonds.SOURCES) ; sans elle, le SCAN 25
-        avec la clé IGN, le Plan IGN sans. Le fond reste sur ce PC et son
+        """Télécharge en tâche de fond le fond de carte de carrés de 1° (fonds.py),
+        zooms 13 à 16, en JPEG. corps : {"carres": ["N43E006", …], "source": …},
+        la source étant le fond affiché par la page (une clé de fonds.SOURCES) ;
+        sans elle, le SCAN 25 avec la clé IGN, le Plan IGN sans. Au plus
+        fonds.CARRES_MAX carrés d'une demande. Le fond reste sur ce PC et son
         téléphone, jamais publié."""
-        case, zone, erreur = self._case_et_zone(corps)
-        if erreur:
-            return {"erreur": erreur}
+        corps = corps or {}
+        carres = corps.get("carres")
+        if not isinstance(carres, list) or not carres or not all(fonds.carre_valide(c) for c in carres):
+            return {"erreur": "Carrés de fond de carte invalides."}
+        if len(carres) > fonds.CARRES_MAX:
+            return {"erreur": f"La vue touche {len(carres)} carrés de 1° ; rapprochez-vous "
+                              f"({fonds.CARRES_MAX} au plus d'une fois)."}
         cle = self.reglages()["cle_ign"]
-        source = (corps or {}).get("source") or fonds.source_pour(cle)
+        source = corps.get("source") or fonds.source_pour(cle)
         if source not in fonds.SOURCES:
             return {"erreur": "Ce fond de carte ne se garde pas hors ligne."}
         if fonds.SOURCES[source].cle and not cle:
             return {"erreur": "Le SCAN 25 demande la clé IGN des réglages."}
-        return self._lancer_tache(lambda c, z: self._fabriquer_fond(c, z, source), case, zone, "fond")
+        carres = list(dict.fromkeys(carres))
+        return self._lancer_tache(lambda c, z: self._fabriquer_fonds(carres, source), carres[0],
+                                  list(fonds.boite_carre(carres[0])), "fond")
 
-    def _fabriquer_fond(self, case, zone, source) -> None:
+    def _fabriquer_fonds(self, carres, source) -> None:
+        """Les carrés l'un après l'autre ; la note de la page suit le carré en cours."""
         cle = self.reglages()["cle_ign"]
-        if zone:
-            # Une vue s'arrête aux bords de sa case, comme un lot.
-            s, o, n, e = lot.boite_case(case)
-            zone = (max(zone[0], s), max(zone[1], o), min(zone[2], n), min(zone[3], e))
-            zooms, nom = fonds.zooms_vue(zone), fonds.nom_fond(case, source, zone)
-        else:
-            zone, zooms, nom = lot.boite_case(case), fonds.ZOOMS_CASE, fonds.nom_fond(case, source)
-        debut = time.monotonic()
-        try:
-            decrit = fonds.fabriquer(self.hors_ligne.dossier_fonds / f"{nom}.mbtiles", source, zone, zooms, cle,
-                                     suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
-                                     continuer=lambda: not self._lot.get("arreter"))
-        except fonds.Abandon:
-            # Le fichier .part reste : la même demande reprendra où elle s'est arrêtée.
-            journal.info("Fond %s : arrêté après %.0f s", nom, time.monotonic() - debut)
-            self._lot.update(actif=False, erreur="Fond de carte arrêté.")
-        except Exception as exc:          # réseau, clé refusée, disque : la page l'affiche
-            journal.exception("Fond %s : en erreur après %.0f s", nom, time.monotonic() - debut)
-            self._lot.update(actif=False, erreur=str(exc))
-        else:
-            journal.info("Fond %s : %d Mo, zooms %d-%d, en %.0f s", nom, decrit["octets"] // 10 ** 6, *zooms,
-                         time.monotonic() - debut)
-            self._lot.update(actif=False, etape="fini", fond=nom)
+        for carre in carres:
+            nom, zone, debut = fonds.nom_fond(carre, source), fonds.boite_carre(carre), time.monotonic()
+            self._lot.update(case=carre, zone=list(zone), faites=0, total=0)
+            try:
+                decrit = fonds.fabriquer(self.hors_ligne.dossier_fonds / f"{nom}.mbtiles", source, zone,
+                                         fonds.ZOOMS_CARRE, cle,
+                                         suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
+                                         continuer=lambda: not self._lot.get("arreter"))
+            except fonds.Abandon:
+                # Le fichier .part reste : la même demande reprendra où elle s'est arrêtée.
+                journal.info("Fond %s : arrêté après %.0f s", nom, time.monotonic() - debut)
+                self._lot.update(actif=False, erreur="Fond de carte arrêté.")
+                return
+            except Exception as exc:          # réseau, clé refusée, disque : la page l'affiche
+                journal.exception("Fond %s : en erreur après %.0f s", nom, time.monotonic() - debut)
+                self._lot.update(actif=False, erreur=str(exc))
+                return
+            journal.info("Fond %s : %d Mo, zooms %d-%d, en %.0f s", nom, decrit["octets"] // 10 ** 6,
+                         *fonds.ZOOMS_CARRE, time.monotonic() - debut)
+        self._lot.update(actif=False, etape="fini", fond=", ".join(fonds.nom_fond(c, source) for c in carres))
 
     def _fabriquer_lot(self, case, zone) -> None:
         travail = self.hors_ligne.racine / f".fabrication-{case}"

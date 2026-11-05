@@ -17,6 +17,13 @@ ZONE = (43.30, 5.97, 43.36, 6.11)       # une vue de Garéoult
 JPEG = b"\xff\xd8\xff\xe0 tuile"
 
 
+@pytest.fixture(autouse=True)
+def tuiles_telles_quelles(monkeypatch):
+    """Les tuiles simulées ne sont pas de vraies images : la conversion en JPEG
+    q70 (en_jpeg) est éprouvée à part, sur de vraies images."""
+    monkeypatch.setattr(fonds, "en_jpeg", lambda contenu, qualite=fonds.QUALITE_JPEG: contenu)
+
+
 class Reponse(io.BytesIO):
     def __enter__(self):
         return self
@@ -71,26 +78,48 @@ def test_l_application_prepare_le_fond_affiche(tmp_path, monkeypatch):
     ouvrir = service()
     monkeypatch.setattr(urllib.request, "urlopen", ouvrir)
     monkeypatch.setattr(fonds, "DEBIT", 0)
-    monkeypatch.setattr(fonds, "ZOOMS_VUE", (12, 12))
-    assert "erreur" in a.preparer_fond({"case": "E5_N40", "zone": list(ZONE), "source": "osm"}), \
+    monkeypatch.setattr(fonds, "ZOOMS_CARRE", (7, 8))        # quelques tuiles, pas 60 000
+    assert "erreur" in a.preparer_fond({"carres": ["N43E006"], "source": "osm"}), \
         "OpenStreetMap ne se garde pas hors ligne"
-    assert "clé IGN" in a.preparer_fond({"case": "E5_N40", "zone": list(ZONE), "source": "scan25"})["erreur"]
+    assert "clé IGN" in a.preparer_fond({"carres": ["N43E006"], "source": "scan25"})["erreur"]
     # IGN España : une adresse WMTS (TILEMATRIX…), celle que lit le faux service.
-    a.preparer_fond({"case": "E5_N40", "zone": list(ZONE), "source": "espagne"})
+    a.preparer_fond({"carres": ["N43E006"], "source": "espagne"})
     a._fil_lot.join(10)
-    assert a.lot_en_cours()["fond"].startswith("E5_N40-espagne-vue-")
+    assert a.lot_en_cours()["fond"] == "N43E006-espagne"
     [f] = a.lots_hors_ligne()["fonds"]
     assert f["source"] == "espagne" and f["attribution"] == "© IGN España, CC BY 4.0"
+    assert f["format"] == "jpg", "toutes les tuiles en JPEG"
     assert ouvrir.demandes[0].full_url.startswith("https://www.ign.es/wmts/")
     assert a.etat()["fonds_hors_ligne"]["allemagne"] == "TopPlusOpen (BKG)"
 
 
-def test_zooms_d_une_vue_et_d_une_case():
-    assert fonds.zooms_vue(ZONE) == (6, 16), "une vue d'écran descend au 16"
-    assert len(fonds.tuiles(ZONE, (6, 16))) == 631
-    # Une vue d'un degré ne tiendrait pas au 16 : elle s'arrête plus haut.
-    assert fonds.zooms_vue((43.0, 5.5, 44.0, 6.5))[1] < 16
-    assert len(fonds.tuiles(lot.boite_case("E5_N40"), fonds.ZOOMS_CASE)) == 24042
+def test_les_carres_de_1_degre():
+    # Nommés comme les tuiles SRTM : N43E006 va de 43° à 44° nord, de 6° à 7° est.
+    assert fonds.nom_carre(43.33, 6.04) == "N43E006"
+    assert fonds.nom_carre(-0.5, -0.5) == "S01W001"
+    assert fonds.nom_carre(43.0, 6.0) == "N43E006", "un bord appartient au carré du nord-est"
+    assert fonds.boite_carre("N43E006") == (43, 6, 44, 7)
+    assert fonds.boite_carre("S01W001") == (-1, -1, 0, 0)
+    for nom in ("N43E6", "E006N43", "N90E000", "N43E181", "../x", ""):
+        assert not fonds.carre_valide(nom), nom
+    assert fonds.carres_zone(ZONE) == ["N43E005", "N43E006"], "une vue à cheval sur deux carrés"
+    assert fonds.carres_zone((43.2, 6.1, 43.4, 6.3)) == ["N43E006"]
+    # Un carré en Provence, zooms 13 à 16 : environ 60 000 tuiles (la mesure de la décision).
+    assert 55_000 < len(fonds.tuiles(fonds.boite_carre("N43E006"), fonds.ZOOMS_CARRE)) < 65_000
+
+
+def test_en_jpeg_qualite_70_sur_de_vraies_images(monkeypatch):
+    monkeypatch.undo()                  # la vraie conversion, sans la fixture
+    from PIL import Image
+    png = io.BytesIO()
+    Image.new("RGBA", (256, 256), (200, 30, 30, 0)).save(png, "PNG")
+    sortie = fonds.en_jpeg(png.getvalue())
+    image = Image.open(io.BytesIO(sortie))
+    assert image.format == "JPEG" and image.size == (256, 256)
+    assert image.getpixel((10, 10))[0] > 240, "le transparent devient blanc, pas noir"
+    origine = io.BytesIO()
+    Image.effect_noise((256, 256), 60).convert("RGB").save(origine, "JPEG", quality=95)
+    assert len(fonds.en_jpeg(origine.getvalue())) < len(origine.getvalue()), "qualité 70 : plus léger"
 
 
 def test_un_fond_s_ecrit_en_mbtiles_et_se_relit(tmp_path):
@@ -170,8 +199,7 @@ def test_le_debit_reste_modere():
 
 
 def test_noms_de_fonds_surs():
-    assert fonds.nom_fond("E5_N40", "scan25") == "E5_N40-scan25"
-    assert fonds.nom_fond("E5_N40", "plan", ZONE).startswith("E5_N40-plan-vue-")
+    assert fonds.nom_fond("N43E006", "scan25") == "N43E006-scan25"
     for nom in ("../preferences", "a/b", "a\\b", "..", "", "x" * 81, "é"):
         assert not fonds.nom_valide(nom), nom
 
@@ -182,17 +210,25 @@ def test_l_application_prepare_un_fond_et_le_liste(tmp_path, monkeypatch):
     ouvrir = service()
     monkeypatch.setattr(urllib.request, "urlopen", ouvrir)
     monkeypatch.setattr(fonds, "DEBIT", 0)
-    monkeypatch.setattr(fonds, "ZOOMS_VUE", (12, 13))
-    assert "erreur" in a.preparer_fond({"case": "../x"})
-    reponse = a.preparer_fond({"case": "E5_N40", "zone": list(ZONE)})
+    monkeypatch.setattr(fonds, "ZOOMS_CARRE", (7, 8))
+    for faux in ({"carres": ["../x"]}, {"carres": []}, {"case": "E5_N40"}, {"carres": "N43E006"}):
+        assert "erreur" in a.preparer_fond(faux), faux
+    trop = a.preparer_fond({"carres": ["N43E005", "N43E006", "N44E005", "N44E006", "N45E006"]})
+    assert "rapprochez-vous" in trop["erreur"], "cinq carrés d'une fois : trop"
+    # La vue à cheval sur deux carrés : les deux, l'un après l'autre.
+    reponse = a.preparer_fond({"carres": ["N43E005", "N43E006"]})
     assert reponse["lot_en_cours"]["etape"] == "fond"
     a._fil_lot.join(10)
     etat = a.lot_en_cours()
-    assert etat["etape"] == "fini" and etat["fond"].startswith("E5_N40-scan25-vue-"), etat
-    [f] = a.lots_hors_ligne()["fonds"]
-    assert f["source"] == "scan25" and f["zoom"] == [12, 13] and f["nom"] == etat["fond"]
+    assert etat["etape"] == "fini" and etat["fond"] == "N43E005-scan25, N43E006-scan25", etat
+    installes = {f["nom"]: f for f in a.lots_hors_ligne()["fonds"]}
+    assert set(installes) == {"N43E005-scan25", "N43E006-scan25"}
+    assert installes["N43E006-scan25"]["zone"] == [43, 6, 44, 7] and installes["N43E006-scan25"]["zoom"] == [7, 8]
     assert "apikey=ma_cle" in ouvrir.demandes[0].full_url
     assert a.hors_ligne.lots() == [], "un fond n'est pas un lot : rien à publier"
+    # Supprimer la case de 5° retire les fonds de ses carrés.
+    assert a.supprimer_case({"case": "E5_N40"})["octets"] > 0
+    assert a.lots_hors_ligne()["fonds"] == [], "N43E005 et N43E006 sont tous deux dans E5_N40"
 
 
 def test_la_page_lit_les_tuiles_du_fond_par_le_serveur_local(tmp_path):

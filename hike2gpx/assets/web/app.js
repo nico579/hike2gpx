@@ -183,7 +183,7 @@ const TEXTES = {
     "reglages.casesAucune": "Aucune case prête hors ligne. Cliquez une case de la carte pour la préparer.",
     "horsLigne.bouton": "Hors ligne",
     "horsLigne.boutonTitre": "Afficher les cases hors ligne (5°) : lots et fonds de carte pour marcher sans réseau",
-    "horsLigne.aide": "Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou son fond de carte.",
+    "horsLigne.aide": "Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou le fond de carte du carré de 1° où vous cliquez.",
     "horsLigne.case": "Case {nom}",
     "horsLigne.prete": "Prête hors ligne : {taille}, OSM du {date}.",
     "horsLigne.absente": "Pas encore disponible hors ligne.",
@@ -218,10 +218,8 @@ const TEXTES = {
     "horsLigne.etape.compilation": "itinéraires BRouter",
     "horsLigne.etape.fond": "fond de carte",
     "horsLigne.fonds": "Fond de carte hors ligne : {liste}.",
-    "horsLigne.fondVue": "vue",
-    "horsLigne.fondCase": "toute la case",
-    "horsLigne.preparerFondVue": "Fond de carte de la vue ({source})",
-    "horsLigne.preparerFondCase": "Fond de carte de toute la case ({source}, zooms 6 à 13, environ {duree})",
+    "horsLigne.preparerFondCarre": "Fond {source} du carré {carre} (1°, zooms 13 à 16, environ 1 Go et 2 h 30)",
+    "partage.tropDeCarres": "La vue touche {n} carrés de 1° : rapprochez-vous ({max} au plus d’une fois).",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
     "horsLigne.fondEnLigne": "Ce fond reste en ligne : choisissez une carte officielle (IGN, BKG, Kartverket…) pour l’emporter hors ligne.",
     "partage.ouvrir": "Partager au téléphone",
@@ -418,7 +416,7 @@ const TEXTES = {
     "reglages.casesAucune": "No area is ready offline yet. Click an area on the map to prepare it.",
     "horsLigne.bouton": "Offline",
     "horsLigne.boutonTitre": "Show the offline areas (5°): bundles and base maps to hike with no network",
-    "horsLigne.aide": "Click an area: download its bundle from the server, prepare the view or the whole area, or its base map.",
+    "horsLigne.aide": "Click an area: download its bundle from the server, prepare the view or the whole area, or the base map of the 1° square you click.",
     "horsLigne.case": "Area {nom}",
     "horsLigne.prete": "Ready offline: {taille}, OSM of {date}.",
     "horsLigne.absente": "Not available offline yet.",
@@ -453,10 +451,8 @@ const TEXTES = {
     "horsLigne.etape.compilation": "BRouter routing data",
     "horsLigne.etape.fond": "base map",
     "horsLigne.fonds": "Offline base map: {liste}.",
-    "horsLigne.fondVue": "view",
-    "horsLigne.fondCase": "whole area",
-    "horsLigne.preparerFondVue": "Base map of the view ({source})",
-    "horsLigne.preparerFondCase": "Base map of the whole area ({source}, zooms 6 to 13, about {duree})",
+    "horsLigne.preparerFondCarre": "{source} base map of square {carre} (1°, zooms 13 to 16, about 1 GB and 2 h 30)",
+    "partage.tropDeCarres": "The view touches {n} 1° squares: zoom in ({max} at most at once).",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
     "horsLigne.fondEnLigne": "This base map stays online: pick an official map (IGN, BKG, Kartverket…) to take it offline.",
     "partage.ouvrir": "Share with the phone",
@@ -1416,6 +1412,7 @@ const grilleCases = L.layerGroup();
 let lotsInstalles = [];
 let lotsServeur = [];            // le catalogue du dépôt (catalogue_lots), avec l'état de chaque lot ici
 let lotEnCours = { actif: false };
+let clicCase = null;        // le dernier clic dans une case : son carré de 1° reçoit le fond de carte
 let minuterieLot = null;
 let lotSuivi = false;       // un lot suivi était en cours : à sa fin, calques et calcul repartent
 // Les fonds de carte téléchargés sur ce PC (fonds.py) : un MBTiles chacun,
@@ -1538,10 +1535,10 @@ function bulleCase(nom) {
     else div.append(bouton(t(surServeur.etat === "ancien" ? "horsLigne.telechargerMaj" : "horsLigne.telechargerMaintenant"),
       () => telechargerCase(nom)));
   }
-  ajouterFonds(div, nom, vueDansCase ? [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()] : null);
+  ajouterFonds(div, nom);
   // Un voyage fini, une case qu'on ne visitera plus : son lot et ses fonds
   // quittent l'ordinateur (décision de Nico du 2026-10-28).
-  const fondsIci = fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`));
+  const fondsIci = fondsDeLaCase(nom);
   if (lotCase || fondsIci.length) {
     const octets = (lotCase?.octets || 0) + fondsIci.reduce((somme, f) => somme + (f.octets || 0), 0);
     div.append(bouton(t("horsLigne.supprimer"), () => supprimerCase(nom, octets)));
@@ -1562,16 +1559,40 @@ async function supprimerCase(nom, octets) {
   chargerFonds();
 }
 
+// Les fonds de carte se fabriquent par carrés de 1° (fonds.py), nommés comme
+// les tuiles SRTM : N43E006 va de 43° à 44° nord et de 6° à 7° est. La case de
+// 5° reste l'unité du routage ; un carré, celle du fond, zooms 13 à 16.
+function nomCarre(lat, lon) {
+  const la = Math.floor(lat), lo = Math.floor(lon);
+  return `${la < 0 ? "S" : "N"}${String(Math.abs(la)).padStart(2, "0")}${lo < 0 ? "W" : "E"}${String(Math.abs(lo)).padStart(3, "0")}`;
+}
+
+// Les carrés que touche une zone [sud, ouest, nord, est].
+function carresZone([s, o, n, e]) {
+  const noms = [];
+  for (let la = Math.floor(s); la < Math.ceil(n); la++) {
+    for (let lo = Math.floor(o); lo < Math.ceil(e); lo++) noms.push(nomCarre(la + 0.5, lo + 0.5));
+  }
+  return noms;
+}
+
+// Les fonds installés dans la case : les anciens, nommés d'après elle, et ceux de ses carrés.
+function fondsDeLaCase(nom) {
+  const [s, o, n, e] = boiteCase(nom);
+  return fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`)
+    || (f.zone && f.zone[0] >= s && f.zone[0] < n && f.zone[1] >= o && f.zone[1] < e));
+}
+
 // Le fond affiché, hors ligne : celui que montre la page, s'il est de ceux
 // dont la licence permet de garder les tuiles (fonds.SOURCES, que le serveur
-// envoie dans son état). Il reste sur ce PC (et son téléphone), jamais publié.
-function ajouterFonds(div, nom, vue) {
+// envoie dans son état), pour le carré de 1° où l'on a cliqué dans la case.
+// Il reste sur ce PC (et son téléphone), jamais publié.
+function ajouterFonds(div, nom) {
   const titres = etat.fondsHorsLigne || {};
-  const ici = fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`));
+  const ici = fondsDeLaCase(nom);
   if (ici.length) {
     div.append(paragraphe(t("horsLigne.fonds", { liste: ici.map((f) =>
-      `${t(f.nom.includes("-vue-") ? "horsLigne.fondVue" : "horsLigne.fondCase")} ${titres[f.source] || f.source}`
-      + ` ${tailleTexte(f.octets)}`).join(", ") })));
+      `${f.nom.split("-")[0]} ${titres[f.source] || f.source} ${tailleTexte(f.octets)}`).join(", ") })));
   }
   const cle = cleFondActif;
   if (cle === "horsLigne") return;
@@ -1579,9 +1600,11 @@ function ajouterFonds(div, nom, vue) {
     div.append(paragraphe(t("horsLigne.fondEnLigne")));
     return;
   }
-  const source = titres[cle];
-  if (vue) div.append(bouton(t("horsLigne.preparerFondVue", { source }), () => preparerFond(nom, vue, cle)));
-  div.append(bouton(t("horsLigne.preparerFondCase", { source, duree: "45 min" }), () => preparerFond(nom, null, cle)));
+  const [s, o, n, e] = boiteCase(nom);
+  const clic = clicCase && clicCase.lat >= s && clicCase.lat < n && clicCase.lng >= o && clicCase.lng < e
+    ? clicCase : carte.getCenter();
+  const carre = nomCarre(clic.lat, clic.lng);
+  div.append(bouton(t("horsLigne.preparerFondCarre", { source: titres[cle], carre }), () => preparerFonds([carre], cle)));
 }
 
 // ------------------------------------------------------------ partage au téléphone
@@ -1618,28 +1641,28 @@ $("fermerFenetrePartage").addEventListener("click", () => { $("partageFenetre").
 $("partageFenetre").addEventListener("click", (e) => { if (e.target === $("partageFenetre")) $("partageFenetre").hidden = true; });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("partageFenetre").hidden = true; });
 
-// Le fond affiché, sur la vue affichée, prêt à partir au téléphone : la même
-// fabrication que la bulle d'une case (preparer_fond), là où on prépare son
-// téléphone. La vue s'arrête aux bords de la case de son centre, comme un lot.
+// Le fond affiché, prêt à partir au téléphone : les carrés de 1° que touche la
+// vue affichée, la même fabrication que la bulle d'une case (preparer_fond), là
+// où on prépare son téléphone. Quatre carrés au plus : au-delà, se rapprocher.
+const CARRES_MAX = 4;
 function fabriquerFondTelephone() {
   const titres = etat.fondsHorsLigne || {};
   const note = $("fondTelephoneTexte");
-  if (!titres[cleFondActif]) {
-    note.textContent = t("horsLigne.fondEnLigne");
-    note.hidden = false;
-    return;
-  }
-  note.hidden = true;
-  const b = carte.getBounds(), centre = carte.getCenter();
-  preparerFond(nomCase(centre.lat, centre.lng), [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()], cleFondActif);
+  const b = carte.getBounds();
+  const carres = carresZone([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]);
+  note.textContent = !titres[cleFondActif] ? t("horsLigne.fondEnLigne")
+    : carres.length > CARRES_MAX ? t("partage.tropDeCarres", { n: carres.length, max: CARRES_MAX }) : "";
+  note.hidden = !note.textContent;
+  if (note.textContent) return;
+  preparerFonds(carres, cleFondActif);
 }
 $("fondTelephone").addEventListener("click", fabriquerFondTelephone);
 
-async function preparerFond(nom, zone, source) {
+async function preparerFonds(carres, source) {
   carte.closePopup();
-  const reponse = await api("preparer_fond", zone ? { case: nom, zone, source } : { case: nom, source });
+  const reponse = await api("preparer_fond", { carres, source });
   if (reponse.erreur) {
-    afficherLot({ case: nom, erreur: reponse.erreur });
+    afficherLot({ case: carres[0], erreur: reponse.erreur });
     return;
   }
   if (minuterieLot) clearTimeout(minuterieLot);
@@ -1664,6 +1687,8 @@ function dessinerCases() {
     const [s, o, n, e] = boiteCase(nom);
     L.rectangle([[s, o], [n, e]], { pane: "casesHorsLigne", bubblingMouseEvents: false,
       ...STYLES_CASE[etatCase(nom)] })
+      // Le point du clic, avant la bulle : il désigne le carré de 1° du fond de carte.
+      .on("click", (e) => { clicCase = e.latlng; })
       .bindPopup(() => bulleCase(nom)).addTo(grilleCases);
   }
 }
