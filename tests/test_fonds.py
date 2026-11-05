@@ -147,7 +147,8 @@ def test_un_fond_s_ecrit_en_mbtiles_et_se_relit(tmp_path):
 
 def test_un_fond_arrete_reprend_ou_il_en_etait(tmp_path):
     chemin = tmp_path / "f.mbtiles"
-    restantes = [20]
+    # Une connexion : paquets de 32 tuiles. Arrêté au 45e appel, après le premier paquet rangé.
+    restantes = [45]
 
     def continuer():
         restantes[0] -= 1
