@@ -263,7 +263,13 @@ test("le partage au téléphone s'ouvre à la demande, montre son QR code et se 
   assert.equal(elements.get("partageQr").innerHTML, "<svg>qr</svg>");
   assert.equal(elements.get("partageOuvert").hidden, false);
   assert.equal(elements.get("partagerTelephone").hidden, true);
-  assert.match(elements.get("partageTexte").textContent, /1 lot\(s\) et 1 fond\(s\) de carte, 412 Mo/);
+  assert.match(elements.get("partageTexte").textContent, /Scanner le QR code d’un PC.*1 fond\(s\) de carte/);
+  // Le QR code s'ouvre dans sa fenêtre, comme lidar2map ; Fermer la cache, « Afficher le QR code » la rouvre.
+  assert.equal(elements.get("partageFenetre").hidden, false);
+  elements.get("fermerFenetrePartage").click();
+  assert.equal(elements.get("partageFenetre").hidden, true);
+  elements.get("revoirQr").click();
+  assert.equal(elements.get("partageFenetre").hidden, false);
   elements.get("fermerPartage").click();
   const fermeture = requetes.findLast((r) => r.url === "/api/partage");
   assert.deepEqual(JSON.parse(fermeture.options.body), { ouvrir: false });
@@ -272,6 +278,7 @@ test("le partage au téléphone s'ouvre à la demande, montre son QR code et se 
   assert.equal(elements.get("partageQr").innerHTML, "", "le QR code s'efface : son jeton ne vaut plus");
   assert.equal(elements.get("partageOuvert").hidden, true);
   assert.equal(elements.get("partageTexte").hidden, true);
+  assert.equal(elements.get("partageFenetre").hidden, true, "partage fermé : plus de fenêtre");
 });
 
 test("la note suit la préparation hors ligne, puis la case est prête", async () => {

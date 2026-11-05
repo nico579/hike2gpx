@@ -24,6 +24,7 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
@@ -373,7 +374,7 @@ class MainActivity : Activity() {
             choix.add(getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom, fond.octets / 1_000_000,
                 source.libelle) to { telechargerFond(source, fond) })
         }
-        if (reglages.pcs().isEmpty()) choix.add(getString(R.string.fond_sans_pc) to { collerLien() })
+        if (reglages.pcs().isEmpty()) choix.add(getString(R.string.fond_sans_pc) to { scannerQr() })
         else if (proposes.isEmpty()) choix.add(getString(R.string.fond_relire) to { cataloguesPc = null; choisirFond() })
         AlertDialog.Builder(this)
             .setTitle(R.string.titre_fond)
@@ -526,6 +527,7 @@ class MainActivity : Activity() {
             colonne.addView(ligne)
         }
         colonne.addView(TextView(this).apply { setText(R.string.aide_qr) })
+        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
         colonne.addView(Button(this).apply { setText(R.string.coller_lien); setOnClickListener { collerLien() } })
 
         titre(colonne, R.string.titre_cache)
@@ -673,6 +675,25 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Le QR code affiché par le PC, lu par la caméra du téléphone (zxing-android-embedded, comme watch2notif). */
+    private fun scannerQr() {
+        IntentIntegrator(this)
+            .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
+            .setPrompt(getString(R.string.scan_invite))
+            .setBeepEnabled(false)
+            .setOrientationLocked(false)
+            .initiateScan()
+    }
+
+    /** Le texte lu dans un QR code : le même chemin que le lien ouvert par l'appareil photo, confirmation comprise. */
+    private fun lienScanne(texte: String) {
+        try {
+            ajouterPc(LienDepot.lire(texte))
+        } catch (e: ErreurDepot) {
+            etat.text = texte(e)
+        }
+    }
+
     private fun collerLien() {
         val champ = EditText(this).apply { hint = "hike2gpx://depot?url=…&jeton=…"; setSingleLine(true) }
         AlertDialog.Builder(this)
@@ -721,6 +742,10 @@ class MainActivity : Activity() {
     @Deprecated("Activity de la plateforme : pas d'AndroidX dans cette application.")
     override fun onActivityResult(requete: Int, resultat: Int, donnees: Intent?) {
         super.onActivityResult(requete, resultat, donnees)
+        IntentIntegrator.parseActivityResult(requete, resultat, donnees)?.let { scan ->
+            scan.contents?.let { lienScanne(it) }       // null : scan annulé
+            return
+        }
         val coordonnees = dernier?.coordonnees ?: return
         val adresse = donnees?.data ?: return
         if (requete != EXPORT || resultat != RESULT_OK) return

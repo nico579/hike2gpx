@@ -72,6 +72,9 @@ def test_le_qr_code_porte_l_adresse_du_catalogue_et_le_jeton(ouvert):
     assert "%3A%2F%2F" in etat["lien"], "l'adresse est encodée dans le lien"
     assert len(p.jeton) >= 43, "32 octets aléatoires en base64 URL"
     assert etat["qr"].startswith("<svg") and etat["lots"] == ["E5_N40"] and etat["fonds"] == ["E5_N40-scan25"]
+    # Un viewBox et pas de largeur fixe : la page met le QR code à l'échelle sans le couper.
+    entete = etat["qr"][:etat["qr"].index(">")]
+    assert "viewBox=" in entete and " width=" not in entete, entete
 
 
 def test_sans_jeton_valide_tout_est_refuse(ouvert):
