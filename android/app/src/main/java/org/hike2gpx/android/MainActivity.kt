@@ -401,44 +401,61 @@ class MainActivity : Activity() {
             .show()
     }
 
+    /** La table metadata d'un MBTiles (bounds « ouest,sud,est,nord », minzoom…), vide si illisible. */
+    private fun metadonnees(f: File): Map<String, String> = try {
+        SQLiteDatabase.openDatabase(f.path, null, SQLiteDatabase.OPEN_READONLY).use { base ->
+            base.rawQuery("SELECT name, value FROM metadata", null).use { c ->
+                buildMap { while (c.moveToNext()) put(c.getString(0), c.getString(1)) }
+            }
+        }
+    } catch (e: Exception) {
+        emptyMap()
+    }
+
+    /**
+     * Le zoom le plus bas des fichiers d'un fond : en deçà, ils n'ont pas une
+     * tuile, la carte resterait vide ou en morceaux. Un carré de 1° commence au
+     * 13 (fonds.ZOOMS_CARRE) ; les fonds plus anciens d'une case, au 6.
+     */
+    private fun zoomMin(fichiers: List<File>): Int =
+        fichiers.mapNotNull { metadonnees(it)["minzoom"]?.toIntOrNull() }.minOrNull() ?: 0
+
     /**
      * Un fond hors ligne ne couvre que sa zone : si la vue n'est dans aucun de
-     * ses fichiers, la carte se cadre sur le premier, d'après les bornes que
-     * tout MBTiles porte dans sa table metadata (« ouest,sud,est,nord »).
+     * ses fichiers, la carte se centre sur le premier, d'après ses bornes, à un
+     * zoom où il a des tuiles (cadrer le carré entier dézoomerait sous son minzoom).
      */
     private fun cadrerSur(fichiers: List<File>) {
         val boites = fichiers.mapNotNull { f ->
-            try {
-                SQLiteDatabase.openDatabase(f.path, null, SQLiteDatabase.OPEN_READONLY).use { base ->
-                    base.rawQuery("SELECT value FROM metadata WHERE name = 'bounds'", null).use { c ->
-                        if (!c.moveToFirst()) null
-                        else c.getString(0).split(',').map { it.trim().toDouble() }.takeIf { it.size == 4 }
-                            ?.let { (o, s, e, n) -> BoundingBox(n, e, s, o) }
-                    }
-                }
-            } catch (e: Exception) {
-                null
-            }
+            metadonnees(f)["bounds"]?.split(',')?.mapNotNull { it.trim().toDoubleOrNull() }?.takeIf { it.size == 4 }
+                ?.let { (o, s, e, n) -> BoundingBox(n, e, s, o) }
         }
         if (boites.isEmpty() || boites.any { it.contains(carte.mapCenter) }) return
-        carte.zoomToBoundingBox(boites.first(), true, dp(24))
+        carte.controller.setZoom(maxOf(carte.zoomLevelDouble, zoomMin(fichiers).toDouble()))
+        carte.controller.setCenter(boites.first().centerWithDateLine)
     }
 
     /**
      * Le fond de la carte. Un fond hors ligne réunit tous les MBTiles de sa
      * source ; osmdroid agrandit au-delà de leur zoom le plus fin, comme la page
-     * (maxNativeZoom), et ne demande rien au réseau.
+     * (maxNativeZoom), et ne demande rien au réseau. La carte ne descend pas
+     * sous son zoom le plus bas, où elle n'aurait rien à montrer.
      */
     private fun appliquerFond(cle: String) {
         val fichiers = fonds.parSource()[cle]
         when {
             fichiers != null -> {
+                val minimum = zoomMin(fichiers)
                 carte.setTileProvider(OfflineTileProvider(SimpleRegisterReceiver(this), fichiers.toTypedArray()))
-                carte.setTileSource(XYTileSource("hors-ligne-$cle", 0, 19, 256, "", arrayOf<String>(), "© ${Fonds.titre(cle)}"))
+                carte.setTileSource(XYTileSource("hors-ligne-$cle", minimum, 19, 256, "", arrayOf<String>(),
+                    "© ${Fonds.titre(cle)}"))
+                carte.setMinZoomLevel(minimum.toDouble())
+                if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum.toDouble())
             }
             else -> {
                 carte.setTileProvider(MapTileProviderBasic(applicationContext))
                 carte.setTileSource(if (cle == "topo") TileSourceFactory.OpenTopo else TileSourceFactory.MAPNIK)
+                carte.setMinZoomLevel(null)         // le zoom le plus bas de la source en ligne
             }
         }
         reglages.fond = if (fichiers != null || cle == "topo") cle else "osm"
