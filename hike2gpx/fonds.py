@@ -13,8 +13,10 @@ l'utilisateur, pour son seul usage. Un fond reste donc sur le PC (et sur son
 téléphone, par le partage local) et n'entre jamais dans une publication du
 dépôt (depot.py ne publie que des lots, décrits par leur manifeste).
 
-Conditions d'usage du service : un débit modéré (quelques connexions, DEBIT
-tuiles par seconde au plus) et le User-Agent du projet.
+Le téléchargement suit lidar2map, qui fabrique ses fonds ainsi depuis
+longtemps : FILS connexions simultanées, sans autre bride, avec le User-Agent
+du projet. DEBIT reste réglable pour un service qui demanderait d'aller plus
+doucement.
 """
 from __future__ import annotations
 
@@ -79,8 +81,9 @@ SOURCES = {
 # entière au zoom 16 pèserait une dizaine de Go (mesure du 2026-11-05).
 # Zooms 13 à 16 : le service de l'IGN ne sert le vrai SCAN 25 qu'à partir du
 # 15 (au 13, c'est un document à l'échelle du SCAN 100), et le 16 est sa pleine
-# résolution. Un carré en Provence : environ 60 000 tuiles, 1 Go, 2 h 30
-# (mesuré le 2026-11-05 : 19 ko par tuile, 7 tuiles par seconde).
+# résolution. Un carré en Provence : environ 60 000 tuiles, 1 Go, une demi-heure
+# (19 ko et 29 tuiles par seconde, mesuré le 2026-11-05 ; lidar2map, qui garde
+# ses connexions ouvertes, tire environ 46 tuiles par seconde du SCAN 25).
 CARRE_DEG = 1
 ZOOMS_CARRE = (13, 16)
 CARRES_MAX = 4              # carrés fabriqués d'une seule demande (la vue affichée)
@@ -88,8 +91,11 @@ CARRES_MAX = 4              # carrés fabriqués d'une seule demande (la vue aff
 # PNG (Plan IGN, TopPlusOpen…) y gagnent beaucoup, le SCAN 25 un peu.
 QUALITE_JPEG = 70
 _CARRE = re.compile(r"^([NS])(\d{2})([EW])(\d{3})$")
-DEBIT = 10.0                # tuiles par seconde au plus
-FILS = 4                    # connexions simultanées
+# Comme lidar2map (demande de Nico du 2026-11-05) : 8 connexions, sans bride.
+# À 4 connexions et 10 tuiles par seconde au plus, un carré prenait 2 h 30 ;
+# lidar2map fait 55 912 tuiles de SCAN 25 en 20 minutes.
+DEBIT = 0.0                 # tuiles par seconde au plus ; 0 : pas de bride
+FILS = 8                    # connexions simultanées
 _NOM = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 
 
@@ -248,9 +254,10 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
         suivi(faites, len(toutes))
         limiteur = _Debit(debit)
         with concurrent.futures.ThreadPoolExecutor(max_workers=fils) as pool:
-            # Par paquets : jamais plus que quelques dizaines de tuiles en mémoire.
-            for debut in range(0, len(a_faire), 8 * fils):
-                paquet = a_faire[debut:debut + 8 * fils]
+            # Par paquets de 32 tuiles par connexion : quelques Mo en mémoire, et chaque paquet
+            # attend sa tuile la plus lente moins souvent qu'avec de petits paquets.
+            for debut in range(0, len(a_faire), 32 * fils):
+                paquet = a_faire[debut:debut + 32 * fils]
                 contenus = pool.map(lambda t: _telecharger_tuile(url_tuile(source, *t, cle_ign), ouvrir,
                                                                   limiteur, continuer), paquet)
                 for (z, x, y), contenu in zip(paquet, contenus):
