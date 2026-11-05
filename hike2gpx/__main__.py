@@ -85,10 +85,17 @@ def main(argv=None) -> int:
                           help="only this provider; repeatable")
     cellules.add_argument("--bulk-only", action="store_true",
                           help="only the providers with a bulk reader (those bundles --bulk can build)")
+    # Le partage relance le programme en administrateur pour ouvrir le pare-feu
+    # de Windows (pare_feu.py) : la fenêtre UAC nomme hike2gpx, pas PowerShell.
+    pare = sous.add_parser("firewall", help="let the phone share through the Windows firewall (run elevated)")
+    pare.add_argument("--program", required=True, help="the hike2gpx executable the rule allows")
     # Import d'un extrait Geofabrik, lancé par geofabrik.installer() dans un
     # processus à part (PBF, base, région en JSON, date des données).
     parser.add_argument("--importer-extrait", nargs=4, metavar="X", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.commande == "firewall":
+        from . import pare_feu
+        return pare_feu.creer(args.program)
     if args.commande == "bundles":
         for cellule in args.cells:
             if not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", cellule):

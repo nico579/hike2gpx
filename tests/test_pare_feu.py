@@ -29,7 +29,10 @@ class Windows:
         return "\n".join(self.regles)
 
     def elever(self, commande):
-        self.elevations.append(script(commande))
+        # Le programme lui-même, relancé en administrateur (la fenêtre UAC nomme hike2gpx) :
+        # on garde le script que sa commande firewall appliquera.
+        assert commande[-3:] == ["firewall", "--program", PROG], commande
+        self.elevations.append(pare_feu.script_creer(commande[-1]))
         if self.reponse_uac == 0:
             self.regles = [r for r in self.regles if r.split("|")[2] != "0" and not r.startswith(pare_feu.NOM)] + [NOTRE]
         return self.reponse_uac
@@ -99,3 +102,21 @@ def test_l_application_ne_verifie_qu_une_fois_par_seance(tmp_path, monkeypatch):
     assert a.partager({"ouvrir": True})["pare_feu"] == "refuse"
     a.partager({"ouvrir": True})
     assert appels == [1, 2, 2], "refusée : redemandée au partage suivant"
+
+
+def test_la_relance_en_administrateur_est_hike2gpx_et_non_powershell(monkeypatch):
+    import sys
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", PROG)
+    assert pare_feu.commande_elevee(PROG) == [PROG, "firewall", "--program", PROG]
+    monkeypatch.setattr(sys, "frozen", False, raising=False)
+    commande = pare_feu.commande_elevee(PROG)
+    assert commande[1:] == ["-m", "hike2gpx", "firewall", "--program", PROG], "depuis les sources"
+
+
+def test_la_commande_firewall_pose_la_regle(monkeypatch):
+    from hike2gpx import __main__ as principal
+    appels = []
+    monkeypatch.setattr(pare_feu, "creer", lambda prog: appels.append(prog) or 0)
+    assert principal.main(["firewall", "--program", PROG]) == 0
+    assert appels == [PROG]
