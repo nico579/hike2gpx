@@ -89,6 +89,17 @@ class HorsLigne:
             return None
         return origine if isinstance(origine, dict) else None
 
+    def supprimer_fond(self, carre: str) -> int:
+        """Retire les fonds d'un carré de 1° (N43E006-scan25, N43E006-plan…) ; rend les octets libérés."""
+        if not fonds.carre_valide(carre):
+            raise ValueError(f"Carré invalide : {carre}")
+        fichiers = [p for p in self.dossier_fonds.glob(f"{carre}-*.mbtiles") if p.is_file()] \
+            if self.dossier_fonds.is_dir() else []
+        octets = sum(p.stat().st_size for p in fichiers)
+        for p in fichiers:
+            p.unlink()
+        return octets
+
     def _fonds_des_carres(self, case: str) -> list:
         """Les fonds des carrés de 1° (N43E006-scan25) qui tombent dans la case de 5°."""
         s, o, n, e = lot.boite_case(case)
@@ -101,13 +112,15 @@ class HorsLigne:
                     trouves.append(chemin)
         return trouves
 
-    def supprimer(self, case: str) -> int:
-        """Retire de l'ordinateur tout ce qui sert la case hors ligne : son lot, sa RD5
-        et ses fonds de carte (un voyage fini, une case qu'on ne visitera
-        plus). Les moteurs BRouter qui lisent la RD5 sont arrêtés avant, par
-        l'appelant. Rend les octets libérés."""
-        fichiers = [self.segments / f"{case}.rd5", self.segments_osm / f"{case}.rd5",
-                    *self.dossier_fonds.glob(f"{case}-*.mbtiles"), *self._fonds_des_carres(case)]
+    def supprimer(self, case: str, fonds: bool = True) -> int:
+        """Retire de l'ordinateur ce qui sert la case hors ligne : son lot, sa RD5
+        et, si fonds, ses fonds de carte (un voyage fini, une case qu'on ne
+        visitera plus). L'onglet « Hors ligne » retire le routage seul, les
+        fonds ayant leur propre grille. Les moteurs BRouter qui lisent la RD5
+        sont arrêtés avant, par l'appelant. Rend les octets libérés."""
+        fichiers = [self.segments / f"{case}.rd5", self.segments_osm / f"{case}.rd5"]
+        if fonds:
+            fichiers += [*self.dossier_fonds.glob(f"{case}-*.mbtiles"), *self._fonds_des_carres(case)]
         dossier = self.racine / case
         if dossier.is_dir():
             fichiers += [p for p in dossier.iterdir() if p.is_file()]

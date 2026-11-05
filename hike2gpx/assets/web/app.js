@@ -25,6 +25,37 @@ const TEXTES = {
     "onglets.titre": "Outils de randonnée",
     "onglets.parcours": "Parcours",
     "onglets.reglages": "Réglages",
+    "onglets.horsLigne": "Hors ligne",
+    "horsLigne.quoi": "À télécharger",
+    "horsLigne.modeRoutage": "Données de routage (cases de 5°)",
+    "horsLigne.modeFond": "Fond de carte (carrés de 1°)",
+    "horsLigne.source": "Fond de carte",
+    "horsLigne.legendeInstalle": "sur ce PC",
+    "horsLigne.legendeSelection": "sélectionné",
+    "horsLigne.legendeEnCours": "en cours",
+    "horsLigne.legendeServeur": "sur le serveur",
+    "horsLigne.aideRoutage": "Cliquez les cases de 5° à télécharger ou à supprimer ; un second clic les désélectionne.",
+    "horsLigne.aideFond": "Cliquez les carrés de 1° à télécharger ou à supprimer ; un second clic les désélectionne.",
+    "horsLigne.aideZoom": "Rapprochez-vous pour voir les carrés de 1° du fond de carte.",
+    "horsLigne.infoInstalle": "sur ce PC, {taille}",
+    "horsLigne.infoServeur": "sur le serveur, {taille}",
+    "horsLigne.infoFabriquer": "pas sur le serveur : à fabriquer sur ce PC, environ une heure",
+    "horsLigne.infoCarre": "pas de fond sur ce PC (environ 1 Go et 2 h 30)",
+    "horsLigne.selVide": "Aucune tuile sélectionnée.",
+    "horsLigne.selRien": "Déjà à jour sur ce PC.",
+    "horsLigne.selTelecharger": "{n} à télécharger : {taille}.",
+    "horsLigne.selFabriquer": "{n} à fabriquer sur ce PC : environ {duree}.",
+    "horsLigne.selFonds": "{n} carré(s) : environ {taille} et {duree}.",
+    "horsLigne.selInstallees": "{n} déjà sur ce PC ({taille}).",
+    "horsLigne.telecharger": "Télécharger",
+    "horsLigne.supprimerSelection": "Supprimer",
+    "horsLigne.supprimerN": "Supprimer les {n} déjà là",
+    "horsLigne.selectionnerVue": "Sélectionner la vue",
+    "horsLigne.viderSelection": "Tout désélectionner",
+    "horsLigne.enAttente": "({n} en attente)",
+    "horsLigne.confirmerSuppressionN": "Retirer de ce PC {n} tuile(s), {taille} en tout ?",
+    "horsLigne.supprimees": "{n} tuile(s) retirée(s), {taille} libérés.",
+    "horsLigne.tropDeCarres": "La vue touche {n} carrés de 1° : rapprochez-vous ({max} au plus d’un geste).",
     "aide": "Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.",
     "bouton.retirerDernier": "Retirer",
     "bouton.retirerDernierInfo": "Retire le dernier point ajouté au parcours.",
@@ -131,11 +162,9 @@ const TEXTES = {
     "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins officiels, les extraits OSM téléchargés, les données BRouter et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte, conservées dans le cache du navigateur, ne sont pas effacées.",
     "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter, ainsi que les lots et les fonds hors ligne ? Les données en ligne et les lots du serveur seront retéléchargés au besoin ; les lots et les fonds préparés sur cet ordinateur seront à refaire. Les tuiles de fond de carte affichées restent dans le cache du navigateur.",
     "donnees.vide": "Cache local vidé, lots et fonds hors ligne compris. Les tuiles du fond de carte affiché restent gérées par le navigateur.",
-    "horsLigne.supprimer": "Supprimer de cet ordinateur",
-    "horsLigne.confirmerSuppression": "Retirer de cet ordinateur le lot et les fonds de carte de la case {nom} ({taille}) ? Un lot du serveur se retélécharge ; un lot ou un fond préparé sur cet ordinateur sera à refaire.",
-    "horsLigne.supprimee": "Case {nom} retirée de cet ordinateur : {taille} libérés.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
     "unite.mo": "Mo",
+    "unite.go": "Go",
     "pied": "Barrières et chemins © contributeurs OpenStreetMap (ODbL), chemins et cartes officiels selon le pays, calcul BRouter. Une barrière absente d'OpenStreetMap ne peut pas être évitée : le terrain a toujours le dernier mot.",
     "statut.deuxiemePoint": "Posez un deuxième point.",
     "statut.calcul": "Calcul en cours… La première fois dans une zone, la lecture des barrières OSM prend jusqu'à une minute",
@@ -178,24 +207,6 @@ const TEXTES = {
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
     "aide.titre": "Aide : le mode d'emploi (README)",
-    "reglages.casesHorsLigne": "Afficher les cases hors ligne (5°)",
-    "reglages.casesNombre": "{nombre} case(s) prête(s) · vert : prête, bleu : sur le serveur, orange : en préparation, gris : à préparer",
-    "reglages.casesAucune": "Aucune case prête hors ligne. Cliquez une case de la carte pour la préparer.",
-    "horsLigne.bouton": "Hors ligne",
-    "horsLigne.boutonTitre": "Afficher les cases hors ligne (5°) : lots et fonds de carte pour marcher sans réseau",
-    "horsLigne.aide": "Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou le fond de carte du carré de 1° où vous cliquez.",
-    "horsLigne.case": "Case {nom}",
-    "horsLigne.prete": "Prête hors ligne : {taille}, OSM du {date}.",
-    "horsLigne.absente": "Pas encore disponible hors ligne.",
-    "horsLigne.absenteServeur": "Publiée par le serveur, pas encore sur cet ordinateur : elle se téléchargera d'elle-même dès qu'un parcours ou les chemins de la carte s'en serviront.",
-    "horsLigne.telechargerMaintenant": "Télécharger maintenant",
-    "horsLigne.serveur": "Sur le serveur : {taille}, OSM du {osm}{officiels}.",
-    "horsLigne.serveurOfficiels": ", chemins officiels du {date}",
-    "horsLigne.serveurAJour": "À jour avec le serveur.",
-    "horsLigne.telechargerMaj": "Mettre à jour depuis le serveur",
-    "horsLigne.enPreparation": "En préparation.",
-    "horsLigne.preparerVue": "Préparer la vue actuelle",
-    "horsLigne.preparerCase": "Préparer toute la case (environ une heure)",
     "horsLigne.mettreAJour": "Mettre à jour",
     "horsLigne.arreter": "Arrêter",
     "horsLigne.avancement": "Préparation hors ligne de {nom} : {etape}{compte}, depuis {duree}",
@@ -217,14 +228,9 @@ const TEXTES = {
     "horsLigne.etape.relief": "relief",
     "horsLigne.etape.compilation": "itinéraires BRouter",
     "horsLigne.etape.fond": "fond de carte",
-    "horsLigne.fonds": "Fond de carte hors ligne : {liste}.",
-    "horsLigne.preparerFondCarre": "Fond {source} du carré {carre} (1°, zooms 13 à 16, environ 1 Go et 2 h 30)",
-    "partage.tropDeCarres": "La vue touche {n} carrés de 1° : rapprochez-vous ({max} au plus d’une fois).",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
-    "horsLigne.fondEnLigne": "Ce fond reste en ligne : choisissez une carte officielle (IGN, BKG, Kartverket…) pour l’emporter hors ligne.",
     "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
-    "partage.fond": "Fond pour le téléphone (vue affichée)",
     "partage.ouvert": "Dans hike2gpx sur le téléphone, sur le même Wi-Fi : Réglages, puis « Scanner le QR code d’un PC ». {fonds} fond(s) de carte à prendre. Le code change à chaque partage.",
     "partage.titre": "Partager au téléphone",
     "partage.pareFeu": "Attention : le pare-feu de Windows n’autorise pas encore hike2gpx, le téléphone ne pourra pas joindre le PC. Rouvrez le partage et acceptez la demande d’autorisation de Windows.",
@@ -258,6 +264,37 @@ const TEXTES = {
     "onglets.titre": "Hiking tools",
     "onglets.parcours": "Route",
     "onglets.reglages": "Settings",
+    "onglets.horsLigne": "Offline",
+    "horsLigne.quoi": "To download",
+    "horsLigne.modeRoutage": "Routing data (5° areas)",
+    "horsLigne.modeFond": "Base map (1° squares)",
+    "horsLigne.source": "Base map",
+    "horsLigne.legendeInstalle": "on this PC",
+    "horsLigne.legendeSelection": "selected",
+    "horsLigne.legendeEnCours": "in progress",
+    "horsLigne.legendeServeur": "on the server",
+    "horsLigne.aideRoutage": "Click the 5° areas to download or delete; a second click deselects them.",
+    "horsLigne.aideFond": "Click the 1° squares to download or delete; a second click deselects them.",
+    "horsLigne.aideZoom": "Zoom in to see the 1° squares of the base map.",
+    "horsLigne.infoInstalle": "on this PC, {taille}",
+    "horsLigne.infoServeur": "on the server, {taille}",
+    "horsLigne.infoFabriquer": "not on the server: to build on this PC, about an hour",
+    "horsLigne.infoCarre": "no base map on this PC (about 1 GB and 2 h 30)",
+    "horsLigne.selVide": "No tile selected.",
+    "horsLigne.selRien": "Already up to date on this PC.",
+    "horsLigne.selTelecharger": "{n} to download: {taille}.",
+    "horsLigne.selFabriquer": "{n} to build on this PC: about {duree}.",
+    "horsLigne.selFonds": "{n} square(s): about {taille} and {duree}.",
+    "horsLigne.selInstallees": "{n} already on this PC ({taille}).",
+    "horsLigne.telecharger": "Download",
+    "horsLigne.supprimerSelection": "Delete",
+    "horsLigne.supprimerN": "Delete the {n} already here",
+    "horsLigne.selectionnerVue": "Select the view",
+    "horsLigne.viderSelection": "Deselect all",
+    "horsLigne.enAttente": "({n} waiting)",
+    "horsLigne.confirmerSuppressionN": "Remove {n} tile(s) from this PC, {taille} in all?",
+    "horsLigne.supprimees": "{n} tile(s) removed, {taille} freed.",
+    "horsLigne.tropDeCarres": "The view touches {n} 1° squares: zoom in ({max} at most at once).",
     "aide": "Click the map to place the start, then the waypoints and the finish. Drag a point to move it; “Back to start” closes a loop.",
     "bouton.retirerDernier": "Remove",
     "bouton.retirerDernierInfo": "Removes the last point added to the route.",
@@ -364,11 +401,9 @@ const TEXTES = {
     "donnees.detailCache": "This clears Overpass responses and OSM crossings, official paths, downloaded OSM extracts, BRouter data and gpx2elev elevation models. They are downloaded again when needed. Background map tiles held in the browser cache are not cleared.",
     "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data, and the offline bundles and maps? Online data and the server's bundles will download again when needed; bundles and maps prepared on this computer will have to be made again. Displayed background map tiles remain in the browser cache.",
     "donnees.vide": "Local cache cleared, offline bundles and maps included. Displayed background map tiles remain managed by the browser.",
-    "horsLigne.supprimer": "Remove from this computer",
-    "horsLigne.confirmerSuppression": "Remove the bundle and the background maps of the {nom} area from this computer ({taille})? A server bundle downloads again; a bundle or map prepared on this computer will have to be made again.",
-    "horsLigne.supprimee": "{nom} area removed from this computer: {taille} freed.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
     "unite.mo": "MB",
+    "unite.go": "GB",
     "pied": "Barriers and paths © OpenStreetMap contributors (ODbL), official paths and maps according to the country, routing by BRouter. A barrier missing from OpenStreetMap cannot be avoided: the ground always has the last word.",
     "statut.deuxiemePoint": "Place a second point.",
     "statut.calcul": "Calculating… The first time in an area, reading the OSM barriers takes up to a minute",
@@ -411,24 +446,6 @@ const TEXTES = {
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
     "aide.titre": "Help: the user guide (README)",
-    "reglages.casesHorsLigne": "Show offline areas (5°)",
-    "reglages.casesNombre": "{nombre} area(s) ready · green: ready, blue: on the server, orange: being prepared, gray: to prepare",
-    "reglages.casesAucune": "No area is ready offline yet. Click an area on the map to prepare it.",
-    "horsLigne.bouton": "Offline",
-    "horsLigne.boutonTitre": "Show the offline areas (5°): bundles and base maps to hike with no network",
-    "horsLigne.aide": "Click an area: download its bundle from the server, prepare the view or the whole area, or the base map of the 1° square you click.",
-    "horsLigne.case": "Area {nom}",
-    "horsLigne.prete": "Ready offline: {taille}, OSM of {date}.",
-    "horsLigne.absente": "Not available offline yet.",
-    "horsLigne.absenteServeur": "Published by the server, not on this computer yet: it will download by itself as soon as a route or the map's paths use it.",
-    "horsLigne.telechargerMaintenant": "Download now",
-    "horsLigne.serveur": "On the server: {taille}, OSM of {osm}{officiels}.",
-    "horsLigne.serveurOfficiels": ", official paths of {date}",
-    "horsLigne.serveurAJour": "Up to date with the server.",
-    "horsLigne.telechargerMaj": "Update from the server",
-    "horsLigne.enPreparation": "Being prepared.",
-    "horsLigne.preparerVue": "Prepare the current view",
-    "horsLigne.preparerCase": "Prepare the whole area (about an hour)",
     "horsLigne.mettreAJour": "Update",
     "horsLigne.arreter": "Stop",
     "horsLigne.avancement": "Preparing {nom} for offline use: {etape}{compte}, for {duree}",
@@ -450,14 +467,9 @@ const TEXTES = {
     "horsLigne.etape.relief": "elevation",
     "horsLigne.etape.compilation": "BRouter routing data",
     "horsLigne.etape.fond": "base map",
-    "horsLigne.fonds": "Offline base map: {liste}.",
-    "horsLigne.preparerFondCarre": "{source} base map of square {carre} (1°, zooms 13 to 16, about 1 GB and 2 h 30)",
-    "partage.tropDeCarres": "The view touches {n} 1° squares: zoom in ({max} at most at once).",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
-    "horsLigne.fondEnLigne": "This base map stays online: pick an official map (IGN, BKG, Kartverket…) to take it offline.",
     "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
-    "partage.fond": "Base map for the phone (current view)",
     "partage.ouvert": "In hike2gpx on the phone, on the same Wi-Fi: Settings, then “Scan a PC’s QR code”. {fonds} base map(s) to take. The code changes with every share.",
     "partage.titre": "Share with the phone",
     "partage.pareFeu": "Warning: the Windows firewall does not allow hike2gpx yet, so the phone cannot reach the PC. Share again and accept the Windows authorisation request.",
@@ -1397,36 +1409,40 @@ function construireFonds() {
 }
 
 // ------------------------------------------------------------ hors ligne
-// Les cases BRouter de 5° prêtes hors ligne (lots installés), dessinées sur
-// la carte depuis les réglages comme les mailles du serveur. Un clic sur une
-// case la prépare : le serveur fabrique son lot en tâche de fond (fabrication.py)
-// et la note de l'onglet Parcours en suit l'avancement.
+// L'onglet « Hors ligne » (proposition de Nico du 2026-11-05) : on choisit le
+// routage (cases BRouter de 5°, lots du serveur ou fabriqués ici) ou le fond
+// de carte (carrés de 1°, fonds.py) ; la grille change en fonction. On
+// sélectionne les tuiles sur la carte (elles changent de couleur), on
+// télécharge ; elles partent l'une après l'autre (le serveur ne mène qu'une
+// préparation à la fois), suivies dans l'onglet. Le partage au téléphone suit.
 const CASE_DEG = 5;
-const CLE_CASES = "hike2gpx.casesHorsLigne";
+const ZOOM_CARRES = 7;      // en deçà, trop de carrés à l'écran pour être lisibles
+const ZOOM_CASES = 6;       // la grille des cases dézoome jusque-là (demande de Nico du 2026-10-28)
+const CARRES_MAX_ECRAN = 400;
+const CARRES_MAX_VUE = 9;   // « Sélectionner la vue » : au-delà, se rapprocher
+// Mesures du 2026-11-05 (fonds.py) : un carré de fond, environ 1 Go et 2 h 30 ;
+// un lot fabriqué sur ce PC, environ une heure.
+const FOND_CARRE_OCTETS = 1e9;
+const FOND_CARRE_S = 9000;
+const LOT_FABRIQUE_S = 3600;
 // Au-dessus des calques (400) et des panneaux du tracé et des franchissements
 // (449 à 452), dont les canevas couvrent la carte et prendraient les clics,
-// mais sous les points du parcours (600). Grille affichée, ses cases
-// reçoivent les clics ; décochée, la carte revient au tracé.
+// mais sous les points du parcours (600).
 carte.createPane("casesHorsLigne").style.zIndex = 455;
-// Les carrés de 1° des fonds de carte, dessinés par-dessus les cases mais
-// transparents aux clics : un clic ouvre la bulle de la case, carré cliqué en tête.
-const panneauCarres = carte.createPane("carresHorsLigne");
-panneauCarres.style.zIndex = 456;
-panneauCarres.style.pointerEvents = "none";
-const ZOOM_CARRES = 7;      // en deçà, trop de carrés à l'écran pour être lisibles
 const grilleCases = L.layerGroup();
 let lotsInstalles = [];
 let lotsServeur = [];            // le catalogue du dépôt (catalogue_lots), avec l'état de chaque lot ici
 let lotEnCours = { actif: false };
-let clicCase = null;        // le dernier clic dans une case : son carré de 1° reçoit le fond de carte
 let minuterieLot = null;
 let lotSuivi = false;       // un lot suivi était en cours : à sa fin, calques et calcul repartent
 // Les fonds de carte téléchargés sur ce PC (fonds.py) : un MBTiles chacun,
 // servi tuile par tuile par /fonds/<nom>/{z}/{x}/{y}, sans réseau.
 let fondsInstalles = [];
+// L'onglet : ouvert ou non, le mode, la source du fond, la sélection, la file.
+const horsLigne = { actif: false, mode: "routage", source: null, selection: new Set(), file: [], message: "" };
 
 // Un seul fond « Carte hors ligne » : une couche par fichier, bornée à sa
-// zone, la case sous ses vues, chacune agrandie au-delà de son zoom le plus fin.
+// zone, la moins fine dessous, chacune agrandie au-delà de son zoom le plus fin.
 function coucheHorsLigne() {
   const groupe = L.layerGroup();
   const ordre = [...fondsInstalles].sort((a, b) => a.zoom[1] - b.zoom[1]);
@@ -1440,7 +1456,7 @@ function coucheHorsLigne() {
 }
 
 // Relus au démarrage et après chaque préparation : un fond de plus ou de
-// moins refait le contrôle des fonds.
+// moins refait le contrôle des fonds et la grille.
 async function chargerFonds() {
   try {
     const avant = JSON.stringify(fondsInstalles.map((f) => f.nom));
@@ -1471,106 +1487,17 @@ function casesVisibles() {
   return noms.slice(0, 60);       // au plus 60 cases : au-delà, la carte est trop dézoomée pour choisir
 }
 
-function etatCase(nom) {
-  if (lotEnCours.actif && lotEnCours.case === nom) return "preparation";
-  if (lotsInstalles.some((l) => l.case === nom)) return "prete";
-  return lotsServeur.some((l) => l.case === nom) ? "serveur" : "absente";
-}
-
-// Sur un fond chargé (SCAN 25, relief), un voile de 5 à 8 % ne se voyait
-// pas : les cases prêtes et celles du serveur ont un trait plein et épais et
-// un fond franc ; seule la case vide reste discrète.
-const STYLES_CASE = {
-  prete: { color: "#1b7a3e", weight: 3.5, fillColor: "#23a04f", fillOpacity: 0.3 },
-  preparation: { color: "#e07b00", weight: 3.5, dashArray: "8 5", fillColor: "#e07b00", fillOpacity: 0.25 },
-  // Un fond presque transparent : un clic dans la case ouvre sa bulle, comme
-  // les mailles du serveur ; décocher la grille rend les clics au tracé.
-  absente: { color: "#37474f", weight: 1.5, dashArray: "5 5", fillColor: "#37474f", fillOpacity: 0.03 },
-  // Pas encore ici, mais publiée par le serveur : un clic propose de la télécharger.
-  serveur: { color: "#1565c0", weight: 3, fillColor: "#1e88e5", fillOpacity: 0.18 },
-};
-
-function tailleTexte(octets) {
-  return `${Math.round((octets || 0) / 1e6)} ${t("unite.mo")}`;
-}
-
-function dureeTexte(secondes) {
-  return secondes < 60 ? `${secondes} s` : `${Math.round(secondes / 60)} min`;
-}
-
-function bouton(texteBouton, action) {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.textContent = texteBouton;
-  b.addEventListener("click", action);
-  return b;
-}
-
-function bulleCase(nom) {
-  const div = document.createElement("div");
-  div.className = "bulle";
-  div.append(paragraphe(t("horsLigne.case", { nom }), true));
-  const lotCase = lotsInstalles.find((l) => l.case === nom);
-  const etatActuel = etatCase(nom);
-  if (etatActuel === "preparation") {
-    div.append(paragraphe(t("horsLigne.enPreparation")), bouton(t("horsLigne.arreter"), arreterLot));
-    return div;
-  }
-  // Une case que publie le serveur se télécharge (d'elle-même, ou tout de
-  // suite) : la préparer ici, une heure de calcul, n'aurait pas de sens.
-  const surServeur = lotsServeur.find((l) => l.case === nom);
-  div.append(paragraphe(lotCase
-    ? t("horsLigne.prete", { taille: tailleTexte(lotCase.octets), date: (lotCase.sources?.osm || "").slice(0, 10) })
-    : t(surServeur ? "horsLigne.absenteServeur" : "horsLigne.absente")));
-  const [s, o, n, e] = boiteCase(nom);
-  const b = carte.getBounds();
-  const vueDansCase = b.getSouth() >= s && b.getNorth() <= n && b.getWest() >= o && b.getEast() <= e;
-  if (vueDansCase && !surServeur) {
-    div.append(bouton(t("horsLigne.preparerVue"), () => preparerCase(nom,
-      [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])));
-  }
-  if (!surServeur) {
-    div.append(bouton(lotCase ? t("horsLigne.mettreAJour") : t("horsLigne.preparerCase"), () => preparerCase(nom)));
-  }
-  if (surServeur) {
-    const officiels = Object.entries(surServeur.sources || {}).find(([cle]) => !["osm", "relief", "rd5"].includes(cle));
-    div.append(paragraphe(t("horsLigne.serveur", { taille: tailleTexte(surServeur.octets),
-      osm: (surServeur.sources?.osm || "").slice(0, 10),
-      officiels: officiels ? t("horsLigne.serveurOfficiels", { date: String(officiels[1]).slice(0, 10) }) : "" })));
-    if (surServeur.etat === "a_jour") div.append(paragraphe(t("horsLigne.serveurAJour")));
-    else div.append(bouton(t(surServeur.etat === "ancien" ? "horsLigne.telechargerMaj" : "horsLigne.telechargerMaintenant"),
-      () => telechargerCase(nom)));
-  }
-  ajouterFonds(div, nom);
-  // Un voyage fini, une case qu'on ne visitera plus : son lot et ses fonds
-  // quittent l'ordinateur (décision de Nico du 2026-10-28).
-  const fondsIci = fondsDeLaCase(nom);
-  if (lotCase || fondsIci.length) {
-    const octets = (lotCase?.octets || 0) + fondsIci.reduce((somme, f) => somme + (f.octets || 0), 0);
-    div.append(bouton(t("horsLigne.supprimer"), () => supprimerCase(nom, octets)));
-  }
-  return div;
-}
-
-async function supprimerCase(nom, octets) {
-  if (!confirm(t("horsLigne.confirmerSuppression", { nom, taille: tailleTexte(octets) }))) return;
-  carte.closePopup();
-  const r = await api("supprimer_case", { case: nom });
-  afficherLot(r.erreur ? { case: nom, erreur: r.erreur } : {});
-  if (!r.erreur) {
-    $("lotHorsLigneTexte").textContent = t("horsLigne.supprimee", { nom, taille: tailleTexte(r.octets) });
-    $("lotHorsLigne").hidden = false;
-  }
-  await chargerLots();
-  chargerFonds();
-}
-
 // Les fonds de carte se fabriquent par carrés de 1° (fonds.py), nommés comme
-// les tuiles SRTM : N43E006 va de 43° à 44° nord et de 6° à 7° est. La case de
-// 5° reste l'unité du routage ; un carré, celle du fond, zooms 13 à 16.
+// les tuiles SRTM : N43E006 va de 43° à 44° nord et de 6° à 7° est.
 function nomCarre(lat, lon) {
   const la = Math.floor(lat), lo = Math.floor(lon);
   return `${la < 0 ? "S" : "N"}${String(Math.abs(la)).padStart(2, "0")}${lo < 0 ? "W" : "E"}${String(Math.abs(lo)).padStart(3, "0")}`;
+}
+
+function boiteCarre(nom) {
+  const [, ns, la, eo, lo] = nom.match(/^([NS])(\d{2})([EW])(\d{3})$/);
+  const s = Number(la) * (ns === "N" ? 1 : -1), o = Number(lo) * (eo === "E" ? 1 : -1);
+  return [s, o, s + 1, o + 1];
 }
 
 // Les carrés que touche une zone [sud, ouest, nord, est].
@@ -1582,44 +1509,313 @@ function carresZone([s, o, n, e]) {
   return noms;
 }
 
-// Les fonds installés dans la case : les anciens, nommés d'après elle, et ceux de ses carrés.
-function fondsDeLaCase(nom) {
-  const [s, o, n, e] = boiteCase(nom);
-  return fondsInstalles.filter((f) => f.nom.startsWith(`${nom}-`)
-    || (f.zone && f.zone[0] >= s && f.zone[0] < n && f.zone[1] >= o && f.zone[1] < e));
-}
-
-// Le fond affiché, hors ligne : celui que montre la page, s'il est de ceux
-// dont la licence permet de garder les tuiles (fonds.SOURCES, que le serveur
-// envoie dans son état), pour le carré de 1° où l'on a cliqué dans la case.
-// Il reste sur ce PC (et son téléphone), jamais publié.
-function ajouterFonds(div, nom) {
-  const titres = etat.fondsHorsLigne || {};
-  const ici = fondsDeLaCase(nom);
-  if (ici.length) {
-    div.append(paragraphe(t("horsLigne.fonds", { liste: ici.map((f) =>
-      `${f.nom.split("-")[0]} ${titres[f.source] || f.source} ${tailleTexte(f.octets)}`).join(", ") })));
-  }
-  const cle = sourceAGarder();
-  if (!cle) {
-    div.append(paragraphe(t("horsLigne.fondEnLigne")));
-    return;
-  }
-  const [s, o, n, e] = boiteCase(nom);
-  const clic = clicCase && clicCase.lat >= s && clicCase.lat < n && clicCase.lng >= o && clicCase.lng < e
-    ? clicCase : carte.getCenter();
-  const carre = nomCarre(clic.lat, clic.lng);
-  div.append(bouton(t("horsLigne.preparerFondCarre", { source: titres[cle], carre }), () => preparerFonds([carre], cle)));
-}
-
-// La source du fond à fabriquer : celui qu'affiche la page s'il se garde hors
-// ligne ; sinon le fond français par défaut, le SCAN 25 avec la clé IGN, le
-// Plan IGN sans (fonds.source_pour). null si le serveur n'en annonce aucun.
+// La source du fond proposée d'abord : celui qu'affiche la page s'il se garde
+// hors ligne ; sinon le fond français par défaut, le SCAN 25 avec la clé IGN,
+// le Plan IGN sans (fonds.source_pour). null si le serveur n'en annonce aucun.
 function sourceAGarder() {
   const titres = etat.fondsHorsLigne || {};
-  if (titres[cleFondActif]) return cleFondActif;
+  if (titres[cleFondActif] && (cleFondActif !== "scan25" || etat.cleIgn)) return cleFondActif;
   const defaut = etat.cleIgn ? "scan25" : "plan";
   return titres[defaut] ? defaut : null;
+}
+
+function sourceFond() {
+  return horsLigne.source || sourceAGarder();
+}
+
+function fondDuCarre(carre, source = sourceFond()) {
+  return fondsInstalles.find((f) => f.nom === `${carre}-${source}`);
+}
+
+function enFile(nom) {
+  return horsLigne.file.some((x) => x.nom === nom) || (lotEnCours.actif && lotEnCours.case === nom);
+}
+
+function etatCase(nom) {
+  if (enFile(nom)) return "encours";
+  if (horsLigne.selection.has(nom)) return "selection";
+  if (lotsInstalles.some((l) => l.case === nom)) return "prete";
+  return lotsServeur.some((l) => l.case === nom) ? "serveur" : "absente";
+}
+
+function etatCarre(carre) {
+  if (enFile(carre)) return "encours";
+  if (horsLigne.selection.has(carre)) return "selection";
+  return fondDuCarre(carre) ? "prete" : "absente";
+}
+
+// Sur un fond chargé (SCAN 25, relief), un voile de 5 à 8 % ne se voyait
+// pas : traits pleins et épais, fonds francs ; seule la tuile vide reste
+// discrète. Les mêmes couleurs que la légende de l'onglet.
+const STYLES_CASE = {
+  prete: { color: "#1b7a3e", weight: 3, fillColor: "#23a04f", fillOpacity: 0.3 },
+  encours: { color: "#e07b00", weight: 3, dashArray: "8 5", fillColor: "#e07b00", fillOpacity: 0.25 },
+  selection: { color: "#1565c0", weight: 3, fillColor: "#1e88e5", fillOpacity: 0.45 },
+  serveur: { color: "#1565c0", weight: 2.5, fillColor: "#1e88e5", fillOpacity: 0.04 },
+  absente: { color: "#37474f", weight: 1.5, dashArray: "5 5", fillColor: "#37474f", fillOpacity: 0.03 },
+};
+
+// 412 Mo, et au-delà d'un milliard d'octets 2,5 Go (le séparateur de la langue).
+function tailleTexte(octets) {
+  if ((octets || 0) >= 1e9) return `${(octets / 1e9).toLocaleString(langue, { maximumFractionDigits: 1 })} ${t("unite.go")}`;
+  return `${Math.round((octets || 0) / 1e6)} ${t("unite.mo")}`;
+}
+
+function dureeTexte(secondes) {
+  return secondes < 60 ? `${secondes} s` : `${Math.round(secondes / 60)} min`;
+}
+
+// Une durée d'estimation : 45 min, 2 h 30, 12 h.
+function dureeLongue(secondes) {
+  const minutes = Math.round(secondes / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return m ? `${h} h ${String(m).padStart(2, "0")}` : `${h} h`;
+}
+
+function bouton(texteBouton, action) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = texteBouton;
+  b.addEventListener("click", action);
+  return b;
+}
+
+// Ce que dit une tuile au survol : son nom et son état.
+function infoCase(nom) {
+  const lot = lotsInstalles.find((l) => l.case === nom);
+  const serveur = lotsServeur.find((l) => l.case === nom);
+  const etatLot = lot ? t("horsLigne.infoInstalle", { taille: tailleTexte(lot.octets) })
+    : serveur ? t("horsLigne.infoServeur", { taille: tailleTexte(serveur.octets) }) : t("horsLigne.infoFabriquer");
+  return `${nom} · ${etatLot}`;
+}
+
+function infoCarre(carre) {
+  const titres = etat.fondsHorsLigne || {};
+  const ici = fondsInstalles.filter((f) => f.nom.startsWith(`${carre}-`));
+  return `${carre} · ${ici.length ? ici.map((f) => `${titres[f.source] || f.source} ${tailleTexte(f.octets)}`).join(", ")
+    : t("horsLigne.infoCarre")}`;
+}
+
+function tuileGrille(nom, [s, o, n, e], style, info) {
+  L.rectangle([[s, o], [n, e]], { pane: "casesHorsLigne", bubblingMouseEvents: false, ...style })
+    .bindTooltip(echapper(info), { sticky: true })
+    .on("click", () => basculerSelection(nom))
+    .addTo(grilleCases);
+}
+
+// La grille du mode choisi : les cases de 5° du routage, ou les carrés de 1°
+// du fond, ceux-ci à partir du zoom ZOOM_CARRES.
+function dessinerCases() {
+  grilleCases.clearLayers();
+  if (horsLigne.actif && horsLigne.mode === "routage") {
+    for (const nom of casesVisibles()) tuileGrille(nom, boiteCase(nom), STYLES_CASE[etatCase(nom)], infoCase(nom));
+  } else if (horsLigne.actif && carte.getZoom() >= ZOOM_CARRES) {
+    const b = carte.getBounds();
+    for (const carre of carresZone([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]).slice(0, CARRES_MAX_ECRAN)) {
+      tuileGrille(carre, boiteCarre(carre), STYLES_CASE[etatCarre(carre)], infoCarre(carre));
+    }
+  }
+  afficherSelection();
+}
+
+function basculerSelection(nom) {
+  if (enFile(nom)) return;
+  if (horsLigne.selection.has(nom)) horsLigne.selection.delete(nom); else horsLigne.selection.add(nom);
+  dessinerCases();
+}
+
+// Ce que la sélection engage, dit avant de cliquer : combien télécharger ou
+// fabriquer, le poids et la durée ; et ce qui, déjà là, peut se supprimer.
+function bilanSelection() {
+  const noms = [...horsLigne.selection].sort();
+  if (horsLigne.mode === "routage") {
+    const installee = (nom) => lotsInstalles.find((l) => l.case === nom);
+    const serveur = (nom) => lotsServeur.find((l) => l.case === nom);
+    const aTelecharger = noms.filter((nom) => serveur(nom) && serveur(nom).etat !== "a_jour");
+    const aFabriquer = noms.filter((nom) => !serveur(nom) && !installee(nom));
+    const installees = noms.filter(installee);
+    return { noms, aFaire: [...aTelecharger, ...aFabriquer], installees, aTelecharger, aFabriquer,
+      octets: aTelecharger.reduce((somme, nom) => somme + (serveur(nom).octets || 0), 0),
+      octetsInstalles: installees.reduce((somme, nom) => somme + (installee(nom).octets || 0), 0) };
+  }
+  const aFaire = noms.filter((carre) => !fondDuCarre(carre));
+  const installees = noms.filter((carre) => fondsInstalles.some((f) => f.nom.startsWith(`${carre}-`)));
+  return { noms, aFaire, installees, octets: aFaire.length * FOND_CARRE_OCTETS,
+    octetsInstalles: installees.reduce((somme, carre) => somme + fondsInstalles
+      .filter((f) => f.nom.startsWith(`${carre}-`)).reduce((s, f) => s + (f.octets || 0), 0), 0) };
+}
+
+function afficherSelection() {
+  const routage = horsLigne.mode === "routage";
+  const aide = !horsLigne.actif ? "" : routage ? t("horsLigne.aideRoutage")
+    : carte.getZoom() < ZOOM_CARRES ? t("horsLigne.aideZoom") : t("horsLigne.aideFond");
+  $("hlAide").textContent = aide;
+  $("offlineHint").textContent = aide;
+  $("offlineHint").hidden = !aide;
+  $("hlSourceLigne").hidden = routage;
+  $("hlVue").hidden = routage;
+  $("hlLegendeServeur").hidden = !routage;
+  const b = bilanSelection();
+  const parties = [];
+  if (routage) {
+    if (b.aTelecharger.length) parties.push(t("horsLigne.selTelecharger", { n: b.aTelecharger.length, taille: tailleTexte(b.octets) }));
+    if (b.aFabriquer.length) parties.push(t("horsLigne.selFabriquer", { n: b.aFabriquer.length, duree: dureeLongue(b.aFabriquer.length * LOT_FABRIQUE_S) }));
+  } else if (b.aFaire.length) {
+    parties.push(t("horsLigne.selFonds", { n: b.aFaire.length, taille: tailleTexte(b.octets), duree: dureeLongue(b.aFaire.length * FOND_CARRE_S) }));
+  }
+  if (b.installees.length) parties.push(t("horsLigne.selInstallees", { n: b.installees.length, taille: tailleTexte(b.octetsInstalles) }));
+  $("hlSelection").textContent = b.noms.length ? parties.join(" ") || t("horsLigne.selRien") : t("horsLigne.selVide");
+  $("hlTelecharger").disabled = !b.aFaire.length || (!routage && !sourceFond());
+  $("hlSupprimer").hidden = !b.installees.length;
+  $("hlSupprimer").textContent = t("horsLigne.supprimerN", { n: b.installees.length });
+  $("hlVider").disabled = !b.noms.length;
+}
+
+// Télécharger : la sélection rejoint la file, qui part tout de suite si rien ne se prépare.
+function telechargerSelection() {
+  const b = bilanSelection();
+  const source = sourceFond();
+  for (const nom of b.aFaire) {
+    horsLigne.file.push(horsLigne.mode === "routage"
+      ? { genre: "lot", nom, action: b.aTelecharger.includes(nom) ? "telecharger" : "fabriquer" }
+      : { genre: "fond", nom, source });
+  }
+  horsLigne.selection.clear();
+  if (!lotEnCours.actif) lancerSuivant();
+  else { dessinerCases(); afficherFile(); }
+}
+
+async function lancerSuivant() {
+  const tache = horsLigne.file.shift();
+  dessinerCases();
+  if (!tache) { afficherFile(); return; }
+  const [route, corps] = tache.genre === "fond" ? ["preparer_fond", { carres: [tache.nom], source: tache.source }]
+    : tache.action === "telecharger" ? ["telecharger_lot", { case: tache.nom }] : ["preparer_lot", { case: tache.nom }];
+  let reponse;
+  try {
+    reponse = await api(route, corps);
+  } catch (e) {
+    reponse = { erreur: e.message };
+  }
+  if (reponse.erreur) {
+    afficherLot({ case: tache.nom, erreur: reponse.erreur });
+    lancerSuivant();        // une tuile en échec n'arrête pas les suivantes
+    return;
+  }
+  if (minuterieLot) clearTimeout(minuterieLot);
+  suivreLot();
+}
+
+// La file dans l'onglet : le dernier message de tâche (afficherLot) et ce qui attend.
+function afficherFile(message) {
+  if (message !== undefined) horsLigne.message = message;
+  const attente = horsLigne.file.length ? t("horsLigne.enAttente", { n: horsLigne.file.length }) : "";
+  $("hlEnCours").textContent = [horsLigne.message, attente].filter(Boolean).join(" ");
+  $("hlFile").hidden = !$("hlEnCours").textContent;
+  $("hlArreter").hidden = !(lotEnCours.actif || horsLigne.file.length);
+}
+
+async function supprimerSelection() {
+  const b = bilanSelection();
+  if (!b.installees.length) return;
+  if (!confirm(t("horsLigne.confirmerSuppressionN", { n: b.installees.length, taille: tailleTexte(b.octetsInstalles) }))) return;
+  let octets = 0;
+  for (const nom of b.installees) {
+    const r = horsLigne.mode === "routage" ? await api("supprimer_case", { case: nom, fonds: false })
+      : await api("supprimer_fond", { carre: nom });
+    if (r.erreur) afficherLot({ case: nom, erreur: r.erreur });
+    else octets += r.octets || 0;
+  }
+  horsLigne.selection.clear();
+  afficherFile(t("horsLigne.supprimees", { n: b.installees.length, taille: tailleTexte(octets) }));
+  await chargerLots();
+  chargerFonds();
+}
+
+// En mode fond : les carrés que touche la vue, d'un geste.
+function selectionnerVue() {
+  const b = carte.getBounds();
+  const carres = carresZone([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]);
+  if (carres.length > CARRES_MAX_VUE) {
+    $("hlSelection").textContent = t("horsLigne.tropDeCarres", { n: carres.length, max: CARRES_MAX_VUE });
+    return;
+  }
+  for (const carre of carres) if (!enFile(carre)) horsLigne.selection.add(carre);
+  dessinerCases();
+}
+
+// Les fonds proposés : ceux que le serveur sait garder hors ligne ; le SCAN 25 seulement avec la clé IGN.
+function remplirSources() {
+  const titres = etat.fondsHorsLigne || {};
+  const liste = $("hlSource");
+  const choix = sourceFond();
+  liste.innerHTML = "";
+  for (const [cle, titre] of Object.entries(titres)) {
+    if (cle === "scan25" && !etat.cleIgn) continue;
+    const option = document.createElement("option");
+    option.value = cle;
+    option.textContent = titre;
+    option.selected = cle === choix;
+    liste.append(option);
+  }
+}
+
+function changerMode(mode) {
+  horsLigne.mode = mode;
+  horsLigne.selection.clear();
+  if (mode === "routage" && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
+  dessinerCases();
+}
+
+// L'onglet ouvert, la grille paraît ; quitté, la carte revient au tracé.
+function activerHorsLigne(actif) {
+  if (horsLigne.actif === actif) return;
+  horsLigne.actif = actif;
+  if (actif) {
+    grilleCases.addTo(carte);
+    remplirSources();
+    if (horsLigne.mode === "routage" && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
+    chargerLots();
+  } else {
+    grilleCases.remove();
+    dessinerCases();
+  }
+}
+
+async function chargerLots() {
+  // Onglet fermé : rien à lire, la grille n'est pas affichée.
+  if (horsLigne.actif) {
+    try {
+      lotsInstalles = (await api("hors_ligne")).lots || [];
+    } catch (_) { /* serveur injoignable : la grille reste vide */ }
+    // Le catalogue du dépôt vient de GitHub, parfois en quelques secondes : la
+    // grille n'attend pas, elle se redessine à son arrivée.
+    api("catalogue_lots").then((r) => { lotsServeur = r.lots || []; dessinerCases(); })
+      .catch(() => { lotsServeur = []; });
+  }
+  dessinerCases();
+}
+
+// La langue a changé : les textes de l'onglet suivent.
+function afficherEntreeHorsLigne() {
+  remplirSources();
+  afficherSelection();
+}
+
+$("hlRoutage").addEventListener("change", () => changerMode("routage"));
+$("hlFond").addEventListener("change", () => changerMode("fond"));
+$("hlSource").addEventListener("change", () => { horsLigne.source = $("hlSource").value; dessinerCases(); });
+$("hlTelecharger").addEventListener("click", telechargerSelection);
+$("hlSupprimer").addEventListener("click", supprimerSelection);
+$("hlVider").addEventListener("click", () => { horsLigne.selection.clear(); dessinerCases(); });
+$("hlVue").addEventListener("click", selectionnerVue);
+$("hlArreter").addEventListener("click", () => { horsLigne.file = []; arreterLot(); });
+carte.on("moveend", dessinerCases);
+// L'onglet suit le panneau affiché (presentation.js le montre ou le cache).
+if (typeof MutationObserver !== "undefined") {
+  new MutationObserver(() => activerHorsLigne(!$("pane-horsligne").hidden))
+    .observe($("pane-horsligne"), { attributes: true, attributeFilter: ["hidden"] });
 }
 
 // ------------------------------------------------------------ partage au téléphone
@@ -1656,130 +1852,6 @@ $("fermerFenetrePartage").addEventListener("click", () => { $("partageFenetre").
 $("partageFenetre").addEventListener("click", (e) => { if (e.target === $("partageFenetre")) $("partageFenetre").hidden = true; });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("partageFenetre").hidden = true; });
 
-// Le fond affiché, prêt à partir au téléphone : les carrés de 1° que touche la
-// vue affichée, la même fabrication que la bulle d'une case (preparer_fond), là
-// où on prépare son téléphone. Quatre carrés au plus : au-delà, se rapprocher.
-const CARRES_MAX = 4;
-function fabriquerFondTelephone() {
-  const note = $("fondTelephoneTexte");
-  const b = carte.getBounds();
-  const carres = carresZone([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]);
-  note.textContent = !sourceAGarder() ? t("horsLigne.fondEnLigne")
-    : carres.length > CARRES_MAX ? t("partage.tropDeCarres", { n: carres.length, max: CARRES_MAX }) : "";
-  note.hidden = !note.textContent;
-  if (note.textContent) return;
-  preparerFonds(carres, sourceAGarder());
-}
-$("fondTelephone").addEventListener("click", fabriquerFondTelephone);
-
-async function preparerFonds(carres, source) {
-  carte.closePopup();
-  const reponse = await api("preparer_fond", { carres, source });
-  if (reponse.erreur) {
-    afficherLot({ case: carres[0], erreur: reponse.erreur });
-    return;
-  }
-  if (minuterieLot) clearTimeout(minuterieLot);
-  suivreLot();
-}
-
-async function telechargerCase(nom) {
-  carte.closePopup();
-  const reponse = await api("telecharger_lot", { case: nom });
-  if (reponse.erreur) {
-    afficherLot({ case: nom, erreur: reponse.erreur });
-    return;
-  }
-  if (minuterieLot) clearTimeout(minuterieLot);
-  suivreLot();
-}
-
-function dessinerCases() {
-  grilleCases.clearLayers();
-  if (!$("showOfflineGrid").checked) return;
-  for (const nom of casesVisibles()) {
-    const [s, o, n, e] = boiteCase(nom);
-    L.rectangle([[s, o], [n, e]], { pane: "casesHorsLigne", bubblingMouseEvents: false,
-      ...STYLES_CASE[etatCase(nom)] })
-      // Le point du clic, avant la bulle : il désigne le carré de 1° du fond de carte.
-      .on("click", (e) => { clicCase = e.latlng; })
-      .bindPopup(() => bulleCase(nom)).addTo(grilleCases);
-  }
-  dessinerCarres();
-}
-
-// La grille des carrés de 1° : en pointillés, en vert ceux dont un fond est
-// installé sur ce PC ; à partir du zoom ZOOM_CARRES seulement.
-function dessinerCarres() {
-  if (carte.getZoom() < ZOOM_CARRES) return;
-  const b = carte.getBounds();
-  const installes = new Set(fondsInstalles.map((f) => f.nom.split("-")[0]));
-  for (const carre of carresZone([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])) {
-    const [, ns, la, eo, lo] = carre.match(/^([NS])(\d{2})([EW])(\d{3})$/);
-    const s = Number(la) * (ns === "N" ? 1 : -1), o = Number(lo) * (eo === "E" ? 1 : -1);
-    const present = installes.has(carre);
-    L.rectangle([[s, o], [s + 1, o + 1]], { pane: "carresHorsLigne", interactive: false, weight: 1,
-      color: present ? "#2e7d32" : "#5b6f84", dashArray: present ? null : "4 4", fill: present,
-      fillColor: "#2e7d32", fillOpacity: 0.12 }).addTo(grilleCases);
-  }
-}
-
-function afficherStatutCases() {
-  const statut = $("offlineGridStatus");
-  if (!$("showOfflineGrid").checked) { statut.textContent = ""; return; }
-  statut.textContent = lotsInstalles.length
-    ? t("reglages.casesNombre", { nombre: lotsInstalles.length }) : t("reglages.casesAucune");
-}
-
-async function chargerLots() {
-  // Grille masquée : rien à lire, seulement à effacer.
-  if ($("showOfflineGrid").checked) {
-    try {
-      lotsInstalles = (await api("hors_ligne")).lots || [];
-    } catch (_) { /* serveur injoignable : la grille reste vide */ }
-    // Le catalogue du dépôt vient de GitHub, parfois en quelques secondes : la
-    // grille n'attend pas, elle se redessine à son arrivée.
-    api("catalogue_lots").then((r) => { lotsServeur = r.lots || []; dessinerCases(); })
-      .catch(() => { lotsServeur = []; });
-  }
-  afficherStatutCases();
-  dessinerCases();
-}
-
-function basculerCases() {
-  try { localStorage.setItem(CLE_CASES, $("showOfflineGrid").checked ? "1" : "0"); }
-  catch (_) { /* réglage de carte non persistant */ }
-  if ($("showOfflineGrid").checked) grilleCases.addTo(carte); else grilleCases.remove();
-  afficherEntreeHorsLigne();
-  chargerLots();
-}
-// Les cases font 5° : de près, on n'en voit qu'un morceau. Afficher la grille
-// dézoome jusqu'à en montrer plusieurs (demande de Nico du 2026-10-28) ; la
-// grille restaurée au chargement de la page garde la vue.
-const ZOOM_CASES = 6;
-function montrerCases() {
-  if ($("showOfflineGrid").checked && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
-}
-$("showOfflineGrid").addEventListener("change", () => { basculerCases(); montrerCases(); });
-
-// L'entrée du mode hors ligne, sur la carte : le bouton « Hors ligne » fait
-// la même chose que la case des réglages (les deux restent d'accord), et dit
-// en une ligne ce qu'on peut faire d'une case.
-function afficherEntreeHorsLigne() {
-  const active = $("showOfflineGrid").checked;
-  $("offlineButton").setAttribute("aria-pressed", String(active));
-  $("offlineButton").classList.toggle("actif", active);
-  $("offlineButton").title = t("horsLigne.boutonTitre");
-  $("offlineHint").textContent = active ? t("horsLigne.aide") : "";
-  $("offlineHint").hidden = !active;
-}
-$("offlineButton").addEventListener("click", () => {
-  $("showOfflineGrid").checked = !$("showOfflineGrid").checked;
-  basculerCases();
-  montrerCases();
-});
-carte.on("moveend", dessinerCases);
-
 function afficherLot(r) {
   const nom = r.case || "";
   let message = "";
@@ -1797,6 +1869,7 @@ function afficherLot(r) {
   }
   $("lotHorsLigneTexte").textContent = message;
   $("lotHorsLigne").hidden = !message;
+  afficherFile(message);    // le même message dans l'onglet « Hors ligne », avec la file
   $("arreterLot").hidden = !r.actif;
   $("majLot").hidden = $("plusTardLot").hidden = true;
   majPiste("lotHorsLigne", r.actif ? (r.total ? r.faites / r.total : null) : undefined);
@@ -1843,6 +1916,7 @@ async function suivreLot() {
   } else {
     await chargerLots();
     chargerFonds();         // sans l'attendre : la grille est déjà à jour
+    if (horsLigne.file.length) lancerSuivant();     // la tuile suivante de l'onglet « Hors ligne »
     if (lotSuivi) {
       // Le lot est arrivé (ou a échoué) : les calques et le calcul qui
       // l'attendaient repartent, sur lui ou à la volée.
@@ -1877,11 +1951,7 @@ async function arreterLot() {
 $("arreterLot").addEventListener("click", arreterLot);
 
 function restaurerCases() {
-  try { $("showOfflineGrid").checked = localStorage.getItem(CLE_CASES) === "1"; }
-  catch (_) { /* pas de préférence */ }
-  if ($("showOfflineGrid").checked) grilleCases.addTo(carte);
-  afficherEntreeHorsLigne();
-  chargerLots();
+  chargerLots();         // lots installés, et fabrication en cours si la page a été rechargée
   suivreLot();
 }
 
