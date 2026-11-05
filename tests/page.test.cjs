@@ -121,7 +121,7 @@ function charger(preferences = {}, documentGpx = null) {
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
-    + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, bulleCase, casesVisibles, nomCase, boiteCase,"
+    + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, bulleCase, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -172,7 +172,7 @@ test("le bouton « Hors ligne » de la carte montre la grille et dit quoi en fai
   assert.equal(bouton.classList.contains("actif"), true);
   assert.equal(elements.get("offlineHint").hidden, false);
   assert.match(elements.get("offlineHint").textContent,
-    /^Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou son fond de carte\.$/);
+    /^Cliquez une case : télécharger son lot depuis le serveur, préparer la vue ou toute la case, ou le fond de carte du carré de 1° où vous cliquez\.$/);
   assert.equal(stockage.get("hike2gpx.casesHorsLigne"), "1");
   assert.ok(requetes.some((r) => r.url === "/api/hors_ligne"), "les lots installés sont relus");
   page.appliquerLangue("en");
@@ -191,9 +191,10 @@ test("une case absente se prépare sur la vue actuelle ou en entier", async () =
   page.construireFonds();     // le Plan IGN affiché, comme au démarrage sans clé
   const bulle = page.bulleCase("E5_N40");
   const boutons = bulle.enfants.filter((e) => e.type === "button");
+  // Le fond de carte se prend par carré de 1° : sans clic, celui du centre de la carte (Garéoult, N43E006).
   assert.deepEqual(boutons.map((b) => b.textContent),
     ["Préparer la vue actuelle", "Préparer toute la case (environ une heure)",
-      "Fond de carte de la vue (Plan IGN)", "Fond de carte de toute la case (Plan IGN, zooms 6 à 13, environ 45 min)"]);
+      "Fond Plan IGN du carré N43E006 (1°, zooms 13 à 16, environ 1 Go et 2 h 30)"]);
   boutons[0].click();
   const vue = requetes.findLast((r) => r.url === "/api/preparer_lot");
   assert.deepEqual(JSON.parse(vue.options.body), { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04] });
@@ -202,10 +203,9 @@ test("une case absente se prépare sur la vue actuelle ou en entier", async () =
     { case: "E5_N40" });
   boutons[2].click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
-    { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04], source: "plan" });
-  boutons[3].click();
-  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
-    { case: "E5_N40", source: "plan" });
+    { carres: ["N43E006"], source: "plan" });
+  // Un clic ailleurs dans la case désigne son carré : la Sainte-Victoire est dans N43E005.
+  assert.equal(page.nomCarre(43.53, 5.59), "N43E005");
   // Un fond qui ne se garde pas (OpenStreetMap) : pas de bouton, une explication.
   page.etat.fondsHorsLigne = {};
   const enLigne = page.bulleCase("E5_N40");
@@ -219,29 +219,42 @@ test("un fond de carte installé devient la « Carte hors ligne », lue sur le P
   assert.equal(page.fonds().horsLigne, undefined, "aucun fond : pas de carte hors ligne");
   const charge = page.chargerFonds();
   repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [
-    { nom: "E5_N40-scan25-vue-3fa2c1", zone: [43.3, 5.97, 43.36, 6.11], zoom: [6, 16], source: "scan25", octets: 12e6 },
-    { nom: "E5_N40-scan25", zone: [40, 5, 45, 10], zoom: [6, 13], source: "scan25", octets: 4e8 }] });
+    { nom: "N43E006-scan25", zone: [43, 6, 44, 7], zoom: [13, 16], source: "scan25", octets: 6e8 },
+    { nom: "E5_N40-scan25", zone: [40, 5, 45, 10], zoom: [6, 13], source: "scan25", octets: 4e8 },
+    { nom: "N48E002-plan", zone: [48, 2, 49, 3], zoom: [13, 16], source: "plan", octets: 3e8 }] });
   await charge;
   const groupe = page.fonds().horsLigne;
   assert.ok(groupe, "le fond hors ligne parmi les fonds");
   assert.ok(page.controle().fonds["Carte hors ligne"]);
-  // La case d'abord, la vue par-dessus ; chacune bornée à sa zone.
+  // Le moins fin d'abord, le plus fin par-dessus ; chacun borné à sa zone.
   assert.deepEqual(groupe.layers.map((c) => c.url),
-    ["/fonds/E5_N40-scan25/{z}/{x}/{y}", "/fonds/E5_N40-scan25-vue-3fa2c1/{z}/{x}/{y}"]);
+    ["/fonds/E5_N40-scan25/{z}/{x}/{y}", "/fonds/N43E006-scan25/{z}/{x}/{y}", "/fonds/N48E002-plan/{z}/{x}/{y}"]);
   assert.equal(groupe.layers[1].options.maxNativeZoom, 16);
-  assert.equal(JSON.stringify(groupe.layers[0].options.bounds), "[[40,5],[45,10]]");
+  assert.equal(JSON.stringify(groupe.layers[1].options.bounds), "[[43,6],[44,7]]");
+  // La bulle de la case liste ses fonds : l'ancien, nommé d'après elle, et ses carrés ; pas celui de Paris.
   const bulle = page.bulleCase("E5_N40");
-  assert.ok(bulle.enfants.some((e) => /^Fond de carte hors ligne : vue SCAN 25 \(IGN\) 12 Mo, toute la case SCAN 25 \(IGN\) 400 Mo/
+  assert.ok(bulle.enfants.some((e) => /^Fond de carte hors ligne : N43E006 SCAN 25 \(IGN\) 600 Mo, E5_N40 SCAN 25 \(IGN\) 400 Mo\.?$/
     .test(e.textContent ?? e.enfants?.join(""))), "la bulle dit les fonds de la case");
 });
 
 test("le fond pour le téléphone se fabrique depuis les réglages, sur la vue et le fond affichés", async () => {
-  const { page, elements, requetes } = charger();
+  const { page, carte, elements, requetes } = charger();
   page.etat.fondsHorsLigne = { plan: "Plan IGN" };
   page.construireFonds();
   elements.get("fondTelephone").click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
-    { case: "E5_N40", zone: [43.31, 6.01, 43.33, 6.04], source: "plan" });
+    { carres: ["N43E006"], source: "plan" }, "la vue de Garéoult tient dans le carré N43E006");
+  // Une vue à cheval sur quatre carrés passe ; sur six, il faut se rapprocher.
+  carte.vue = { s: 42.8, w: 5.6, n: 43.4, e: 6.3 };
+  elements.get("fondTelephone").click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body).carres,
+    ["N42E005", "N42E006", "N43E005", "N43E006"]);
+  carte.vue = { s: 42.8, w: 5.6, n: 43.4, e: 7.3 };
+  const avantTrop = requetes.length;
+  elements.get("fondTelephone").click();
+  assert.equal(requetes.length, avantTrop);
+  assert.match(elements.get("fondTelephoneTexte").textContent, /^La vue touche 6 carrés de 1° : rapprochez-vous \(4 au plus/);
+  carte.vue = { s: 43.31, w: 6.01, n: 43.33, e: 6.04 };
   // Un fond qui reste en ligne : rien n'est demandé, la note le dit.
   const avant = requetes.length;
   page.etat.fondsHorsLigne = {};

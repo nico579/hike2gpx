@@ -14,6 +14,12 @@ from hike2gpx.application import Application
 ZONE = (43.30, 5.97, 43.36, 6.11)
 
 
+@pytest.fixture(autouse=True)
+def tuiles_telles_quelles(monkeypatch):
+    """Les tuiles simulées ne sont pas de vraies images (voir test_fonds)."""
+    monkeypatch.setattr(fonds, "en_jpeg", lambda contenu, qualite=fonds.QUALITE_JPEG: contenu)
+
+
 class Reponse(io.BytesIO):
     def __enter__(self):
         return self

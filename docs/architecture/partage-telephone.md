@@ -59,7 +59,7 @@ Sans lui, ou avec un jeton faux ou périmé, la réponse est **401**, avec
 | toute autre méthode              | 405                                                            |
 
 `<url d'un fichier>` est l'adresse que donne le catalogue, relative à celle du
-catalogue : `E5_N40/E5_N40.rd5`, `fonds/E5_N40-scan25.mbtiles`. Une seule
+catalogue : `E5_N40/E5_N40.rd5`, `fonds/N43E006-scan25.mbtiles`. Une seule
 plage par requête (`bytes=N-`, `bytes=N-M` ou `bytes=-N`) ; une autre forme
 est ignorée et le fichier part en entier, comme HTTP le permet.
 
@@ -75,26 +75,34 @@ facultative `"fonds"` :
            "sources": {"osm": "2026-10-25T21:21:21Z"}, "octets": 135000000,
            "fichiers": [{"nom": "E5_N40.rd5", "octets": 98000000, "sha256": "…", "url": "E5_N40/E5_N40.rd5"},
                         {"nom": "manifest.json", "octets": 812, "sha256": "…", "url": "E5_N40/manifest.json"}]}],
- "fonds": [{"nom": "E5_N40-scan25", "zone": [40, 5, 45, 10], "zoom": [6, 13], "source": "scan25",
-            "octets": 412000000, "sha256": "…", "url": "fonds/E5_N40-scan25.mbtiles"}]}
+ "fonds": [{"nom": "N43E006-scan25", "zone": [43, 6, 44, 7], "zoom": [13, 16], "source": "scan25",
+            "octets": 600000000, "sha256": "…", "url": "fonds/N43E006-scan25.mbtiles"}]}
 ```
 
-Un fond de carte :
+Un fond de carte couvre un **carré de 1°**, nommé comme les tuiles SRTM
+(`N43E006` : de 43° à 44° nord, de 6° à 7° est), et non la case de 5° du
+routage : une case entière au zoom 16 pèserait une dizaine de Go. Il porte
+les zooms 13 à 16 (le service de l'IGN ne sert le vrai SCAN 25 qu'à partir du
+15), soit en Provence environ 60 000 tuiles, 1 Go et 2 h 30 (mesuré le
+2026-11-05 : 19 ko par tuile, 7 tuiles par seconde). Les fonds plus
+anciens, d'une case ou d'une vue (`E5_N40-scan25`, `E5_N40-scan25-vue-3fa2c1`),
+restent lisibles.
 
-- `nom` : le nom du fichier sans extension, `<case>-<source>` pour une case
-  entière, `<case>-<source>-vue-<6 hexadécimaux>` pour une vue ;
+- `nom` : le nom du fichier sans extension, `<carré>-<source>` ;
 - `zone` : `[sud, ouest, nord, est]` en degrés, comme les lots ;
 - `zoom` : `[min, max]`, une plage de deux entiers, les niveaux présents (bornes comprises) ; au-delà de `max`, on agrandit ;
 - `source` : la clé du fond dans la page et dans `fonds.SOURCES`, sans tiret :
   `scan25` (SCAN 25 de l'IGN, avec clé), `plan` (Plan IGN, Licence Ouverte),
   `allemagne` (TopPlusOpen, dl-de/by-2-0), `espagne` (MTN de l'IGN España),
   `norvege` (Kartverket) ou `paysBas` (PDOK), ces trois derniers en CC BY 4.0.
-  Le téléphone la lit aussi dans le nom, deuxième mot après la case ;
+  Le téléphone la lit aussi dans le nom, deuxième mot après le carré ;
 - `octets`, `sha256`, `url` : comme un fichier de lot.
 
 Le fichier est un [MBTiles 1.3](https://github.com/mapbox/mbtiles-spec/blob/master/1.3/spec.md) :
 une base SQLite, table `tiles` en rangées TMS (comptées depuis le sud), tuiles
-JPEG (`scan25`, `espagne`) ou PNG (les autres) de 256 pixels en Web Mercator, et la table
+JPEG de 256 pixels en Web Mercator, qualité 70 quelle que soit la source (les
+PNG du Plan IGN ou de TopPlusOpen y sont convertis, le transparent sur fond
+blanc), et la table
 `metadata` avec `name`, `format`, `type` (`baselayer`), `bounds`, `minzoom`,
 `maxzoom`, `attribution`, plus `source`.
 
