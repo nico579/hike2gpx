@@ -1111,7 +1111,7 @@ class Application:
                 "communes": communes.chercher, "arreter_calques": self.arreter_calques,
                 "donnees": self.agir_donnees, "ouvrir_journaux": self.ouvrir_journaux,
                 "installer_lot": self.installer_lot, "preparer_lot": self.preparer_lot,
-                "supprimer_case": self.supprimer_case,
+                "supprimer_case": self.supprimer_case, "supprimer_fond": self.supprimer_fond,
                 "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot,
                 "preparer_fond": self.preparer_fond, "partage": self.partager, **post_langue}
         return get, post
@@ -1231,8 +1231,9 @@ class Application:
         return reponse
 
     def supprimer_case(self, corps) -> dict:
-        """Retire de l'ordinateur le lot et les fonds d'une case, depuis sa bulle sur la
-        carte. corps : {"case": "E5_N40"}. Rend {"octets"} libérés, ou {"erreur"}."""
+        """Retire de l'ordinateur le lot d'une case, et ses fonds sauf {"fonds": false}
+        (l'onglet « Hors ligne », où les fonds ont leur grille). corps :
+        {"case": "E5_N40"}. Rend {"octets"} libérés, ou {"erreur"}."""
         case, _, erreur = self._case_et_zone(corps)
         if erreur:
             return {"erreur": erreur}
@@ -1242,11 +1243,23 @@ class Application:
             return {"erreur": "Un calcul est en cours. Réessayez après sa fin."}
         try:
             self._arreter_moteurs()       # un moteur garde la RD5 ouverte : Windows refuserait de l'effacer
-            octets = self.hors_ligne.supprimer(case)
+            octets = self.hors_ligne.supprimer(case, fonds=(corps or {}).get("fonds", True) is not False)
             self._lots_retires.add(case)    # elle ne revient pas toute seule pendant la séance
         finally:
             self._verrou_calcul.release()
         journal.info("Case %s retirée de l'ordinateur depuis la carte : %d octets libérés", case, octets)
+        return {"octets": octets}
+
+    def supprimer_fond(self, corps) -> dict:
+        """Retire de l'ordinateur les fonds d'un carré de 1°, depuis l'onglet « Hors
+        ligne ». corps : {"carre": "N43E006"}. Rend {"octets"} libérés, ou {"erreur"}."""
+        carre = (corps or {}).get("carre")
+        if not isinstance(carre, str) or not fonds.carre_valide(carre):
+            return {"erreur": "Carré de fond de carte invalide."}
+        if self._fil_lot and self._fil_lot.is_alive() and self._lot.get("case") == carre:
+            return {"erreur": "Ce fond se prépare. Arrêtez-le d'abord."}
+        octets = self.hors_ligne.supprimer_fond(carre)
+        journal.info("Fonds du carré %s retirés de l'ordinateur : %d octets libérés", carre, octets)
         return {"octets": octets}
 
     def telecharger_lot(self, corps) -> dict:

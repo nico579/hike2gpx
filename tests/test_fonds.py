@@ -265,3 +265,23 @@ def test_un_fond_n_entre_jamais_dans_une_publication(tmp_path):
                     ouvrir=service(), debit=0)
     depot.ecrire_catalogue(a.hors_ligne.racine, tmp_path / "publication")
     assert [p.name for p in (tmp_path / "publication").iterdir()] == ["catalog.json"]
+
+
+def test_l_onglet_retire_le_routage_seul_ou_un_carre(tmp_path, monkeypatch):
+    a = Application(tmp_path)
+    monkeypatch.setattr(urllib.request, "urlopen", service())
+    monkeypatch.setattr(fonds, "DEBIT", 0)
+    monkeypatch.setattr(fonds, "ZOOMS_CARRE", (7, 7))
+    a.preparer_fond({"carres": ["N43E005", "N43E006"], "source": "plan"})
+    a._fil_lot.join(10)
+    rd5 = a.hors_ligne.segments / "E5_N40.rd5"
+    rd5.parent.mkdir(parents=True, exist_ok=True)
+    rd5.write_bytes(b"x" * 10)
+    # Le routage seul : la RD5 s'en va, les fonds de ses carrés restent.
+    assert a.supprimer_case({"case": "E5_N40", "fonds": False}) == {"octets": 10}
+    assert {f["nom"] for f in a.lots_hors_ligne()["fonds"]} == {"N43E005-plan", "N43E006-plan"}
+    # Un carré : ses fonds seulement.
+    assert a.supprimer_fond({"carre": "N43E006"})["octets"] > 0
+    assert {f["nom"] for f in a.lots_hors_ligne()["fonds"]} == {"N43E005-plan"}
+    assert "erreur" in a.supprimer_fond({"carre": "../x"})
+    assert a.supprimer_fond({"carre": "N10E010"}) == {"octets": 0}

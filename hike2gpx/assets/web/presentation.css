@@ -170,8 +170,28 @@ body.profile-collapsed .map-activity{bottom:81px}
 #reglages .setting-row label{margin:0;font-size:12px;line-height:1.5;color:#546a80}
 .settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
 .display-settings{margin-top:17px;padding-top:7px;border-top:1px solid var(--bordure)}
-#reglages #partageOuvert{display:flex;gap:8px;flex-wrap:wrap}
-#reglages #partageOuvert[hidden]{display:none}
+#horsLigne #partageOuvert{display:flex;gap:8px;flex-wrap:wrap}
+#horsLigne #partageOuvert[hidden]{display:none}
+/* L'onglet « Hors ligne » : le mode, la légende de la grille, les actions, la file. */
+#horsLigne{display:block;margin:0;border:1px solid var(--bordure);border-radius:11px;padding:14px}
+#horsLigne .hl-mode{border:0;margin:0 0 6px;padding:0}
+#horsLigne .hl-mode legend{font-size:13px;font-weight:700;color:#2e455d;margin-bottom:4px}
+#horsLigne .option{display:flex;align-items:center;gap:8px;margin:0;padding:5px 0;font-size:13px}
+#horsLigne select{margin-left:8px}
+#horsLigne .note{font-size:12px;line-height:1.5;color:#546a80;margin:8px 0}
+#horsLigne #hlSelection{color:#1f3347;font-weight:600}
+#horsLigne h3{font-size:13px;border-top:1px solid var(--bordure);padding-top:14px;margin-top:16px}
+.hl-legende{list-style:none;margin:6px 0;padding:0;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:#546a80}
+.hl-legende li{display:flex;align-items:center;gap:6px}
+.hl-legende li[hidden]{display:none}
+.hl-pastille{display:inline-block;width:14px;height:10px;border-radius:2px;border:2px solid}
+.hl-pastille.installe{border-color:#1b7a3e;background:#23a04f55}
+.hl-pastille.selectionne{border-color:#1565c0;background:#1e88e5aa}
+.hl-pastille.encours{border-color:#e07b00;background:#e07b0055}
+.hl-pastille.serveur{border-color:#1565c0;background:transparent}
+.hl-actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.hl-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.hl-file[hidden]{display:none}
 /* Le QR code du partage, dans sa fenêtre comme lidar2map : à sa taille (8 px par
    module), réduit par son viewBox si la fenêtre est petite, jamais coupé. */
 .partage-fenetre{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center}
@@ -227,7 +247,6 @@ body.hide-elevation .elevation-panel,body.hide-map-toolbar .map-widget-toolbar{d
 .map-providers-info-button{border:0;padding:0;font-family:inherit;line-height:1;text-decoration:none;cursor:pointer}
 .map-widget-button{height:38px;border:1px solid #e0e6ed;border-radius:8px;background:#fff;box-shadow:0 2px 8px #243b5310;color:#344860;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 11px;font-size:11px;cursor:pointer}
 .layers-trigger{border-color:#d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px)}
-.offline-trigger{border-color:#d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px)}
 .map-widget-button.actif{border-color:var(--accent);color:var(--accent);font-weight:600}
 .map-offline-hint{max-width:300px;margin:0;padding:7px 10px;border:1px solid #d9e5f18c;border-radius:8px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 2px 8px #243b5310;color:#344860;font-size:11px;line-height:1.35}
 .map-widget-button:hover{background:#f5f8fc;color:var(--accent)}
