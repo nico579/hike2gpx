@@ -148,9 +148,14 @@ test("les cases hors ligne se dessinent depuis les réglages, selon leur état",
   repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"),
     { lots: [{ case: "E5_N40", octets: 135e6, sources: { osm: "2026-10-25T21:21:21Z" } }] });
   await charge;
-  const [cadre] = page.grilleCases.layers;
+  const [cadre, carre] = page.grilleCases.layers;
   assert.deepEqual(json(cadre.bounds), [[40, 5], [45, 10]]);
   assert.equal(cadre.options.color, "#1b7a3e", "vert : prête hors ligne");
+  // La grille des carrés de 1° par-dessus, transparente aux clics : la vue de Garéoult n'en touche qu'un.
+  assert.equal(page.grilleCases.layers.length, 2);
+  assert.deepEqual(json(carre.bounds), [[43, 6], [44, 7]]);
+  assert.equal(carre.options.interactive, false);
+  assert.equal(carre.options.dashArray, "4 4", "pointillés : pas encore de fond");
   assert.match(elements.get("offlineGridStatus").textContent, /^1 case/);
   elements.get("showOfflineGrid").checked = false;
   const avant = requetes.length;
@@ -185,7 +190,7 @@ test("le bouton « Hors ligne » de la carte montre la grille et dit quoi en fai
 });
 
 test("une case absente se prépare sur la vue actuelle ou en entier", async () => {
-  const { page, requetes } = charger();
+  const { page, carte, requetes } = charger();
   // Ce que le serveur annonce dans /api/etat : les fonds qui se gardent hors ligne.
   page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN", allemagne: "TopPlusOpen (BKG)" };
   page.construireFonds();     // le Plan IGN affiché, comme au démarrage sans clé
@@ -206,7 +211,14 @@ test("une case absente se prépare sur la vue actuelle ou en entier", async () =
     { carres: ["N43E006"], source: "plan" });
   // Un clic ailleurs dans la case désigne son carré : la Sainte-Victoire est dans N43E005.
   assert.equal(page.nomCarre(43.53, 5.59), "N43E005");
-  // Un fond qui ne se garde pas (OpenStreetMap) : pas de bouton, une explication.
+  // OpenStreetMap affiché, qui ne se garde pas : le bouton prend le fond français par défaut.
+  carte.handlers.baselayerchange({ layer: page.fonds().osm });
+  const surOsm = page.bulleCase("E5_N40").enfants.filter((e) => e.type === "button");
+  assert.equal(surOsm[2].textContent, "Fond Plan IGN du carré N43E006 (1°, zooms 13 à 16, environ 1 Go et 2 h 30)");
+  surOsm[2].click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
+    { carres: ["N43E006"], source: "plan" });
+  // Aucun fond gardable annoncé par le serveur : pas de bouton, une explication.
   page.etat.fondsHorsLigne = {};
   const enLigne = page.bulleCase("E5_N40");
   assert.equal(enLigne.enfants.filter((e) => e.type === "button").length, 2);

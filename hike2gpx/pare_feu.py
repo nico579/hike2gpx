@@ -132,6 +132,22 @@ def _elever(commande: list) -> int | None:
         ctypes.windll.kernel32.CloseHandle(infos.hProcess)
 
 
+def commande_elevee(prog: str) -> list:
+    """Le programme lui-même, relancé pour poser la règle : la fenêtre UAC nomme
+    hike2gpx, avec son icône, et non « Windows PowerShell » (remarque de Nico du
+    2026-11-05). Figé, l'exécutable ; depuis les sources, pythonw -m hike2gpx."""
+    from . import bureau
+    return [*bureau.commande_programme(), "firewall", "--program", prog]
+
+
+def creer(prog: str) -> int:
+    """La commande firewall, lancée en administrateur : retire les blocages du
+    programme et pose la règle, dans une console cachée. Rend le code de sortie."""
+    resultat = subprocess.run(_powershell(script_creer(prog)), capture_output=True, timeout=60,
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return resultat.returncode
+
+
 def autoriser(executer=None, elever=None, plateforme: str | None = None, prog: str | None = None) -> str:
     """Vérifie, et crée au besoin, la règle du partage. Rend « inutile » hors de
     Windows, « ok » si elle était là, « creee », « refuse » si l'utilisateur a
@@ -142,7 +158,7 @@ def autoriser(executer=None, elever=None, plateforme: str | None = None, prog: s
     try:
         if regle_a_jour(executer(_powershell(script_lire(prog)))):
             return "ok"
-        code = elever(_powershell(script_creer(prog)))
+        code = elever(commande_elevee(prog))
         if code is None:
             journal.warning("Pare-feu : autorisation refusée, le téléphone ne joindra pas le partage")
             return "refuse"

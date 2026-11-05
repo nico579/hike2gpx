@@ -1408,6 +1408,12 @@ const CLE_CASES = "hike2gpx.casesHorsLigne";
 // mais sous les points du parcours (600). Grille affichée, ses cases
 // reçoivent les clics ; décochée, la carte revient au tracé.
 carte.createPane("casesHorsLigne").style.zIndex = 455;
+// Les carrés de 1° des fonds de carte, dessinés par-dessus les cases mais
+// transparents aux clics : un clic ouvre la bulle de la case, carré cliqué en tête.
+const panneauCarres = carte.createPane("carresHorsLigne");
+panneauCarres.style.zIndex = 456;
+panneauCarres.style.pointerEvents = "none";
+const ZOOM_CARRES = 7;      // en deçà, trop de carrés à l'écran pour être lisibles
 const grilleCases = L.layerGroup();
 let lotsInstalles = [];
 let lotsServeur = [];            // le catalogue du dépôt (catalogue_lots), avec l'état de chaque lot ici
@@ -1439,7 +1445,7 @@ async function chargerFonds() {
   try {
     const avant = JSON.stringify(fondsInstalles.map((f) => f.nom));
     fondsInstalles = (await api("hors_ligne")).fonds || [];
-    if (JSON.stringify(fondsInstalles.map((f) => f.nom)) !== avant) construireFonds();
+    if (JSON.stringify(fondsInstalles.map((f) => f.nom)) !== avant) { construireFonds(); dessinerCases(); }
   } catch (_) { /* serveur injoignable : pas de fond hors ligne */ }
 }
 
@@ -1594,9 +1600,8 @@ function ajouterFonds(div, nom) {
     div.append(paragraphe(t("horsLigne.fonds", { liste: ici.map((f) =>
       `${f.nom.split("-")[0]} ${titres[f.source] || f.source} ${tailleTexte(f.octets)}`).join(", ") })));
   }
-  const cle = cleFondActif;
-  if (cle === "horsLigne") return;
-  if (!titres[cle]) {
+  const cle = sourceAGarder();
+  if (!cle) {
     div.append(paragraphe(t("horsLigne.fondEnLigne")));
     return;
   }
@@ -1605,6 +1610,16 @@ function ajouterFonds(div, nom) {
     ? clicCase : carte.getCenter();
   const carre = nomCarre(clic.lat, clic.lng);
   div.append(bouton(t("horsLigne.preparerFondCarre", { source: titres[cle], carre }), () => preparerFonds([carre], cle)));
+}
+
+// La source du fond à fabriquer : celui qu'affiche la page s'il se garde hors
+// ligne ; sinon le fond français par défaut, le SCAN 25 avec la clé IGN, le
+// Plan IGN sans (fonds.source_pour). null si le serveur n'en annonce aucun.
+function sourceAGarder() {
+  const titres = etat.fondsHorsLigne || {};
+  if (titres[cleFondActif]) return cleFondActif;
+  const defaut = etat.cleIgn ? "scan25" : "plan";
+  return titres[defaut] ? defaut : null;
 }
 
 // ------------------------------------------------------------ partage au téléphone
@@ -1646,15 +1661,14 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("partage
 // où on prépare son téléphone. Quatre carrés au plus : au-delà, se rapprocher.
 const CARRES_MAX = 4;
 function fabriquerFondTelephone() {
-  const titres = etat.fondsHorsLigne || {};
   const note = $("fondTelephoneTexte");
   const b = carte.getBounds();
   const carres = carresZone([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]);
-  note.textContent = !titres[cleFondActif] ? t("horsLigne.fondEnLigne")
+  note.textContent = !sourceAGarder() ? t("horsLigne.fondEnLigne")
     : carres.length > CARRES_MAX ? t("partage.tropDeCarres", { n: carres.length, max: CARRES_MAX }) : "";
   note.hidden = !note.textContent;
   if (note.textContent) return;
-  preparerFonds(carres, cleFondActif);
+  preparerFonds(carres, sourceAGarder());
 }
 $("fondTelephone").addEventListener("click", fabriquerFondTelephone);
 
@@ -1690,6 +1704,23 @@ function dessinerCases() {
       // Le point du clic, avant la bulle : il désigne le carré de 1° du fond de carte.
       .on("click", (e) => { clicCase = e.latlng; })
       .bindPopup(() => bulleCase(nom)).addTo(grilleCases);
+  }
+  dessinerCarres();
+}
+
+// La grille des carrés de 1° : en pointillés, en vert ceux dont un fond est
+// installé sur ce PC ; à partir du zoom ZOOM_CARRES seulement.
+function dessinerCarres() {
+  if (carte.getZoom() < ZOOM_CARRES) return;
+  const b = carte.getBounds();
+  const installes = new Set(fondsInstalles.map((f) => f.nom.split("-")[0]));
+  for (const carre of carresZone([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])) {
+    const [, ns, la, eo, lo] = carre.match(/^([NS])(\d{2})([EW])(\d{3})$/);
+    const s = Number(la) * (ns === "N" ? 1 : -1), o = Number(lo) * (eo === "E" ? 1 : -1);
+    const present = installes.has(carre);
+    L.rectangle([[s, o], [s + 1, o + 1]], { pane: "carresHorsLigne", interactive: false, weight: 1,
+      color: present ? "#2e7d32" : "#5b6f84", dashArray: present ? null : "4 4", fill: present,
+      fillColor: "#2e7d32", fillOpacity: 0.12 }).addTo(grilleCases);
   }
 }
 
