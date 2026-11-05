@@ -83,8 +83,8 @@ Un fond de carte couvre un **carré de 1°**, nommé comme les tuiles SRTM
 (`N43E006` : de 43° à 44° nord, de 6° à 7° est), et non la case de 5° du
 routage : une case entière au zoom 16 pèserait une dizaine de Go. Il porte
 les zooms 13 à 16 (le service de l'IGN ne sert le vrai SCAN 25 qu'à partir du
-15), soit en Provence environ 60 000 tuiles, 1 Go et 2 h 30 (mesuré le
-2026-11-05 : 19 ko par tuile, 7 tuiles par seconde). Les fonds plus
+15), soit en Provence environ 60 000 tuiles, 1 Go et une demi-heure (mesuré le
+2026-11-05 : 19 ko par tuile, 29 tuiles par seconde à 8 connexions). Les fonds plus
 anciens, d'une case ou d'une vue (`E5_N40-scan25`, `E5_N40-scan25-vue-3fa2c1`),
 restent lisibles.
 

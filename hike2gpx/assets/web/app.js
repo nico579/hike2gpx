@@ -40,7 +40,7 @@ const TEXTES = {
     "horsLigne.infoInstalle": "sur ce PC, {taille}",
     "horsLigne.infoServeur": "sur le serveur, {taille}",
     "horsLigne.infoFabriquer": "pas sur le serveur : à fabriquer sur ce PC, environ une heure",
-    "horsLigne.infoCarre": "pas de fond sur ce PC (environ 1 Go et 2 h 30)",
+    "horsLigne.infoCarre": "pas de fond sur ce PC (environ 1 Go et 35 min)",
     "horsLigne.selVide": "Aucune tuile sélectionnée.",
     "horsLigne.selRien": "Déjà à jour sur ce PC.",
     "horsLigne.selTelecharger": "{n} à télécharger : {taille}.",
@@ -279,7 +279,7 @@ const TEXTES = {
     "horsLigne.infoInstalle": "on this PC, {taille}",
     "horsLigne.infoServeur": "on the server, {taille}",
     "horsLigne.infoFabriquer": "not on the server: to build on this PC, about an hour",
-    "horsLigne.infoCarre": "no base map on this PC (about 1 GB and 2 h 30)",
+    "horsLigne.infoCarre": "no base map on this PC (about 1 GB and 35 min)",
     "horsLigne.selVide": "No tile selected.",
     "horsLigne.selRien": "Already up to date on this PC.",
     "horsLigne.selTelecharger": "{n} to download: {taille}.",
@@ -1420,10 +1420,10 @@ const ZOOM_CARRES = 7;      // en deçà, trop de carrés à l'écran pour être
 const ZOOM_CASES = 6;       // la grille des cases dézoome jusque-là (demande de Nico du 2026-10-28)
 const CARRES_MAX_ECRAN = 400;
 const CARRES_MAX_VUE = 9;   // « Sélectionner la vue » : au-delà, se rapprocher
-// Mesures du 2026-11-05 (fonds.py) : un carré de fond, environ 1 Go et 2 h 30 ;
+// Mesures du 2026-11-05 (fonds.py) : un carré de fond, environ 1 Go et 35 min ;
 // un lot fabriqué sur ce PC, environ une heure.
 const FOND_CARRE_OCTETS = 1e9;
-const FOND_CARRE_S = 9000;
+const FOND_CARRE_S = 2100;
 const LOT_FABRIQUE_S = 3600;
 // Au-dessus des calques (400) et des panneaux du tracé et des franchissements
 // (449 à 452), dont les canevas couvrent la carte et prendraient les clics,

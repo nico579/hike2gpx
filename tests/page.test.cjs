@@ -227,12 +227,12 @@ test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et 
   assert.equal(JSON.stringify(carre.bounds), "[[43,6],[44,7]]", "le carré de Garéoult, N43E006");
   assert.equal(carre.options.dashArray, "5 5", "pointillés : pas encore de fond");
   carre.handlers.click();
-  assert.equal(elements.get("hlSelection").textContent, "1 carré(s) : environ 1 Go et 2 h 30.");
+  assert.equal(elements.get("hlSelection").textContent, "1 carré(s) : environ 1 Go et 35 min.");
   // « Sélectionner la vue » : les carrés que touche la vue, neuf au plus.
   elements.get("hlVider").click();
   carte.vue = { s: 43.3, w: 5.6, n: 43.6, e: 6.3 };
   elements.get("hlVue").click();
-  assert.equal(elements.get("hlSelection").textContent, "2 carré(s) : environ 2 Go et 5 h.");
+  assert.equal(elements.get("hlSelection").textContent, "2 carré(s) : environ 2 Go et 1 h 10.");
   carte.vue = { s: 42.5, w: 4.5, n: 45.5, e: 8.5 };
   elements.get("hlVue").click();
   assert.match(elements.get("hlSelection").textContent, /^La vue touche 20 carrés de 1° : rapprochez-vous \(9 au plus/);
