@@ -23,7 +23,7 @@ from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
 from . import (__version__, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik, hors_ligne,
-               journaux, lot, maison, osmfr, partage, providers)
+               journaux, lot, maison, osmfr, pare_feu, partage, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -239,6 +239,8 @@ class Application:
         self._lots_retires = set()
         # Le partage au téléphone (partage.py), fermé tant qu'on ne l'ouvre pas.
         self.partage = partage.Partage(self.hors_ligne)
+        self.autoriser_pare_feu = pare_feu.autoriser       # remplaçable dans les tests
+        self._pare_feu = None
         self.preferences = self.dossier / "preferences.json"
         self.serveur = None
         self.serveur_maison = None
@@ -1402,8 +1404,12 @@ class Application:
         ouverture tire un nouveau jeton : le QR code précédent ne vaut plus."""
         if not (corps or {}).get("ouvrir"):
             return self.partage.fermer()
+        # Sous Windows, la règle du pare-feu (pare_feu.py), créée au besoin après
+        # une demande UAC ; vérifiée une fois par séance quand elle est en place.
+        if self._pare_feu not in ("ok", "creee", "inutile"):
+            self._pare_feu = self.autoriser_pare_feu()
         try:
-            return self.partage.ouvrir()
+            return {**self.partage.ouvrir(), "pare_feu": self._pare_feu}
         except (partage.ErreurPartage, OSError) as exc:
             journal.warning("Partage : %s", exc)
             return {"ouvert": False, "erreur": str(exc)}
