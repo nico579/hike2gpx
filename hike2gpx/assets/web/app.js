@@ -229,6 +229,7 @@ const TEXTES = {
     "partage.fond": "Fond pour le téléphone (vue affichée)",
     "partage.ouvert": "Dans hike2gpx sur le téléphone, sur le même Wi-Fi : Réglages, puis « Scanner le QR code d’un PC ». {fonds} fond(s) de carte à prendre. Le code change à chaque partage.",
     "partage.titre": "Partager au téléphone",
+    "partage.pareFeu": "Attention : le pare-feu de Windows n’autorise pas encore hike2gpx, le téléphone ne pourra pas joindre le PC. Rouvrez le partage et acceptez la demande d’autorisation de Windows.",
     "partage.revoir": "Afficher le QR code",
     "partage.fermerFenetre": "Fermer",
     "partage.erreur": "Partage impossible : {erreur}",
@@ -463,6 +464,7 @@ const TEXTES = {
     "partage.fond": "Base map for the phone (current view)",
     "partage.ouvert": "In hike2gpx on the phone, on the same Wi-Fi: Settings, then “Scan a PC’s QR code”. {fonds} base map(s) to take. The code changes with every share.",
     "partage.titre": "Share with the phone",
+    "partage.pareFeu": "Warning: the Windows firewall does not allow hike2gpx yet, so the phone cannot reach the PC. Share again and accept the Windows authorisation request.",
     "partage.revoir": "Show the QR code",
     "partage.fermerFenetre": "Close",
     "partage.erreur": "Sharing failed: {erreur}",
@@ -1593,7 +1595,9 @@ function afficherPartage(r, montrer = false) {
   $("partagerTelephone").hidden = Boolean(r.ouvert);
   $("partageOuvert").hidden = !r.ouvert;
   $("partageQr").innerHTML = r.ouvert ? r.qr : "";
-  const ouvert = r.ouvert ? t("partage.ouvert", { lots: r.lots.length, fonds: r.fonds.length, taille: tailleTexte(r.octets) }) : "";
+  // Le pare-feu de Windows (pare_feu.py) : sans sa règle, le téléphone ne joindra pas le PC.
+  const pareFeu = ["refuse", "erreur"].includes(r.pare_feu) ? ` ${t("partage.pareFeu")}` : "";
+  const ouvert = r.ouvert ? t("partage.ouvert", { lots: r.lots.length, fonds: r.fonds.length, taille: tailleTexte(r.octets) }) + pareFeu : "";
   $("partageFenetreTexte").textContent = ouvert;
   $("partageTexte").textContent = r.erreur ? t("partage.erreur", { erreur: ts(r.erreur) }) : ouvert;
   $("partageTexte").hidden = !$("partageTexte").textContent;
