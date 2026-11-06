@@ -22,7 +22,7 @@ data class Barriere(val nature: String, val points: List<Point>)
 data class PointFranchissement(val lat: Double, val lon: Double, val statut: String, val nature: String)
 
 /** Un tronçon d'un fournisseur national (BD TOPO, ATKIS…). */
-data class Troncon(val nature: String, val points: List<Point>)
+data class Troncon(val nature: String, val points: List<Point>, val fournisseur: String = "")
 
 data class DonneesCalques(
     val voies: List<Voie> = emptyList(),
@@ -37,15 +37,16 @@ data class DonneesCalques(
  * Les calques d'un lot, lus dans ses tuiles vectorielles (calques.mbtiles),
  * comme lot.lire_calque sur le PC : les voies praticables OSM et leur genre,
  * les barrières qui gênent un piéton, les franchissements bloquants ou à
- * vérifier, et les tronçons des fournisseurs nationaux (BD TOPO…).
+ * vérifier, et les tronçons de chaque fournisseur national retenu par le lot
+ * (BD TOPO, ATKIS…), filtrés par les coches des réglages.
  *
  * Le lot lu est celui qui couvre le centre de la vue ; les tuiles du zoom 14
  * sont rangées en TMS (comme tout MBTiles) et compressées en gzip.
  */
 class Calques(private val horsLigne: HorsLigne) {
 
-    fun lire(zone: Zone, osm: Boolean, officiels: Boolean): DonneesCalques {
-        if (!osm && !officiels) return DonneesCalques()
+    fun lire(zone: Zone, osm: Boolean, officiels: Set<String>): DonneesCalques {
+        if (!osm && officiels.isEmpty()) return DonneesCalques()
         val lot = lotVisible(zone) ?: return DonneesCalques()
         val fichier = File(File(horsLigne.racine, lot.case), "calques.mbtiles")
         if (!fichier.isFile) return DonneesCalques()
@@ -93,11 +94,17 @@ class Calques(private val horsLigne: HorsLigne) {
                                 ))
                             }
                         }
-                        officiels && (nom == "troncons" || nom.startsWith("troncons_")) -> for (objet in objets) {
-                            for (ligne in objet.lignes) {
-                                val points = points(ligne, x, y)
-                                if (points.size >= 2)
-                                    troncons.add(Troncon(objet.attributs["nature"]?.toString() ?: "", points))
+                        else -> {
+                            val fournisseur = fournisseurDe(nom, lot) ?: continue
+                            if (fournisseur.cle !in officiels) continue
+                            for (objet in objets) {
+                                for (ligne in objet.lignes) {
+                                    val points = points(ligne, x, y)
+                                    if (points.size >= 2)
+                                        troncons.add(Troncon(
+                                            objet.attributs["nature"]?.toString() ?: "", points, fournisseur.cle,
+                                        ))
+                                }
                             }
                         }
                     }
@@ -109,6 +116,17 @@ class Calques(private val horsLigne: HorsLigne) {
             base.close()
         }
         return DonneesCalques(voies, barrieres, franchissements, troncons)
+    }
+
+    /**
+     * Le fournisseur d'une couche de tronçons. Un lot de format 2 n'a que
+     * `troncons`, celle de son unique fournisseur (la BD TOPO) ; un lot de
+     * format 3 nomme chaque couche `troncons_<calque>`.
+     */
+    private fun fournisseurDe(nom: String, lot: Lot): Fournisseur? = when {
+        nom == "troncons" -> Fournisseurs.duLot(lot).firstOrNull()
+        nom.startsWith("troncons_") -> Fournisseurs.deCalque(nom.removePrefix("troncons_"))
+        else -> null
     }
 
     /** Le lot qui couvre le centre de la vue, l'enrichi d'abord à égalité (comme lot_couvrant). */

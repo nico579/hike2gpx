@@ -8,15 +8,17 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. On
 touche la carte pour poser le départ, puis l'arrivée et d'éventuelles étapes ;
-« Retour » retire le dernier point, « Effacer » les retire tous. Dès qu'il y a
+« Retirer » retire le dernier point, « Effacer » les retire tous, et
+« Revenir » ajoute le départ en fin de parcours pour fermer une boucle. Dès qu'il y a
 deux points, l'itinéraire se calcule hors ligne et s'affiche ; « GPX »
 l'exporte.
 
 Les calques du lot s'affichent sur la carte, comme ceux de la page : les
 chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
 qui gênent un piéton et les franchissements bloquants (rouge) ou à vérifier
-(orange), et les chemins des fournisseurs nationaux (BD TOPO, turquoise). Ils
-se cochent dans les réglages (« Calques de la carte ») et n'apparaissent qu'à
+(orange), et les chemins de chaque fournisseur national retenu par le lot
+(BD TOPO en France, turquoise), chacun avec sa coche dans les réglages
+(« Chemin IGN BD TOPO », « Chemin ATKIS »…). Ils n'apparaissent qu'à
 partir du zoom 14, celui des tuiles vectorielles du lot : en dessous, mieux
 vaut ne rien montrer qu'un réseau tronqué. Les calques sont lus dans
 `calques.mbtiles` (MVT) en arrière-plan, sans gêner le calcul de l'itinéraire ;

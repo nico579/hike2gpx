@@ -40,10 +40,28 @@ class Reglages(context: Context) {
         get() = preferences.getBoolean(CALQUE_OSM, true)
         set(v) = preferences.edit().putBoolean(CALQUE_OSM, v).apply()
 
-    /** Les chemins des fournisseurs nationaux (BD TOPO…) dessinés sur la carte. */
-    var calqueOfficiel: Boolean
-        get() = preferences.getBoolean(CALQUE_OFFICIEL, true)
-        set(v) = preferences.edit().putBoolean(CALQUE_OFFICIEL, v).apply()
+    /**
+     * Les fournisseurs nationaux dont les chemins sont dessinés (clés du
+     * manifeste : « ign », « atkis »…). Chacun a sa coche, comme sur le PC.
+     * Sans préférence enregistrée, tous sont cochés ; l'ancien réglage unique
+     * « calque_officiel » est repris une fois.
+     */
+    var calquesOfficiels: Set<String>
+        get() {
+            preferences.getStringSet(CALQUES_OFFICIELS, null)?.let { return it.toSet() }
+            if (preferences.contains(CALQUE_OFFICIEL) && !preferences.getBoolean(CALQUE_OFFICIEL, true))
+                return emptySet()
+            return Fournisseurs.TOUS.map { it.cle }.toSet()
+        }
+        set(v) = preferences.edit().putStringSet(CALQUES_OFFICIELS, v).apply()
+
+    fun calqueOfficiel(cle: String): Boolean = cle in calquesOfficiels
+
+    fun changerCalqueOfficiel(cle: String, actif: Boolean) {
+        calquesOfficiels = calquesOfficiels.toMutableSet().apply {
+            if (actif) add(cle) else remove(cle)
+        }
+    }
 
     /** La dernière vue de la carte : latitude, longitude, zoom ; Garéoult au premier lancement. */
     var vue: Triple<Double, Double, Double>
@@ -63,7 +81,8 @@ class Reglages(context: Context) {
         private const val STRICT = "strict"
         private const val OFFICIELS = "officiels"
         private const val CALQUE_OSM = "calque_osm"
-        private const val CALQUE_OFFICIEL = "calque_officiel"
+        private const val CALQUES_OFFICIELS = "calques_officiels"
+        private const val CALQUE_OFFICIEL = "calque_officiel"       // ancien réglage unique, repris une fois
         private const val VUE = "vue"
 
         /**

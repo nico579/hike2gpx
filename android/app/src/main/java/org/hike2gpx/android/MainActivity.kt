@@ -174,13 +174,16 @@ class MainActivity : Activity() {
         }
         for ((texte, action) in listOf<Pair<Int, () -> Unit>>(
             R.string.fond to ::choisirFond,
-            R.string.retour to ::retirerPoint,
+            R.string.retirer to ::retirerPoint,
             R.string.effacer to ::effacer,
+            R.string.revenir to ::revenirAuDepart,
             R.string.exporter to ::exporter,
             R.string.reglages to ::ouvrirReglages,
         )) {
             bas.addView(Button(this).apply {
-                setText(texte); textSize = 13f; isAllCaps = false; setOnClickListener { action() }
+                setText(texte); textSize = 12f; isAllCaps = false; minWidth = 0; minimumWidth = 0
+                setPadding(0, paddingTop, 0, paddingBottom)
+                setOnClickListener { action() }
             }, LinearLayout.LayoutParams(0, -2, 1f))
         }
         racine.addView(bas, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
@@ -211,6 +214,18 @@ class MainActivity : Activity() {
         points.removeAt(points.size - 1)
         dessinerPoints()
         if (points.size < 2) effacerTrace() else avancer()
+    }
+
+    /**
+     * « Revenir » de la page : le départ est ajouté en fin de parcours pour
+     * fermer une boucle. Rien à faire sans au moins deux points, ni quand le
+     * dernier point est déjà le départ.
+     */
+    private fun revenirAuDepart() {
+        val depart = points.firstOrNull() ?: return
+        val dernier = points.last()
+        if (points.size < 2 || (depart.lat == dernier.lat && depart.lon == dernier.lon)) return
+        ajouterPoint(depart)
     }
 
     private fun effacer() {
@@ -359,7 +374,8 @@ class MainActivity : Activity() {
     private fun planifierCalques() {
         sequenceCalques += 1
         planificateur.removeCallbacksAndMessages(null)
-        if ((!reglages.calqueOsm && !reglages.calqueOfficiel) || carte.zoomLevelDouble < ZOOM_CALQUES) {
+        if ((!reglages.calqueOsm && reglages.calquesOfficiels.isEmpty()) ||
+            carte.zoomLevelDouble < ZOOM_CALQUES) {
             overlayCalques.donnees = DonneesCalques()
             carte.invalidate()
             return
@@ -371,8 +387,8 @@ class MainActivity : Activity() {
     private fun rafraichirCalques() {
         if (isDestroyed) return
         val osm = reglages.calqueOsm
-        val officiel = reglages.calqueOfficiel
-        if ((!osm && !officiel) || carte.zoomLevelDouble < ZOOM_CALQUES) {
+        val officiels = reglages.calquesOfficiels
+        if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < ZOOM_CALQUES) {
             overlayCalques.donnees = DonneesCalques()
             carte.invalidate()
             return
@@ -386,7 +402,7 @@ class MainActivity : Activity() {
         val zone = Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast)
         EXECUTEUR_CALQUES.execute {
             val donnees = try {
-                calques.lire(zone, osm, officiel)
+                calques.lire(zone, osm, officiels)
             } catch (e: Exception) {
                 DonneesCalques()
             }
@@ -639,10 +655,15 @@ class MainActivity : Activity() {
             setText(R.string.calque_osm); isChecked = reglages.calqueOsm
             setOnCheckedChangeListener { _, v -> reglages.calqueOsm = v; planifierCalques() }
         })
-        colonne.addView(CheckBox(this).apply {
-            setText(R.string.calque_officiel); isChecked = reglages.calqueOfficiel
-            setOnCheckedChangeListener { _, v -> reglages.calqueOfficiel = v; planifierCalques() }
-        })
+        for (fournisseur in fournisseursDisponibles()) {
+            colonne.addView(CheckBox(this).apply {
+                text = getString(R.string.calque_fournisseur, fournisseur.nom)
+                isChecked = reglages.calqueOfficiel(fournisseur.cle)
+                setOnCheckedChangeListener { _, v ->
+                    reglages.changerCalqueOfficiel(fournisseur.cle, v); planifierCalques()
+                }
+            })
+        }
         colonne.addView(TextView(this).apply {
             setText(R.string.calque_aide); textSize = 12f
         })
@@ -834,8 +855,15 @@ class MainActivity : Activity() {
             .show()
     }
 
+    /** Les fournisseurs nationaux des lots installés : chacun a sa coche de calque. */
+    private fun fournisseursDisponibles(): List<Fournisseur> =
+        horsLigne.lots().flatMap { Fournisseurs.duLot(it) }
+            .distinctBy { it.cle }.sortedBy { it.nom }
+
     private fun description(lot: Lot): String =
-        if (lot.osm) "OSM" else getString(R.string.lot_enrichi, lot.fournisseurs.joinToString("+"))
+        if (lot.osm) "OSM" else getString(R.string.lot_enrichi,
+            Fournisseurs.duLot(lot).joinToString("+") { it.nom }
+                .ifEmpty { lot.fournisseurs.joinToString("+") })
 
     // ------------------------------------------------------------------ PC
 

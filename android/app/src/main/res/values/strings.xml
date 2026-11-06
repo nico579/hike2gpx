@@ -5,7 +5,8 @@
     <string name="etat_depart_pose">Start set: tap the finish.</string>
     <string name="arreter">Stop</string>
     <string name="fond">Map</string>
-    <string name="retour">Undo</string>
+    <string name="retirer">Remove</string>
+    <string name="revenir">Return</string>
     <string name="effacer">Clear</string>
     <string name="exporter">GPX</string>
     <string name="reglages">Settings</string>
@@ -28,9 +29,9 @@
     <string name="officiels">Official paths</string>
 
     <string name="titre_calques">Map layers</string>
-    <string name="calque_osm">OSM paths, barriers and crossings</string>
-    <string name="calque_officiel">Official paths (BD TOPO…)</string>
-    <string name="calque_aide">The layers come from the offline bundle and appear from zoom 14, like on the PC.</string>
+    <string name="calque_osm">OSM paths</string>
+    <string name="calque_fournisseur">%1$s path</string>
+    <string name="calque_aide">The layers come from the offline bundle and appear from zoom 14, like on the PC. Each national provider in the bundle has its own checkbox.</string>
 
     <string name="titre_lots">Offline bundles</string>
     <string name="titre_fonds">Offline base maps</string>
