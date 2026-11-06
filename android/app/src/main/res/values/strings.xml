@@ -35,6 +35,14 @@
     <string name="calque_zoom">Layers appear from zoom 14: zoom in to see them.</string>
     <string name="calque_vide">No layer path in this view.</string>
 
+    <string name="recherche_placeholder">Town or coordinates (lat, lon)…</string>
+    <string name="recherche_bouton">Search</string>
+    <string name="recherche_attente">Searching…</string>
+    <string name="recherche_titre">Towns found</string>
+    <string name="recherche_aucun">No town found.</string>
+    <string name="recherche_erreur">Search unavailable: %1$s</string>
+    <string name="recherche_court">Type at least two characters.</string>
+
     <string name="titre_affichage">Display</string>
     <string name="afficher_legende">Show legend</string>
     <string name="afficher_courbe">Show elevation profile</string>

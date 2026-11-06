@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.provider.Settings
+import android.text.InputType
 import android.text.format.Formatter
 import android.os.Build
 import android.os.Bundle
@@ -18,9 +19,12 @@ import android.os.Looper
 import android.os.SystemClock
 import android.database.sqlite.SQLiteDatabase
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -75,6 +79,9 @@ class MainActivity : Activity() {
     private lateinit var etat: TextView
     private lateinit var progression: ProgressBar
     private lateinit var arreter: Button
+    private var champVille: EditText? = null
+    private var boutonVille: Button? = null
+    private var sequenceVille = 0
     private var legende: LinearLayout? = null
     private var courbe: CourbeDenivele? = null
     private var repereProfil: RepereProfil? = null
@@ -180,6 +187,32 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(VOILE); setPadding(marge, marge, marge, marge)
         }
         etat = TextView(this).apply { setText(R.string.etat_pret); setTextColor(0xff202020.toInt()) }
+        val recherche = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        }
+        champVille = EditText(this).apply {
+            hint = getString(R.string.recherche_placeholder)
+            textSize = 14f
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            setOnEditorActionListener { _, actionId, event ->
+                val valide = actionId == EditorInfo.IME_ACTION_SEARCH ||
+                    (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER &&
+                        event.action == KeyEvent.ACTION_DOWN)
+                if (valide) chercherVille()
+                valide
+            }
+        }
+        recherche.addView(champVille, LinearLayout.LayoutParams(0, -2, 1f))
+        boutonVille = Button(this).apply {
+            setText(R.string.recherche_bouton); textSize = 12f; isAllCaps = false
+            minWidth = 0; minimumWidth = 0
+            setPadding(dp(12), paddingTop, dp(12), paddingBottom)
+            setOnClickListener { chercherVille() }
+        }
+        recherche.addView(boutonVille)
+        haut.addView(recherche)
         haut.addView(etat)
         progression = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000; visibility = View.GONE
@@ -960,6 +993,82 @@ class MainActivity : Activity() {
         titre(colonne, R.string.maj_titre)
         colonne.addView(TextView(this).apply { text = getString(R.string.maj_version, versionInstallee()) })
         colonne.addView(Button(this).apply { setText(R.string.maj_verifier); setOnClickListener { verifierMaj() } })
+    }
+
+    // ------------------------------------------------------------------ recherche de ville
+
+    /**
+     * La recherche de la page : une ville recentre la carte, des coordonnées
+     * aussi. La requête part en arrière-plan (elle passe par le réseau) ; le
+     * bouton reste occupé jusque-là, et une réponse plus ancienne ne peut pas
+     * écraser la plus récente.
+     */
+    private fun chercherVille() {
+        val champ = champVille ?: return
+        val demande = champ.text.toString().trim()
+        if (demande.length < 2) {
+            Toast.makeText(this, R.string.recherche_court, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val sequence = ++sequenceVille
+        val coordonnees = Communes.lireCoordonnees(demande)
+        if (coordonnees != null) {
+            centrerSurVille(coordonnees.first, coordonnees.second, 14.0)
+            return
+        }
+        cacherClavier()
+        val bouton = boutonVille ?: return
+        bouton.isEnabled = false
+        bouton.setText(R.string.recherche_attente)
+        Thread {
+            var villes: List<Ville>? = null
+            var erreur = ""
+            try {
+                villes = Communes.chercher(demande)
+            } catch (e: Exception) {
+                erreur = e.message ?: e.toString()
+            }
+            val trouvees = villes
+            runOnUiThread {
+                if (sequence != sequenceVille || isDestroyed) return@runOnUiThread
+                bouton.isEnabled = true
+                bouton.setText(R.string.recherche_bouton)
+                when {
+                    trouvees == null -> Toast.makeText(this,
+                        getString(R.string.recherche_erreur, erreur.take(160)),
+                        Toast.LENGTH_LONG).show()
+                    trouvees.isEmpty() ->
+                        Toast.makeText(this, R.string.recherche_aucun, Toast.LENGTH_SHORT).show()
+                    trouvees.size == 1 -> choisirVille(trouvees[0])
+                    else -> AlertDialog.Builder(this)
+                        .setTitle(R.string.recherche_titre)
+                        .setItems(trouvees.map { if (it.detail.isEmpty()) it.nom else "${it.nom} · ${it.detail}" }
+                            .toTypedArray()) { _, i -> choisirVille(trouvees[i]) }
+                        .show()
+                }
+            }
+        }.start()
+    }
+
+    private fun choisirVille(ville: Ville) {
+        champVille?.setText(ville.nom)
+        champVille?.setSelection(ville.nom.length)
+        centrerSurVille(ville.lat, ville.lon, 13.0)
+    }
+
+    private fun centrerSurVille(lat: Double, lon: Double, zoom: Double) {
+        cacherClavier()
+        carte.controller.setZoom(zoom)
+        carte.controller.setCenter(GeoPoint(lat, lon))
+        carte.invalidate()
+        planifierCalques()
+    }
+
+    private fun cacherClavier() {
+        val champ = champVille ?: return
+        (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
+            ?.hideSoftInputFromWindow(champ.windowToken, 0)
+        champ.clearFocus()
     }
 
     // ------------------------------------------------------------------ mise à jour

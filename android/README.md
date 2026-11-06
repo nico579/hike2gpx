@@ -13,6 +13,13 @@ touche la carte pour poser le départ, puis l'arrivée et d'éventuelles étapes
 deux points, l'itinéraire se calcule hors ligne et s'affiche ; « GPX »
 l'exporte.
 
+Au-dessus de l'état, le champ de recherche de la page recentre la carte sur
+une ville ou sur des coordonnées « lat, lon », sans poser de point. Les
+communes françaises répondent d'abord (geo.api.gouv.fr, avec leur
+département) ; ailleurs, ou si la France ne connaît rien, Nominatim donne les
+villes et villages d'OSM avec leur région et leur pays. Une seule réponse
+recadre aussitôt, plusieurs se choisissent dans une liste.
+
 Les calques du lot s'affichent sur la carte, comme ceux de la page : les
 chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
 qui gênent un piéton et les franchissements bloquants (rouge) ou à vérifier

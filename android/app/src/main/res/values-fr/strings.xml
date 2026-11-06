@@ -33,6 +33,14 @@
     <string name="calque_zoom">Les calques apparaissent à partir du zoom 14 : zoomez pour les voir.</string>
     <string name="calque_vide">Aucun chemin de calque dans cette vue.</string>
 
+    <string name="recherche_placeholder">Ville ou coordonnées (lat, lon)…</string>
+    <string name="recherche_bouton">Chercher</string>
+    <string name="recherche_attente">Recherche…</string>
+    <string name="recherche_titre">Villes trouvées</string>
+    <string name="recherche_aucun">Aucune ville trouvée.</string>
+    <string name="recherche_erreur">Recherche indisponible : %1$s</string>
+    <string name="recherche_court">Saisissez au moins deux caractères.</string>
+
     <string name="titre_affichage">Affichage</string>
     <string name="afficher_legende">Afficher légendes</string>
     <string name="afficher_courbe">Afficher courbe du dénivelé</string>
