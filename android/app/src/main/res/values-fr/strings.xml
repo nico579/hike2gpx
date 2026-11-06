@@ -29,7 +29,9 @@
     <string name="titre_calques">Calques de la carte</string>
     <string name="calque_osm">Chemins OSM</string>
     <string name="calque_fournisseur">Chemin %1$s</string>
-    <string name="calque_aide">Les calques viennent du lot hors ligne et s’affichent à partir du zoom 14, comme sur le PC. Chaque fournisseur national du lot a sa coche.</string>
+    <string name="calque_aide">Les calques viennent du lot hors ligne et s’affichent à partir du zoom 14, comme sur le PC (zoom actuel : %1$s). Chaque fournisseur national du lot a sa coche.</string>
+    <string name="calque_zoom">Les calques apparaissent à partir du zoom 14 : zoomez pour les voir.</string>
+    <string name="calque_vide">Aucun chemin de calque dans cette vue.</string>
 
     <string name="titre_lots">Lots hors ligne</string>
     <string name="titre_fonds">Fonds hors ligne</string>

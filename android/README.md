@@ -20,7 +20,9 @@ qui gênent un piéton et les franchissements bloquants (rouge) ou à vérifier
 (BD TOPO en France, turquoise), chacun avec sa coche dans les réglages
 (« Chemin IGN BD TOPO », « Chemin ATKIS »…). Ils n'apparaissent qu'à
 partir du zoom 14, celui des tuiles vectorielles du lot : en dessous, mieux
-vaut ne rien montrer qu'un réseau tronqué. Les calques sont lus dans
+vaut ne rien montrer qu'un réseau tronqué. Les réglages rappellent le zoom
+courant ; une coche sous ce zoom, ou une vue sans chemin de calque, le dit
+plutôt que de laisser croire que la case ne marche pas. Les calques sont lus dans
 `calques.mbtiles` (MVT) en arrière-plan, sans gêner le calcul de l'itinéraire ;
 un lot ancien qui n'a pas ce fichier n'affiche simplement rien.
 

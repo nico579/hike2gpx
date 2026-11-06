@@ -27,6 +27,7 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
 import org.osmdroid.config.Configuration
@@ -48,6 +49,7 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
 import java.io.File
+import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -92,6 +94,8 @@ class MainActivity : Activity() {
     private val calquesOccupe = AtomicBoolean(false)
     private var calquesARefaire = false
     private var sequenceCalques = 0
+    /** Un cochage attend la lecture en cours pour dire si la vue a des chemins. */
+    private var calqueCoche = false
     private val planificateur = Handler(Looper.getMainLooper())
     /** Un calcul de relief plus récent remplace celui qui tourne encore. */
     private var sequenceDenivele = 0
@@ -368,6 +372,20 @@ class MainActivity : Activity() {
     // ------------------------------------------------------------------ calques du lot
 
     /**
+     * Une coche sous le zoom 14 ne montre rien : le dire tout de suite, sinon
+     * la case semble sans effet. Au-dessus, la lecture prévient si la vue ne
+     * contient aucun chemin de calque.
+     */
+    private fun signalerCocheCalque() {
+        if (carte.zoomLevelDouble < ZOOM_CALQUES) {
+            calqueCoche = false
+            Toast.makeText(this, R.string.calque_zoom, Toast.LENGTH_LONG).show()
+        } else {
+            calqueCoche = true
+        }
+    }
+
+    /**
      * Les calques ne se lisent qu'au zoom 14, celui des tuiles du lot, comme
      * la page ; en dessous, mieux vaut ne rien montrer qu'un réseau tronqué.
      */
@@ -376,6 +394,7 @@ class MainActivity : Activity() {
         planificateur.removeCallbacksAndMessages(null)
         if ((!reglages.calqueOsm && reglages.calquesOfficiels.isEmpty()) ||
             carte.zoomLevelDouble < ZOOM_CALQUES) {
+            calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
             carte.invalidate()
             return
@@ -389,6 +408,7 @@ class MainActivity : Activity() {
         val osm = reglages.calqueOsm
         val officiels = reglages.calquesOfficiels
         if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < ZOOM_CALQUES) {
+            calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
             carte.invalidate()
             return
@@ -412,6 +432,11 @@ class MainActivity : Activity() {
                 if (sequence == sequenceCalques) {
                     overlayCalques.donnees = donnees
                     carte.invalidate()
+                    if (calqueCoche) {
+                        calqueCoche = false
+                        if (donnees.vide)
+                            Toast.makeText(this, R.string.calque_vide, Toast.LENGTH_LONG).show()
+                    }
                 }
                 if (calquesARefaire) {
                     calquesARefaire = false
@@ -653,19 +678,26 @@ class MainActivity : Activity() {
         titre(colonne, R.string.titre_calques)
         colonne.addView(CheckBox(this).apply {
             setText(R.string.calque_osm); isChecked = reglages.calqueOsm
-            setOnCheckedChangeListener { _, v -> reglages.calqueOsm = v; planifierCalques() }
+            setOnCheckedChangeListener { _, v ->
+                reglages.calqueOsm = v
+                if (v) signalerCocheCalque() else calqueCoche = false
+                planifierCalques()
+            }
         })
         for (fournisseur in fournisseursDisponibles()) {
             colonne.addView(CheckBox(this).apply {
                 text = getString(R.string.calque_fournisseur, fournisseur.nom)
                 isChecked = reglages.calqueOfficiel(fournisseur.cle)
                 setOnCheckedChangeListener { _, v ->
-                    reglages.changerCalqueOfficiel(fournisseur.cle, v); planifierCalques()
+                    reglages.changerCalqueOfficiel(fournisseur.cle, v)
+                    if (v) signalerCocheCalque() else calqueCoche = false
+                    planifierCalques()
                 }
             })
         }
         colonne.addView(TextView(this).apply {
-            setText(R.string.calque_aide); textSize = 12f
+            text = getString(R.string.calque_aide, String.format(Locale.getDefault(), "%.1f", carte.zoomLevelDouble))
+            textSize = 12f
         })
 
         titre(colonne, R.string.titre_lots)

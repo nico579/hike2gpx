@@ -31,7 +31,9 @@
     <string name="titre_calques">Map layers</string>
     <string name="calque_osm">OSM paths</string>
     <string name="calque_fournisseur">%1$s path</string>
-    <string name="calque_aide">The layers come from the offline bundle and appear from zoom 14, like on the PC. Each national provider in the bundle has its own checkbox.</string>
+    <string name="calque_aide">The layers come from the offline bundle and appear from zoom 14, like on the PC (current zoom: %1$s). Each national provider in the bundle has its own checkbox.</string>
+    <string name="calque_zoom">Layers appear from zoom 14: zoom in to see them.</string>
+    <string name="calque_vide">No layer path in this view.</string>
 
     <string name="titre_lots">Offline bundles</string>
     <string name="titre_fonds">Offline base maps</string>
