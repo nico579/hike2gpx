@@ -63,6 +63,16 @@ class Reglages(context: Context) {
         }
     }
 
+    /** La légende des symboles de la carte, sous le bandeau d'état. */
+    var legende: Boolean
+        get() = preferences.getBoolean(LEGENDE, true)
+        set(v) = preferences.edit().putBoolean(LEGENDE, v).apply()
+
+    /** La courbe du dénivelé, au-dessus des boutons, comme le profil de la page. */
+    var courbeDenivele: Boolean
+        get() = preferences.getBoolean(COURBE_DENIVELE, true)
+        set(v) = preferences.edit().putBoolean(COURBE_DENIVELE, v).apply()
+
     /** La dernière vue de la carte : latitude, longitude, zoom ; Garéoult au premier lancement. */
     var vue: Triple<Double, Double, Double>
         get() = preferences.getString(VUE, null)?.split(',')?.mapNotNull { it.toDoubleOrNull() }
@@ -83,6 +93,8 @@ class Reglages(context: Context) {
         private const val CALQUE_OSM = "calque_osm"
         private const val CALQUES_OFFICIELS = "calques_officiels"
         private const val CALQUE_OFFICIEL = "calque_officiel"       // ancien réglage unique, repris une fois
+        private const val LEGENDE = "legende"
+        private const val COURBE_DENIVELE = "courbe_denivele"
         private const val VUE = "vue"
 
         /**

@@ -27,6 +27,9 @@ data class ProfilAltimetrique(
     val altitudeMaxM: Int,
     val dureeMarcheS: Long,
     val modele: String,
+    /** Le profil lissé de gpx2elev : distance en mètres, altitude en mètres. */
+    val distancesM: DoubleArray = DoubleArray(0),
+    val altitudesM: DoubleArray = DoubleArray(0),
 )
 
 /**
@@ -79,6 +82,8 @@ object Denivele {
             altitudeMaxM = maximum(lisse).roundToInt(),
             dureeMarcheS = Math.round(duree),
             modele = nomModele,
+            distancesM = grille.copyOf(),
+            altitudesM = lisse.copyOf(),
         )
     }
 

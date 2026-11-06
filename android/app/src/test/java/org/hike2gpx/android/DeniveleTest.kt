@@ -47,6 +47,13 @@ class DeniveleTest {
         assertEquals(200, profil.altitudeMaxM)
         assertEquals(1089L, profil.dureeMarcheS)        // même valeur que gpx2elev sur ce profil
         assertEquals("Mapterhorn", profil.modele)
+        // Le profil lissé garde la courbe à dessiner : une altitude par distance, de bout en bout.
+        assertEquals(profil.distancesM.size, profil.altitudesM.size)
+        assertTrue(profil.distancesM.size > 200)
+        assertEquals(0.0, profil.distancesM.first(), 0.0)
+        assertEquals(1111.95, profil.distancesM.last(), 0.5)
+        assertEquals(100.0, profil.altitudesM.first(), 0.5)
+        assertEquals(200.0, profil.altitudesM.last(), 0.5)
     }
 
     @Test fun la_descente_se_compte_dans_l_autre_sens() {

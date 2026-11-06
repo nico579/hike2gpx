@@ -4,6 +4,9 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.DashPathEffect
+import android.graphics.Paint
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.provider.Settings
@@ -72,6 +75,10 @@ class MainActivity : Activity() {
     private lateinit var etat: TextView
     private lateinit var progression: ProgressBar
     private lateinit var arreter: Button
+    private var legende: LinearLayout? = null
+    private var courbe: CourbeDenivele? = null
+    private var echelle: ScaleBarOverlay? = null
+    private var droits: CopyrightOverlay? = null
     private val points = mutableListOf<Point>()
     private val reperes = mutableListOf<Marker>()
     private var trace: Polyline? = null
@@ -139,8 +146,10 @@ class MainActivity : Activity() {
             // Les calques du lot restent sous le tracé et sous les repères.
             overlays.add(0, overlayCalques)
             // Au-dessus de la barre de boutons : l'attribution du fond doit rester lisible.
-            overlays.add(CopyrightOverlay(this@MainActivity).apply { setOffset(dp(8), dp(64)) })
-            overlays.add(ScaleBarOverlay(this).apply { setAlignBottom(true); setScaleBarOffset(dp(8), dp(84)) })
+            droits = CopyrightOverlay(this@MainActivity).apply { setOffset(dp(8), dp(64)) }
+            overlays.add(droits)
+            echelle = ScaleBarOverlay(this).apply { setAlignBottom(true); setScaleBarOffset(dp(8), dp(84)) }
+            overlays.add(echelle)
             overlays.add(MapEventsOverlay(object : MapEventsReceiver {
                 override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
                     ajouterPoint(Point(p.latitude, p.longitude)); return true
@@ -173,8 +182,16 @@ class MainActivity : Activity() {
         haut.addView(progression)
         arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }
         haut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
+        legende = construireLegende()
+        haut.addView(legende)
         racine.addView(haut, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
+        val pied = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        courbe = CourbeDenivele(this).apply {
+            visibility = View.GONE
+            setBackgroundColor(0xf7ffffff.toInt())
+        }
+        pied.addView(courbe, LinearLayout.LayoutParams(-1, dp(96)))
         val bas = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE); setPadding(marge / 2, marge / 2, marge / 2, marge / 2)
         }
@@ -192,7 +209,8 @@ class MainActivity : Activity() {
                 setOnClickListener { action() }
             }, LinearLayout.LayoutParams(0, -2, 1f))
         }
-        racine.addView(bas, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        pied.addView(bas, LinearLayout.LayoutParams(-1, -2))
+        racine.addView(pied, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
 
         // Android 15 dessine l'application sous les barres du système : les bandeaux s'en écartent.
         racine.setOnApplyWindowInsetsListener { _, insets ->
@@ -200,10 +218,94 @@ class MainActivity : Activity() {
                 insets.getInsets(WindowInsets.Type.systemBars()).let { it.top to it.bottom }
             else @Suppress("DEPRECATION") (insets.systemWindowInsetTop to insets.systemWindowInsetBottom)
             haut.setPadding(marge, marge + dessus, marge, marge)
-            bas.setPadding(marge / 2, marge / 2, marge / 2, marge / 2 + dessous)
+            pied.setPadding(0, 0, 0, dessous)
             insets
         }
         setContentView(racine)
+        appliquerAffichage()
+    }
+
+    /**
+     * La légende de la page, sous le bandeau d'état : les mêmes symboles que
+     * ceux dessinés par CalquesOverlay et par le tracé de l'itinéraire. Les
+     * couleurs viennent des overlays, pour qu'une légende ne mente jamais sur
+     * ce que la carte montre.
+     */
+    private fun construireLegende(): LinearLayout {
+        val boite = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        boite.addView(TextView(this).apply {
+            setText(R.string.legende_titre); textSize = 12f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xff202020.toInt())
+        })
+        fun ligne(texte: Int, couleur: Int, pastille: Boolean = false, tirets: Boolean = false) {
+            val rangee = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            }
+            val densite = resources.displayMetrics.density
+            // Le même trait que CalquesOverlay : plein, en tirets, ou une pastille cerclée de blanc.
+            rangee.addView(object : View(this) {
+                private val pinceau = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeCap = Paint.Cap.ROUND
+                }
+
+                override fun onDraw(canvas: Canvas) {
+                    val y = height / 2f
+                    if (pastille) {
+                        pinceau.style = Paint.Style.FILL
+                        pinceau.color = couleur
+                        canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
+                        pinceau.style = Paint.Style.STROKE
+                        pinceau.strokeWidth = 2 * densite
+                        pinceau.color = 0xffffffff.toInt()
+                        canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
+                    } else {
+                        pinceau.style = Paint.Style.STROKE
+                        pinceau.strokeWidth = 3 * densite
+                        pinceau.color = couleur
+                        pinceau.pathEffect = if (tirets)
+                            DashPathEffect(floatArrayOf(4 * densite, 3 * densite), 0f) else null
+                        canvas.drawLine(2 * densite, y, width - 2 * densite, y, pinceau)
+                    }
+                }
+            }, LinearLayout.LayoutParams(dp(28), dp(16)))
+            rangee.addView(TextView(this).apply {
+                setText(texte); textSize = 11f; setTextColor(0xff404040.toInt())
+            })
+            boite.addView(rangee)
+        }
+        // Le tracé de l'itinéraire, puis les calques du lot.
+        ligne(R.string.legende_itineraire, 0xff175dcb.toInt())
+        ligne(R.string.legende_officiel, CalquesOverlay.COULEUR_OFFICIEL, tirets = true)
+        ligne(R.string.legende_osm, CalquesOverlay.COULEUR_OSM, tirets = true)
+        ligne(R.string.legende_barriere, CalquesOverlay.COULEUR_BARRIERE)
+        ligne(R.string.legende_bloque, CalquesOverlay.COULEUR_BLOQUE, true)
+        ligne(R.string.legende_verifier, CalquesOverlay.COULEUR_A_VERIFIER, true)
+        return boite
+    }
+
+    /** Applique les deux coches d'affichage des réglages, sans attendre un redémarrage. */
+    private fun appliquerAffichage() {
+        legende?.visibility = if (reglages.legende) View.VISIBLE else View.GONE
+        afficherCourbe()
+    }
+
+    /**
+     * La courbe n'a de sens qu'avec un profil calculé. Quand elle prend la
+     * place au-dessus des boutons, l'échelle et l'attribution remontent pour
+     * rester lisibles, comme les bandeaux de la page.
+     */
+    private fun afficherCourbe() {
+        val vue = courbe ?: return
+        val montre = reglages.courbeDenivele && vue.profil != null
+        vue.visibility = if (montre) View.VISIBLE else View.GONE
+        val hauteur = if (montre) dp(100) else 0
+        echelle?.setScaleBarOffset(dp(8), dp(84) + hauteur)
+        droits?.setOffset(dp(8), dp(64) + hauteur)
     }
 
     // ------------------------------------------------------------------ points et calcul
@@ -266,6 +368,8 @@ class MainActivity : Activity() {
         dernier = null
         sequenceDenivele += 1
         bilanItineraire = ""
+        courbe?.profil = null
+        afficherCourbe()
         carte.invalidate()
     }
 
@@ -342,6 +446,8 @@ class MainActivity : Activity() {
                 else
                     listOf(base, getString(R.string.etat_denivele_indisponible, erreur.take(160)))
                         .filter { it.isNotEmpty() }.joinToString("\n")
+                courbe?.profil = calcule
+                afficherCourbe()
             }
         }
     }
@@ -355,6 +461,8 @@ class MainActivity : Activity() {
 
     private fun montrer(coordonnees: JSONArray) {
         trace?.let { carte.overlays.remove(it) }
+        courbe?.profil = null
+        afficherCourbe()
         val geo = List(coordonnees.length()) {
             coordonnees.getJSONArray(it).let { p -> GeoPoint(p.getDouble(1), p.getDouble(0)) }
         }
@@ -514,8 +622,8 @@ class MainActivity : Activity() {
         }
         AlertDialog.Builder(this)
             .setTitle(offre.lot.case)
-            .setMessage(getString(R.string.confirmer_donnees_mobiles, offre.lot.case, offre.lot.octets / 1_000_000,
-                offre.source.libelle))
+            .setMessage(getString(R.string.confirmer_donnees_mobiles, offre.lot.case,
+                Formatter.formatShortFileSize(this, offre.lot.octets), offre.source.libelle))
             .setPositiveButton(R.string.telecharger) { _, _ ->
                 autoLotDemande = null
                 telecharger(offre)
@@ -534,7 +642,8 @@ class MainActivity : Activity() {
         autoLotDemande = null
         val lot = offre.lot
         tache(R.string.etat_telechargement, true, { continuer ->
-            runOnUiThread { etat.text = getString(R.string.etat_telechargement_lot, lot.case, lot.octets / 1_000_000) }
+            runOnUiThread { etat.text = getString(R.string.etat_telechargement_lot, lot.case,
+                Formatter.formatShortFileSize(this, lot.octets)) }
             val travail = File(File(filesDir, "telechargements"), lot.case)
             Depot().telecharger(lot, offre.source, travail, { faits, total ->
                 runOnUiThread { progression.progress = (1000 * faits / maxOf(total, 1)).toInt() }
@@ -563,7 +672,8 @@ class MainActivity : Activity() {
                 routeur.annuler()
                 val octets = horsLigne.supprimer(lot.case)
                 retirees.add(lot.case)
-                etat.text = getString(R.string.etat_supprime, lot.case, octets / 1_000_000)
+                etat.text = getString(R.string.etat_supprime, lot.case,
+                    Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
                 planifierCalques()
             }
@@ -583,12 +693,14 @@ class MainActivity : Activity() {
         choix.add(getString(R.string.fond_topo) to { appliquerFond("topo") })
         for ((source, fichiers) in fonds.parSource()) {
             choix.add(getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
-                fichiers.sumOf { it.length() } / 1_000_000) to { appliquerFond(source); cadrerSur(fichiers) })
+                Formatter.formatShortFileSize(this, fichiers.sumOf { it.length() })) to
+                { appliquerFond(source); cadrerSur(fichiers) })
         }
         val proposes = fondsProposes(cataloguesPc ?: emptyList(), fonds.installes().map { it.nameWithoutExtension }.toSet())
         for ((source, fond) in proposes) {
-            choix.add(getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom, fond.octets / 1_000_000,
-                source.libelle) to { telechargerFond(source, fond) })
+            choix.add(getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom,
+                Formatter.formatShortFileSize(this, fond.octets), source.libelle) to
+                { telechargerFond(source, fond) })
         }
         if (reglages.pcs().isEmpty()) choix.add(getString(R.string.fond_sans_pc) to { scannerQr() })
         else if (proposes.isEmpty()) choix.add(getString(R.string.fond_relire) to { cataloguesPc = null; choisirFond() })
@@ -602,7 +714,8 @@ class MainActivity : Activity() {
     private fun telechargerFond(source: Source, fond: Fond) {
         AlertDialog.Builder(this)
             .setTitle(fond.nom)
-            .setMessage(getString(R.string.confirmer_telechargement, fond.octets / 1_000_000, source.libelle))
+            .setMessage(getString(R.string.confirmer_telechargement,
+                Formatter.formatShortFileSize(this, fond.octets), source.libelle))
             .setPositiveButton(R.string.telecharger) { _, _ ->
                 tache(R.string.etat_telechargement, true, { continuer ->
                     val travail = File(filesDir, "telechargements")
@@ -732,6 +845,16 @@ class MainActivity : Activity() {
             textSize = 12f
         })
 
+        titre(colonne, R.string.titre_affichage)
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.afficher_legende); isChecked = reglages.legende
+            setOnCheckedChangeListener { _, v -> reglages.legende = v; appliquerAffichage() }
+        })
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
+            setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
+        })
+
         titre(colonne, R.string.titre_lots)
         val installes = horsLigne.lots()
         for (lot in installes) {
@@ -750,7 +873,9 @@ class MainActivity : Activity() {
         val absents = offres.filter { o -> installes.none { it.case == o.lot.case } }
         if (absents.isNotEmpty()) {
             colonne.addView(TextView(this).apply {
-                text = getString(R.string.au_catalogue, absents.joinToString(", ") { "${it.lot.case} (${it.lot.octets / 1_000_000} Mo)" })
+                text = getString(R.string.au_catalogue, absents.joinToString(", ") {
+                    "${it.lot.case} (${Formatter.formatShortFileSize(this@MainActivity, it.lot.octets)})"
+                })
             })
         }
         colonne.addView(Button(this).apply { setText(R.string.actualiser); setOnClickListener { actualiser() } })
@@ -792,7 +917,7 @@ class MainActivity : Activity() {
 
         titre(colonne, R.string.titre_cache)
         colonne.addView(Button(this).apply {
-            text = getString(R.string.vider_cache, octetsCaches() / 1_000_000)
+            text = getString(R.string.vider_cache, Formatter.formatShortFileSize(this@MainActivity, octetsCaches()))
             setOnClickListener { viderCache() }
         })
 
@@ -900,7 +1025,8 @@ class MainActivity : Activity() {
     private fun viderCache() {
         AlertDialog.Builder(this)
             .setTitle(R.string.titre_cache)
-            .setMessage(getString(R.string.confirmer_vider_cache, octetsCaches() / 1_000_000))
+            .setMessage(getString(R.string.confirmer_vider_cache,
+                Formatter.formatShortFileSize(this, octetsCaches())))
             .setPositiveButton(R.string.vider) { _, _ ->
                 if (enCours.get()) {
                     etat.setText(R.string.etat_occupe_cache); return@setPositiveButton
@@ -913,7 +1039,8 @@ class MainActivity : Activity() {
                 exclues.clear()
                 effacerTrace()
                 appliquerFond(if (reglages.fond == "topo") "topo" else "osm")     // un fournisseur neuf, sur un cache neuf
-                etat.text = getString(R.string.etat_cache_vide, octets / 1_000_000)
+                etat.text = getString(R.string.etat_cache_vide,
+                    Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
                 planifierCalques()
             }
