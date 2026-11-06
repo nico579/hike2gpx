@@ -85,6 +85,8 @@ class MainActivity : Activity() {
     private val retirees = mutableSetOf<String>()
     /** Un point posé pendant une tâche : on reprend à sa fin. */
     private var aReprendre = false
+    /** Case dont le téléchargement automatique est proposé ou en cours. */
+    private var autoLotDemande: String? = null
     private var fenetreReglages: LinearLayout? = null
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
     private var apkEnAttente: File? = null
@@ -281,6 +283,7 @@ class MainActivity : Activity() {
         val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
         val aFaire = lotsATelecharger(offres, horsLigne.lots(), Zone.autour(points), exclu)
         if (aFaire.isNotEmpty()) {
+            autoLotDemande = aFaire.first().lot.case
             telechargerAuto(aFaire.first()); return
         }
         if (points.size >= 2) calculer()
@@ -399,7 +402,25 @@ class MainActivity : Activity() {
             carte.invalidate()
             return
         }
+        proposerLotCalques()
         planificateur.postDelayed({ rafraichirCalques() }, 350)
+    }
+
+    /**
+     * Comme la page, afficher un calque est un usage réel de la région : le
+     * lot de la case du centre se télécharge de lui-même s'il manque, ou si
+     * le catalogue en a un plus récent. Un survol sous le zoom 14 ne suffit
+     * pas, et une case refusée ou en échec attend une heure.
+     */
+    private fun proposerLotCalques() {
+        if (enCours.get() || autoLotDemande != null) return
+        val boite = carte.boundingBox ?: return
+        val maintenant = SystemClock.elapsedRealtime()
+        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
+        val zone = Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast)
+        val offre = offreAuCentre(offres, horsLigne.lots(), zone, exclu) ?: return
+        autoLotDemande = offre.lot.case
+        telechargerAuto(offre)
     }
 
     /** Lit les tuiles de la vue en arrière-plan ; une lecture à la fois. */
@@ -434,7 +455,7 @@ class MainActivity : Activity() {
                     carte.invalidate()
                     if (calqueCoche) {
                         calqueCoche = false
-                        if (donnees.vide)
+                        if (donnees.vide && !enCours.get() && autoLotDemande == null)
                             Toast.makeText(this, R.string.calque_vide, Toast.LENGTH_LONG).show()
                     }
                 }
@@ -456,7 +477,7 @@ class MainActivity : Activity() {
      */
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
         val choix = choisir(listOf(Source.GITHUB to Depot().lireCatalogue(Source.GITHUB)))
-        runOnUiThread { offres = choix; remplirReglages() }
+        runOnUiThread { offres = choix; remplirReglages(); planifierCalques() }
         if (points.isEmpty()) getString(R.string.etat_pret) else getString(R.string.etat_catalogue_lu, choix.size)
     }, ensuite = { avancer() })
 
@@ -476,30 +497,41 @@ class MainActivity : Activity() {
         else echecs.joinToString("\n")
     }, ensuite = { ensuite() })
 
-    /** Le lot qui manque pour le parcours : de lui-même sur le Wi-Fi, sur demande sur un réseau facturé. */
+    /** Le lot qui manque : de lui-même sur le Wi-Fi, sur demande sur un réseau facturé. */
     private fun telechargerAuto(offre: Offre) {
+        autoLotDemande = offre.lot.case
         val reseau = getSystemService(ConnectivityManager::class.java)
         if (reseau.activeNetwork == null) {
+            autoLotDemande = null
+            // Un calque sans réseau ne réessaie pas en boucle ; un parcours, lui, le dit à chaque calcul.
+            if (points.size < 2) exclues[offre.lot.case] = SystemClock.elapsedRealtime()
             if (points.size >= 2) calculer()
             return
         }
         if (!reseau.isActiveNetworkMetered) {
+            autoLotDemande = null
             telecharger(offre); return
         }
         AlertDialog.Builder(this)
             .setTitle(offre.lot.case)
             .setMessage(getString(R.string.confirmer_donnees_mobiles, offre.lot.case, offre.lot.octets / 1_000_000,
                 offre.source.libelle))
-            .setPositiveButton(R.string.telecharger) { _, _ -> telecharger(offre) }
+            .setPositiveButton(R.string.telecharger) { _, _ ->
+                autoLotDemande = null
+                telecharger(offre)
+            }
             .setNegativeButton(R.string.plus_tard) { _, _ ->
+                autoLotDemande = null
                 exclues[offre.lot.case] = SystemClock.elapsedRealtime()
                 avancer()
+                planifierCalques()
             }
             .setCancelable(false)
             .show()
     }
 
     private fun telecharger(offre: Offre) {
+        autoLotDemande = null
         val lot = offre.lot
         tache(R.string.etat_telechargement, true, { continuer ->
             runOnUiThread { etat.text = getString(R.string.etat_telechargement_lot, lot.case, lot.octets / 1_000_000) }
@@ -706,7 +738,8 @@ class MainActivity : Activity() {
             val offre = offres.firstOrNull { it.lot.case == lot.case }
             val ligne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             ligne.addView(TextView(this).apply {
-                text = getString(R.string.ligne_installe, lot.case, description(lot), lot.octets / 1_000_000)
+                text = getString(R.string.ligne_installe, lot.case, description(lot),
+                    Formatter.formatShortFileSize(this@MainActivity, lot.octets))
             }, LinearLayout.LayoutParams(0, -2, 1f))
             if (offre != null && plusRecent(offre.lot, lot))
                 ligne.addView(Button(this).apply { setText(R.string.mettre_a_jour); setOnClickListener { telecharger(offre) } })
@@ -726,7 +759,8 @@ class MainActivity : Activity() {
         val installesFonds = fonds.installes()
         for (f in installesFonds) {
             val ligne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            ligne.addView(TextView(this).apply { text = getString(R.string.ligne_fond, f.nameWithoutExtension, f.length() / 1_000_000) },
+            ligne.addView(TextView(this).apply { text = getString(R.string.ligne_fond, f.nameWithoutExtension,
+                Formatter.formatShortFileSize(this@MainActivity, f.length())) },
                 LinearLayout.LayoutParams(0, -2, 1f))
             ligne.addView(Button(this).apply {
                 setText(R.string.supprimer)

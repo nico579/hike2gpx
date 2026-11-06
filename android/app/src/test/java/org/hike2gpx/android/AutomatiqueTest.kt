@@ -2,6 +2,7 @@ package org.hike2gpx.android
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -37,6 +38,25 @@ class AutomatiqueTest {
     @Test fun une_case_exclue_ne_revient_pas() {
         val offres = listOf(Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-01")))
         assertTrue(lotsATelecharger(offres, emptyList(), gareoult, setOf("E5_N40")).isEmpty())
+    }
+
+    @Test fun le_calque_demande_le_lot_du_centre_de_la_vue() {
+        val offres = listOf(Offre(Source.GITHUB, lot("E0_N40", e0n40, "2026-11-01")),
+            Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-01")))
+        assertEquals("E5_N40", offreAuCentre(offres, emptyList(), gareoult, emptySet())?.lot?.case)
+        // La vue qui chevauche les deux cases prend celle de son centre, pas la première du catalogue.
+        val aCheval = Zone(43.0, 4.99, 43.1, 5.03)
+        assertEquals("E5_N40", offreAuCentre(offres, emptyList(), aCheval, emptySet())?.lot?.case)
+        assertEquals("E0_N40", offreAuCentre(offres, emptyList(), Zone(43.0, 4.9, 43.1, 4.99), emptySet())?.lot?.case)
+    }
+
+    @Test fun le_calque_ne_reprend_pas_un_lot_a_jour_ou_refuse() {
+        val installe = lot("E5_N40", e5n40, "2026-11-01")
+        val offres = listOf(Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-01")))
+        assertNull(offreAuCentre(offres, listOf(installe), gareoult, emptySet()))
+        assertNull(offreAuCentre(offres, emptyList(), gareoult, setOf("E5_N40")))
+        val plusRecent = listOf(Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-08")))
+        assertEquals("E5_N40", offreAuCentre(plusRecent, listOf(installe), gareoult, emptySet())?.lot?.case)
     }
 
     @Test fun un_parcours_a_cheval_prend_les_deux_cases() {

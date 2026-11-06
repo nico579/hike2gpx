@@ -45,9 +45,9 @@
     <string name="coller_lien">Coller le lien d’un PC</string>
     <string name="ajouter_pc">Ajouter ce PC comme source ?</string>
     <string name="confirmer_pc">Catalogue : %1$s</string>
-    <string name="ligne_installe">%1$s · %2$s · %3$d Mo</string>
-    <string name="ligne_fond">%1$s · %2$d Mo</string>
-    <string name="au_catalogue">Au catalogue, téléchargés d’eux-mêmes quand un parcours y passe : %1$s.</string>
+    <string name="ligne_installe">%1$s · %2$s · %3$s</string>
+    <string name="ligne_fond">%1$s · %2$s</string>
+    <string name="au_catalogue">Au catalogue, téléchargés d’eux-mêmes quand un parcours ou un calque y passe : %1$s.</string>
     <string name="aucun_lot">Aucun lot installé.</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>
     <string name="telecharger">Télécharger</string>
@@ -70,7 +70,7 @@
     <string name="etat_fonds_pc">Lecture des fonds partagés par le PC…</string>
     <string name="etat_fonds_pc_lus">%1$d fond(s) partagé(s) par le PC.</string>
     <string name="etat_telechargement">Téléchargement…</string>
-    <string name="etat_telechargement_lot">Téléchargement du lot %1$s (%2$d Mo), qui couvre ce parcours…</string>
+    <string name="etat_telechargement_lot">Téléchargement du lot %1$s (%2$d Mo)…</string>
     <string name="etat_installe">Lot %1$s installé.</string>
     <string name="etat_supprime">Lot %1$s retiré, %2$d Mo libérés.</string>
     <string name="etat_interrompu">Téléchargement interrompu : il reprendra là où il s’est arrêté.</string>

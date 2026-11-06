@@ -39,10 +39,13 @@ la valeur BRouter ne le remplace pas, comme sur le PC.
 Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
 (`application._lot_automatique`) : l'application lit les catalogues à son
 lancement, et quand un parcours touche une case dont le lot manque, ou dont le
-dépôt a une édition plus récente, ce lot part aussitôt. Sur le Wi-Fi, sans
-rien demander ; sur un réseau facturé (données mobiles), après confirmation.
-Un échec ou un refus n'est pas repris avant une heure, et un lot supprimé à la
-main ne revient pas de la séance.
+dépôt a une édition plus récente, ce lot part aussitôt. Afficher un calque du
+lot au zoom 14 compte aussi comme un usage de la région : le lot de la case du
+centre se télécharge de lui-même. Sur le Wi-Fi, sans rien demander ; sur un
+réseau facturé (données mobiles), après confirmation. Un échec ou un refus
+n'est pas repris avant une heure, et un lot supprimé à la main ne revient pas
+de la séance. Les lots et les fonds installés affichent leur taille réelle
+(« 254 kB » pour un petit lot d'essai, jamais un « 0 Mo » trompeur).
 
 Le bouton « Fond » choisit le fond de carte : OpenStreetMap ou OpenTopoMap en
 ligne, ou un fond hors ligne reçu d'un PC (le SCAN 25 ou le Plan IGN qu'il a
@@ -82,7 +85,9 @@ d'Android par un `FileProvider` (`FournisseurMaj`, qui ne partage que
 `cache/maj`). La première fois, Android demande d'autoriser hike2gpx à
 installer des applications ; la mise à jour reprend au retour. Lots, fonds et
 réglages sont gardés. L'APK d'essai ne se compare pas aux releases au
-lancement : ce n'est pas le même paquet.
+lancement : ce n'est pas le même paquet. Il a donc son propre stockage : les
+lots et les fonds téléchargés dans l'application normale ne s'y voient pas, il
+faut les y télécharger ou les recevoir d'un PC.
 
 Le catalogue des lots (`catalog.json`) a le format de `hike2gpx/depot.py`.
 Un lot se télécharge fichier par fichier ; une
