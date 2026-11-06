@@ -77,6 +77,9 @@ class MainActivity : Activity() {
     private lateinit var arreter: Button
     private var legende: LinearLayout? = null
     private var courbe: CourbeDenivele? = null
+    private var repereProfil: RepereProfil? = null
+    private var coordonneesProfil: List<DoubleArray> = emptyList()
+    private var distancesProfil: DoubleArray = DoubleArray(0)
     private var echelle: ScaleBarOverlay? = null
     private var droits: CopyrightOverlay? = null
     private val points = mutableListOf<Point>()
@@ -145,6 +148,8 @@ class MainActivity : Activity() {
             controller.setCenter(GeoPoint(vue.first, vue.second))
             // Les calques du lot restent sous le tracé et sous les repères.
             overlays.add(0, overlayCalques)
+            // Le point de la courbe se dessine juste au-dessus du tracé.
+            repereProfil = RepereProfil(this@MainActivity).also { overlays.add(1, it) }
             // Au-dessus de la barre de boutons : l'attribution du fond doit rester lisible.
             droits = CopyrightOverlay(this@MainActivity).apply { setOffset(dp(8), dp(64)) }
             overlays.add(droits)
@@ -190,6 +195,8 @@ class MainActivity : Activity() {
         courbe = CourbeDenivele(this).apply {
             visibility = View.GONE
             setBackgroundColor(0xf7ffffff.toInt())
+            contentDescription = getString(R.string.courbe_aide)
+            onPosition = ::montrerPositionProfil
         }
         pied.addView(courbe, LinearLayout.LayoutParams(-1, dp(96)))
         val bas = LinearLayout(this).apply {
@@ -303,9 +310,28 @@ class MainActivity : Activity() {
         val vue = courbe ?: return
         val montre = reglages.courbeDenivele && vue.profil != null
         vue.visibility = if (montre) View.VISIBLE else View.GONE
+        if (!montre) cacherRepereProfil()
         val hauteur = if (montre) dp(100) else 0
         echelle?.setScaleBarOffset(dp(8), dp(84) + hauteur)
         droits?.setOffset(dp(8), dp(64) + hauteur)
+    }
+
+    /** Le point du tracé sous le doigt, comme le circleMarker du profil de la page. */
+    private fun montrerPositionProfil(fraction: Double?) {
+        val position = fraction?.let { Denivele.positionSurTrace(coordonneesProfil, distancesProfil, it) }
+        val geo = position?.let { GeoPoint(it[1], it[0]) }
+        if (geo == null) {
+            cacherRepereProfil(); return
+        }
+        repereProfil?.position = geo
+        carte.invalidate()
+    }
+
+    private fun cacherRepereProfil() {
+        val repere = repereProfil ?: return
+        if (repere.position == null) return
+        repere.position = null
+        carte.invalidate()
     }
 
     // ------------------------------------------------------------------ points et calcul
@@ -368,6 +394,9 @@ class MainActivity : Activity() {
         dernier = null
         sequenceDenivele += 1
         bilanItineraire = ""
+        coordonneesProfil = emptyList()
+        distancesProfil = DoubleArray(0)
+        cacherRepereProfil()
         courbe?.profil = null
         afficherCourbe()
         carte.invalidate()
@@ -461,11 +490,18 @@ class MainActivity : Activity() {
 
     private fun montrer(coordonnees: JSONArray) {
         trace?.let { carte.overlays.remove(it) }
+        cacherRepereProfil()
         courbe?.profil = null
         afficherCourbe()
         val geo = List(coordonnees.length()) {
             coordonnees.getJSONArray(it).let { p -> GeoPoint(p.getDouble(1), p.getDouble(0)) }
         }
+        // Le tracé complet, distances cumulées comprises : la courbe s'y
+        // reporte au doigt, comme positionSurProfil sur la page.
+        coordonneesProfil = List(coordonnees.length()) { i ->
+            coordonnees.getJSONArray(i).let { p -> doubleArrayOf(p.getDouble(0), p.getDouble(1)) }
+        }
+        distancesProfil = Denivele.distances(coordonneesProfil)
         trace = Polyline(carte).apply {
             setPoints(geo)
             outlinePaint.color = 0xff175dcb.toInt()

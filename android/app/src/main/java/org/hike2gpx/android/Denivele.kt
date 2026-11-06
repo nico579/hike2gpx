@@ -102,6 +102,31 @@ object Denivele {
     }
 
     /**
+     * La position (longitude, latitude) à une fraction de la longueur du
+     * tracé, comme positionSurProfil de la page : la fraction vient de la
+     * courbe, la position est interpolée entre les points du tracé.
+     */
+    fun positionSurTrace(coordonnees: List<DoubleArray>, distances: DoubleArray,
+                         fraction: Double): DoubleArray? {
+        if (coordonnees.size < 2 || distances.size != coordonnees.size) return null
+        if (!fraction.isFinite()) return null
+        val total = distances.last()
+        if (!total.isFinite() || total <= 0.0) return null
+        val cible = fraction.coerceIn(0.0, 1.0) * total
+        var debut = 1
+        var fin = distances.size - 1
+        while (debut < fin) {
+            val milieu = (debut + fin) / 2
+            if (distances[milieu] < cible) debut = milieu + 1 else fin = milieu
+        }
+        val ecart = distances[debut] - distances[debut - 1]
+        val part = if (ecart > 0.0) (cible - distances[debut - 1]) / ecart else 0.0
+        return DoubleArray(2) { i ->
+            coordonnees[debut - 1][i] + part * (coordonnees[debut][i] - coordonnees[debut - 1][i])
+        }
+    }
+
+    /**
      * Lissage gaussien de gpx2elev : noyau fini de rayon 4σ, prolongement
      * impair du profil aux deux bouts, puis interpolation sur les x d'origine.
      */

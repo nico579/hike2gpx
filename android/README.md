@@ -41,7 +41,10 @@ officiels, chemins OSM, barrières, franchissements), et « Afficher courbe du
 dénivelé » dessine au-dessus des boutons le profil de la page — distance en
 abscisse, altitude lissée en ordonnée, aire bleue et bornes d'altitude. La
 courbe n'apparaît qu'une fois le relief calculé ; décochée, elle laisse toute
-la carte.
+la carte. Comme sur la page, poser le doigt sur la courbe montre le point du
+tracé correspondant : un trait vertical, la distance et l'altitude sous le
+doigt, et un disque bleu cerclé de blanc sur la carte. Lever le doigt efface
+les deux.
 
 Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
 (`application._lot_automatique`) : l'application lit les catalogues à son

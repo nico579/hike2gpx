@@ -112,6 +112,26 @@ class DeniveleTest {
         assertEquals(attendu, Denivele.dureeTobler(x, z), 1e-6)
     }
 
+    @Test fun la_position_sur_le_trace_suit_la_fraction() {
+        // Un tracé en L : plein est, puis plein nord, deux tronçons égaux.
+        val coords = listOf(doubleArrayOf(0.0, 0.0), doubleArrayOf(0.01, 0.0), doubleArrayOf(0.01, 0.01))
+        val d = Denivele.distances(coords)
+        val depart = Denivele.positionSurTrace(coords, d, 0.0)!!
+        assertEquals(0.0, depart[0], 1e-9)
+        assertEquals(0.0, depart[1], 1e-9)
+        val fin = Denivele.positionSurTrace(coords, d, 1.0)!!
+        assertEquals(0.01, fin[0], 1e-9)
+        assertEquals(0.01, fin[1], 1e-9)
+        // À mi-longueur, le coin du tracé.
+        val milieu = Denivele.positionSurTrace(coords, d, 0.5)!!
+        assertEquals(0.01, milieu[0], 1e-9)
+        assertEquals(0.0, milieu[1], 1e-9)
+        // La fraction est bornée, et un tracé sans longueur ne donne rien.
+        val avant = Denivele.positionSurTrace(coords, d, -1.0)!!
+        assertEquals(0.0, avant[0], 1e-9)
+        assertEquals(null, Denivele.positionSurTrace(listOf(doubleArrayOf(0.0, 0.0)), DoubleArray(1), 0.5))
+    }
+
     @Test fun l_interpolation_est_lineaire_et_bornee() {
         val x = doubleArrayOf(0.0, 10.0)
         val y = doubleArrayOf(100.0, 200.0)
