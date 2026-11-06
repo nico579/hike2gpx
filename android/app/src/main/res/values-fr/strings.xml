@@ -24,6 +24,12 @@
     <string name="titre_itineraire">Itinéraire</string>
     <string name="strict">Mode strict</string>
     <string name="officiels">Chemins officiels</string>
+
+    <string name="titre_calques">Calques de la carte</string>
+    <string name="calque_osm">Chemins, barrières et franchissements OSM</string>
+    <string name="calque_officiel">Chemins officiels (BD TOPO…)</string>
+    <string name="calque_aide">Les calques viennent du lot hors ligne et s’affichent à partir du zoom 14, comme sur le PC.</string>
+
     <string name="titre_lots">Lots hors ligne</string>
     <string name="titre_fonds">Fonds hors ligne</string>
     <string name="titre_sources">Sources</string>
@@ -67,10 +73,15 @@
     <string name="etat_interrompu">Téléchargement interrompu : il reprendra là où il s’est arrêté.</string>
     <string name="etat_calcul">Calcul en cours…</string>
     <string name="etat_itineraire">Itinéraire sur le lot %1$s : %2$.1f km.</string>
+    <string name="etat_denivele_calcul">Calcul du dénivelé par gpx2elev…</string>
+    <string name="etat_denivele">Montée +%1$d m / descente −%2$d m · %3$s à pied.</string>
+    <string name="etat_denivele_indisponible">Dénivelé indisponible : %1$s</string>
     <string name="etat_occupe">Une tâche est déjà en cours.</string>
     <string name="rien_a_exporter">Aucun itinéraire à exporter.</string>
     <string name="export_fait">GPX enregistré.</string>
     <string name="lot_enrichi">enrichi %1$s</string>
+    <string name="duree_heures">%1$d h %2$02d</string>
+    <string name="duree_minutes">%1$d min</string>
 
     <!-- Les erreurs du code métier (ErreurTexte). -->
     <string name="err_catalogue_format">Catalogue des lots d’un format inconnu.</string>

@@ -35,6 +35,16 @@ class Reglages(context: Context) {
         get() = preferences.getBoolean(OFFICIELS, true)
         set(v) = preferences.edit().putBoolean(OFFICIELS, v).apply()
 
+    /** Les chemins OSM (voies, barrières, franchissements) dessinés sur la carte. */
+    var calqueOsm: Boolean
+        get() = preferences.getBoolean(CALQUE_OSM, true)
+        set(v) = preferences.edit().putBoolean(CALQUE_OSM, v).apply()
+
+    /** Les chemins des fournisseurs nationaux (BD TOPO…) dessinés sur la carte. */
+    var calqueOfficiel: Boolean
+        get() = preferences.getBoolean(CALQUE_OFFICIEL, true)
+        set(v) = preferences.edit().putBoolean(CALQUE_OFFICIEL, v).apply()
+
     /** La dernière vue de la carte : latitude, longitude, zoom ; Garéoult au premier lancement. */
     var vue: Triple<Double, Double, Double>
         get() = preferences.getString(VUE, null)?.split(',')?.mapNotNull { it.toDoubleOrNull() }
@@ -52,6 +62,8 @@ class Reglages(context: Context) {
         private const val FOND = "fond"
         private const val STRICT = "strict"
         private const val OFFICIELS = "officiels"
+        private const val CALQUE_OSM = "calque_osm"
+        private const val CALQUE_OFFICIEL = "calque_officiel"
         private const val VUE = "vue"
 
         /**

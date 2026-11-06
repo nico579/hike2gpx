@@ -10,6 +10,8 @@ import android.provider.Settings
 import android.text.format.Formatter
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.database.sqlite.SQLiteDatabase
 import android.view.Gravity
@@ -17,6 +19,7 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -27,6 +30,9 @@ import android.widget.TextView
 import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
 import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.modules.OfflineTileProvider
@@ -57,6 +63,9 @@ class MainActivity : Activity() {
     private lateinit var horsLigne: HorsLigne
     private lateinit var fonds: Fonds
     private lateinit var routeur: Routeur
+    private lateinit var calques: Calques
+    private lateinit var relief: Mapterhorn
+    private lateinit var overlayCalques: CalquesOverlay
     private lateinit var carte: MapView
     private lateinit var etat: TextView
     private lateinit var progression: ProgressBar
@@ -78,6 +87,14 @@ class MainActivity : Activity() {
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
     private var apkEnAttente: File? = null
     private var attenteAutorisation = false
+    private var bilanItineraire = ""
+    /** Une lecture de calques à la fois ; une demande pendant ce temps est rejouée à la fin. */
+    private val calquesOccupe = AtomicBoolean(false)
+    private var calquesARefaire = false
+    private var sequenceCalques = 0
+    private val planificateur = Handler(Looper.getMainLooper())
+    /** Un calcul de relief plus récent remplace celui qui tourne encore. */
+    private var sequenceDenivele = 0
 
     override fun onCreate(etatSauve: Bundle?) {
         super.onCreate(etatSauve)
@@ -88,11 +105,14 @@ class MainActivity : Activity() {
         horsLigne = HorsLigne(filesDir)
         fonds = Fonds(horsLigne.racine)
         routeur = Routeur(Reglages.profils(this))
+        calques = Calques(horsLigne)
+        relief = Mapterhorn(filesDir)
         construire()
         appliquerFond(reglages.fond)
         lireLien(intent)
         actualiser()
         verifierMajAuLancement()
+        planifierCalques()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -105,10 +125,13 @@ class MainActivity : Activity() {
     private fun construire() {
         val racine = FrameLayout(this)
         val vue = reglages.vue
+        overlayCalques = CalquesOverlay(this)
         carte = MapView(this).apply {
             setMultiTouchControls(true)
             controller.setZoom(vue.third)
             controller.setCenter(GeoPoint(vue.first, vue.second))
+            // Les calques du lot restent sous le tracé et sous les repères.
+            overlays.add(0, overlayCalques)
             // Au-dessus de la barre de boutons : l'attribution du fond doit rester lisible.
             overlays.add(CopyrightOverlay(this@MainActivity).apply { setOffset(dp(8), dp(64)) })
             overlays.add(ScaleBarOverlay(this).apply { setAlignBottom(true); setScaleBarOffset(dp(8), dp(84)) })
@@ -118,6 +141,15 @@ class MainActivity : Activity() {
                 }
                 override fun longPressHelper(p: GeoPoint) = false
             }))
+            addMapListener(object : MapListener {
+                override fun onScroll(event: ScrollEvent): Boolean {
+                    planifierCalques(); return false
+                }
+
+                override fun onZoom(event: ZoomEvent): Boolean {
+                    planifierCalques(); return false
+                }
+            })
         }
         racine.addView(carte, FrameLayout.LayoutParams(-1, -1))
 
@@ -211,6 +243,8 @@ class MainActivity : Activity() {
         trace?.let { carte.overlays.remove(it) }
         trace = null
         dernier = null
+        sequenceDenivele += 1
+        bilanItineraire = ""
         carte.invalidate()
     }
 
@@ -236,13 +270,65 @@ class MainActivity : Activity() {
     private fun calculer() {
         val etapes = points.toList()
         val memoire = (getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass
+        sequenceDenivele += 1
         tache(R.string.etat_calcul, false, { _ ->
             val resultat = Itineraire(horsLigne, routeur).calculer(etapes, reglages.strict, reglages.officiels, memoire)
-            runOnUiThread { if (etapes == points) { dernier = resultat; montrer(resultat.coordonnees) } }
             val proprietes = resultat.feature.optJSONObject("properties")
-            getString(R.string.etat_itineraire, resultat.lot.case,
+            val bilan = getString(R.string.etat_itineraire, resultat.lot.case,
                 (proprietes?.optString("track-length")?.toDoubleOrNull() ?: 0.0) / 1000)
-        })
+            runOnUiThread {
+                if (etapes == points) {
+                    dernier = resultat
+                    bilanItineraire = bilan
+                    montrer(resultat.coordonnees)
+                    etat.text = bilan
+                }
+            }
+            bilan
+        }, ensuite = { reussi -> if (reussi && etapes == points) demanderDenivele() })
+    }
+
+    /**
+     * Le relief du tracé, en arrière-plan comme sur le PC : le tracé s'affiche
+     * d'abord, le dénivelé et la durée de marche arrivent ensuite. Le calcul
+     * n'occupe pas la tâche unique, un autre parcours reste possible.
+     */
+    private fun demanderDenivele() {
+        val resultat = dernier ?: return
+        val base = bilanItineraire
+        val coordonnees = List(resultat.coordonnees.length()) { i ->
+            val p = resultat.coordonnees.getJSONArray(i)
+            doubleArrayOf(p.getDouble(0), p.getDouble(1))
+        }
+        val sequence = ++sequenceDenivele
+        etat.text = listOf(base, getString(R.string.etat_denivele_calcul)).filter { it.isNotEmpty() }.joinToString("\n")
+        EXECUTEUR_DENIVELE.execute {
+            var profil: ProfilAltimetrique? = null
+            var erreur = ""
+            try {
+                relief.preparer(coordonnees)
+                profil = Denivele.calculer(coordonnees, relief, "Mapterhorn")
+            } catch (e: Exception) {
+                erreur = e.message ?: e.toString()
+            }
+            val calcule = profil
+            runOnUiThread {
+                if (sequence != sequenceDenivele || dernier !== resultat || isDestroyed) return@runOnUiThread
+                etat.text = if (calcule != null)
+                    listOf(base, getString(R.string.etat_denivele, calcule.monteeM, calcule.descenteM,
+                        duree(calcule.dureeMarcheS))).filter { it.isNotEmpty() }.joinToString("\n")
+                else
+                    listOf(base, getString(R.string.etat_denivele_indisponible, erreur.take(160)))
+                        .filter { it.isNotEmpty() }.joinToString("\n")
+            }
+        }
+    }
+
+    /** La durée de marche arrondie au quart d'heure supérieur, comme la page. */
+    private fun duree(secondes: Long): String {
+        val minutes = (((secondes + 299) / 300) * 5).toInt()
+        return if (minutes >= 60) getString(R.string.duree_heures, minutes / 60, minutes % 60)
+        else getString(R.string.duree_minutes, minutes)
     }
 
     private fun montrer(coordonnees: JSONArray) {
@@ -262,6 +348,61 @@ class MainActivity : Activity() {
         if (!vue.contains(GeoPoint(boite.latNorth, boite.lonWest)) || !vue.contains(GeoPoint(boite.latSouth, boite.lonEast)))
             carte.zoomToBoundingBox(boite, true, dp(48))
         carte.invalidate()
+    }
+
+    // ------------------------------------------------------------------ calques du lot
+
+    /**
+     * Les calques ne se lisent qu'au zoom 14, celui des tuiles du lot, comme
+     * la page ; en dessous, mieux vaut ne rien montrer qu'un réseau tronqué.
+     */
+    private fun planifierCalques() {
+        sequenceCalques += 1
+        planificateur.removeCallbacksAndMessages(null)
+        if ((!reglages.calqueOsm && !reglages.calqueOfficiel) || carte.zoomLevelDouble < ZOOM_CALQUES) {
+            overlayCalques.donnees = DonneesCalques()
+            carte.invalidate()
+            return
+        }
+        planificateur.postDelayed({ rafraichirCalques() }, 350)
+    }
+
+    /** Lit les tuiles de la vue en arrière-plan ; une lecture à la fois. */
+    private fun rafraichirCalques() {
+        if (isDestroyed) return
+        val osm = reglages.calqueOsm
+        val officiel = reglages.calqueOfficiel
+        if ((!osm && !officiel) || carte.zoomLevelDouble < ZOOM_CALQUES) {
+            overlayCalques.donnees = DonneesCalques()
+            carte.invalidate()
+            return
+        }
+        val boite = carte.boundingBox ?: return
+        if (!calquesOccupe.compareAndSet(false, true)) {
+            calquesARefaire = true
+            return
+        }
+        val sequence = ++sequenceCalques
+        val zone = Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast)
+        EXECUTEUR_CALQUES.execute {
+            val donnees = try {
+                calques.lire(zone, osm, officiel)
+            } catch (e: Exception) {
+                DonneesCalques()
+            }
+            calquesOccupe.set(false)
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                if (sequence == sequenceCalques) {
+                    overlayCalques.donnees = donnees
+                    carte.invalidate()
+                }
+                if (calquesARefaire) {
+                    calquesARefaire = false
+                    planifierCalques()
+                }
+            }
+        }
     }
 
     // ------------------------------------------------------------------ lots
@@ -333,6 +474,7 @@ class MainActivity : Activity() {
         }, ensuite = { reussi ->
             if (!reussi) exclues[lot.case] = SystemClock.elapsedRealtime()
             remplirReglages()
+            planifierCalques()
             avancer()
         })
     }
@@ -350,6 +492,7 @@ class MainActivity : Activity() {
                 retirees.add(lot.case)
                 etat.text = getString(R.string.etat_supprime, lot.case, octets / 1_000_000)
                 remplirReglages()
+                planifierCalques()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -489,6 +632,19 @@ class MainActivity : Activity() {
         colonne.addView(Switch(this).apply {
             setText(R.string.officiels); isChecked = reglages.officiels
             setOnCheckedChangeListener { _, v -> reglages.officiels = v }
+        })
+
+        titre(colonne, R.string.titre_calques)
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.calque_osm); isChecked = reglages.calqueOsm
+            setOnCheckedChangeListener { _, v -> reglages.calqueOsm = v; planifierCalques() }
+        })
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.calque_officiel); isChecked = reglages.calqueOfficiel
+            setOnCheckedChangeListener { _, v -> reglages.calqueOfficiel = v; planifierCalques() }
+        })
+        colonne.addView(TextView(this).apply {
+            setText(R.string.calque_aide); textSize = 12f
         })
 
         titre(colonne, R.string.titre_lots)
@@ -644,7 +800,8 @@ class MainActivity : Activity() {
 
     /** Ce que le vidage efface : lots et fonds, téléchargements interrompus, tuiles en ligne gardées par osmdroid. */
     private fun caches(): List<File> =
-        listOf(horsLigne.racine, File(filesDir, "telechargements"), File(cacheDir, "osmdroid"))
+        listOf(horsLigne.racine, File(filesDir, "telechargements"), File(filesDir, "gpx2elev"),
+            File(cacheDir, "osmdroid"))
 
     private fun octetsCaches(): Long = caches().sumOf { d -> d.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
 
@@ -671,6 +828,7 @@ class MainActivity : Activity() {
                 appliquerFond(if (reglages.fond == "topo") "topo" else "osm")     // un fournisseur neuf, sur un cache neuf
                 etat.text = getString(R.string.etat_cache_vide, octets / 1_000_000)
                 remplirReglages()
+                planifierCalques()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -839,6 +997,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        planificateur.removeCallbacksAndMessages(null)
         routeur.annuler()
         carte.onDetach()
         super.onDestroy()
@@ -848,8 +1007,14 @@ class MainActivity : Activity() {
         private const val EXPORT = 1
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
+        /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */
+        private const val ZOOM_CALQUES = 14.0
         // Au niveau du processus : un téléchargement survit à l'écran qui l'a lancé.
         private val EXECUTEUR = Executors.newSingleThreadExecutor()
+        // Les calques et le relief ne prennent pas la tâche unique : l'itinéraire
+        // reste calculable pendant qu'ils se lisent.
+        private val EXECUTEUR_CALQUES = Executors.newSingleThreadExecutor()
+        private val EXECUTEUR_DENIVELE = Executors.newSingleThreadExecutor()
         private val enCours = AtomicBoolean(false)
     }
 }

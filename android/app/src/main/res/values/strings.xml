@@ -26,6 +26,12 @@
     <string name="titre_itineraire">Route</string>
     <string name="strict">Strict mode</string>
     <string name="officiels">Official paths</string>
+
+    <string name="titre_calques">Map layers</string>
+    <string name="calque_osm">OSM paths, barriers and crossings</string>
+    <string name="calque_officiel">Official paths (BD TOPO…)</string>
+    <string name="calque_aide">The layers come from the offline bundle and appear from zoom 14, like on the PC.</string>
+
     <string name="titre_lots">Offline bundles</string>
     <string name="titre_fonds">Offline base maps</string>
     <string name="titre_sources">Sources</string>
@@ -69,10 +75,15 @@
     <string name="etat_interrompu">Download interrupted: it will resume where it stopped.</string>
     <string name="etat_calcul">Calculating…</string>
     <string name="etat_itineraire">Route on bundle %1$s: %2$.1f km.</string>
+    <string name="etat_denivele_calcul">Calculating elevation with gpx2elev…</string>
+    <string name="etat_denivele">Ascent +%1$d m / descent −%2$d m · %3$s on foot.</string>
+    <string name="etat_denivele_indisponible">Elevation unavailable: %1$s</string>
     <string name="etat_occupe">A task is already running.</string>
     <string name="rien_a_exporter">No route to export.</string>
     <string name="export_fait">GPX saved.</string>
     <string name="lot_enrichi">enriched %1$s</string>
+    <string name="duree_heures">%1$d h %2$02d</string>
+    <string name="duree_minutes">%1$d min</string>
 
     <!-- Errors from the core code (ErreurTexte). -->
     <string name="err_catalogue_format">Bundle catalogue in an unknown format.</string>

@@ -12,6 +12,26 @@ touche la carte pour poser le départ, puis l'arrivée et d'éventuelles étapes
 deux points, l'itinéraire se calcule hors ligne et s'affiche ; « GPX »
 l'exporte.
 
+Les calques du lot s'affichent sur la carte, comme ceux de la page : les
+chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
+qui gênent un piéton et les franchissements bloquants (rouge) ou à vérifier
+(orange), et les chemins des fournisseurs nationaux (BD TOPO, turquoise). Ils
+se cochent dans les réglages (« Calques de la carte ») et n'apparaissent qu'à
+partir du zoom 14, celui des tuiles vectorielles du lot : en dessous, mieux
+vaut ne rien montrer qu'un réseau tronqué. Les calques sont lus dans
+`calques.mbtiles` (MVT) en arrière-plan, sans gêner le calcul de l'itinéraire ;
+un lot ancien qui n'a pas ce fichier n'affiche simplement rien.
+
+Sous la distance, l'itinéraire donne aussi le dénivelé et la durée de marche,
+calculés comme sur le PC par le protocole de gpx2elev : altitude échantillonnée
+tous les 5 m, lissage gaussien de 20 m, D+/D− avec une hystérésis de 2 m, puis
+modèle de Tobler tous les 20 m. Le téléphone lit le même relief Mapterhorn
+(tuiles Terrarium du zoom 12, LiDAR HD de l'IGN en France), qu'il rapatrie à la
+demande dans `gpx2elev/tiles` ; une tuile déjà là sert aux parcours suivants.
+Le calcul du relief est séparé de celui de l'itinéraire : le tracé s'affiche
+d'abord, le dénivelé arrive ensuite. Sans relief disponible, la ligne le dit et
+la valeur BRouter ne le remplace pas, comme sur le PC.
+
 Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
 (`application._lot_automatique`) : l'application lit les catalogues à son
 lancement, et quand un parcours touche une case dont le lot manque, ou dont le
@@ -30,8 +50,9 @@ plus fin.
 
 Les réglages réunissent le reste : mode strict et chemins officiels, lots et
 fonds installés (mise à jour, suppression), sources, et « Vider le cache », qui
-efface comme sur le PC les lots, les fonds, les téléchargements interrompus et
-les tuiles en ligne gardées ; les lots du serveur reviennent d'eux-mêmes.
+efface comme sur le PC les lots, les fonds, les téléchargements interrompus,
+les tuiles en ligne gardées et les tuiles de relief gpx2elev ; les lots du
+serveur reviennent d'eux-mêmes.
 
 L'application parle anglais ou français selon la langue du téléphone, comme
 watch2notif : l'anglais dans `res/values`, la langue par défaut, le français
@@ -71,6 +92,10 @@ hors-ligne/segments/E5_N40.rd5          RD5 des lots enrichis
 hors-ligne/segments-osm/E5_N40.rd5      RD5 officielles des lots OSM
 hors-ligne/E5_N40/manifest.json, franchissements.json.gz, calques.mbtiles
 ```
+
+Les tuiles de relief vont dans `gpx2elev/tiles/`, à la racine des fichiers de
+l'application, sous le même nom que sur le PC (`mapterhorn_12_x_y.webp`) : un
+cache recopié d'un PC sert tel quel.
 
 Le calcul suit la règle du PC : un parcours dont la zone tient dans un lot se
 calcule sur ce lot seul. Les franchissements de la zone deviennent des coupes
