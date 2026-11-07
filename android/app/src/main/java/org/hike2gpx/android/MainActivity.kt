@@ -1677,10 +1677,14 @@ class MainActivity : Activity() {
         val distance = distanceTexte(trace.distance)
         val duree = dureeTexte(trace.duree)
         val profil = trace.profil
-        return if (profil != null)
-            getString(R.string.trace_resume_denivele, points, distance, duree,
-                profil.monteeM, profil.descenteM)
-        else getString(R.string.trace_resume_sans_denivele, points, distance, duree)
+        return when {
+            trace.taille < 2 ->
+                getString(R.string.trace_resume_court, points, distance, duree)
+            profil != null ->
+                getString(R.string.trace_resume_denivele, points, distance, duree,
+                    profil.monteeM, profil.descenteM)
+            else -> getString(R.string.trace_resume_sans_denivele, points, distance, duree)
+        }
     }
 
     private fun dossierTraces(): File =

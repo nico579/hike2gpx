@@ -195,7 +195,8 @@
     <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m (gpx2elev).</string>
     <string name="trace_etat_debut">Trace GPS : %1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
     <string name="trace_etat_sans_denivele">Trace GPS : %1$s, %2$s, %3$s. Dénivelé indisponible : le cache gpx2elev ne couvre pas encore le parcours.</string>
-    <string name="trace_resume_denivele">%1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m (gpx2elev).</string>
+    <string name="trace_resume_court">%1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
+    <string name="trace_resume_denivele">%1$s, %2$s, %3$s, D+ %4$d m / D- %5$d m (gpx2elev).</string>
     <string name="trace_resume_sans_denivele">%1$s, %2$s, %3$s. Dénivelé non calculé : le cache gpx2elev est incomplet.</string>
     <string name="trace_denivele_calcul">Calcul du dénivelé gpx2elev avant l’export…</string>
     <string name="trace_gpx_desc">D+ %1$d m / D− %2$d m (gpx2elev)</string>
