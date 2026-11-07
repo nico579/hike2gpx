@@ -178,4 +178,31 @@
     <string name="maj_aucune_release">No release published yet.</string>
     <string name="maj_indisponible">The update server is unavailable.</string>
     <string name="maj_corrompu">Update file incomplete or corrupted.</string>
+
+    <!-- GPS position and track recording, like Locus Map. -->
+    <string name="titre_trace">GPS track</string>
+    <string name="trace_aide">A point is kept only if the GPS is accurate enough and both the distance and the time since the previous point are reached. The first point only has to meet the accuracy.</string>
+    <string name="trace_distance">Minimum distance between points (m)</string>
+    <string name="trace_duree">Minimum time between points (s)</string>
+    <string name="trace_precision">Maximum GPS deviation (m)</string>
+    <string name="bouton_position">Centre on my GPS position</string>
+    <string name="bouton_trace">Record a GPS track</string>
+    <string name="bouton_trace_stop">Stop the GPS track</string>
+    <string name="trace_demarree">GPS track started: the phone is recording points.</string>
+    <string name="trace_sans_point">No point kept: the track was not saved.</string>
+    <string name="trace_titre">GPS track recorded</string>
+    <string name="trace_resume">%1$s, %2$s, %3$s.</string>
+    <string name="trace_fichier">File: %1$s</string>
+    <string name="trace_exporter">Export the GPX</string>
+    <string name="trace_etat">GPS track: %1$s, %2$s, %3$s.</string>
+    <plurals name="trace_points">
+        <item quantity="one">%1$d point</item>
+        <item quantity="other">%1$d points</item>
+    </plurals>
+    <string name="position_recherchee">Looking for the GPS position…</string>
+    <string name="position_refusee">Position refused: allow location for hike2gpx.</string>
+    <string name="gps_inactif">GPS is off: turn on location.</string>
+    <string name="distance_metres">%1$d m</string>
+    <string name="distance_km">%1$.1f km</string>
+    <string name="duree_secondes">%1$d s</string>
 </resources>

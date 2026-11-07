@@ -176,4 +176,31 @@
     <string name="maj_aucune_release">Aucune release publiée pour le moment.</string>
     <string name="maj_indisponible">Le serveur de mises à jour est indisponible.</string>
     <string name="maj_corrompu">Fichier de mise à jour incomplet ou corrompu.</string>
+
+    <!-- La position GPS et l’enregistrement d’une trace, comme Locus Map. -->
+    <string name="titre_trace">Trace GPS</string>
+    <string name="trace_aide">Un point n’est retenu que si le GPS est assez précis et si la distance et la durée depuis le point précédent sont atteintes. Le premier point n’a que la précision à respecter.</string>
+    <string name="trace_distance">Distance minimale entre deux points (m)</string>
+    <string name="trace_duree">Durée minimale entre deux points (s)</string>
+    <string name="trace_precision">Déviation GPS maximale (m)</string>
+    <string name="bouton_position">Me centrer sur ma position GPS</string>
+    <string name="bouton_trace">Enregistrer une trace GPS</string>
+    <string name="bouton_trace_stop">Arrêter la trace GPS</string>
+    <string name="trace_demarree">Trace GPS démarrée : le téléphone relève les points.</string>
+    <string name="trace_sans_point">Aucun point retenu : la trace n’a pas été enregistrée.</string>
+    <string name="trace_titre">Trace GPS enregistrée</string>
+    <string name="trace_resume">%1$s, %2$s, %3$s.</string>
+    <string name="trace_fichier">Fichier : %1$s</string>
+    <string name="trace_exporter">Exporter le GPX</string>
+    <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s.</string>
+    <plurals name="trace_points">
+        <item quantity="one">%1$d point</item>
+        <item quantity="other">%1$d points</item>
+    </plurals>
+    <string name="position_recherchee">Recherche de la position GPS…</string>
+    <string name="position_refusee">Position refusée : autorisez la localisation pour hike2gpx.</string>
+    <string name="gps_inactif">Le GPS est coupé : activez la localisation.</string>
+    <string name="distance_metres">%1$d m</string>
+    <string name="distance_km">%1$.1f km</string>
+    <string name="duree_secondes">%1$d s</string>
 </resources>

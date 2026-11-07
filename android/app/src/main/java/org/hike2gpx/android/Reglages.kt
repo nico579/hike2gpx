@@ -78,6 +78,21 @@ class Reglages(context: Context) {
         get() = preferences.getBoolean(RECHERCHE, true)
         set(v) = preferences.edit().putBoolean(RECHERCHE, v).apply()
 
+    /** La distance minimale entre deux points d'une trace GPS, en mètres (Locus : 10). */
+    var distanceMin: Double
+        get() = preferences.getFloat(DISTANCE_MIN, 10f).toDouble()
+        set(v) = preferences.edit().putFloat(DISTANCE_MIN, v.toFloat()).apply()
+
+    /** La durée minimale entre deux points d'une trace GPS, en secondes (Locus : 10). */
+    var dureeMin: Int
+        get() = preferences.getInt(DUREE_MIN, 10)
+        set(v) = preferences.edit().putInt(DUREE_MIN, v).apply()
+
+    /** La déviation GPS maximale acceptée pour un point, en mètres (Locus : 100). */
+    var precisionMax: Double
+        get() = preferences.getFloat(PRECISION_MAX, 100f).toDouble()
+        set(v) = preferences.edit().putFloat(PRECISION_MAX, v.toFloat()).apply()
+
     /** La dernière vue de la carte : latitude, longitude, zoom ; Garéoult au premier lancement. */
     var vue: Triple<Double, Double, Double>
         get() = preferences.getString(VUE, null)?.split(',')?.mapNotNull { it.toDoubleOrNull() }
@@ -101,6 +116,9 @@ class Reglages(context: Context) {
         private const val LEGENDE = "legende"
         private const val COURBE_DENIVELE = "courbe_denivele"
         private const val RECHERCHE = "recherche"
+        private const val DISTANCE_MIN = "trace_distance_min"
+        private const val DUREE_MIN = "trace_duree_min"
+        private const val PRECISION_MAX = "trace_precision_max"
         private const val VUE = "vue"
 
         /**

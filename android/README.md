@@ -58,6 +58,20 @@ Un double tap sur la carte, comme sur Locus Map, masque les deux bandeaux et
 laisse la carte seule ; un second double tap les ramène. L'échelle et
 l'attribution OSM restent visibles : elles font partie de la carte.
 
+Deux boutons ronds, à droite de la carte, reprennent Locus Map. Celui du haut
+enregistre une trace GPS : un appui démarre (triangle vert), un second arrête
+(carré rouge) et range le GPX dans `traces/`, avec l'heure et l'altitude de
+chaque point. Les réglages suivent ceux de Locus : distance minimale entre deux
+points (10 m), durée minimale (10 s) et déviation GPS maximale (100 m). Un point
+n'est retenu que si le GPS est plus précis que la déviation, et si la distance et
+la durée depuis le point précédent sont toutes deux atteintes ; le premier point
+n'a que la précision à respecter. Un changement de réglage s'applique au point
+suivant, même pendant un enregistrement. Le bouton du bas recentre la carte sur
+la position, avec le point bleu et son halo de précision ; la localisation n'est
+demandée qu'au premier appui sur un des deux boutons, jamais au lancement. La
+trace enregistrée s'affiche en orange, au-dessus de l'itinéraire bleu, et
+l'écran reste allumé tant qu'elle tourne.
+
 Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
 (`application._lot_automatique`) : l'application lit les catalogues à son
 lancement, et quand un parcours touche une case dont le lot manque, ou dont le

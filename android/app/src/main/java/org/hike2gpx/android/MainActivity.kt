@@ -3,14 +3,21 @@ package org.hike2gpx.android
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.provider.Settings
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.text.format.Formatter
 import android.os.Build
 import android.os.Bundle
@@ -58,9 +65,12 @@ import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.roundToInt
 
 /**
  * L'écran unique, comme la page du PC : la carte d'abord. Toucher la carte pose
@@ -93,6 +103,16 @@ class MainActivity : Activity() {
     private lateinit var bandeauHaut: LinearLayout
     private lateinit var bandeauBas: LinearLayout
     private var bandeauxMasques = false
+    private var positionOverlay: PositionOverlay? = null
+    private lateinit var boutonPosition: BoutonRond
+    private lateinit var boutonTrace: BoutonRond
+    private var commandesCarte: LinearLayout? = null
+    private var ecoutePosition: LocationListener? = null
+    private var apresPermission: (() -> Unit)? = null
+    private var centrerDesQuePosition = false
+    private var traceEnregistree: Polyline? = null
+    private var fichierTrace: File? = null
+    private var insetBas = 0
     private var echelle: ScaleBarOverlay? = null
     private var droits: CopyrightOverlay? = null
     private val points = mutableListOf<Point>()
@@ -163,6 +183,8 @@ class MainActivity : Activity() {
             overlays.add(0, overlayCalques)
             // Le point de la courbe se dessine juste au-dessus du tracé.
             repereProfil = RepereProfil(this@MainActivity).also { overlays.add(1, it) }
+            // La position GPS, sous les repères et au-dessus des calques.
+            positionOverlay = PositionOverlay(this@MainActivity).also { overlays.add(2, it) }
             // Au-dessus de la barre de boutons : l'attribution du fond doit rester lisible.
             droits = CopyrightOverlay(this@MainActivity).apply { setOffset(dp(8), dp(64)) }
             overlays.add(droits)
@@ -267,6 +289,29 @@ class MainActivity : Activity() {
         bandeauBas.addView(bas, LinearLayout.LayoutParams(-1, -2))
         racine.addView(bandeauBas, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
 
+        // Les deux boutons ronds de Locus Map, à droite de la carte : l'échelle
+        // et l'attribution restent lisibles à gauche.
+        commandesCarte = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val cote = dp(56)
+        boutonPosition = BoutonRond(this, BoutonRond.Genre.POSITION).apply {
+            contentDescription = getString(R.string.bouton_position)
+            setOnClickListener { centrerSurPosition() }
+        }
+        boutonTrace = BoutonRond(this, BoutonRond.Genre.TRACE).apply {
+            setOnClickListener { basculerEnregistrement() }
+        }
+        commandesCarte!!.addView(boutonTrace, LinearLayout.LayoutParams(cote, cote).apply {
+            bottomMargin = dp(12)
+        })
+        commandesCarte!!.addView(boutonPosition, LinearLayout.LayoutParams(cote, cote))
+        racine.addView(commandesCarte, FrameLayout.LayoutParams(-2, -2,
+            Gravity.BOTTOM or Gravity.END).apply {
+            rightMargin = dp(12)
+            bottomMargin = dp(84)
+        })
+        majBoutonTrace()
+        bandeauBas.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placerCommandes() }
+
         // Android 15 dessine l'application sous les barres du système : les bandeaux s'en écartent.
         racine.setOnApplyWindowInsetsListener { _, insets ->
             val (dessus, dessous) = if (Build.VERSION.SDK_INT >= 30)
@@ -274,10 +319,17 @@ class MainActivity : Activity() {
             else @Suppress("DEPRECATION") (insets.systemWindowInsetTop to insets.systemWindowInsetBottom)
             bandeauHaut.setPadding(marge, marge + dessus, marge, marge)
             bandeauBas.setPadding(0, 0, 0, dessous)
+            insetBas = dessous
+            placerCommandes()
             insets
         }
         setContentView(racine)
         appliquerAffichage()
+        if (EnregistrementGps.actif) {
+            dessinerTraceEnregistree()
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            majBoutonTrace()
+        }
     }
 
     /**
@@ -361,6 +413,20 @@ class MainActivity : Activity() {
         if (bandeauxMasques) cacherClavier()
         bandeauHaut.visibility = if (bandeauxMasques) View.GONE else View.VISIBLE
         bandeauBas.visibility = if (bandeauxMasques) View.GONE else View.VISIBLE
+        placerCommandes()
+    }
+
+    /**
+     * Les boutons ronds restent juste au-dessus de la barre du bas, quelle que
+     * soit sa hauteur (courbe du dénivelé comprise). Bandeaux masqués, ils
+     * descendent au ras de la barre du système, comme les commandes de Locus.
+     */
+    private fun placerCommandes() {
+        val vue = commandesCarte ?: return
+        val parametres = vue.layoutParams as? FrameLayout.LayoutParams ?: return
+        val hauteur = if (bandeauxMasques) insetBas else maxOf(bandeauBas.height, insetBas)
+        parametres.bottomMargin = hauteur + dp(10)
+        vue.layoutParams = parametres
     }
 
     /**
@@ -957,6 +1023,23 @@ class MainActivity : Activity() {
             setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
         })
 
+        // Les réglages de trace de Locus Map, appliqués au prochain point même
+        // quand un enregistrement est en cours.
+        titre(colonne, R.string.titre_trace)
+        colonne.addView(TextView(this).apply { setText(R.string.trace_aide); textSize = 12f })
+        champNombre(colonne, R.string.trace_distance, reglages.distanceMin, entier = false) {
+            reglages.distanceMin = it
+            appliquerReglagesTrace()
+        }
+        champNombre(colonne, R.string.trace_duree, reglages.dureeMin.toDouble(), entier = true) {
+            reglages.dureeMin = it.roundToInt()
+            appliquerReglagesTrace()
+        }
+        champNombre(colonne, R.string.trace_precision, reglages.precisionMax, entier = false) {
+            reglages.precisionMax = it
+            appliquerReglagesTrace()
+        }
+
         titre(colonne, R.string.titre_lots)
         val installes = horsLigne.lots()
         for (lot in installes) {
@@ -1300,6 +1383,238 @@ class MainActivity : Activity() {
             .show()
     }
 
+    // ------------------------------------------------------------------ position et trace GPS
+
+    private val gestionnairePosition by lazy {
+        getSystemService(LOCATION_SERVICE) as LocationManager
+    }
+
+    private fun aPosition(): Boolean =
+        checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /** La position n'est demandée qu'au premier appui sur un bouton, pas au lancement. */
+    private fun avecPosition(action: () -> Unit) {
+        if (aPosition()) {
+            demarrerPosition()
+            action()
+            return
+        }
+        apresPermission = { demarrerPosition(); action() }
+        requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION), PERMISSION_POSITION)
+    }
+
+    override fun onRequestPermissionsResult(requete: Int, permissions: Array<out String>,
+                                            resultats: IntArray) {
+        super.onRequestPermissionsResult(requete, permissions, resultats)
+        if (requete != PERMISSION_POSITION) return
+        val action = apresPermission
+        apresPermission = null
+        if (aPosition()) action?.invoke() else etat.setText(R.string.position_refusee)
+    }
+
+    /**
+     * Les mises à jour de position, GPS et réseau : elles tournent tant que
+     * l'écran existe, pour le point bleu et pour la trace. Le GPS ne dit rien
+     * quand il est coupé ; le message du bouton le rappelle.
+     */
+    private fun demarrerPosition() {
+        if (ecoutePosition != null || !aPosition()) return
+        val ecoute = object : LocationListener {
+            override fun onLocationChanged(location: Location) = surPosition(location)
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+        }
+        var posee = false
+        for (fournisseur in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+            try {
+                gestionnairePosition.requestLocationUpdates(fournisseur, 1_000L, 0f, ecoute,
+                    Looper.getMainLooper())
+                posee = true
+            } catch (e: Exception) {
+                // fournisseur absent : l'autre suffit
+            }
+        }
+        if (posee) ecoutePosition = ecoute
+        dernierPointConnu()?.let { surPosition(it) }
+    }
+
+    private fun arreterPosition() {
+        val ecoute = ecoutePosition ?: return
+        try {
+            gestionnairePosition.removeUpdates(ecoute)
+        } catch (e: Exception) {
+            // permission retirée entre-temps
+        }
+        ecoutePosition = null
+    }
+
+    private fun dernierPointConnu(): Location? {
+        if (!aPosition()) return null
+        return listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).mapNotNull {
+            try {
+                gestionnairePosition.getLastKnownLocation(it)
+            } catch (e: Exception) {
+                null
+            }
+        }.maxByOrNull { it.time }
+    }
+
+    private fun gpsActif(): Boolean = try {
+        gestionnairePosition.isProviderEnabled(LocationManager.GPS_PROVIDER)
+    } catch (e: Exception) {
+        false
+    }
+
+    /**
+     * Une position reçue : le point bleu suit toujours ; la trace ne retient
+     * que les points récents (un dernier point connu peut dater de la veille)
+     * et que ceux qui passent le filtre des réglages.
+     */
+    private fun surPosition(location: Location) {
+        if (isDestroyed) return
+        val precision = if (location.hasAccuracy()) location.accuracy else 0f
+        val point = GeoPoint(location.latitude, location.longitude)
+        positionOverlay?.apply {
+            position = point
+            this.precision = precision
+        }
+        carte.invalidate()
+        if (centrerDesQuePosition) {
+            centrerDesQuePosition = false
+            centrerCarte(point)
+        }
+        val trace = EnregistrementGps.trace ?: return
+        if (System.currentTimeMillis() - location.time > 120_000) return
+        val altitude = if (location.hasAltitude()) location.altitude else null
+        if (trace.ajouter(location.latitude, location.longitude, altitude, location.time,
+                if (location.hasAccuracy()) location.accuracy.toDouble() else null)) {
+            dessinerTraceEnregistree()
+            majEtatTrace()
+        }
+    }
+
+    private fun centrerSurPosition() {
+        avecPosition {
+            val connu = dernierPointConnu()
+            if (connu != null) {
+                centrerCarte(GeoPoint(connu.latitude, connu.longitude))
+            } else {
+                centrerDesQuePosition = true
+                etat.setText(if (gpsActif()) R.string.position_recherchee else R.string.gps_inactif)
+            }
+        }
+    }
+
+    private fun centrerCarte(point: GeoPoint) {
+        if (carte.zoomLevelDouble < 14.0) carte.controller.setZoom(15.0)
+        carte.controller.setCenter(point)
+        carte.invalidate()
+    }
+
+    private fun basculerEnregistrement() {
+        if (EnregistrementGps.actif) arreterEnregistrement() else avecPosition { demarrerEnregistrement() }
+    }
+
+    private fun demarrerEnregistrement() {
+        val dossier = File(getExternalFilesDir(null) ?: filesDir, "traces").apply { mkdirs() }
+        val nom = "trace-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
+        val trace = TraceGps(reglages.distanceMin, reglages.dureeMin * 1_000L, reglages.precisionMax)
+        EnregistrementGps.demarrer(trace, File(dossier, nom))
+        traceEnregistree?.let { carte.overlays.remove(it) }
+        traceEnregistree = null
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        majBoutonTrace()
+        etat.setText(R.string.trace_demarree)
+        if (!gpsActif()) Toast.makeText(this, R.string.gps_inactif, Toast.LENGTH_LONG).show()
+        dernierPointConnu()?.let { surPosition(it) }
+    }
+
+    private fun arreterEnregistrement() {
+        val trace = EnregistrementGps.arreter() ?: return
+        val fichier = EnregistrementGps.fichier
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        majBoutonTrace()
+        if (trace.taille == 0) {
+            etat.setText(R.string.trace_sans_point)
+            return
+        }
+        try {
+            fichier?.writeText(Gpx.ecrireTrace(trace.points, fichier.nameWithoutExtension))
+        } catch (e: Exception) {
+            etat.text = texte(e)
+            return
+        }
+        fichierTrace = fichier
+        val resume = getString(R.string.trace_resume, pointsTexte(trace.taille),
+            distanceTexte(trace.distance), dureeTexte(trace.duree))
+        etat.text = resume
+        AlertDialog.Builder(this)
+            .setTitle(R.string.trace_titre)
+            .setMessage(listOf(resume, getString(R.string.trace_fichier, fichier?.name ?: ""))
+                .joinToString("\n"))
+            .setPositiveButton(R.string.trace_exporter) { _, _ -> exporterTrace(fichier) }
+            .setNegativeButton(R.string.fermer, null)
+            .show()
+    }
+
+    private fun dessinerTraceEnregistree() {
+        val trace = EnregistrementGps.trace ?: return
+        if (trace.taille == 0) return
+        val ligne = traceEnregistree ?: Polyline(carte).also {
+            it.outlinePaint.color = 0xffe64a19.toInt()
+            it.outlinePaint.strokeWidth = dp(4).toFloat()
+            it.outlinePaint.strokeCap = Paint.Cap.ROUND
+            carte.overlays.add(2, it)          // au-dessus de l'itinéraire, sous les repères
+            traceEnregistree = it
+        }
+        ligne.setPoints(trace.points.map { GeoPoint(it.lat, it.lon) })
+        carte.invalidate()
+    }
+
+    private fun majBoutonTrace() {
+        if (!::boutonTrace.isInitialized) return
+        val actif = EnregistrementGps.actif
+        boutonTrace.enregistre = actif
+        boutonTrace.contentDescription = getString(
+            if (actif) R.string.bouton_trace_stop else R.string.bouton_trace)
+    }
+
+    private fun majEtatTrace() {
+        val trace = EnregistrementGps.trace ?: return
+        etat.text = getString(R.string.trace_etat, pointsTexte(trace.taille),
+            distanceTexte(trace.distance), dureeTexte(trace.duree))
+    }
+
+    private fun exporterTrace(fichier: File?) {
+        if (fichier == null || !fichier.exists()) return
+        fichierTrace = fichier
+        startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/gpx+xml"
+            putExtra(Intent.EXTRA_TITLE, fichier.name)
+        }, EXPORT_TRACE)
+    }
+
+    private fun pointsTexte(nombre: Int): String =
+        resources.getQuantityString(R.plurals.trace_points, nombre, nombre)
+
+    private fun distanceTexte(metres: Double): String =
+        if (metres < 1_000) getString(R.string.distance_metres, metres.roundToInt())
+        else getString(R.string.distance_km, metres / 1_000)
+
+    private fun dureeTexte(millisecondes: Long): String {
+        val secondes = (millisecondes / 1_000).coerceAtLeast(0)
+        return when {
+            secondes >= 3_600 -> getString(R.string.duree_heures, (secondes / 3_600).toInt(),
+                ((secondes % 3_600) / 60).toInt())
+            secondes >= 60 -> getString(R.string.duree_minutes, (secondes / 60).toInt())
+            else -> getString(R.string.duree_secondes, secondes.toInt())
+        }
+    }
+
     // ------------------------------------------------------------------ export
 
     private fun exporter() {
@@ -1318,6 +1633,18 @@ class MainActivity : Activity() {
         super.onActivityResult(requete, resultat, donnees)
         IntentIntegrator.parseActivityResult(requete, resultat, donnees)?.let { scan ->
             scan.contents?.let { lienScanne(it) }       // null : scan annulé
+            return
+        }
+        if (requete == EXPORT_TRACE) {
+            if (resultat != RESULT_OK) return
+            val fichier = fichierTrace ?: return
+            val adresse = donnees?.data ?: return
+            try {
+                contentResolver.openOutputStream(adresse)?.use { it.write(fichier.readBytes()) }
+                etat.setText(R.string.export_fait)
+            } catch (e: Exception) {
+                etat.text = texte(e)
+            }
             return
         }
         val coordonnees = dernier?.coordonnees ?: return
@@ -1382,8 +1709,59 @@ class MainActivity : Activity() {
     private fun titre(parent: LinearLayout, texte: Int) =
         parent.addView(TextView(this).apply { setText(texte); textSize = 18f; setPadding(0, dp(16), 0, dp(4)) })
 
+    /**
+     * Un réglage numérique : libellé à gauche, champ à droite. Chaque saisie
+     * valide est enregistrée aussitôt (virgule décimale acceptée), pour ne pas
+     * perdre la dernière valeur quand la fenêtre se ferme.
+     */
+    private fun champNombre(parent: LinearLayout, libelle: Int, valeur: Double,
+                            entier: Boolean, enregistrer: (Double) -> Unit) {
+        val ligne = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        ligne.addView(TextView(this).apply { setText(libelle) }, LinearLayout.LayoutParams(0, -2, 1f))
+        val champ = EditText(this).apply {
+            setText(nombre(valeur, entier))
+            inputType = if (entier) InputType.TYPE_CLASS_NUMBER
+            else InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setSingleLine()
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    val v = s?.toString()?.trim()?.replace(',', '.')?.toDoubleOrNull() ?: return
+                    if (v.isFinite() && v >= 0) enregistrer(v)
+                }
+            })
+        }
+        ligne.addView(champ, LinearLayout.LayoutParams(dp(96), -2))
+        parent.addView(ligne)
+    }
+
+    private fun nombre(valeur: Double, entier: Boolean): String =
+        if (entier || valeur == valeur.roundToInt().toDouble()) valeur.roundToInt().toString()
+        else String.format(Locale.getDefault(), "%.1f", valeur)
+
+    /** Un changement de réglage s'applique au prochain point, sans arrêter la trace. */
+    private fun appliquerReglagesTrace() {
+        EnregistrementGps.trace?.apply {
+            distanceMin = reglages.distanceMin
+            dureeMin = reglages.dureeMin * 1_000L
+            precisionMax = reglages.precisionMax
+        }
+    }
+
     override fun onResume() {
         super.onResume(); carte.onResume()
+        // La position ne se demande pas au lancement : sans autorisation,
+        // demarrerPosition ne fait rien.
+        demarrerPosition()
+        if (EnregistrementGps.actif) {
+            dessinerTraceEnregistree()
+            majBoutonTrace()
+            majEtatTrace()
+        }
         if (attenteAutorisation) {
             attenteAutorisation = false
             if (packageManager.canRequestPackageInstalls()) installerMaj() else etat.setText(R.string.maj_autorisation_refusee)
@@ -1392,10 +1770,13 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         reglages.vue = Triple(carte.mapCenter.latitude, carte.mapCenter.longitude, carte.zoomLevelDouble)
+        // Une trace en cours continue écran éteint ; sinon le GPS se repose.
+        if (!EnregistrementGps.actif) arreterPosition()
         carte.onPause(); super.onPause()
     }
 
     override fun onDestroy() {
+        arreterPosition()
         planificateur.removeCallbacksAndMessages(null)
         routeur.annuler()
         carte.onDetach()
@@ -1404,6 +1785,8 @@ class MainActivity : Activity() {
 
     companion object {
         private const val EXPORT = 1
+        private const val EXPORT_TRACE = 2
+        private const val PERMISSION_POSITION = 3
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */
