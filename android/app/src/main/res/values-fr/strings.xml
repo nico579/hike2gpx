@@ -3,7 +3,8 @@
     <string name="etat_depart_pose">Départ posé : touchez l’arrivée.</string>
     <string name="arreter">Arrêter</string>
     <string name="fond">Fond</string>
-    <string name="retour">Retour</string>
+    <string name="retirer">Retirer</string>
+    <string name="revenir">Revenir</string>
     <string name="effacer">Effacer</string>
     <string name="exporter">GPX</string>
     <string name="reglages">Réglages</string>
@@ -15,8 +16,8 @@
     <string name="titre_fond">Fond de carte</string>
     <string name="fond_osm">OpenStreetMap (en ligne)</string>
     <string name="fond_topo">OpenTopoMap (en ligne)</string>
-    <string name="fond_hors_ligne">%1$s, hors ligne (%2$d fond(s), %3$d Mo)</string>
-    <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$d Mo, depuis %4$s</string>
+    <string name="fond_hors_ligne">%1$s, hors ligne (%2$d fond(s), %3$s)</string>
+    <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$s, depuis %4$s</string>
     <string name="fond_sans_pc">Recevoir les fonds d’un PC (scannez son QR code)…</string>
     <string name="fond_relire">Relire les fonds partagés par le PC</string>
     <string name="etat_fond_installe">Fond %1$s installé.</string>
@@ -24,6 +25,35 @@
     <string name="titre_itineraire">Itinéraire</string>
     <string name="strict">Mode strict</string>
     <string name="officiels">Chemins officiels</string>
+
+    <string name="titre_calques">Calques de la carte</string>
+    <string name="calque_osm">Chemins OSM</string>
+    <string name="calque_fournisseur">Chemin %1$s</string>
+    <string name="calque_aide">Les calques viennent du lot hors ligne et s’affichent à partir du zoom 14, comme sur le PC (zoom actuel : %1$s). Chaque fournisseur national du lot a sa coche.</string>
+    <string name="calque_zoom">Les calques apparaissent à partir du zoom 14 : zoomez pour les voir.</string>
+    <string name="calque_vide">Aucun chemin de calque dans cette vue.</string>
+
+    <string name="recherche_placeholder">Ville ou coordonnées (lat, lon)…</string>
+    <string name="recherche_bouton">Chercher</string>
+    <string name="recherche_attente">Recherche…</string>
+    <string name="recherche_titre">Villes trouvées</string>
+    <string name="recherche_aucun">Aucune ville trouvée.</string>
+    <string name="recherche_erreur">Recherche indisponible : %1$s</string>
+    <string name="recherche_court">Saisissez au moins deux caractères.</string>
+
+    <string name="titre_affichage">Affichage</string>
+    <string name="afficher_legende">Afficher légendes</string>
+    <string name="afficher_courbe">Afficher courbe du dénivelé</string>
+    <string name="afficher_recherche">Afficher la recherche de ville</string>
+    <string name="courbe_aide">Touchez la courbe pour voir le point correspondant sur le tracé.</string>
+    <string name="legende_titre">Légende</string>
+    <string name="legende_itineraire">itinéraire hike2gpx</string>
+    <string name="legende_officiel">chemin officiel</string>
+    <string name="legende_osm">chemins OSM (tirets : sentiers)</string>
+    <string name="legende_barriere">clôtures et murs OSM</string>
+    <string name="legende_bloque">franchissement bloquant</string>
+    <string name="legende_verifier">franchissement à vérifier</string>
+
     <string name="titre_lots">Lots hors ligne</string>
     <string name="titre_fonds">Fonds hors ligne</string>
     <string name="titre_sources">Sources</string>
@@ -36,9 +66,9 @@
     <string name="coller_lien">Coller le lien d’un PC</string>
     <string name="ajouter_pc">Ajouter ce PC comme source ?</string>
     <string name="confirmer_pc">Catalogue : %1$s</string>
-    <string name="ligne_installe">%1$s · %2$s · %3$d Mo</string>
-    <string name="ligne_fond">%1$s · %2$d Mo</string>
-    <string name="au_catalogue">Au catalogue, téléchargés d’eux-mêmes quand un parcours y passe : %1$s.</string>
+    <string name="ligne_installe">%1$s · %2$s · %3$s</string>
+    <string name="ligne_fond">%1$s · %2$s</string>
+    <string name="au_catalogue">Au catalogue, téléchargés d’eux-mêmes quand un parcours ou un calque y passe : %1$s.</string>
     <string name="aucun_lot">Aucun lot installé.</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>
     <string name="telecharger">Télécharger</string>
@@ -46,14 +76,14 @@
     <string name="mettre_a_jour">Mettre à jour</string>
     <string name="supprimer">Supprimer</string>
     <string name="confirmer_suppression">Retirer ce lot du téléphone ? Il ne reviendra pas de lui-même avant le prochain lancement.</string>
-    <string name="confirmer_telechargement">%1$d Mo depuis %2$s. Préférez le Wi-Fi.</string>
-    <string name="confirmer_donnees_mobiles">Le lot de la case %1$s (%2$d Mo, %3$s) couvre ce parcours. Le télécharger sur les données mobiles ?</string>
+    <string name="confirmer_telechargement">%1$s depuis %2$s. Préférez le Wi-Fi.</string>
+    <string name="confirmer_donnees_mobiles">Le lot de la case %1$s (%2$s, %3$s) couvre ce parcours. Le télécharger sur les données mobiles ?</string>
 
     <string name="titre_cache">Cache</string>
-    <string name="vider_cache">Vider le cache (%1$d Mo)</string>
+    <string name="vider_cache">Vider le cache (%1$s)</string>
     <string name="vider">Vider</string>
-    <string name="confirmer_vider_cache">Effacer les lots et les fonds hors ligne, les téléchargements interrompus et les tuiles gardées, %1$d Mo en tout ? Les lots du serveur se retéléchargeront d’eux-mêmes quand un parcours en aura besoin ; les fonds viennent du PC.</string>
-    <string name="etat_cache_vide">Cache vidé : %1$d Mo libérés.</string>
+    <string name="confirmer_vider_cache">Effacer les lots et les fonds hors ligne, les téléchargements interrompus et les tuiles gardées, %1$s en tout ? Les lots du serveur se retéléchargeront d’eux-mêmes quand un parcours en aura besoin ; les fonds viennent du PC.</string>
+    <string name="etat_cache_vide">Cache vidé : %1$s libérés.</string>
     <string name="etat_occupe_cache">Un téléchargement ou un calcul est en cours. Réessayez après sa fin.</string>
 
     <string name="etat_catalogue">Lecture des catalogues…</string>
@@ -61,16 +91,21 @@
     <string name="etat_fonds_pc">Lecture des fonds partagés par le PC…</string>
     <string name="etat_fonds_pc_lus">%1$d fond(s) partagé(s) par le PC.</string>
     <string name="etat_telechargement">Téléchargement…</string>
-    <string name="etat_telechargement_lot">Téléchargement du lot %1$s (%2$d Mo), qui couvre ce parcours…</string>
+    <string name="etat_telechargement_lot">Téléchargement du lot %1$s (%2$s)…</string>
     <string name="etat_installe">Lot %1$s installé.</string>
-    <string name="etat_supprime">Lot %1$s retiré, %2$d Mo libérés.</string>
+    <string name="etat_supprime">Lot %1$s retiré, %2$s libérés.</string>
     <string name="etat_interrompu">Téléchargement interrompu : il reprendra là où il s’est arrêté.</string>
     <string name="etat_calcul">Calcul en cours…</string>
     <string name="etat_itineraire">Itinéraire sur le lot %1$s : %2$.1f km.</string>
+    <string name="etat_denivele_calcul">Calcul du dénivelé par gpx2elev…</string>
+    <string name="etat_denivele">Montée +%1$d m / descente −%2$d m · %3$s à pied.</string>
+    <string name="etat_denivele_indisponible">Dénivelé indisponible : %1$s</string>
     <string name="etat_occupe">Une tâche est déjà en cours.</string>
     <string name="rien_a_exporter">Aucun itinéraire à exporter.</string>
     <string name="export_fait">GPX enregistré.</string>
     <string name="lot_enrichi">enrichi %1$s</string>
+    <string name="duree_heures">%1$d h %2$02d</string>
+    <string name="duree_minutes">%1$d min</string>
 
     <!-- Les erreurs du code métier (ErreurTexte). -->
     <string name="err_catalogue_format">Catalogue des lots d’un format inconnu.</string>
@@ -141,4 +176,46 @@
     <string name="maj_aucune_release">Aucune release publiée pour le moment.</string>
     <string name="maj_indisponible">Le serveur de mises à jour est indisponible.</string>
     <string name="maj_corrompu">Fichier de mise à jour incomplet ou corrompu.</string>
+
+    <!-- La position GPS et l’enregistrement d’une trace, comme Locus Map. -->
+    <string name="titre_trace">Trace GPS</string>
+    <string name="trace_aide">Un point n’est retenu que si le GPS est assez précis et si la distance et la durée depuis le point précédent sont atteintes. Le premier point n’a que la précision à respecter.</string>
+    <string name="trace_distance">Distance minimale entre deux points (m)</string>
+    <string name="trace_duree">Durée minimale entre deux points (s)</string>
+    <string name="trace_precision">Déviation GPS maximale (m)</string>
+    <string name="bouton_position">Me centrer sur ma position GPS</string>
+    <string name="bouton_trace">Enregistrer une trace GPS</string>
+    <string name="bouton_trace_stop">Arrêter la trace GPS</string>
+    <string name="trace_demarree">Trace GPS démarrée : le téléphone relève les points.</string>
+    <string name="trace_sans_point">Aucun point retenu : la trace n’a pas été enregistrée.</string>
+    <string name="trace_titre">Trace GPS enregistrée</string>
+    <string name="trace_resume">%1$s, %2$s, %3$s.</string>
+    <string name="trace_fichier">Fichier : %1$s</string>
+    <string name="trace_exporter">Exporter le GPX</string>
+    <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m (gpx2elev).</string>
+    <string name="trace_etat_debut">Trace GPS : %1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
+    <string name="trace_etat_sans_denivele">Trace GPS : %1$s, %2$s, %3$s. Dénivelé indisponible : le cache gpx2elev ne couvre pas encore le parcours.</string>
+    <string name="trace_resume_court">%1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
+    <string name="trace_resume_denivele">%1$s, %2$s, %3$s, D+ %4$d m / D- %5$d m (gpx2elev).</string>
+    <string name="trace_resume_sans_denivele">%1$s, %2$s, %3$s. Dénivelé non calculé : le cache gpx2elev est incomplet.</string>
+    <string name="trace_denivele_calcul">Calcul du dénivelé gpx2elev avant l’export…</string>
+    <string name="trace_gpx_desc">D+ %1$d m / D− %2$d m (gpx2elev)</string>
+    <string name="trace_export_annule">Export annulé.</string>
+    <string name="titre_traces">Traces enregistrées</string>
+    <string name="traces_aucune">Aucune trace enregistrée pour le moment.</string>
+    <string name="trace_supprimer_titre">Supprimer la trace</string>
+    <string name="trace_supprimer_message">Supprimer %1$s ? Le fichier GPX sera effacé du téléphone.</string>
+    <string name="traces_supprimer_message">Supprimer %1$d traces ? Les fichiers GPX seront effacés du téléphone.</string>
+    <string name="traces_supprimer_selection">Supprimer la sélection</string>
+    <string name="traces_selection_vide">Cochez au moins une trace.</string>
+    <plurals name="trace_points">
+        <item quantity="one">%1$d point</item>
+        <item quantity="other">%1$d points</item>
+    </plurals>
+    <string name="position_recherchee">Recherche de la position GPS…</string>
+    <string name="position_refusee">Position refusée : autorisez la localisation pour hike2gpx.</string>
+    <string name="gps_inactif">Le GPS est coupé : activez la localisation.</string>
+    <string name="distance_metres">%1$d m</string>
+    <string name="distance_km">%1$.1f km</string>
+    <string name="duree_secondes">%1$d s</string>
 </resources>

@@ -8,17 +8,95 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. On
 touche la carte pour poser le départ, puis l'arrivée et d'éventuelles étapes ;
-« Retour » retire le dernier point, « Effacer » les retire tous. Dès qu'il y a
+« Retirer » retire le dernier point, « Effacer » les retire tous, et
+« Revenir » ajoute le départ en fin de parcours pour fermer une boucle. Dès qu'il y a
 deux points, l'itinéraire se calcule hors ligne et s'affiche ; « GPX »
 l'exporte.
+
+Au-dessus de l'état, le champ de recherche de la page recentre la carte sur
+une ville ou sur des coordonnées « lat, lon », sans poser de point. Les
+communes françaises répondent d'abord (geo.api.gouv.fr, avec leur
+département) ; ailleurs, ou si la France ne connaît rien, Nominatim donne les
+villes et villages d'OSM avec leur région et leur pays. Une seule réponse
+recadre aussitôt, plusieurs se choisissent dans une liste.
+
+Les calques du lot s'affichent sur la carte, comme ceux de la page : les
+chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
+qui gênent un piéton et les franchissements bloquants (rouge) ou à vérifier
+(orange), et les chemins de chaque fournisseur national retenu par le lot
+(BD TOPO en France, turquoise), chacun avec sa coche dans les réglages
+(« Chemin IGN BD TOPO », « Chemin ATKIS »…). Ils n'apparaissent qu'à
+partir du zoom 14, celui des tuiles vectorielles du lot : en dessous, mieux
+vaut ne rien montrer qu'un réseau tronqué. Les réglages rappellent le zoom
+courant ; une coche sous ce zoom, ou une vue sans chemin de calque, le dit
+plutôt que de laisser croire que la case ne marche pas. Les calques sont lus dans
+`calques.mbtiles` (MVT) en arrière-plan, sans gêner le calcul de l'itinéraire ;
+un lot ancien qui n'a pas ce fichier n'affiche simplement rien.
+
+Sous la distance, l'itinéraire donne aussi le dénivelé et la durée de marche,
+calculés comme sur le PC par le protocole de gpx2elev : altitude échantillonnée
+tous les 5 m, lissage gaussien de 20 m, D+/D− avec une hystérésis de 2 m, puis
+modèle de Tobler tous les 20 m. Le téléphone lit le même relief Mapterhorn
+(tuiles Terrarium du zoom 12, LiDAR HD de l'IGN en France), qu'il rapatrie à la
+demande dans `gpx2elev/tiles` ; une tuile déjà là sert aux parcours suivants.
+Le calcul du relief est séparé de celui de l'itinéraire : le tracé s'affiche
+d'abord, le dénivelé arrive ensuite. Sans relief disponible, la ligne le dit et
+la valeur BRouter ne le remplace pas, comme sur le PC. Les réglages ont trois
+coches d'affichage, cochées d'emblée : « Afficher légendes » montre sous le
+bandeau d'état la légende des symboles de la carte (itinéraire, chemins
+officiels, chemins OSM, barrières, franchissements), « Afficher courbe du
+dénivelé » dessine au-dessus des boutons le profil de la page — distance en
+abscisse, altitude lissée en ordonnée, aire bleue et bornes d'altitude — et
+« Afficher la recherche de ville » garde ou retire le champ de recherche du
+haut de l'écran. La courbe n'apparaît qu'une fois le relief calculé ;
+décochée, elle laisse toute la carte. Comme sur la page, poser le doigt sur la
+courbe montre le point du tracé correspondant : un trait vertical, la distance
+et l'altitude sous le doigt, et un disque bleu cerclé de blanc sur la carte.
+Lever le doigt efface les deux.
+
+Un double tap sur la carte, comme sur Locus Map, masque les deux bandeaux et
+laisse la carte seule ; un second double tap les ramène. L'échelle et
+l'attribution OSM restent visibles : elles font partie de la carte.
+
+Deux boutons ronds, à droite de la carte, reprennent Locus Map. Celui du haut
+enregistre une trace GPS : un appui démarre (triangle vert), un second arrête
+(carré rouge) et range le GPX dans `traces/`, avec l'heure et l'altitude de
+chaque point. Les réglages suivent ceux de Locus : distance minimale entre deux
+points (10 m), durée minimale (10 s) et déviation GPS maximale (100 m). Un point
+n'est retenu que si le GPS est plus précis que la déviation, et si la distance et
+la durée depuis le point précédent sont toutes deux atteintes ; le premier point
+n'a que la précision à respecter. Un changement de réglage s'applique au point
+suivant, même pendant un enregistrement. Le bouton du bas recentre la carte sur
+la position, avec le point bleu et son halo de précision ; la localisation n'est
+demandée qu'au premier appui sur un des deux boutons, jamais au lancement. La
+trace enregistrée s'affiche en orange, au-dessus de l'itinéraire bleu, et
+l'écran reste allumé tant qu'elle tourne.
+
+Pendant l'enregistrement, le bandeau donne la distance, la durée et le dénivelé
+D+/D− calculé comme gpx2elev. Le calcul ne lit que le cache `gpx2elev/tiles` :
+en randonnée, le téléphone n'a pas de réseau. Si le cache ne couvre pas encore
+le parcours, le dénivelé reste absent du bandeau, sans arrêter la trace. À
+l'export, le GPX est relu et les altitudes sont remplacées par celles de
+gpx2elev : d'abord avec le cache, puis avec le réseau s'il est disponible et que
+le cache est incomplet ; sans les deux, le fichier part tel qu'il a été
+enregistré. La description du GPX porte alors « D+ … m / D− … m (gpx2elev) ».
+
+Les réglages listent aussi l'historique des traces : chaque fichier de `traces/`
+affiche sa date et sa taille réelle, avec un bouton « GPX » pour le réexporter
+et un bouton « Supprimer ». Les cases à cocher et « Supprimer la sélection »
+effacent plusieurs traces d'un coup, après confirmation. « Vider le cache » ne
+touche pas à cet historique.
 
 Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
 (`application._lot_automatique`) : l'application lit les catalogues à son
 lancement, et quand un parcours touche une case dont le lot manque, ou dont le
-dépôt a une édition plus récente, ce lot part aussitôt. Sur le Wi-Fi, sans
-rien demander ; sur un réseau facturé (données mobiles), après confirmation.
-Un échec ou un refus n'est pas repris avant une heure, et un lot supprimé à la
-main ne revient pas de la séance.
+dépôt a une édition plus récente, ce lot part aussitôt. Afficher un calque du
+lot au zoom 14 compte aussi comme un usage de la région : le lot de la case du
+centre se télécharge de lui-même. Sur le Wi-Fi, sans rien demander ; sur un
+réseau facturé (données mobiles), après confirmation. Un échec ou un refus
+n'est pas repris avant une heure, et un lot supprimé à la main ne revient pas
+de la séance. Les lots et les fonds installés affichent leur taille réelle
+(« 254 kB » pour un petit lot d'essai, jamais un « 0 Mo » trompeur).
 
 Le bouton « Fond » choisit le fond de carte : OpenStreetMap ou OpenTopoMap en
 ligne, ou un fond hors ligne reçu d'un PC (le SCAN 25 ou le Plan IGN qu'il a
@@ -30,8 +108,9 @@ plus fin.
 
 Les réglages réunissent le reste : mode strict et chemins officiels, lots et
 fonds installés (mise à jour, suppression), sources, et « Vider le cache », qui
-efface comme sur le PC les lots, les fonds, les téléchargements interrompus et
-les tuiles en ligne gardées ; les lots du serveur reviennent d'eux-mêmes.
+efface comme sur le PC les lots, les fonds, les téléchargements interrompus,
+les tuiles en ligne gardées et les tuiles de relief gpx2elev ; les lots du
+serveur reviennent d'eux-mêmes.
 
 L'application parle anglais ou français selon la langue du téléphone, comme
 watch2notif : l'anglais dans `res/values`, la langue par défaut, le français
@@ -57,7 +136,9 @@ d'Android par un `FileProvider` (`FournisseurMaj`, qui ne partage que
 `cache/maj`). La première fois, Android demande d'autoriser hike2gpx à
 installer des applications ; la mise à jour reprend au retour. Lots, fonds et
 réglages sont gardés. L'APK d'essai ne se compare pas aux releases au
-lancement : ce n'est pas le même paquet.
+lancement : ce n'est pas le même paquet. Il a donc son propre stockage : les
+lots et les fonds téléchargés dans l'application normale ne s'y voient pas, il
+faut les y télécharger ou les recevoir d'un PC.
 
 Le catalogue des lots (`catalog.json`) a le format de `hike2gpx/depot.py`.
 Un lot se télécharge fichier par fichier ; une
@@ -71,6 +152,10 @@ hors-ligne/segments/E5_N40.rd5          RD5 des lots enrichis
 hors-ligne/segments-osm/E5_N40.rd5      RD5 officielles des lots OSM
 hors-ligne/E5_N40/manifest.json, franchissements.json.gz, calques.mbtiles
 ```
+
+Les tuiles de relief vont dans `gpx2elev/tiles/`, à la racine des fichiers de
+l'application, sous le même nom que sur le PC (`mapterhorn_12_x_y.webp`) : un
+cache recopié d'un PC sert tel quel.
 
 Le calcul suit la règle du PC : un parcours dont la zone tient dans un lot se
 calcule sur ce lot seul. Les franchissements de la zone deviennent des coupes

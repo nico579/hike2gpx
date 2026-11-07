@@ -35,6 +35,64 @@ class Reglages(context: Context) {
         get() = preferences.getBoolean(OFFICIELS, true)
         set(v) = preferences.edit().putBoolean(OFFICIELS, v).apply()
 
+    /** Les chemins OSM (voies, barrières, franchissements) dessinés sur la carte. */
+    var calqueOsm: Boolean
+        get() = preferences.getBoolean(CALQUE_OSM, true)
+        set(v) = preferences.edit().putBoolean(CALQUE_OSM, v).apply()
+
+    /**
+     * Les fournisseurs nationaux dont les chemins sont dessinés (clés du
+     * manifeste : « ign », « atkis »…). Chacun a sa coche, comme sur le PC.
+     * Sans préférence enregistrée, tous sont cochés ; l'ancien réglage unique
+     * « calque_officiel » est repris une fois.
+     */
+    var calquesOfficiels: Set<String>
+        get() {
+            preferences.getStringSet(CALQUES_OFFICIELS, null)?.let { return it.toSet() }
+            if (preferences.contains(CALQUE_OFFICIEL) && !preferences.getBoolean(CALQUE_OFFICIEL, true))
+                return emptySet()
+            return Fournisseurs.TOUS.map { it.cle }.toSet()
+        }
+        set(v) = preferences.edit().putStringSet(CALQUES_OFFICIELS, v).apply()
+
+    fun calqueOfficiel(cle: String): Boolean = cle in calquesOfficiels
+
+    fun changerCalqueOfficiel(cle: String, actif: Boolean) {
+        calquesOfficiels = calquesOfficiels.toMutableSet().apply {
+            if (actif) add(cle) else remove(cle)
+        }
+    }
+
+    /** La légende des symboles de la carte, sous le bandeau d'état. */
+    var legende: Boolean
+        get() = preferences.getBoolean(LEGENDE, true)
+        set(v) = preferences.edit().putBoolean(LEGENDE, v).apply()
+
+    /** La courbe du dénivelé, au-dessus des boutons, comme le profil de la page. */
+    var courbeDenivele: Boolean
+        get() = preferences.getBoolean(COURBE_DENIVELE, true)
+        set(v) = preferences.edit().putBoolean(COURBE_DENIVELE, v).apply()
+
+    /** La zone de recherche de ville, en haut de l'écran ; un double tap la cache avec le reste. */
+    var recherche: Boolean
+        get() = preferences.getBoolean(RECHERCHE, true)
+        set(v) = preferences.edit().putBoolean(RECHERCHE, v).apply()
+
+    /** La distance minimale entre deux points d'une trace GPS, en mètres (Locus : 10). */
+    var distanceMin: Double
+        get() = preferences.getFloat(DISTANCE_MIN, 10f).toDouble()
+        set(v) = preferences.edit().putFloat(DISTANCE_MIN, v.toFloat()).apply()
+
+    /** La durée minimale entre deux points d'une trace GPS, en secondes (Locus : 10). */
+    var dureeMin: Int
+        get() = preferences.getInt(DUREE_MIN, 10)
+        set(v) = preferences.edit().putInt(DUREE_MIN, v).apply()
+
+    /** La déviation GPS maximale acceptée pour un point, en mètres (Locus : 100). */
+    var precisionMax: Double
+        get() = preferences.getFloat(PRECISION_MAX, 100f).toDouble()
+        set(v) = preferences.edit().putFloat(PRECISION_MAX, v.toFloat()).apply()
+
     /** La dernière vue de la carte : latitude, longitude, zoom ; Garéoult au premier lancement. */
     var vue: Triple<Double, Double, Double>
         get() = preferences.getString(VUE, null)?.split(',')?.mapNotNull { it.toDoubleOrNull() }
@@ -52,6 +110,15 @@ class Reglages(context: Context) {
         private const val FOND = "fond"
         private const val STRICT = "strict"
         private const val OFFICIELS = "officiels"
+        private const val CALQUE_OSM = "calque_osm"
+        private const val CALQUES_OFFICIELS = "calques_officiels"
+        private const val CALQUE_OFFICIEL = "calque_officiel"       // ancien réglage unique, repris une fois
+        private const val LEGENDE = "legende"
+        private const val COURBE_DENIVELE = "courbe_denivele"
+        private const val RECHERCHE = "recherche"
+        private const val DISTANCE_MIN = "trace_distance_min"
+        private const val DUREE_MIN = "trace_duree_min"
+        private const val PRECISION_MAX = "trace_precision_max"
         private const val VUE = "vue"
 
         /**

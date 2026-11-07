@@ -19,6 +19,24 @@ fun lotsATelecharger(offres: List<Offre>, installes: List<Lot>, zone: Zone, excl
     }
 }
 
+/**
+ * L'offre du lot qui couvre le centre de la vue, s'il manque ou si le
+ * catalogue en a un plus récent ; null sinon. C'est le lot que lit le calque
+ * de la carte : afficher un calque est un usage réel de la région, comme sur
+ * le PC (`application._lot_automatique` appelé par `calque_osm`).
+ */
+fun offreAuCentre(offres: List<Offre>, installes: List<Lot>, zone: Zone, exclues: Set<String>): Offre? {
+    val lat = (zone.sud + zone.nord) / 2
+    val lon = (zone.ouest + zone.est) / 2
+    val parCase = installes.associateBy { it.case }
+    return offres.filter { offre ->
+        val couverture = offre.lot.couverture
+        offre.lot.case !in exclues && couverture != null &&
+            lat in couverture[0]..couverture[2] && lon in couverture[1]..couverture[3] &&
+            (parCase[offre.lot.case]?.let { plusRecent(offre.lot, it) } ?: true)
+    }.minByOrNull { if (it.lot.osm) 1 else 0 }
+}
+
 /** La zone a-t-elle une partie commune avec la boîte [sud, ouest, nord, est] ? (hors_ligne.touche) */
 fun Zone.touche(boite: List<Double>): Boolean =
     sud < boite[2] && boite[0] < nord && ouest < boite[3] && boite[1] < est
