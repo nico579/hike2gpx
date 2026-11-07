@@ -113,6 +113,11 @@ class MainActivity : Activity() {
     private var traceEnregistree: Polyline? = null
     private var fichierTrace: File? = null
     private var insetBas = 0
+    /** Le relief de la trace : cache gpx2elev seulement, sans réseau. */
+    private lateinit var reliefTrace: Mapterhorn
+    private val traceOccupe = AtomicBoolean(false)
+    @Volatile private var traceARefaire = false
+    private var contenuExport: ByteArray? = null
     private var echelle: ScaleBarOverlay? = null
     private var droits: CopyrightOverlay? = null
     private val points = mutableListOf<Point>()
@@ -156,6 +161,7 @@ class MainActivity : Activity() {
         routeur = Routeur(Reglages.profils(this))
         calques = Calques(horsLigne)
         relief = Mapterhorn(filesDir)
+        reliefTrace = Mapterhorn(filesDir, reseau = false)
         construire()
         appliquerFond(reglages.fond)
         lireLien(intent)
@@ -1040,6 +1046,42 @@ class MainActivity : Activity() {
             appliquerReglagesTrace()
         }
 
+        // L'historique : chaque GPX de traces/ peut être réexporté ou supprimé,
+        // seul ou avec les autres cases cochées.
+        titre(colonne, R.string.titre_traces)
+        val traces = tracesEnregistrees()
+        if (traces.isEmpty()) {
+            colonne.addView(TextView(this).apply { setText(R.string.traces_aucune) })
+        } else {
+            val cases = linkedMapOf<File, CheckBox>()
+            val date = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+            for (f in traces) {
+                val ligne = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                val selection = CheckBox(this)
+                cases[f] = selection
+                ligne.addView(selection, LinearLayout.LayoutParams(-2, -2))
+                ligne.addView(TextView(this).apply {
+                    text = "${date.format(Date(f.lastModified()))} · " +
+                        Formatter.formatShortFileSize(this@MainActivity, f.length())
+                    textSize = 13f
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                ligne.addView(boutonPetit(R.string.exporter) { exporterTrace(f) })
+                ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppression(listOf(f)) })
+                colonne.addView(ligne)
+            }
+            colonne.addView(Button(this).apply {
+                setText(R.string.traces_supprimer_selection)
+                setOnClickListener {
+                    val choisies = cases.filterValues { it.isChecked }.keys.toList()
+                    if (choisies.isEmpty()) etat.setText(R.string.traces_selection_vide)
+                    else confirmerSuppression(choisies)
+                }
+            })
+        }
+
         titre(colonne, R.string.titre_lots)
         val installes = horsLigne.lots()
         for (lot in installes) {
@@ -1493,6 +1535,7 @@ class MainActivity : Activity() {
                 if (location.hasAccuracy()) location.accuracy.toDouble() else null)) {
             dessinerTraceEnregistree()
             majEtatTrace()
+            calculerDeniveleTrace()
         }
     }
 
@@ -1519,7 +1562,7 @@ class MainActivity : Activity() {
     }
 
     private fun demarrerEnregistrement() {
-        val dossier = File(getExternalFilesDir(null) ?: filesDir, "traces").apply { mkdirs() }
+        val dossier = dossierTraces().apply { mkdirs() }
         val nom = "trace-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
         val trace = TraceGps(reglages.distanceMin, reglages.dureeMin * 1_000L, reglages.precisionMax)
         EnregistrementGps.demarrer(trace, File(dossier, nom))
@@ -1548,8 +1591,7 @@ class MainActivity : Activity() {
             return
         }
         fichierTrace = fichier
-        val resume = getString(R.string.trace_resume, pointsTexte(trace.taille),
-            distanceTexte(trace.distance), dureeTexte(trace.duree))
+        val resume = resumeTrace(trace)
         etat.text = resume
         AlertDialog.Builder(this)
             .setTitle(R.string.trace_titre)
@@ -1558,6 +1600,40 @@ class MainActivity : Activity() {
             .setPositiveButton(R.string.trace_exporter) { _, _ -> exporterTrace(fichier) }
             .setNegativeButton(R.string.fermer, null)
             .show()
+    }
+
+    /**
+     * Le dénivelé de la trace en cours, calculé avec gpx2elev sur les seules
+     * tuiles du cache : en randonnée, le téléphone n'a pas de réseau. Le calcul
+     * se fait hors de l'écran ; un point arrivé entre-temps le relance une fois.
+     */
+    private fun calculerDeniveleTrace() {
+        val trace = EnregistrementGps.trace ?: return
+        if (trace.taille < 2) return
+        if (!traceOccupe.compareAndSet(false, true)) {
+            traceARefaire = true
+            return
+        }
+        val points = trace.points
+        EXECUTEUR_TRACE.execute {
+            val profil = try {
+                Denivele.calculer(points.map { doubleArrayOf(it.lon, it.lat) }, reliefTrace)
+            } catch (e: Exception) {
+                null
+            }
+            runOnUiThread {
+                traceOccupe.set(false)
+                if (isDestroyed) return@runOnUiThread
+                if (EnregistrementGps.trace === trace) {
+                    trace.profil = profil
+                    majEtatTrace()
+                }
+                if (traceARefaire) {
+                    traceARefaire = false
+                    calculerDeniveleTrace()
+                }
+            }
+        }
     }
 
     private fun dessinerTraceEnregistree() {
@@ -1584,17 +1660,90 @@ class MainActivity : Activity() {
 
     private fun majEtatTrace() {
         val trace = EnregistrementGps.trace ?: return
-        etat.text = getString(R.string.trace_etat, pointsTexte(trace.taille),
-            distanceTexte(trace.distance), dureeTexte(trace.duree))
+        val profil = trace.profil
+        etat.text = when {
+            trace.taille < 2 -> getString(R.string.trace_etat_debut, pointsTexte(trace.taille),
+                distanceTexte(trace.distance), dureeTexte(trace.duree))
+            profil != null -> getString(R.string.trace_etat, pointsTexte(trace.taille),
+                distanceTexte(trace.distance), dureeTexte(trace.duree),
+                profil.monteeM, profil.descenteM)
+            else -> getString(R.string.trace_etat_sans_denivele, pointsTexte(trace.taille),
+                distanceTexte(trace.distance), dureeTexte(trace.duree))
+        }
     }
 
+    private fun resumeTrace(trace: TraceGps): String {
+        val points = pointsTexte(trace.taille)
+        val distance = distanceTexte(trace.distance)
+        val duree = dureeTexte(trace.duree)
+        val profil = trace.profil
+        return if (profil != null)
+            getString(R.string.trace_resume_denivele, points, distance, duree,
+                profil.monteeM, profil.descenteM)
+        else getString(R.string.trace_resume_sans_denivele, points, distance, duree)
+    }
+
+    private fun dossierTraces(): File =
+        File(getExternalFilesDir(null) ?: filesDir, "traces")
+
+    private fun tracesEnregistrees(): List<File> =
+        dossierTraces().listFiles { f -> f.isFile && f.extension.equals("gpx", true) }
+            ?.sortedByDescending { it.lastModified() } ?: emptyList()
+
+    private fun reseauDisponible(): Boolean = try {
+        getSystemService(ConnectivityManager::class.java).activeNetwork != null
+    } catch (e: Exception) {
+        false
+    }
+
+    /**
+     * L'export relit le GPX et remet le dénivelé gpx2elev : d'abord le cache,
+     * qui suffit souvent ; sinon le réseau, s'il est là. Sans les deux, le
+     * fichier part tel qu'il a été enregistré.
+     */
     private fun exporterTrace(fichier: File?) {
         if (fichier == null || !fichier.exists()) return
         fichierTrace = fichier
+        etat.setText(R.string.trace_denivele_calcul)
+        EXECUTEUR_TRACE.execute {
+            val texte = try {
+                fichier.readText()
+            } catch (e: Exception) {
+                null
+            }
+            val points = texte?.let { Gpx.lireTrace(it) } ?: emptyList()
+            val enrichi = preparerGpxEnrichi(points, fichier)
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                contenuExport = enrichi?.toByteArray()
+                lancerExport(fichier.name)
+            }
+        }
+    }
+
+    private fun preparerGpxEnrichi(points: List<PointTrace>, fichier: File): String? {
+        if (points.size < 2) return null
+        // Des instances neuves : le calcul du tracé peut lire le relief en même
+        // temps, et Mapterhorn n'est pas partagé entre deux tâches.
+        val reliefs = mutableListOf(Mapterhorn(filesDir, reseau = false))
+        if (reseauDisponible()) reliefs.add(Mapterhorn(filesDir))
+        for (modele in reliefs) {
+            try {
+                val (enrichis, profil) = Gpx.enrichir(points, modele)
+                return Gpx.ecrireTrace(enrichis, fichier.nameWithoutExtension,
+                    getString(R.string.trace_gpx_desc, profil.monteeM, profil.descenteM))
+            } catch (e: Exception) {
+                // cache incomplet : on essaie le réseau, sinon le GPX reste tel quel
+            }
+        }
+        return null
+    }
+
+    private fun lancerExport(nom: String) {
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/gpx+xml"
-            putExtra(Intent.EXTRA_TITLE, fichier.name)
+            putExtra(Intent.EXTRA_TITLE, nom)
         }, EXPORT_TRACE)
     }
 
@@ -1636,15 +1785,23 @@ class MainActivity : Activity() {
             return
         }
         if (requete == EXPORT_TRACE) {
-            if (resultat != RESULT_OK) return
-            val fichier = fichierTrace ?: return
+            if (resultat != RESULT_OK) {
+                contenuExport = null
+                etat.setText(R.string.trace_export_annule)
+                return
+            }
             val adresse = donnees?.data ?: return
             try {
-                contentResolver.openOutputStream(adresse)?.use { it.write(fichier.readBytes()) }
+                contentResolver.openOutputStream(adresse)?.use { sortie ->
+                    val contenu = contenuExport
+                    if (contenu != null) sortie.write(contenu)
+                    else fichierTrace?.takeIf { it.isFile }?.let { sortie.write(it.readBytes()) }
+                }
                 etat.setText(R.string.export_fait)
             } catch (e: Exception) {
                 etat.text = texte(e)
             }
+            contenuExport = null
             return
         }
         val coordonnees = dernier?.coordonnees ?: return
@@ -1752,6 +1909,31 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun boutonPetit(texte: Int, action: () -> Unit) = Button(this).apply {
+        setText(texte); textSize = 12f; isAllCaps = false
+        minWidth = 0; minimumWidth = 0
+        setPadding(dp(8), paddingTop, dp(8), paddingBottom)
+        setOnClickListener { action() }
+    }
+
+    private fun confirmerSuppression(fichiers: List<File>) {
+        if (fichiers.isEmpty()) return
+        val message = if (fichiers.size == 1)
+            getString(R.string.trace_supprimer_message, fichiers.first().name)
+        else getString(R.string.traces_supprimer_message, fichiers.size)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.trace_supprimer_titre)
+            .setMessage(message)
+            .setPositiveButton(R.string.supprimer) { _, _ ->
+                fichiers.forEach { it.delete() }
+                if (fichiers.any { it == fichierTrace }) fichierTrace = null
+                contenuExport = null
+                remplirReglages()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     override fun onResume() {
         super.onResume(); carte.onResume()
         // La position ne se demande pas au lancement : sans autorisation,
@@ -1797,6 +1979,9 @@ class MainActivity : Activity() {
         // reste calculable pendant qu'ils se lisent.
         private val EXECUTEUR_CALQUES = Executors.newSingleThreadExecutor()
         private val EXECUTEUR_DENIVELE = Executors.newSingleThreadExecutor()
+        // La trace GPS et son export se suivent ; le calcul du dénivelé live
+        // n'empêche pas l'écran de répondre.
+        private val EXECUTEUR_TRACE = Executors.newSingleThreadExecutor()
         private val enCours = AtomicBoolean(false)
     }
 }

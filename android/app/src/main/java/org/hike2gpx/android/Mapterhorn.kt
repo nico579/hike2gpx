@@ -18,8 +18,11 @@ import kotlin.math.tan
  *
  * altitude() interpole bilinéairement, avec le même pixel et les mêmes bornes
  * que relief.py, pour que le téléphone et le PC lisent le même relief.
+ *
+ * Avec [reseau] à false, aucune tuile n'est téléchargée : c'est le mode de la
+ * trace GPS en randonnée, qui lit le cache `gpx2elev/tiles` et rien d'autre.
  */
-class Mapterhorn(private val dossier: File) : ModeleTerrain {
+class Mapterhorn(private val dossier: File, private val reseau: Boolean = true) : ModeleTerrain {
     private val cache = File(dossier, "gpx2elev/tiles")
     /** Les tuiles décodées, en mémoire : un parcours les lit dans l'ordre, et
      * seules les dernières servent encore. 32 tuiles font 32 Mo. */
@@ -83,6 +86,12 @@ class Mapterhorn(private val dossier: File) : ModeleTerrain {
                 throw ErreurDenivele("tuile de relief illisible (${e.message})")
             }
         } else {
+            // En randonnée, le téléphone n'a souvent pas de réseau : la trace
+            // se contente des tuiles déjà dans le cache gpx2elev.
+            if (!reseau) {
+                absentes.add(cle)
+                return null
+            }
             val recus = telecharger(x, y) ?: run {
                 absentes.add(cle)
                 return null

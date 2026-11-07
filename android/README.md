@@ -72,6 +72,21 @@ demandée qu'au premier appui sur un des deux boutons, jamais au lancement. La
 trace enregistrée s'affiche en orange, au-dessus de l'itinéraire bleu, et
 l'écran reste allumé tant qu'elle tourne.
 
+Pendant l'enregistrement, le bandeau donne la distance, la durée et le dénivelé
+D+/D− calculé comme gpx2elev. Le calcul ne lit que le cache `gpx2elev/tiles` :
+en randonnée, le téléphone n'a pas de réseau. Si le cache ne couvre pas encore
+le parcours, le dénivelé reste absent du bandeau, sans arrêter la trace. À
+l'export, le GPX est relu et les altitudes sont remplacées par celles de
+gpx2elev : d'abord avec le cache, puis avec le réseau s'il est disponible et que
+le cache est incomplet ; sans les deux, le fichier part tel qu'il a été
+enregistré. La description du GPX porte alors « D+ … m / D− … m (gpx2elev) ».
+
+Les réglages listent aussi l'historique des traces : chaque fichier de `traces/`
+affiche sa date et sa taille réelle, avec un bouton « GPX » pour le réexporter
+et un bouton « Supprimer ». Les cases à cocher et « Supprimer la sélection »
+effacent plusieurs traces d'un coup, après confirmation. « Vider le cache » ne
+touche pas à cet historique.
+
 Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
 (`application._lot_automatique`) : l'application lit les catalogues à son
 lancement, et quand un parcours touche une case dont le lot manque, ou dont le

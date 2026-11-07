@@ -2,6 +2,8 @@ package org.hike2gpx.android
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -83,5 +85,56 @@ class TraceGpsTest {
         trace.distanceMin = 10.0
         trace.dureeMin = 0L
         assertTrue(trace.ajouter(43.001, 6.0, null, 20_000L, 5.0))
+    }
+
+    @Test fun un_gpx_de_lhistorique_se_relit_a_lidentique() {
+        val points = listOf(
+            PointTrace(43.0, 6.0, 120.5, 1_000L),
+            PointTrace(43.001, 6.002, null, 21_000L),
+        )
+        val texte = Gpx.ecrireTrace(points, "aller", "D+ 10 m / D− 5 m (gpx2elev)")
+        assertTrue(texte.contains("<desc>D+ 10 m / D− 5 m (gpx2elev)</desc>"))
+        val relus = Gpx.lireTrace(texte)
+        assertEquals(2, relus.size)
+        assertEquals(43.0, relus[0].lat, 0.0)
+        assertEquals(6.0, relus[0].lon, 0.0)
+        assertEquals(120.5, relus[0].altitude!!, 0.0)
+        assertEquals(1_000L, relus[0].instant)
+        // Sans altitude, le point relu n'en invente pas.
+        assertTrue(relus[1].altitude == null)
+        assertEquals(21_000L, relus[1].instant)
+    }
+
+    @Test fun enrichir_remplace_laltitude_gps_par_le_relief() {
+        // Un relief qui monte de 1 m par 0,001° de longitude : 100 m sur 0,1°.
+        val relief = ModeleTerrain { _, lon -> 100.0 + (lon - 6.0) * 1_000.0 }
+        val points = listOf(
+            PointTrace(43.0, 6.0, 999.0, 0L),
+            PointTrace(43.0, 6.1, 999.0, 3_600_000L),
+        )
+        val (enrichis, profil) = Gpx.enrichir(points, relief)
+        assertEquals(2, enrichis.size)
+        assertEquals(100.0, enrichis[0].altitude!!, 0.5)
+        assertEquals(200.0, enrichis[1].altitude!!, 0.5)
+        assertEquals(6.0, enrichis[0].lon, 0.0)
+        assertEquals(0L, enrichis[0].instant)
+        // Le profil gpx2elev suit le relief, pas les altitudes GPS.
+        assertTrue(profil.monteeM > 90)
+        assertTrue(profil.altitudeMaxM > profil.altitudeMinM)
+    }
+
+    @Test fun enrichir_echoue_si_le_relief_ne_couvre_pas_le_trace() {
+        val points = listOf(
+            PointTrace(43.0, 6.0, 100.0, 0L),
+            PointTrace(43.0, 6.1, 100.0, 1_000L),
+        )
+        val erreur = assertThrows(ErreurDenivele::class.java) {
+            Gpx.enrichir(points, ModeleTerrain { _, _ -> null })
+        }
+        assertNotNull(erreur)
+        // Un tracé d'un seul point ne peut pas non plus être enrichi.
+        assertThrows(ErreurDenivele::class.java) {
+            Gpx.enrichir(points.take(1), ModeleTerrain { _, _ -> 100.0 })
+        }
     }
 }

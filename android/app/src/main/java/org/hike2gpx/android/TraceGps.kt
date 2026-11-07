@@ -37,6 +37,9 @@ class TraceGps(
 ) {
     private val retenus = mutableListOf<PointTrace>()
 
+    /** Le dénivelé gpx2elev de ce qui est déjà enregistré, ou null hors cache. */
+    var profil: ProfilAltimetrique? = null
+
     /** Les points retenus, dans l'ordre. */
     val points: List<PointTrace> get() = retenus.toList()
 
