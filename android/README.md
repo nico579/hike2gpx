@@ -41,17 +41,22 @@ modèle de Tobler tous les 20 m. Le téléphone lit le même relief Mapterhorn
 demande dans `gpx2elev/tiles` ; une tuile déjà là sert aux parcours suivants.
 Le calcul du relief est séparé de celui de l'itinéraire : le tracé s'affiche
 d'abord, le dénivelé arrive ensuite. Sans relief disponible, la ligne le dit et
-la valeur BRouter ne le remplace pas, comme sur le PC. Les réglages ont deux
+la valeur BRouter ne le remplace pas, comme sur le PC. Les réglages ont trois
 coches d'affichage, cochées d'emblée : « Afficher légendes » montre sous le
 bandeau d'état la légende des symboles de la carte (itinéraire, chemins
-officiels, chemins OSM, barrières, franchissements), et « Afficher courbe du
+officiels, chemins OSM, barrières, franchissements), « Afficher courbe du
 dénivelé » dessine au-dessus des boutons le profil de la page — distance en
-abscisse, altitude lissée en ordonnée, aire bleue et bornes d'altitude. La
-courbe n'apparaît qu'une fois le relief calculé ; décochée, elle laisse toute
-la carte. Comme sur la page, poser le doigt sur la courbe montre le point du
-tracé correspondant : un trait vertical, la distance et l'altitude sous le
-doigt, et un disque bleu cerclé de blanc sur la carte. Lever le doigt efface
-les deux.
+abscisse, altitude lissée en ordonnée, aire bleue et bornes d'altitude — et
+« Afficher la recherche de ville » garde ou retire le champ de recherche du
+haut de l'écran. La courbe n'apparaît qu'une fois le relief calculé ;
+décochée, elle laisse toute la carte. Comme sur la page, poser le doigt sur la
+courbe montre le point du tracé correspondant : un trait vertical, la distance
+et l'altitude sous le doigt, et un disque bleu cerclé de blanc sur la carte.
+Lever le doigt efface les deux.
+
+Un double tap sur la carte, comme sur Locus Map, masque les deux bandeaux et
+laisse la carte seule ; un second double tap les ramène. L'échelle et
+l'attribution OSM restent visibles : elles font partie de la carte.
 
 Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
 (`application._lot_automatique`) : l'application lit les catalogues à son

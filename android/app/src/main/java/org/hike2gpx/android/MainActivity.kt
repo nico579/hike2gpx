@@ -20,6 +20,7 @@ import android.os.SystemClock
 import android.database.sqlite.SQLiteDatabase
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
@@ -53,6 +54,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
 import java.io.File
@@ -81,12 +83,16 @@ class MainActivity : Activity() {
     private lateinit var arreter: Button
     private var champVille: EditText? = null
     private var boutonVille: Button? = null
+    private var rechercheVille: LinearLayout? = null
     private var sequenceVille = 0
     private var legende: LinearLayout? = null
     private var courbe: CourbeDenivele? = null
     private var repereProfil: RepereProfil? = null
     private var coordonneesProfil: List<DoubleArray> = emptyList()
     private var distancesProfil: DoubleArray = DoubleArray(0)
+    private lateinit var bandeauHaut: LinearLayout
+    private lateinit var bandeauBas: LinearLayout
+    private var bandeauxMasques = false
     private var echelle: ScaleBarOverlay? = null
     private var droits: CopyrightOverlay? = null
     private val points = mutableListOf<Point>()
@@ -168,6 +174,14 @@ class MainActivity : Activity() {
                 }
                 override fun longPressHelper(p: GeoPoint) = false
             }))
+            // Un double tap sur la carte masque les bandeaux et laisse la carte
+            // seule, un second les ramène (geste de Locus Map). Il ne pose pas
+            // de point : osmdroid réserve le simple tap au-dessus.
+            overlays.add(object : Overlay() {
+                override fun onDoubleTap(e: MotionEvent, mapView: MapView): Boolean {
+                    basculerBandeaux(); return true
+                }
+            })
             addMapListener(object : MapListener {
                 override fun onScroll(event: ScrollEvent): Boolean {
                     planifierCalques(); return false
@@ -183,13 +197,14 @@ class MainActivity : Activity() {
         val marge = dp(8)
         // Marges posées d'emblée : avant Android 15, l'écran ne passe pas sous
         // les barres du système et le rappel des marges ci-dessous peut ne pas venir.
-        val haut = LinearLayout(this).apply {
+        bandeauHaut = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(VOILE); setPadding(marge, marge, marge, marge)
         }
         etat = TextView(this).apply { setText(R.string.etat_pret); setTextColor(0xff202020.toInt()) }
         val recherche = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
         }
+        rechercheVille = recherche
         champVille = EditText(this).apply {
             hint = getString(R.string.recherche_placeholder)
             textSize = 14f
@@ -212,26 +227,26 @@ class MainActivity : Activity() {
             setOnClickListener { chercherVille() }
         }
         recherche.addView(boutonVille)
-        haut.addView(recherche)
-        haut.addView(etat)
+        bandeauHaut.addView(recherche)
+        bandeauHaut.addView(etat)
         progression = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000; visibility = View.GONE
         }
-        haut.addView(progression)
+        bandeauHaut.addView(progression)
         arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }
-        haut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
+        bandeauHaut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
         legende = construireLegende()
-        haut.addView(legende)
-        racine.addView(haut, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        bandeauHaut.addView(legende)
+        racine.addView(bandeauHaut, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
-        val pied = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        bandeauBas = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         courbe = CourbeDenivele(this).apply {
             visibility = View.GONE
             setBackgroundColor(0xf7ffffff.toInt())
             contentDescription = getString(R.string.courbe_aide)
             onPosition = ::montrerPositionProfil
         }
-        pied.addView(courbe, LinearLayout.LayoutParams(-1, dp(96)))
+        bandeauBas.addView(courbe, LinearLayout.LayoutParams(-1, dp(96)))
         val bas = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE); setPadding(marge / 2, marge / 2, marge / 2, marge / 2)
         }
@@ -249,16 +264,16 @@ class MainActivity : Activity() {
                 setOnClickListener { action() }
             }, LinearLayout.LayoutParams(0, -2, 1f))
         }
-        pied.addView(bas, LinearLayout.LayoutParams(-1, -2))
-        racine.addView(pied, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        bandeauBas.addView(bas, LinearLayout.LayoutParams(-1, -2))
+        racine.addView(bandeauBas, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
 
         // Android 15 dessine l'application sous les barres du système : les bandeaux s'en écartent.
         racine.setOnApplyWindowInsetsListener { _, insets ->
             val (dessus, dessous) = if (Build.VERSION.SDK_INT >= 30)
                 insets.getInsets(WindowInsets.Type.systemBars()).let { it.top to it.bottom }
             else @Suppress("DEPRECATION") (insets.systemWindowInsetTop to insets.systemWindowInsetBottom)
-            haut.setPadding(marge, marge + dessus, marge, marge)
-            pied.setPadding(0, 0, 0, dessous)
+            bandeauHaut.setPadding(marge, marge + dessus, marge, marge)
+            bandeauBas.setPadding(0, 0, 0, dessous)
             insets
         }
         setContentView(racine)
@@ -328,10 +343,24 @@ class MainActivity : Activity() {
         return boite
     }
 
-    /** Applique les deux coches d'affichage des réglages, sans attendre un redémarrage. */
+    /** Applique les coches d'affichage des réglages, sans attendre un redémarrage. */
     private fun appliquerAffichage() {
         legende?.visibility = if (reglages.legende) View.VISIBLE else View.GONE
+        rechercheVille?.visibility = if (reglages.recherche) View.VISIBLE else View.GONE
         afficherCourbe()
+    }
+
+    /**
+     * Le double tap de Locus Map : les bandeaux disparaissent et la carte reste
+     * seule, un second double tap les ramène. L'échelle et l'attribution OSM
+     * restent : elles font partie de la carte. Un champ de recherche qui
+     * disparaît rend d'abord le clavier, sinon il resterait ouvert sur du vide.
+     */
+    private fun basculerBandeaux() {
+        bandeauxMasques = !bandeauxMasques
+        if (bandeauxMasques) cacherClavier()
+        bandeauHaut.visibility = if (bandeauxMasques) View.GONE else View.VISIBLE
+        bandeauBas.visibility = if (bandeauxMasques) View.GONE else View.VISIBLE
     }
 
     /**
@@ -922,6 +951,10 @@ class MainActivity : Activity() {
         colonne.addView(CheckBox(this).apply {
             setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
             setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
+        })
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.afficher_recherche); isChecked = reglages.recherche
+            setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
         })
 
         titre(colonne, R.string.titre_lots)
