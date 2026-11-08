@@ -187,6 +187,7 @@ def test_un_transfert_coupe_n_est_jamais_publie(tmp_path, monkeypatch):
     # livrait que 3 était publiée comme installée, et segment_present la
     # tenait pour présente : la tuile ne se retéléchargeait jamais.
     installation = brouter.Installation(tmp_path)
+    monkeypatch.setattr(brouter, "PAUSE_S", 0)                      # la coupure se retente, sans attendre
     monkeypatch.setattr(brouter.urllib.request, "urlopen", lambda demande, timeout: Reponse(b"abc", 10))
     with pytest.raises(brouter.ErreurBRouter, match="3 octets sur 10"):
         installation.telecharger_segment("E5_N40")
@@ -203,6 +204,39 @@ def test_un_transfert_coupe_n_est_jamais_publie(tmp_path, monkeypatch):
     # Un RD5 tronqué d'avant ce contrôle ne passe plus pour présent : il se retélécharge.
     (installation.segments / "E5_N40.rd5").write_bytes(contenu[:300])
     assert not installation.segment_present("E5_N40")
+
+
+def test_un_504_passager_se_retente_un_404_non(tmp_path, monkeypatch):
+    # Run du 2026-11-08 : un 504 des releases GitHub sur l'archive de BRouter
+    # a fait tomber les huit fins de lot d'un coup.
+    import urllib.error
+
+    def erreur(code):
+        return urllib.error.HTTPError("https://x/a.zip", code, "erreur", {}, None)
+
+    def ouvrir(demande, timeout):
+        reponse = reponses.pop(0)
+        if isinstance(reponse, Exception):
+            raise reponse
+        return reponse
+
+    pauses = []
+    reponses = [erreur(504), TimeoutError("délai"), Reponse(b"zip", 3)]
+    monkeypatch.setattr(brouter.urllib.request, "urlopen", ouvrir)
+    cible = brouter._telecharger("https://x/a.zip", tmp_path / "a.zip", hashlib.sha256(b"zip").hexdigest(),
+                                 pause=pauses.append)
+    assert cible.read_bytes() == b"zip" and pauses == [10.0, 20.0]
+    # Trois 503 de suite : abandon, sans pause après le dernier essai.
+    pauses.clear()
+    reponses = [erreur(503)] * 3
+    with pytest.raises(brouter.ErreurBRouter, match="503"):
+        brouter._telecharger("https://x/b.zip", tmp_path / "b.zip", pause=pauses.append)
+    assert pauses == [10.0, 20.0] and not reponses
+    # Un 404 ne guérit pas : un seul essai.
+    reponses = [erreur(404), Reponse(b"zip", 3)]
+    with pytest.raises(brouter.ErreurBRouter, match="404"):
+        brouter._telecharger("https://x/c.zip", tmp_path / "c.zip", pause=pytest.fail)
+    assert len(reponses) == 1 and not (tmp_path / "c.zip").exists()
 
 
 def test_java_a_court_de_memoire_arrete_la_fabrication(tmp_path, monkeypatch):
