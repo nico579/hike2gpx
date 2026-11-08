@@ -6,19 +6,25 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 
 ## Ce qu'elle fait
 
-L'écran est celui de la page du PC : la carte d'abord, en plein écran. On
-touche la carte pour poser le départ, puis l'arrivée et d'éventuelles étapes ;
-« Retirer » retire le dernier point, « Effacer » les retire tous, et
-« Revenir » ajoute le départ en fin de parcours pour fermer une boucle. Dès qu'il y a
-deux points, l'itinéraire se calcule hors ligne et s'affiche ; « GPX »
-l'exporte.
+L'écran est celui de la page du PC : la carte d'abord, en plein écran. Un
+bouton à trois traits, en bas à droite, ouvre le menu de Locus Map :
+« Recherche », « Ma bibliothèque », « Enregistrer un parcours », « Planifier un
+itinéraire » et « Réglages ». La carte reste seule tant qu'on n'a pas choisi un
+mode. En planification, on touche la carte pour poser le départ, puis l'arrivée
+et d'éventuelles étapes ; « Retirer » retire le dernier point, « Effacer » les
+retire tous, et « Revenir » ajoute le départ en fin de parcours pour fermer une
+boucle. Dès qu'il y a deux points, l'itinéraire se calcule hors ligne et
+s'affiche ; « GPX » l'exporte. Un second choix de « Planifier un itinéraire »
+termine le mode et rend la carte seule, sans effacer le parcours.
 
-Au-dessus de l'état, le champ de recherche de la page recentre la carte sur
+Le menu « Recherche » ouvre le champ de la page : il recentre la carte sur
 une ville ou sur des coordonnées « lat, lon », sans poser de point. Les
 communes françaises répondent d'abord (geo.api.gouv.fr, avec leur
 département) ; ailleurs, ou si la France ne connaît rien, Nominatim donne les
 villes et villages d'OSM avec leur région et leur pays. Une seule réponse
-recadre aussitôt, plusieurs se choisissent dans une liste.
+recadre aussitôt, plusieurs se choisissent dans une liste ; le champ se referme
+ensuite. La coche « Afficher la recherche de ville » des réglages le laisse
+aussi visible dans les bandeaux de planification et d'enregistrement.
 
 Les calques du lot s'affichent sur la carte, comme ceux de la page : les
 chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
@@ -47,8 +53,9 @@ bandeau d'état la légende des symboles de la carte (itinéraire, chemins
 officiels, chemins OSM, barrières, franchissements), « Afficher courbe du
 dénivelé » dessine au-dessus des boutons le profil de la page — distance en
 abscisse, altitude lissée en ordonnée, aire bleue et bornes d'altitude — et
-« Afficher la recherche de ville » garde ou retire le champ de recherche du
-haut de l'écran. La courbe n'apparaît qu'une fois le relief calculé ;
+« Afficher la recherche de ville » le montre aussi dans les bandeaux de
+planification et d'enregistrement (le menu « Recherche » l'ouvre dans tous les
+cas). La courbe n'apparaît qu'une fois le relief calculé ;
 décochée, elle laisse toute la carte. Comme sur la page, poser le doigt sur la
 courbe montre le point du tracé correspondant : un trait vertical, la distance
 et l'altitude sous le doigt, et un disque bleu cerclé de blanc sur la carte.
@@ -58,19 +65,21 @@ Un double tap sur la carte, comme sur Locus Map, masque les deux bandeaux et
 laisse la carte seule ; un second double tap les ramène. L'échelle et
 l'attribution OSM restent visibles : elles font partie de la carte.
 
-Deux boutons ronds, à droite de la carte, reprennent Locus Map. Celui du haut
-enregistre une trace GPS : un appui démarre (triangle vert), un second arrête
-(carré rouge) et range le GPX dans `traces/`, avec l'heure et l'altitude de
-chaque point. Les réglages suivent ceux de Locus : distance minimale entre deux
-points (10 m), durée minimale (10 s) et déviation GPS maximale (100 m). Un point
-n'est retenu que si le GPS est plus précis que la déviation, et si la distance et
-la durée depuis le point précédent sont toutes deux atteintes ; le premier point
-n'a que la précision à respecter. Un changement de réglage s'applique au point
-suivant, même pendant un enregistrement. Le bouton du bas recentre la carte sur
-la position, avec le point bleu et son halo de précision ; la localisation n'est
-demandée qu'au premier appui sur un des deux boutons, jamais au lancement. La
-trace enregistrée s'affiche en orange, au-dessus de l'itinéraire bleu, et
-l'écran reste allumé tant qu'elle tourne.
+Le bouton rond du bas, à trois traits, ouvre le menu ; juste au-dessus, celui
+de la position recentre la carte sur le GPS, avec le point bleu et son halo de
+précision. Le démarrage d'une trace passe par « Enregistrer un parcours » :
+pendant l'enregistrement, un bouton rond rouge apparaît au-dessus de la
+position pour arrêter (carré) sans rouvrir le menu, et le GPX est rangé dans
+`traces/`, avec l'heure et l'altitude de chaque point. Les réglages suivent
+ceux de Locus : distance minimale entre deux points (10 m), durée minimale
+(10 s) et déviation GPS maximale (100 m). Un point n'est retenu que si le GPS
+est plus précis que la déviation, et si la distance et la durée depuis le point
+précédent sont toutes deux atteintes ; le premier point n'a que la précision à
+respecter. Un changement de réglage s'applique au point suivant, même pendant
+un enregistrement. La localisation n'est demandée qu'au premier appui sur le
+bouton de position ou au démarrage d'une trace, jamais au lancement. La trace
+enregistrée s'affiche en orange, au-dessus de l'itinéraire bleu, et l'écran
+reste allumé tant qu'elle tourne.
 
 Pendant l'enregistrement, le bandeau donne la distance, la durée et le dénivelé
 D+/D− calculé comme gpx2elev. Le calcul ne lit que le cache `gpx2elev/tiles` :
@@ -81,11 +90,11 @@ gpx2elev : d'abord avec le cache, puis avec le réseau s'il est disponible et qu
 le cache est incomplet ; sans les deux, le fichier part tel qu'il a été
 enregistré. La description du GPX porte alors « D+ … m / D− … m (gpx2elev) ».
 
-Les réglages listent aussi l'historique des traces : chaque fichier de `traces/`
-affiche sa date et sa taille réelle, avec un bouton « GPX » pour le réexporter
-et un bouton « Supprimer ». Les cases à cocher et « Supprimer la sélection »
-effacent plusieurs traces d'un coup, après confirmation. « Vider le cache » ne
-touche pas à cet historique.
+« Ma bibliothèque », dans le menu, liste l'historique des traces : chaque
+fichier de `traces/` affiche sa date et sa taille réelle, avec un bouton
+« GPX » pour le réexporter et un bouton « Supprimer ». Les cases à cocher et
+« Supprimer la sélection » effacent plusieurs traces d'un coup, après
+confirmation. « Vider le cache » ne touche pas à cet historique.
 
 Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
 (`application._lot_automatique`) : l'application lit les catalogues à son
@@ -98,7 +107,8 @@ n'est pas repris avant une heure, et un lot supprimé à la main ne revient pas
 de la séance. Les lots et les fonds installés affichent leur taille réelle
 (« 254 kB » pour un petit lot d'essai, jamais un « 0 Mo » trompeur).
 
-Le bouton « Fond » choisit le fond de carte : OpenStreetMap ou OpenTopoMap en
+Le bouton « Fond », dans le bandeau de planification, choisit le fond de carte :
+OpenStreetMap ou OpenTopoMap en
 ligne, ou un fond hors ligne reçu d'un PC (le SCAN 25 ou le Plan IGN qu'il a
 fabriqués, `hike2gpx/fonds.py`). Les fonds qu'un PC partage et qui manquent
 au téléphone sont proposés dans la même liste, avec leur taille. Un fond est

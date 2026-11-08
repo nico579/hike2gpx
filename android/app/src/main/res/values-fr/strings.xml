@@ -13,6 +13,16 @@
     <string name="arrivee">Arrivée</string>
     <string name="etape">Étape %1$d</string>
 
+    <string name="menu_titre">Menu</string>
+    <string name="menu_recherche">Recherche</string>
+    <string name="menu_bibliotheque">Ma bibliothèque</string>
+    <string name="menu_enregistrer">Enregistrer un parcours</string>
+    <string name="menu_arreter">Arrêter l’enregistrement</string>
+    <string name="menu_planifier">Planifier un itinéraire</string>
+    <string name="menu_terminer_plan">Terminer la planification</string>
+    <string name="bouton_menu">Ouvrir le menu</string>
+    <string name="plan_trace_en_cours">Arrêtez d’abord l’enregistrement du parcours.</string>
+
     <string name="titre_fond">Fond de carte</string>
     <string name="fond_osm">OpenStreetMap (en ligne)</string>
     <string name="fond_topo">OpenTopoMap (en ligne)</string>

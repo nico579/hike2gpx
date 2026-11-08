@@ -14,7 +14,7 @@ import kotlin.math.min
  * pendant l'enregistrement. Les icônes sont dessinées, sans image à charger.
  */
 class BoutonRond(context: Context, val genre: Genre) : View(context) {
-    enum class Genre { POSITION, TRACE }
+    enum class Genre { POSITION, TRACE, MENU }
 
     /** Pour le bouton de trace : vrai quand un enregistrement est en cours. */
     var enregistre = false
@@ -53,9 +53,9 @@ class BoutonRond(context: Context, val genre: Genre) : View(context) {
         val rayon = min(width, height) / 2f - 2 * densite
         fond.style = Paint.Style.FILL
         fond.color = when {
-            genre == Genre.POSITION -> 0xdd263238.toInt()
-            enregistre -> 0xffd32f2f.toInt()
-            else -> 0xff689f38.toInt()
+            genre == Genre.TRACE && enregistre -> 0xffd32f2f.toInt()
+            genre == Genre.TRACE -> 0xff689f38.toInt()
+            else -> 0xdd263238.toInt()
         }
         if (isPressed) fond.color = (fond.color and 0x00ffffff) or 0xbb000000.toInt()
         canvas.drawCircle(cx, cy, rayon, fond)
@@ -63,6 +63,17 @@ class BoutonRond(context: Context, val genre: Genre) : View(context) {
             Genre.POSITION -> dessinerCroix(canvas, cx, cy, rayon)
             Genre.TRACE -> if (enregistre) dessinerCarre(canvas, cx, cy, rayon)
             else dessinerTriangle(canvas, cx, cy, rayon)
+            Genre.MENU -> dessinerMenu(canvas, cx, cy, rayon)
+        }
+    }
+
+    /** Les trois traits du menu, comme le bouton de Locus Map. */
+    private fun dessinerMenu(canvas: Canvas, cx: Float, cy: Float, rayon: Float) {
+        val demi = rayon * 0.44f
+        val ecart = rayon * 0.22f
+        for (i in -1..1) {
+            val y = cy + i * ecart
+            canvas.drawLine(cx - demi, y, cx + demi, y, trait)
         }
     }
 

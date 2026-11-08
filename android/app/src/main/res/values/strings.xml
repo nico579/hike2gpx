@@ -15,6 +15,16 @@
     <string name="arrivee">Finish</string>
     <string name="etape">Waypoint %1$d</string>
 
+    <string name="menu_titre">Menu</string>
+    <string name="menu_recherche">Search</string>
+    <string name="menu_bibliotheque">My library</string>
+    <string name="menu_enregistrer">Record a track</string>
+    <string name="menu_arreter">Stop recording</string>
+    <string name="menu_planifier">Plan a route</string>
+    <string name="menu_terminer_plan">Finish planning</string>
+    <string name="bouton_menu">Open the menu</string>
+    <string name="plan_trace_en_cours">Stop the track recording first.</string>
+
     <string name="titre_fond">Base map</string>
     <string name="fond_osm">OpenStreetMap (online)</string>
     <string name="fond_topo">OpenTopoMap (online)</string>
