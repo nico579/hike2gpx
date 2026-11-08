@@ -14,8 +14,9 @@ mode. En planification, on touche la carte pour poser le départ, puis l'arrivé
 et d'éventuelles étapes ; « Retirer » retire le dernier point, « Effacer » les
 retire tous, et « Revenir » ajoute le départ en fin de parcours pour fermer une
 boucle. Dès qu'il y a deux points, l'itinéraire se calcule hors ligne et
-s'affiche ; « GPX » l'exporte. Un second choix de « Planifier un itinéraire »
-termine le mode et rend la carte seule, sans effacer le parcours.
+s'affiche ; « GPX » l'exporte. Un bouton rond rouge au carré, comme celui de la
+trace, arrête la planification ; un second choix de « Planifier un itinéraire »
+le fait aussi. La carte redevient seule, sans effacer le parcours.
 
 Le menu « Recherche » ouvre le champ de la page : il recentre la carte sur
 une ville ou sur des coordonnées « lat, lon », sans poser de point. Les
@@ -24,9 +25,8 @@ département) ; ailleurs, ou si la France ne connaît rien, Nominatim donne les
 villes et villages d'OSM avec leur région et leur pays. Une seule réponse
 recadre aussitôt, plusieurs se choisissent dans une liste ; le bandeau de
 recherche se referme ensuite, sans légende pendant la saisie, et un tap sur la
-carte le referme aussi. La coche « Afficher la recherche de ville » des réglages
-le laisse aussi visible dans les bandeaux de planification et d'enregistrement
-(un nouveau choix de mode le rouvre après une recherche).
+carte le referme aussi. Le menu « Recherche » reste disponible en planification ;
+pendant l'enregistrement, seul l'état de la trace s'affiche.
 
 Les calques du lot s'affichent sur la carte, comme ceux de la page : les
 chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
@@ -49,15 +49,12 @@ modèle de Tobler tous les 20 m. Le téléphone lit le même relief Mapterhorn
 demande dans `gpx2elev/tiles` ; une tuile déjà là sert aux parcours suivants.
 Le calcul du relief est séparé de celui de l'itinéraire : le tracé s'affiche
 d'abord, le dénivelé arrive ensuite. Sans relief disponible, la ligne le dit et
-la valeur BRouter ne le remplace pas, comme sur le PC. Les réglages ont trois
-coches d'affichage, cochées d'emblée : « Afficher légendes » montre sous le
-bandeau d'état la légende des symboles de la carte (itinéraire, chemins
-officiels, chemins OSM, barrières, franchissements), « Afficher courbe du
+la valeur BRouter ne le remplace pas, comme sur le PC. Les bandeaux de
+planification et d'enregistrement ne montrent ni légende ni champ de recherche :
+la carte, l'état et les commandes suffisent. La coche « Afficher courbe du
 dénivelé » dessine au-dessus des boutons le profil de la page — distance en
-abscisse, altitude lissée en ordonnée, aire bleue et bornes d'altitude — et
-« Afficher la recherche de ville » le montre aussi dans les bandeaux de
-planification et d'enregistrement (le menu « Recherche » l'ouvre dans tous les
-cas). La courbe n'apparaît qu'une fois le relief calculé ;
+abscisse, altitude lissée en ordonnée, aire bleue et bornes d'altitude. La courbe
+n'apparaît qu'une fois le relief calculé ;
 décochée, elle laisse toute la carte. Comme sur la page, poser le doigt sur la
 courbe montre le point du tracé correspondant : un trait vertical, la distance
 et l'altitude sous le doigt, et un disque bleu cerclé de blanc sur la carte.

@@ -324,7 +324,14 @@ class MainActivity : Activity() {
             setOnClickListener { centrerSurPosition() }
         }
         boutonTrace = BoutonRond(this, BoutonRond.Genre.TRACE).apply {
-            setOnClickListener { basculerEnregistrement() }
+            // Le carré rouge arrête la trace en cours, ou termine la
+            // planification quand on n'enregistre pas.
+            setOnClickListener {
+                when {
+                    EnregistrementGps.actif -> arreterEnregistrement()
+                    modePlan -> basculerPlanification()
+                }
+            }
         }
         boutonMenu = BoutonRond(this, BoutonRond.Genre.MENU).apply {
             contentDescription = getString(R.string.bouton_menu)
@@ -442,14 +449,11 @@ class MainActivity : Activity() {
         val haut = (modePlan || modeRecherche || enregistre || tacheAffichee) && !replie
         bandeauHaut.visibility = if (!bandeauxMasques && haut) View.VISIBLE else View.GONE
         rechercheVille?.visibility =
-            if (modeRecherche ||
-                (reglages.recherche && (modePlan || enregistre) && !rechercheRepliee)) View.VISIBLE
-            else View.GONE
+            if (!enregistre && modeRecherche) View.VISIBLE else View.GONE
         etat.visibility = if (modePlan || enregistre || tacheAffichee) View.VISIBLE else View.GONE
-        // Pas de légende pendant une recherche : la carte et le champ suffisent.
-        legende?.visibility =
-            if (reglages.legende && (modePlan || enregistre) && !modeRecherche) View.VISIBLE
-            else View.GONE
+        // Ni légende ni recherche dans les bandeaux de planification et
+        // d'enregistrement : la carte, l'état et les commandes suffisent.
+        legende?.visibility = View.GONE
         bandeauBas.visibility = if (!bandeauxMasques && modePlan) View.VISIBLE else View.GONE
         afficherCourbe()
         placerCommandes()
@@ -1091,6 +1095,11 @@ class MainActivity : Activity() {
 
     /** Le champ de recherche ne s'affiche qu'à la demande, depuis le menu. */
     private fun ouvrirRecherche() {
+        // Pendant une trace, le bandeau ne montre que l'état de l'enregistrement.
+        if (EnregistrementGps.actif) {
+            Toast.makeText(this, R.string.plan_trace_en_cours, Toast.LENGTH_LONG).show()
+            return
+        }
         modeRecherche = true
         rechercheRepliee = false
         appliquerAffichage()
@@ -1130,6 +1139,7 @@ class MainActivity : Activity() {
         modePlan = !modePlan
         modeRecherche = false
         rechercheRepliee = false
+        majBoutonTrace()
         if (modePlan) {
             when {
                 points.isEmpty() -> etat.setText(R.string.etat_pret)
@@ -1865,12 +1875,16 @@ class MainActivity : Activity() {
     private fun majBoutonTrace() {
         if (!::boutonTrace.isInitialized) return
         val actif = EnregistrementGps.actif
-        boutonTrace.enregistre = actif
-        // Le bouton d'enregistrement n'apparaît que pendant la trace : le
-        // départ se donne par le menu, l'arrêt doit rester à portée de pouce.
-        boutonTrace.visibility = if (actif) View.VISIBLE else View.GONE
-        boutonTrace.contentDescription = getString(
-            if (actif) R.string.bouton_trace_stop else R.string.bouton_trace)
+        val plan = modePlan && !actif
+        boutonTrace.enregistre = actif || plan
+        // Le carré rouge n'apparaît que pendant une trace ou une planification :
+        // le départ se donne par le menu, l'arrêt doit rester à portée de pouce.
+        boutonTrace.visibility = if (actif || plan) View.VISIBLE else View.GONE
+        boutonTrace.contentDescription = getString(when {
+            actif -> R.string.bouton_trace_stop
+            plan -> R.string.menu_terminer_plan
+            else -> R.string.bouton_trace
+        })
     }
 
     private fun majEtatTrace() {
