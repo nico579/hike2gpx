@@ -304,7 +304,6 @@ class MainActivity : Activity() {
             R.string.retirer to ::retirerPoint,
             R.string.effacer to ::effacer,
             R.string.revenir to ::revenirAuDepart,
-            R.string.exporter to ::exporter,
         )) {
             bas.addView(Button(this).apply {
                 setText(texte); textSize = 12f; isAllCaps = false; minWidth = 0; minimumWidth = 0
@@ -554,8 +553,7 @@ class MainActivity : Activity() {
     }
 
     private fun dessinerPoints() {
-        reperes.forEach { carte.overlays.remove(it) }
-        reperes.clear()
+        effacerReperes()
         points.forEachIndexed { i, p ->
             reperes.add(Marker(carte).apply {
                 position = GeoPoint(p.lat, p.lon)
@@ -569,6 +567,16 @@ class MainActivity : Activity() {
             })
         }
         carte.overlays.addAll(reperes)
+        carte.invalidate()
+    }
+
+    /**
+     * Les doigts verts du tracé disparaissent hors planification : seule la
+     * ligne GPX reste sur la carte. Ils reviennent au retour dans le mode.
+     */
+    private fun effacerReperes() {
+        reperes.forEach { carte.overlays.remove(it) }
+        reperes.clear()
         carte.invalidate()
     }
 
@@ -1141,6 +1149,7 @@ class MainActivity : Activity() {
         rechercheRepliee = false
         majBoutonTrace()
         if (modePlan) {
+            dessinerPoints()
             when {
                 points.isEmpty() -> etat.setText(R.string.etat_pret)
                 points.size == 1 -> etat.setText(R.string.etat_depart_pose)
@@ -1148,6 +1157,8 @@ class MainActivity : Activity() {
             }
         } else {
             cacherClavier()
+            effacerReperes()
+            if (dernier != null) proposerGpx()
         }
         appliquerAffichage()
     }
@@ -1787,6 +1798,7 @@ class MainActivity : Activity() {
         modePlan = false
         modeRecherche = false
         rechercheRepliee = false
+        effacerReperes()
         majBoutonTrace()
         appliquerAffichage()
         etat.setText(R.string.trace_demarree)
@@ -2010,6 +2022,19 @@ class MainActivity : Activity() {
         }, EXPORT)
     }
 
+    /**
+     * À l'arrêt de la planification, le parcours calculé est proposé en GPX :
+     * c'est le seul moment où on l'enregistre, le bouton « GPX » de la barre a
+     * disparu.
+     */
+    private fun proposerGpx() {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.plan_gpx_proposer)
+            .setPositiveButton(R.string.plan_gpx_enregistrer) { _, _ -> exporter() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     @Deprecated("Activity de la plateforme : pas d'AndroidX dans cette application.")
     override fun onActivityResult(requete: Int, resultat: Int, donnees: Intent?) {
         super.onActivityResult(requete, resultat, donnees)
@@ -2186,6 +2211,8 @@ class MainActivity : Activity() {
         if (modePlan || modeRecherche) {
             modePlan = false
             modeRecherche = false
+            effacerReperes()
+            majBoutonTrace()
             cacherClavier()
             appliquerAffichage()
             return

@@ -24,6 +24,8 @@
     <string name="menu_terminer_plan">Finish planning</string>
     <string name="bouton_menu">Open the menu</string>
     <string name="plan_trace_en_cours">Stop the track recording first.</string>
+    <string name="plan_gpx_proposer">Save the route as GPX?</string>
+    <string name="plan_gpx_enregistrer">Save</string>
 
     <string name="titre_fond">Base map</string>
     <string name="fond_osm">OpenStreetMap (online)</string>

@@ -14,9 +14,10 @@ mode. En planification, on touche la carte pour poser le départ, puis l'arrivé
 et d'éventuelles étapes ; « Retirer » retire le dernier point, « Effacer » les
 retire tous, et « Revenir » ajoute le départ en fin de parcours pour fermer une
 boucle. Dès qu'il y a deux points, l'itinéraire se calcule hors ligne et
-s'affiche ; « GPX » l'exporte. Un bouton rond rouge au carré, comme celui de la
-trace, arrête la planification ; un second choix de « Planifier un itinéraire »
-le fait aussi. La carte redevient seule, sans effacer le parcours.
+s'affiche. Un bouton rond rouge au carré, comme celui de la trace, arrête la
+planification et propose d'enregistrer le parcours en GPX ; un second choix de
+« Planifier un itinéraire » le fait aussi. Les doigts verts des points
+disparaissent alors : seule la trace GPX reste sur la carte, sans être effacée.
 
 Le menu « Recherche » ouvre le champ de la page : il recentre la carte sur
 une ville ou sur des coordonnées « lat, lon », sans poser de point. Les
