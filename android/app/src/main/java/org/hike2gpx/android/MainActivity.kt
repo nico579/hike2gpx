@@ -116,6 +116,11 @@ class MainActivity : Activity() {
     private var modePlan = false
     /** La recherche de ville se referme après le choix d'une ville. */
     private var modeRecherche = false
+    /**
+     * Une recherche qui a abouti (ou un tap sur la carte) referme son bandeau :
+     * la carte reste seule jusqu'au prochain mode choisi dans le menu.
+     */
+    private var rechercheRepliee = false
     /** Une tâche de fond montre son état quelques secondes, même hors mode. */
     private var tacheAffichee = false
     private var sequenceTache = 0
@@ -211,6 +216,8 @@ class MainActivity : Activity() {
             overlays.add(echelle)
             overlays.add(MapEventsOverlay(object : MapEventsReceiver {
                 override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
+                    // Un tap sur la carte referme aussi le bandeau de recherche.
+                    fermerRecherche()
                     if (modePlan) ajouterPoint(Point(p.latitude, p.longitude))
                     return true
                 }
@@ -429,14 +436,20 @@ class MainActivity : Activity() {
      */
     private fun appliquerAffichage() {
         val enregistre = EnregistrementGps.actif
-        val haut = modePlan || modeRecherche || enregistre || tacheAffichee
+        // La recherche se referme dès qu'elle a situé son point : le bandeau ne
+        // revient que pour une tâche de fond, un enregistrement ou un mode choisi.
+        val replie = rechercheRepliee && !tacheAffichee && !enregistre
+        val haut = (modePlan || modeRecherche || enregistre || tacheAffichee) && !replie
         bandeauHaut.visibility = if (!bandeauxMasques && haut) View.VISIBLE else View.GONE
         rechercheVille?.visibility =
-            if (modeRecherche || (reglages.recherche && (modePlan || enregistre))) View.VISIBLE
+            if (modeRecherche ||
+                (reglages.recherche && (modePlan || enregistre) && !rechercheRepliee)) View.VISIBLE
             else View.GONE
         etat.visibility = if (modePlan || enregistre || tacheAffichee) View.VISIBLE else View.GONE
+        // Pas de légende pendant une recherche : la carte et le champ suffisent.
         legende?.visibility =
-            if (reglages.legende && (modePlan || enregistre)) View.VISIBLE else View.GONE
+            if (reglages.legende && (modePlan || enregistre) && !modeRecherche) View.VISIBLE
+            else View.GONE
         bandeauBas.visibility = if (!bandeauxMasques && modePlan) View.VISIBLE else View.GONE
         afficherCourbe()
         placerCommandes()
@@ -451,6 +464,7 @@ class MainActivity : Activity() {
     private fun basculerBandeaux() {
         bandeauxMasques = !bandeauxMasques
         if (bandeauxMasques) cacherClavier()
+        else rechercheRepliee = false
         appliquerAffichage()
     }
 
@@ -1078,6 +1092,7 @@ class MainActivity : Activity() {
     /** Le champ de recherche ne s'affiche qu'à la demande, depuis le menu. */
     private fun ouvrirRecherche() {
         modeRecherche = true
+        rechercheRepliee = false
         appliquerAffichage()
         val champ = champVille ?: return
         champ.requestFocus()
@@ -1088,6 +1103,18 @@ class MainActivity : Activity() {
             (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
                 ?.showSoftInput(champ, InputMethodManager.SHOW_IMPLICIT)
         }, 250)
+    }
+
+    /**
+     * Referme la recherche et son bandeau : dès qu'une ville est située sur la
+     * carte, ou qu'on touche la carte, il n'a plus de raison d'occuper l'écran.
+     */
+    private fun fermerRecherche() {
+        if (!modeRecherche) return
+        modeRecherche = false
+        rechercheRepliee = true
+        cacherClavier()
+        appliquerAffichage()
     }
 
     /**
@@ -1102,6 +1129,7 @@ class MainActivity : Activity() {
         }
         modePlan = !modePlan
         modeRecherche = false
+        rechercheRepliee = false
         if (modePlan) {
             when {
                 points.isEmpty() -> etat.setText(R.string.etat_pret)
@@ -1394,10 +1422,8 @@ class MainActivity : Activity() {
         carte.controller.setZoom(zoom)
         carte.controller.setCenter(GeoPoint(lat, lon))
         carte.invalidate()
-        if (modeRecherche) {
-            modeRecherche = false
-            appliquerAffichage()
-        }
+        // Le point est situé : le bandeau de recherche se referme aussitôt.
+        fermerRecherche()
         planifierCalques()
     }
 
@@ -1750,6 +1776,7 @@ class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         modePlan = false
         modeRecherche = false
+        rechercheRepliee = false
         majBoutonTrace()
         appliquerAffichage()
         etat.setText(R.string.trace_demarree)

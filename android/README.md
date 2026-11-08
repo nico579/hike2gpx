@@ -22,9 +22,11 @@ une ville ou sur des coordonnées « lat, lon », sans poser de point. Les
 communes françaises répondent d'abord (geo.api.gouv.fr, avec leur
 département) ; ailleurs, ou si la France ne connaît rien, Nominatim donne les
 villes et villages d'OSM avec leur région et leur pays. Une seule réponse
-recadre aussitôt, plusieurs se choisissent dans une liste ; le champ se referme
-ensuite. La coche « Afficher la recherche de ville » des réglages le laisse
-aussi visible dans les bandeaux de planification et d'enregistrement.
+recadre aussitôt, plusieurs se choisissent dans une liste ; le bandeau de
+recherche se referme ensuite, sans légende pendant la saisie, et un tap sur la
+carte le referme aussi. La coche « Afficher la recherche de ville » des réglages
+le laisse aussi visible dans les bandeaux de planification et d'enregistrement
+(un nouveau choix de mode le rouvre après une recherche).
 
 Les calques du lot s'affichent sur la carte, comme ceux de la page : les
 chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
