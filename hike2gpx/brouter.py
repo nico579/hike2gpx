@@ -167,11 +167,38 @@ def rd5_entier(chemin: Path) -> bool:
     return crc in (attendu, attendu ^ 2)
 
 
-def _telecharger(url: str, cible: Path, sha256: str | None = None, valider=None) -> Path:
+# Les releases GitHub rendent parfois un 504 passager : les huit fins de lot
+# du 2026-11-08 sont tombées ensemble sur l'archive de BRouter, deux heures de
+# calcul perdues. Même règle que bdtopo_regions._atom : une erreur 5xx ou 429,
+# un délai ou une coupure se retentent, 10 puis 20 s plus tard ; une autre
+# erreur 4xx ou un contenu faux ne guérit pas.
+ESSAIS, PAUSE_S = 3, 10.0
+
+
+def _telecharger(url: str, cible: Path, sha256: str | None = None, valider=None, pause=time.sleep) -> Path:
     """Publie cible une fois le fichier reçu en entier. Un transfert plus
     court que la longueur annoncée est refusé : lu par blocs, urllib ne le
     signale pas de lui-même (rapport du 2026-10-20 : un RD5 de 3 octets sur
     10 publié comme installé). valider(fichier) : contrôle de son contenu."""
+    derniere = None
+    for essai in range(ESSAIS):
+        try:
+            return _recevoir(url, cible, sha256, valider)
+        except urllib.error.HTTPError as exc:
+            if exc.code < 500 and exc.code != 429:
+                raise ErreurBRouter(f"Téléchargement impossible : {url} ({exc}).") from exc
+            derniere = exc
+        except (OSError, http.client.HTTPException) as exc:     # délai, coupure (IncompleteRead) comprise
+            derniere = exc
+        if essai < ESSAIS - 1:
+            journal.info("%s en échec (%s), nouvel essai", url, derniere)
+            pause(PAUSE_S * (essai + 1))
+    raise ErreurBRouter(f"Téléchargement impossible : {url} ({derniere}).") from derniere
+
+
+def _recevoir(url: str, cible: Path, sha256: str | None, valider) -> Path:
+    """Un essai de _telecharger. Les erreurs réseau remontent telles quelles,
+    un contenu faux en ErreurBRouter."""
     cible.parent.mkdir(parents=True, exist_ok=True)
     partiel = atomique.chemin_part(cible)
     empreinte = hashlib.sha256()
@@ -185,14 +212,12 @@ def _telecharger(url: str, cible: Path, sha256: str | None = None, valider=None)
                 sortie.write(bloc)
                 recu += len(bloc)
         if annonce is not None and str(annonce).isdigit() and recu != int(annonce):
-            raise ErreurBRouter(f"Téléchargement interrompu : {url} ({recu} octets sur {annonce}).")
+            raise ConnectionError(f"transfert interrompu, {recu} octets sur {annonce}")
         if sha256 and empreinte.hexdigest() != sha256:
             raise ErreurBRouter(f"Empreinte inattendue pour {url} : téléchargement refusé.")
         if valider is not None and not valider(partiel):
             raise ErreurBRouter(f"Fichier reçu incomplet ou illisible : {url}.")
         atomique.remplacer(partiel, cible)
-    except (OSError, http.client.HTTPException) as exc:     # réponse coupée (IncompleteRead) comprise
-        raise ErreurBRouter(f"Téléchargement impossible : {url} ({exc}).") from exc
     finally:
         partiel.unlink(missing_ok=True)
     return cible
