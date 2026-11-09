@@ -39,6 +39,8 @@ FLUX = "https://atom.cuzk.gov.cz/ZABAGED-GPKG/datasetFeeds/CZ-00025712-CUZK_ZABA
 ATOM = "{http://www.w3.org/2005/Atom}"
 AGENT = {"User-Agent": f"hike2gpx/{__version__} (ZABAGED national)"}
 EPSG = 3045
+# Plages parallèles du téléchargement : le serveur bride chaque connexion (en_bloc._par_plages).
+PLAGES = 8
 DOSSIER = "zabaged-national"        # « zabaged » est le cache des tuiles du service en ligne
 # Table du GeoPackage -> nature du tronçon, celle du lecteur en ligne. Relevé
 # sur l'édition du 2026-10-04 (essai GitHub Actions du 2026-10-28) : 74 514
@@ -82,7 +84,7 @@ def geopackage(dossier, edition: dict | None = None) -> Path:
         fichier = edition["fichiers"][0]
         archive = travail / fichier["url"].rsplit("/", 1)[-1]
         journal.info("ZABAGED : téléchargement de %s (%.0f Mo)", archive.name, fichier["octets"] / 1e6)
-        en_bloc.telecharger(fichier, archive, essais=8)
+        en_bloc.telecharger(fichier, archive, essais=8, plages=PLAGES)
         gpkg = _extraire(archive, travail / "extrait")
         archive.unlink()                # de la place pour la réduction
         mince = travail / "chemins.sqlite"

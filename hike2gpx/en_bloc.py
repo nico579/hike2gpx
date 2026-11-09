@@ -31,8 +31,65 @@ class ErreurArchive(RuntimeError):
     pass
 
 
+class _SansPlages(ErreurArchive):
+    """Le serveur répond 200 à une demande de plage : il ne les sert pas."""
+
+
+def _morceau(url: str, partie: Path, debut: int, longueur: int, ouvrir, essais: int, pause) -> None:
+    """Les octets [debut, debut + longueur) de url dans partie, repris là où
+    ils se sont arrêtés ; même règle que telecharger : seuls « essais » échecs
+    de suite sans progrès arrêtent."""
+    sans_progres = 0
+    while True:
+        deja = partie.stat().st_size if partie.exists() else 0
+        if deja >= longueur:
+            return
+        if sans_progres >= essais:
+            raise ErreurArchive(f"{partie.name} : plage impossible à télécharger.")
+        entetes = {**AGENT, "Range": f"bytes={debut + deja}-{debut + longueur - 1}"}
+        try:
+            with ouvrir(urllib.request.Request(url, headers=entetes), timeout=120) as reponse:
+                if getattr(reponse, "status", 200) != 206:
+                    raise _SansPlages(url)
+                with open(partie, "ab") as f:
+                    shutil.copyfileobj(reponse, f, BLOC)
+        except (OSError, http.client.HTTPException) as exc:     # coupure : l'essai suivant reprend
+            journal.info("%s coupé (%s), reprise", partie.name, exc)
+        apres = partie.stat().st_size if partie.exists() else 0
+        sans_progres = 0 if apres > deja else sans_progres + 1
+        if apres < longueur:
+            pause(min(60, 5 * (sans_progres + 1)))
+
+
+def _par_plages(fichier: dict, cible: Path, plages: int, ouvrir, essais: int, pause) -> None:
+    """Le fichier en plages téléchargées en parallèle (cible.0, cible.1…),
+    puis recollées dans cible : la méthode d'aria2c ou d'axel. Le serveur de
+    l'ČÚZK bride chaque connexion (mesure du 2026-11-09 : 1,1 Mo/s sur une,
+    2,5 Mo/s sur quatre ; vu de GitHub Actions, moins de 0,47 Mo/s sur une,
+    et 6,7 Go non finis en 4 h). Une plage coupée reprend seule ; les plages
+    restent sur disque si tout échoue, pour l'essai suivant."""
+    from concurrent.futures import ThreadPoolExecutor
+    taille = fichier["octets"]
+    pas = -(-taille // plages)
+    morceaux = [(cible.with_name(f"{cible.name}.{k}"), k * pas, min(pas, taille - k * pas))
+                for k in range(plages) if k * pas < taille]
+    journal.info("%s : %d plages en parallèle", cible.name, len(morceaux))
+    try:
+        with ThreadPoolExecutor(len(morceaux)) as groupe:
+            list(groupe.map(lambda m: _morceau(fichier["url"], *m, ouvrir, essais, pause), morceaux))
+    except _SansPlages:
+        for partie, _, _ in morceaux:
+            partie.unlink(missing_ok=True)
+        raise
+    with open(cible, "wb") as f:
+        for partie, _, _ in morceaux:
+            with open(partie, "rb") as source:
+                shutil.copyfileobj(source, f, BLOC)
+            partie.unlink()
+
+
 def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essais: int = ESSAIS,
-                pause=time.sleep) -> None:
+                pause=time.sleep, plages: int = 1) -> None:
     """fichier = {"url", "octets", "md5"} : téléchargé dans cible, repris là où
     il s'est arrêté (Range), puis contrôlé par son MD5 ; sans MD5 (le flux de
     l'ČÚZK n'en donne pas), par sa taille seule, l'archive zip contrôlant
@@ -42,7 +99,16 @@ def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essai
     avant la fin, sans erreur (BD TOPO, essai du 2026-10-28, R93 et R44
     abandonnées après trois coupures) : un fichier encore incomplet reprend au
     lieu de repartir de zéro. Seuls « essais » échecs de suite sans progrès
-    arrêtent."""
+    arrêtent.
+
+    plages > 1 : en autant de plages parallèles (_par_plages), pour un serveur
+    qui bride chaque connexion ; d'un seul tenant s'il ne sert pas les plages."""
+    if plages > 1 and fichier["octets"] > plages * BLOC \
+            and not (cible.exists() and cible.stat().st_size == fichier["octets"]):
+        try:
+            _par_plages(fichier, cible, plages, ouvrir, essais, pause)
+        except _SansPlages:
+            journal.info("%s : pas de plages sur ce serveur, d'un seul tenant", cible.name)
     sans_progres = 0
     while sans_progres < essais:
         deja = cible.stat().st_size if cible.exists() else 0

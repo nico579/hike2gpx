@@ -1,4 +1,5 @@
 import io
+import re
 import sqlite3
 import struct
 import xml.etree.ElementTree as ET
@@ -81,7 +82,7 @@ def _edition(archive):
 def test_le_lecteur_rend_sentiers_et_chemins_de_l_emprise(tmp_path, archive, monkeypatch):
     telecharges = []
 
-    def telecharger(fichier, cible, ouvrir=None, essais=3):
+    def telecharger(fichier, cible, ouvrir=None, essais=3, plages=1):
         telecharges.append(fichier["url"])
         cible.write_bytes(archive.read_bytes())
     monkeypatch.setattr(en_bloc, "telecharger", telecharger)
@@ -109,7 +110,7 @@ def test_preparer_telecharge_d_avance_et_ouvre_le_damier(tmp_path, archive, monk
     from hike2gpx import fabrication
     telecharges = []
 
-    def telecharger(fichier, cible, ouvrir=None, essais=3):
+    def telecharger(fichier, cible, ouvrir=None, essais=3, plages=1):
         telecharges.append(fichier["url"])
         cible.write_bytes(archive.read_bytes())
     monkeypatch.setattr(en_bloc, "telecharger", telecharger)
@@ -176,6 +177,46 @@ def test_sans_progres_le_telechargement_abandonne(tmp_path):
     with pytest.raises(en_bloc.ErreurArchive):
         en_bloc.telecharger({"url": URL, "octets": 10, "md5": None}, tmp_path / "z.zip", ouvrir,
                             pause=lambda s: None)
+
+
+def _serveur(contenu, plages=True, coupures=0):
+    """Un faux serveur : sert les plages (206) ou non (200) ; coupures : nombre
+    de coupures à faire, chacune après la moitié de la plage demandée."""
+    demandes, reste = [], [coupures]
+
+    def ouvrir(demande, timeout):
+        plage = demande.get_header("Range")
+        demandes.append(plage)
+        if not plages or plage is None:
+            return Reponse(contenu, 200)
+        debut, fin = (int(v) for v in re.fullmatch(r"bytes=(\d+)-(\d+)", plage).groups())
+        morceau = contenu[debut:fin + 1]
+        if reste[0] > 0:
+            reste[0] -= 1
+            return Reponse(morceau[:len(morceau) // 2], 206, coupure=OSError("coupé"))
+        return Reponse(morceau, 206)
+    return ouvrir, demandes
+
+
+def test_les_plages_paralleles_rendent_le_fichier_entier(tmp_path):
+    contenu = bytes(range(256)) * (3 * en_bloc.BLOC // 256 + 7)
+    ouvrir, demandes = _serveur(contenu, coupures=2)
+    cible = tmp_path / "z.zip"
+    en_bloc.telecharger({"url": URL, "octets": len(contenu), "md5": None}, cible, ouvrir,
+                        pause=lambda s: None, plages=2)
+    assert cible.read_bytes() == contenu
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["z.zip"], "plus de morceaux"
+    assert len(demandes) == 4, "deux plages, deux coupures reprises"
+
+
+def test_sans_plages_le_telechargement_se_fait_d_un_seul_tenant(tmp_path):
+    contenu = b"x" * (3 * en_bloc.BLOC)
+    ouvrir, _ = _serveur(contenu, plages=False)
+    cible = tmp_path / "z.zip"
+    en_bloc.telecharger({"url": URL, "octets": len(contenu), "md5": None}, cible, ouvrir,
+                        pause=lambda s: None, plages=2)
+    assert cible.read_bytes() == contenu
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["z.zip"]
 
 
 def test_zabaged_se_lit_en_bloc():
