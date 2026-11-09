@@ -103,6 +103,27 @@ def test_le_lecteur_rend_sentiers_et_chemins_de_l_emprise(tmp_path, archive, mon
     assert "BudovaP" not in tables and set(zn.COUCHES) <= tables
 
 
+def test_preparer_telecharge_d_avance_et_ouvre_le_damier(tmp_path, archive, monkeypatch):
+    # Sans preparer, l'étape « données » laissait ZABAGED de côté et la
+    # fusion d'une case tchèque restait maille par maille.
+    from hike2gpx import fabrication
+    telecharges = []
+
+    def telecharger(fichier, cible, ouvrir=None, essais=3):
+        telecharges.append(fichier["url"])
+        cible.write_bytes(archive.read_bytes())
+    monkeypatch.setattr(en_bloc, "telecharger", telecharger)
+    monkeypatch.setattr(zn, "derniere_edition", lambda: _edition(archive))
+    lecteur = zn.Lecteur(tmp_path / "donnees")
+    monkeypatch.setattr(fabrication, "couvertures", lambda dossier: {})
+    lire = fabrication._lecteur(tmp_path / "donnees", ["zabaged"], {"zabaged": lecteur})
+    assert hasattr(lire, "preparer")
+    lire.preparer(49.11, 13.46, 49.13, 13.48)
+    assert telecharges == [URL]
+    assert (tmp_path / "donnees" / zn.DOSSIER / f"{NOM}.chemins.sqlite").is_file()
+    assert len(lecteur(49.11, 13.46, 49.13, 13.48)) == 2 and telecharges == [URL]
+
+
 def test_une_archive_alteree_est_refusee(tmp_path, archive):
     abimee = tmp_path / "abimee.zip"
     donnees = bytearray(archive.read_bytes())

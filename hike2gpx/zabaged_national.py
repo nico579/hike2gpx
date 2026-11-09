@@ -150,9 +150,18 @@ class Lecteur:
         """L'édition de ZABAGED pour le manifeste."""
         return self.edition()["date"]
 
-    def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
+    def preparer(self, sud: float, ouest: float, nord: float, est: float) -> None:
+        """Télécharge d'avance l'édition, sans rien lire, comme
+        bdtopo_regions.Lecteur.preparer : l'étape « données » du serveur la
+        range ainsi dans son artefact, et la fusion en damier
+        (fabrication._lecteur) ne s'active que si chaque lecteur sait le faire.
+        Sans elle, le calcul puis chaque part des calques retéléchargeaient
+        les 6,7 Go, et la fusion restait maille par maille."""
         if self._base is None:
             self._base = geopackage(self.dossier, self.edition())
+
+    def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
+        self.preparer(sud, ouest, nord, est)
         return [{"id": f"{nature}:{fid_zbg}:{k}", "nature": nature, "pts": pts}
                 for table, nature in COUCHES.items()
                 for (fid_zbg,), k, pts in en_bloc.lignes_gpkg(self._base, table, COLONNES, EPSG, sud, ouest, nord,
