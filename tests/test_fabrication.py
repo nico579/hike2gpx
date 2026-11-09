@@ -497,8 +497,9 @@ def test_la_commande_cells_et_bundles_bulk(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(fabrication, "lecteurs_en_bloc", lambda dossier: ({"ign": "lecteur"}, {"ign": "édition"}))
     monkeypatch.setattr(fabrication, "fabriquer_lots", lambda *a, **o: demandes.update(o) or {"E5_N45": "fabriqué"})
     assert __main__.main(["bundles", "E5_N45", "--bulk", "--output", str(tmp_path / "lots")]) == 0
-    assert demandes["fournisseurs"] == ["bdot10k_ds", "ign", "swisstlm3d", "zabaged"] and demandes["troncons"] == {"ign": "lecteur"}
-    assert "laissés de côté" in capsys.readouterr().out
+    assert demandes["fournisseurs"] == ["atkis", "bdot10k_ds", "ign", "swisstlm3d", "zabaged"]
+    assert demandes["troncons"] == {"ign": "lecteur"}
+    assert "laissés de côté" not in capsys.readouterr().out, "tous les fournisseurs se lisent en bloc"
 
 
 def test_le_manifeste_ne_declare_que_les_fournisseurs_qui_ont_apporte(tmp_path, osm_installe, monkeypatch):
