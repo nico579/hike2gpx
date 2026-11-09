@@ -45,9 +45,12 @@ un lot ancien qui n'a pas ce fichier n'affiche simplement rien.
 Sous la distance, l'itinéraire donne aussi le dénivelé et la durée de marche,
 calculés comme sur le PC par le protocole de gpx2elev : altitude échantillonnée
 tous les 5 m, lissage gaussien de 20 m, D+/D− avec une hystérésis de 2 m, puis
-modèle de Tobler tous les 20 m. Le téléphone lit le même relief Mapterhorn
-(tuiles Terrarium du zoom 12, LiDAR HD de l'IGN en France), qu'il rapatrie à la
-demande dans `gpx2elev/tiles` ; une tuile déjà là sert aux parcours suivants.
+modèle de Tobler tous les 20 m. Les sources suivent l'ordre de gpx2elev : avec
+le réseau, le MNT IGN LiDAR HD de la Géoplateforme d'abord ; s'il ne couvre pas
+tout le parcours (hors de France, en mer), ou sans réseau, Mapterhorn (tuiles
+Terrarium du zoom 12), que le téléphone rapatrie à la demande dans
+`gpx2elev/tiles` ; une tuile déjà là sert aux parcours suivants. Le PC lit
+Mapterhorn au zoom 13 : l'écart mesuré sur le D+ reste sous 1 %.
 Le calcul du relief est séparé de celui de l'itinéraire : le tracé s'affiche
 d'abord, le dénivelé arrive ensuite. Sans relief disponible, la ligne le dit et
 la valeur BRouter ne le remplace pas, comme sur le PC. Les bandeaux de
@@ -79,17 +82,29 @@ précédent sont toutes deux atteintes ; le premier point n'a que la précision 
 respecter. Un changement de réglage s'applique au point suivant, même pendant
 un enregistrement. La localisation n'est demandée qu'au premier appui sur le
 bouton de position ou au démarrage d'une trace, jamais au lancement. La trace
-enregistrée s'affiche en orange, au-dessus de l'itinéraire bleu, et l'écran
-reste allumé tant qu'elle tourne.
+enregistrée s'affiche en orange, au-dessus de l'itinéraire bleu.
+
+La trace continue écran éteint, téléphone en poche ou application fermée : un
+service de premier plan (`ServiceTrace`, type `location`) tient le GPS, avec
+une notification « Trace GPS en cours » qui rouvre l'application. Sans lui,
+Android ne donne plus que quelques positions par heure à une application en
+arrière-plan. Chaque point retenu est aussi écrit aussitôt dans
+`traces/<trace>.gpx.journal` et synchronisé sur disque : si Android tue
+l'application ou si la batterie lâche, le GPX est refait au lancement suivant,
+avec un message « Trace interrompue récupérée ». Sur Android 13 et plus, le
+premier enregistrement demande aussi d'autoriser les notifications ; un refus
+cache la notification sans arrêter la trace.
 
 Pendant l'enregistrement, le bandeau donne la distance, la durée et le dénivelé
 D+/D− calculé comme gpx2elev. Le calcul ne lit que le cache `gpx2elev/tiles` :
 en randonnée, le téléphone n'a pas de réseau. Si le cache ne couvre pas encore
 le parcours, le dénivelé reste absent du bandeau, sans arrêter la trace. À
 l'export, le GPX est relu et les altitudes sont remplacées par celles de
-gpx2elev : d'abord avec le cache, puis avec le réseau s'il est disponible et que
-le cache est incomplet ; sans les deux, le fichier part tel qu'il a été
-enregistré. La description du GPX porte alors « D+ … m / D− … m (gpx2elev) ».
+gpx2elev : IGN LiDAR HD si le réseau est là et qu'il couvre la trace, sinon
+Mapterhorn, son cache d'abord, puis le réseau s'il le faut ; sans relief
+complet, le fichier part tel qu'il a été enregistré. Le D+ du bandeau, lu
+hors ligne sur Mapterhorn, peut donc différer de quelques mètres de celui de
+l'export. La description du GPX porte alors « D+ … m / D− … m (gpx2elev) ».
 
 « Ma bibliothèque », dans le menu, liste l'historique des traces : chaque
 fichier de `traces/` affiche sa date et sa taille réelle, avec un bouton

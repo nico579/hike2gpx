@@ -203,6 +203,10 @@
     <string name="bouton_trace_stop">Stop the GPS track</string>
     <string name="trace_demarree">GPS track started: the phone is recording points.</string>
     <string name="trace_sans_point">No point kept: the track was not saved.</string>
+    <string name="trace_canal">GPS track recording</string>
+    <string name="trace_notification_titre">Recording a GPS track</string>
+    <string name="trace_notification_texte">Tap to open hike2gpx. Points are kept even with the screen off.</string>
+    <string name="trace_recuperee">Interrupted track recovered: %1$s</string>
     <string name="trace_titre">GPS track recorded</string>
     <string name="trace_resume">%1$s, %2$s, %3$s.</string>
     <string name="trace_fichier">File: %1$s</string>

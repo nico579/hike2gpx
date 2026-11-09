@@ -371,9 +371,22 @@ class MainActivity : Activity() {
         appliquerAffichage()
         if (EnregistrementGps.actif) {
             dessinerTraceEnregistree()
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             majBoutonTrace()
+        } else {
+            recupererTraces()
         }
+    }
+
+    /**
+     * Une trace que le processus n'a pas pu finir (tué par Android, batterie
+     * vide) a laissé son journal : il redevient un GPX de la bibliothèque.
+     */
+    private fun recupererTraces() {
+        val refaites = EnregistrementGps.recuperer(dossierTraces())
+        if (refaites.isEmpty()) return
+        fichierTrace = refaites.last()
+        Toast.makeText(this, getString(R.string.trace_recuperee,
+            refaites.joinToString(", ") { it.name }), Toast.LENGTH_LONG).show()
     }
 
     /**
@@ -661,12 +674,12 @@ class MainActivity : Activity() {
         }
         val sequence = ++sequenceDenivele
         etat.text = listOf(base, getString(R.string.etat_denivele_calcul)).filter { it.isNotEmpty() }.joinToString("\n")
+        val sources = sourcesRelief(relief)
         EXECUTEUR_DENIVELE.execute {
             var profil: ProfilAltimetrique? = null
             var erreur = ""
             try {
-                relief.preparer(coordonnees)
-                profil = Denivele.calculer(coordonnees, relief, "Mapterhorn")
+                profil = Denivele.calculer(coordonnees, sources)
             } catch (e: Exception) {
                 erreur = e.message ?: e.toString()
             }
@@ -1760,9 +1773,9 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Une position reçue : le point bleu suit toujours ; la trace ne retient
-     * que les points récents (un dernier point connu peut dater de la veille)
-     * et que ceux qui passent le filtre des réglages.
+     * Une position reçue par l'écran : le point bleu et le recentrage. La
+     * trace, elle, reçoit ses points de ServiceTrace, qui tourne aussi écran
+     * éteint.
      */
     private fun surPosition(location: Location) {
         if (isDestroyed) return
@@ -1777,11 +1790,11 @@ class MainActivity : Activity() {
             centrerDesQuePosition = false
             centrerCarte(point)
         }
-        val trace = EnregistrementGps.trace ?: return
-        if (System.currentTimeMillis() - location.time > 120_000) return
-        val altitude = if (location.hasAltitude()) location.altitude else null
-        if (trace.ajouter(location.latitude, location.longitude, altitude, location.time,
-                if (location.hasAccuracy()) location.accuracy.toDouble() else null)) {
+    }
+
+    /** Un point retenu par ServiceTrace : l'écran visible le dessine. */
+    private val surPointTrace: () -> Unit = {
+        if (!isDestroyed) {
             dessinerTraceEnregistree()
             majEtatTrace()
             calculerDeniveleTrace()
@@ -1815,9 +1828,14 @@ class MainActivity : Activity() {
         val nom = "trace-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
         val trace = TraceGps(reglages.distanceMin, reglages.dureeMin * 1_000L, reglages.precisionMax)
         EnregistrementGps.demarrer(trace, File(dossier, nom))
+        // Le service tient le GPS écran éteint ; sans la notification (refusée
+        // sur Android 13 et plus), il tourne quand même.
+        ServiceTrace.demarrer(this)
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), PERMISSION_NOTIFICATIONS)
         traceEnregistree?.let { carte.overlays.remove(it) }
         traceEnregistree = null
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         modePlan = false
         modeRecherche = false
         rechercheRepliee = false
@@ -1826,22 +1844,24 @@ class MainActivity : Activity() {
         appliquerAffichage()
         etat.setText(R.string.trace_demarree)
         if (!gpsActif()) Toast.makeText(this, R.string.gps_inactif, Toast.LENGTH_LONG).show()
-        dernierPointConnu()?.let { surPosition(it) }
     }
 
     private fun arreterEnregistrement() {
+        ServiceTrace.arreter(this)
         val trace = EnregistrementGps.arreter() ?: return
         val fichier = EnregistrementGps.fichier
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         majBoutonTrace()
         if (trace.taille == 0) {
+            fichier?.let { EnregistrementGps.terminer(it) }
             appliquerAffichage()
             Toast.makeText(this, R.string.trace_sans_point, Toast.LENGTH_LONG).show()
             return
         }
         try {
             fichier?.writeText(Gpx.ecrireTrace(trace.points, fichier.nameWithoutExtension))
+            fichier?.let { EnregistrementGps.terminer(it) }
         } catch (e: Exception) {
+            // Le journal reste : la trace sera refaite au prochain lancement.
             appliquerAffichage()
             Toast.makeText(this, texte(e), Toast.LENGTH_LONG).show()
             return
@@ -1991,21 +2011,24 @@ class MainActivity : Activity() {
 
     private fun preparerGpxEnrichi(points: List<PointTrace>, fichier: File): String? {
         if (points.size < 2) return null
-        // Des instances neuves : le calcul du tracé peut lire le relief en même
+        // Une instance neuve : le calcul du tracé peut lire le relief en même
         // temps, et Mapterhorn n'est pas partagé entre deux tâches.
-        val reliefs = mutableListOf(Mapterhorn(filesDir, reseau = false))
-        if (reseauDisponible()) reliefs.add(Mapterhorn(filesDir))
-        for (modele in reliefs) {
-            try {
-                val (enrichis, profil) = Gpx.enrichir(points, modele)
-                return Gpx.ecrireTrace(enrichis, fichier.nameWithoutExtension,
-                    getString(R.string.trace_gpx_desc, profil.monteeM, profil.descenteM))
-            } catch (e: Exception) {
-                // cache incomplet : on essaie le réseau, sinon le GPX reste tel quel
-            }
+        val sources = sourcesRelief(Mapterhorn(filesDir, reseau = reseauDisponible()))
+        return try {
+            val (enrichis, profil) = Gpx.enrichir(points, sources)
+            Gpx.ecrireTrace(enrichis, fichier.nameWithoutExtension,
+                getString(R.string.trace_gpx_desc, profil.monteeM, profil.descenteM))
+        } catch (e: Exception) {
+            null        // aucun relief complet : le GPX reste tel quel
         }
-        return null
     }
+
+    /**
+     * L'ordre de gpx2elev : IGN LiDAR HD quand le réseau est là, puis
+     * Mapterhorn (son cache d'abord, le réseau s'il le permet).
+     */
+    private fun sourcesRelief(mapterhorn: Mapterhorn): List<SourceRelief> =
+        if (reseauDisponible()) listOf(IgnLidar(), mapterhorn.source()) else listOf(mapterhorn.source())
 
     private fun lancerExport(nom: String) {
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -2248,11 +2271,13 @@ class MainActivity : Activity() {
         // La position ne se demande pas au lancement : sans autorisation,
         // demarrerPosition ne fait rien.
         demarrerPosition()
+        EnregistrementGps.abonner(surPointTrace)
         if (EnregistrementGps.actif) {
             dessinerTraceEnregistree()
             majBoutonTrace()
             majEtatTrace()
             appliquerAffichage()
+            calculerDeniveleTrace()
         }
         if (attenteAutorisation) {
             attenteAutorisation = false
@@ -2263,8 +2288,10 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         reglages.vue = Triple(carte.mapCenter.latitude, carte.mapCenter.longitude, carte.zoomLevelDouble)
-        // Une trace en cours continue écran éteint ; sinon le GPS se repose.
-        if (!EnregistrementGps.actif) arreterPosition()
+        // L'écran caché n'a plus besoin du point bleu : le GPS se repose, et une
+        // trace en cours continue dans ServiceTrace.
+        EnregistrementGps.desabonner(surPointTrace)
+        arreterPosition()
         carte.onPause(); super.onPause()
     }
 
@@ -2280,6 +2307,7 @@ class MainActivity : Activity() {
         private const val EXPORT = 1
         private const val EXPORT_TRACE = 2
         private const val PERMISSION_POSITION = 3
+        private const val PERMISSION_NOTIFICATIONS = 4
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */

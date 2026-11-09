@@ -11,8 +11,10 @@ import kotlin.math.floor
 import kotlin.math.tan
 
 /**
- * Le relief Mapterhorn, le modèle que gpx2elev préfère (en France, le MNT de
- * l'IGN tiré du LiDAR HD). Les tuiles Terrarium du zoom 12 sont rapatriées à la
+ * Le relief Mapterhorn, la deuxième source de gpx2elev après IGN LiDAR HD, et
+ * la seule hors ligne (en France, il dérive lui aussi du MNT LiDAR HD de
+ * l'IGN). gpx2elev lit le zoom 13 ; le zoom 12 de relief.py en diffère de
+ * moins de 1 % sur le D+ mesuré. Les tuiles Terrarium du zoom 12 sont rapatriées à la
  * demande dans <dossier>/gpx2elev/tiles, comme relief.py sur le PC : une tuile
  * déjà là sert aux parcours suivants, sans réseau.
  *
@@ -31,6 +33,15 @@ class Mapterhorn(private val dossier: File, private val reseau: Boolean = true) 
             size > TUILES_EN_MEMOIRE
     }
     private val absentes = HashSet<Long>()
+
+    /** La source de Denivele : les tuiles d'abord rapatriées, puis lues point par point. */
+    fun source(): SourceRelief = object : SourceRelief {
+        override val nom = NOM
+        override fun altitudes(lats: DoubleArray, lons: DoubleArray): DoubleArray? {
+            preparer(List(lats.size) { doubleArrayOf(lons[it], lats[it]) })
+            return enSource(NOM).altitudes(lats, lons)
+        }
+    }
 
     /** Rapatrie d'avance les tuiles que le parcours peut lire. */
     fun preparer(coordonnees: List<DoubleArray>) {
@@ -98,7 +109,9 @@ class Mapterhorn(private val dossier: File, private val reseau: Boolean = true) 
             }
             try {
                 cache.mkdirs()
-                val partiel = File(cache, "${fichier.name}.part")
+                // Un nom propre à ce téléchargement : l'itinéraire et l'export
+                // d'une trace peuvent rapatrier la même tuile en même temps.
+                val partiel = File.createTempFile(fichier.name, ".part", cache)
                 partiel.writeBytes(recus)
                 if (!partiel.renameTo(fichier)) {
                     partiel.copyTo(fichier, overwrite = true)
@@ -141,6 +154,7 @@ class Mapterhorn(private val dossier: File, private val reseau: Boolean = true) 
     }
 
     companion object {
+        const val NOM = "Mapterhorn"
         const val ZOOM = 12
         const val TAILLE = 512
         const val MAX_TUILES = 256

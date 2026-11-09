@@ -17,6 +17,26 @@ fun interface ModeleTerrain {
     fun altitude(lat: Double, lon: Double): Double?
 }
 
+/**
+ * Une source d'altitudes pour tous les points d'un tracé à la fois, comme les
+ * lecteurs de gpx2elev : elle rend une altitude par point, ou null si elle ne
+ * les couvre pas tous. Une exception compte aussi comme un échec de la source.
+ */
+interface SourceRelief {
+    val nom: String
+    fun altitudes(lats: DoubleArray, lons: DoubleArray): DoubleArray?
+}
+
+/** Un modèle point par point vu comme une source : un seul trou suffit à l'écarter. */
+fun ModeleTerrain.enSource(nom: String): SourceRelief = object : SourceRelief {
+    override val nom = nom
+    override fun altitudes(lats: DoubleArray, lons: DoubleArray): DoubleArray? {
+        val resultat = DoubleArray(lats.size)
+        for (i in lats.indices) resultat[i] = altitude(lats[i], lons[i]) ?: return null
+        return resultat
+    }
+}
+
 class ErreurDenivele(message: String) : Exception(message)
 
 /** Le relief d'un parcours, calculé comme denivele.calculer sur le PC. */
@@ -38,8 +58,11 @@ data class ProfilAltimetrique(
  * aux extrémités), D+/D− avec une hystérésis de 2 m, puis le modèle de Tobler
  * (v = 6 × exp(−3,5 × |pente + 0,05|) km/h) tous les 20 m.
  *
- * Le modèle de terrain du téléphone est Mapterhorn, le même que gpx2elev
- * préfère : en France il vient du LiDAR HD de l'IGN.
+ * Les sources se prennent dans l'ordre de gpx2elev (Repository.obtain) :
+ * la première qui couvre tout le tracé l'emporte, IGN LiDAR HD d'abord, puis
+ * Mapterhorn. Une altitude n'est valable que finie et entre −1000 et 9000 m,
+ * le critère de gpx2elev ; le « sans donnée » de l'IGN (−99999) fait passer
+ * à la source suivante.
  */
 object Denivele {
     const val PAS = 5.0
@@ -49,7 +72,33 @@ object Denivele {
     const val RAYON_TERRE = 12_742_000.0      // diamètre, comme gpx2elev
 
     fun calculer(coordonnees: List<DoubleArray>, modele: ModeleTerrain,
-                 nomModele: String = "Mapterhorn"): ProfilAltimetrique {
+                 nomModele: String = "Mapterhorn"): ProfilAltimetrique =
+        calculer(coordonnees, listOf(modele.enSource(nomModele)))
+
+    /**
+     * Les altitudes de la première source qui couvre tous les points, et
+     * cette source. Sans aucune, l'erreur donne la raison de chaque échec.
+     */
+    fun obtenir(sources: List<SourceRelief>, lats: DoubleArray,
+                lons: DoubleArray): Pair<SourceRelief, DoubleArray> {
+        val echecs = mutableListOf<String>()
+        for (source in sources) {
+            val valeurs = try {
+                source.altitudes(lats, lons)
+            } catch (e: Exception) {
+                echecs.add("${source.nom} : ${e.message ?: e}")
+                continue
+            }
+            if (valeurs != null && valeurs.size == lats.size && valeurs.all(::valide))
+                return source to valeurs
+            echecs.add("${source.nom} : ne couvre pas tout le parcours")
+        }
+        throw ErreurDenivele((listOf("relief absent sur le parcours") + echecs).joinToString(" ; "))
+    }
+
+    private fun valide(altitude: Double) = altitude.isFinite() && altitude in -1000.0..9000.0
+
+    fun calculer(coordonnees: List<DoubleArray>, sources: List<SourceRelief>): ProfilAltimetrique {
         if (coordonnees.size < 2) throw ErreurDenivele("tracé trop court")
         val distances = distances(coordonnees)
         val garde = mutableListOf<Int>()
@@ -67,11 +116,9 @@ object Denivele {
         for (i in 0 until n) grille[i] = i * PAS
         grille[n] = x.last()
 
-        val altitudes = DoubleArray(grille.size) { i ->
-            val lat = interpole(grille[i], x, lats)
-            val lon = interpole(grille[i], x, lons)
-            modele.altitude(lat, lon) ?: throw ErreurDenivele("relief absent sur le parcours")
-        }
+        val latsGrille = DoubleArray(grille.size) { interpole(grille[it], x, lats) }
+        val lonsGrille = DoubleArray(grille.size) { interpole(grille[it], x, lons) }
+        val (source, altitudes) = obtenir(sources, latsGrille, lonsGrille)
         val lisse = gaussienne(grille, altitudes)
         val gain = totaux(lisse, ancres(lisse))
         val duree = dureeTobler(grille, lisse)
@@ -81,7 +128,7 @@ object Denivele {
             altitudeMinM = minimum(lisse).roundToInt(),
             altitudeMaxM = maximum(lisse).roundToInt(),
             dureeMarcheS = Math.round(duree),
-            modele = nomModele,
+            modele = source.nom,
             distancesM = grille.copyOf(),
             altitudesM = lisse.copyOf(),
         )

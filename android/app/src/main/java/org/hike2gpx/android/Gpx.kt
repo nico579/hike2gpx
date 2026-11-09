@@ -73,21 +73,22 @@ object Gpx {
         }.toList()
     }
 
+    fun enrichir(points: List<PointTrace>, relief: ModeleTerrain): Pair<List<PointTrace>, ProfilAltimetrique> =
+        enrichir(points, listOf(relief.enSource(Mapterhorn.NOM)))
+
     /**
-     * Remplace l'altitude GPS par celle de gpx2elev et calcule le profil.
-     * [relief] peut être le cache seul (trace hors réseau) ou le modèle complet ;
-     * une tuile absente du cache lève [ErreurDenivele], et l'appelant garde
-     * alors le GPX d'origine.
+     * Remplace l'altitude GPS par celle de gpx2elev et calcule le profil, avec
+     * la première des [sources] qui couvre toute la trace (IGN LiDAR HD, puis
+     * Mapterhorn). Sans aucune, [ErreurDenivele] : l'appelant garde alors le
+     * GPX d'origine.
      */
-    fun enrichir(points: List<PointTrace>, relief: ModeleTerrain): Pair<List<PointTrace>, ProfilAltimetrique> {
+    fun enrichir(points: List<PointTrace>, sources: List<SourceRelief>): Pair<List<PointTrace>, ProfilAltimetrique> {
         if (points.size < 2) throw ErreurDenivele("tracé trop court")
-        val coordonnees = points.map { doubleArrayOf(it.lon, it.lat) }
-        val profil = Denivele.calculer(coordonnees, relief)
-        val enrichis = points.map { p ->
-            val altitude = relief.altitude(p.lat, p.lon)
-            if (altitude != null) p.copy(altitude = altitude) else p
-        }
-        return enrichis to profil
+        val lats = DoubleArray(points.size) { points[it].lat }
+        val lons = DoubleArray(points.size) { points[it].lon }
+        val (source, valeurs) = Denivele.obtenir(sources, lats, lons)
+        val profil = Denivele.calculer(points.map { doubleArrayOf(it.lon, it.lat) }, listOf(source))
+        return points.mapIndexed { i, p -> p.copy(altitude = valeurs[i]) } to profil
     }
 
     private fun echapper(texte: String) = texte
