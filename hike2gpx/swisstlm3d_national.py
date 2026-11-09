@@ -115,17 +115,22 @@ def geopackage(dossier, edition: dict | None = None) -> Path:
 def _extraire(archive: Path, dossier: Path) -> Path:
     """Les trois fichiers de la couche des routes (.shp, .shx, .dbf),
     décompressés dans dossier ; zipfile contrôle le CRC en lisant. Rend le
-    chemin du .shp."""
+    chemin du .shp.
+
+    L'archive de swisstopo est faite sous Windows : ses noms gardent des
+    barres obliques inverses (TLM_STRASSEN\\swissTLM3D_…). zipfile ne les
+    convertit qu'en lisant sous Windows ; sous Linux, sur le serveur, le nom
+    avec « / » n'existait pas (essai 42644919578). Les noms sont donc
+    comparés une fois normalisés."""
     dossier.mkdir(parents=True, exist_ok=True)
     try:
         with zipfile.ZipFile(archive) as z:
+            par_nom = {m.filename.replace("\\", "/"): m for m in z.infolist()}
             for extension in (".shp", ".shx", ".dbf"):
                 membre = COUCHE + extension
-                try:
-                    source = z.open(membre)
-                except KeyError:
-                    raise ErreurArchive(f"Pas de {membre} dans {archive.name}.") from None
-                with source, open(dossier / Path(membre).name, "wb") as f:
+                if membre not in par_nom:
+                    raise ErreurArchive(f"Pas de {membre} dans {archive.name}.")
+                with z.open(par_nom[membre]) as source, open(dossier / Path(membre).name, "wb") as f:
                     shutil.copyfileobj(source, f, en_bloc.BLOC)
     except zipfile.BadZipFile as exc:
         raise ErreurArchive(f"{archive.name} : archive altérée ({exc}).") from exc

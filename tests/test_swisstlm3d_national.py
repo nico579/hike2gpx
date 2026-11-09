@@ -30,7 +30,13 @@ def _archive(dossier):
     chemin = dossier / "swisstlm3d_2026-02_2056_5728.shp.zip"
     with zipfile.ZipFile(chemin, "w", zipfile.ZIP_DEFLATED) as z:
         for extension in (".shp", ".shx", ".dbf"):
-            z.write(base.with_suffix(extension), sn.COUCHE + extension)
+            # Comme l'archive de swisstopo, faite sous Windows : des barres
+            # obliques inverses dans les noms, que zipfile ne convertit qu'en
+            # lisant sous Windows (le serveur, sous Linux, ne trouvait rien).
+            membre = zipfile.ZipInfo("x")
+            membre.filename = (sn.COUCHE + extension).replace("/", "\\")
+            membre.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(membre, base.with_suffix(extension).read_bytes())
         z.writestr("TLM_BAUTEN/swissTLM3D_TLM_GEBAEUDE.dbf", b"batiments" * 1000)
     return chemin
 
