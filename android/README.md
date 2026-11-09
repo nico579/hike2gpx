@@ -138,19 +138,19 @@ s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le plus fin. Le
 bandeau de planification ne garde que « Retirer », « Effacer » et « Revenir ».
 
 La page « Itinéraires », dans le menu, réunit le calcul et l'enregistrement,
-sortis des réglages. On y coche « Ne pas utiliser les blocages à vérifier » et
+sortis des réglages. On y coche « Prendre en compte les blocages à vérifier » et
 les chemins officiels, nommés d'après les lots installés (« Utiliser les
 chemins IGN BD TOPO », « ATKIS »…). Les zones de routage présentes sur le
 téléphone s'y listent avec leur taille, « Mettre à jour » quand le serveur en a
-une plus récente et « Supprimer » après confirmation. Les lots que
-seul un PC calcule (« Lots calculés sur le PC ») s'y téléchargent un par un
-depuis le QR code du PC, avec « Scanner le QR code d'un PC » et « Coller le lien
-d'un PC » ; un lot est pris au premier PC qui le sert, et un PC éteint ne bloque
-rien. Le volet « Enregistrement de trace GPS » y règle la distance minimale, la
-durée minimale et la déviation GPS maximale. Les réglages ne gardent que
-l'affichage, le cache et la mise à jour ; « Vider le cache » efface comme sur le
-PC les lots, les fonds, les téléchargements interrompus, les tuiles en ligne
-gardées et les tuiles de relief gpx2elev ; les lots du serveur reviennent d'eux-mêmes.
+une plus récente et « Supprimer » après confirmation. « Télécharger les zones de
+routage depuis le PC » propose celles que seul un PC calcule, avec « Scanner le
+QR code d'un PC » ; un lot est pris au premier PC qui le sert, et un PC éteint ne
+bloque rien. Le volet « Enregistrement de trace GPS » y règle la distance
+minimale, la durée minimale et la déviation GPS maximale. Les réglages ne
+gardent que l'affichage, le cache et la mise à jour ; « Vider le cache » efface
+comme sur le PC les lots, les fonds, les téléchargements interrompus, les tuiles
+en ligne gardées et les tuiles de relief gpx2elev ; les lots du serveur
+reviennent d'eux-mêmes.
 
 L'application parle anglais ou français selon la langue du téléphone, comme
 watch2notif : l'anglais dans `res/values`, la langue par défaut, le français

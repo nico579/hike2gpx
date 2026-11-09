@@ -41,7 +41,7 @@
     <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
 
     <string name="titre_itineraire">Itinéraire</string>
-    <string name="strict">Ne pas utiliser les blocages à vérifier</string>
+    <string name="strict">Prendre en compte les blocages à vérifier</string>
     <string name="officiels">Utiliser les chemins %1$s</string>
     <string name="officiels_aucun">Utiliser les chemins officiels</string>
 
@@ -87,7 +87,7 @@
     <string name="aucun_lot">Aucun lot installé.</string>
     <string name="itineraires_modes">Calcul des itinéraires</string>
     <string name="itineraires_relire">Relire les lots partagés par les PC</string>
-    <string name="itineraires_pc">Lots calculés sur le PC</string>
+    <string name="itineraires_pc">Télécharger les zones de routage depuis le PC</string>
     <string name="itineraires_lot">Télécharger %1$s · %2$s · %3$s, depuis %4$s</string>
     <string name="itineraires_aucun_lot">Aucun lot de routage à télécharger depuis le PC.</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>
@@ -199,7 +199,6 @@
 
     <!-- La position GPS et l’enregistrement d’une trace, comme Locus Map. -->
     <string name="titre_trace">Enregistrement de trace GPS</string>
-    <string name="trace_aide">Un point n’est retenu que si le GPS est assez précis et si la distance et la durée depuis le point précédent sont atteintes. Le premier point n’a que la précision à respecter.</string>
     <string name="trace_distance">Distance minimale entre deux points (m)</string>
     <string name="trace_duree">Durée minimale entre deux points (s)</string>
     <string name="trace_precision">Déviation GPS maximale (m)</string>

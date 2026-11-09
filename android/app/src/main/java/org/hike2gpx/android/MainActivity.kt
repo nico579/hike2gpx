@@ -1196,7 +1196,6 @@ class MainActivity : Activity() {
 
         // Ce que seul un PC calcule : ses lots absents du serveur et du téléphone.
         titre(colonne, R.string.itineraires_pc)
-        colonne.addView(TextView(this).apply { setText(R.string.aide_qr); textSize = 12f })
         val duPc = lotsDuPc(installes)
         for ((source, lot) in duPc) {
             colonne.addView(Button(this).apply {
@@ -1213,12 +1212,10 @@ class MainActivity : Activity() {
                 setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirItineraires() } }
             })
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
-        colonne.addView(Button(this).apply { setText(R.string.coller_lien); setOnClickListener { collerLien() } })
 
         // L'enregistrement de trace de Locus Map, appliqué au prochain point
         // même quand un enregistrement est en cours.
         titre(colonne, R.string.titre_trace)
-        colonne.addView(TextView(this).apply { setText(R.string.trace_aide); textSize = 12f })
         champNombre(colonne, R.string.trace_distance, reglages.distanceMin, entier = false) {
             reglages.distanceMin = it
             appliquerReglagesTrace()

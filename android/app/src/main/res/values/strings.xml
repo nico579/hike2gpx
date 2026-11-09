@@ -43,7 +43,7 @@
     <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
 
     <string name="titre_itineraire">Route</string>
-    <string name="strict">Do not use crossings to check</string>
+    <string name="strict">Take crossings to check into account</string>
     <string name="officiels">Use the %1$s paths</string>
     <string name="officiels_aucun">Use the official paths</string>
 
@@ -89,7 +89,7 @@
     <string name="aucun_lot">No bundle installed.</string>
     <string name="itineraires_modes">Route calculation</string>
     <string name="itineraires_relire">Reload the bundles shared by the PCs</string>
-    <string name="itineraires_pc">Bundles computed on the PC</string>
+    <string name="itineraires_pc">Download routing areas from the PC</string>
     <string name="itineraires_lot">Download %1$s · %2$s · %3$s, from %4$s</string>
     <string name="itineraires_aucun_lot">No routing bundle to download from the PC.</string>
     <string name="aucun_fond">No offline base map. They come from a PC that shares its own.</string>
@@ -201,7 +201,6 @@
 
     <!-- GPS position and track recording, like Locus Map. -->
     <string name="titre_trace">GPS track recording</string>
-    <string name="trace_aide">A point is kept only if the GPS is accurate enough and both the distance and the time since the previous point are reached. The first point only has to meet the accuracy.</string>
     <string name="trace_distance">Minimum distance between points (m)</string>
     <string name="trace_duree">Minimum time between points (s)</string>
     <string name="trace_precision">Maximum GPS deviation (m)</string>
