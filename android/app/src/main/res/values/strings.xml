@@ -43,8 +43,9 @@
     <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
 
     <string name="titre_itineraire">Route</string>
-    <string name="strict">Strict mode</string>
-    <string name="officiels">Official paths</string>
+    <string name="strict">Strict mode: do not use crossings to check</string>
+    <string name="officiels">Use the %1$s paths</string>
+    <string name="officiels_aucun">Use the official paths</string>
 
     <string name="titre_calques">Map layers</string>
     <string name="calque_osm">OSM paths</string>

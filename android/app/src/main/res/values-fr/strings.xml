@@ -41,8 +41,9 @@
     <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
 
     <string name="titre_itineraire">Itinéraire</string>
-    <string name="strict">Mode strict</string>
-    <string name="officiels">Chemins officiels</string>
+    <string name="strict">Mode strict : ne pas utiliser les blocages à vérifier</string>
+    <string name="officiels">Utiliser les chemins %1$s</string>
+    <string name="officiels_aucun">Utiliser les chemins officiels</string>
 
     <string name="titre_calques">Calques de la carte</string>
     <string name="calque_osm">Chemins OSM</string>

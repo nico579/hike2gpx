@@ -1163,8 +1163,14 @@ class MainActivity : Activity() {
             setText(R.string.strict); isChecked = reglages.strict
             setOnCheckedChangeListener { _, v -> reglages.strict = v }
         })
+        // Le nom vient des lots : « Utiliser les chemins IGN BD TOPO », « ATKIS »…
+        val fournisseurs = fournisseursDisponibles().ifEmpty {
+            offres.flatMap { Fournisseurs.duLot(it.lot) }.distinctBy { it.cle }.sortedBy { it.nom }
+        }
         colonne.addView(Switch(this).apply {
-            setText(R.string.officiels); isChecked = reglages.officiels
+            text = if (fournisseurs.isEmpty()) getString(R.string.officiels_aucun)
+            else getString(R.string.officiels, fournisseurs.joinToString(", ") { it.nom })
+            isChecked = reglages.officiels
             setOnCheckedChangeListener { _, v -> reglages.officiels = v }
         })
 

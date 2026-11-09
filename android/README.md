@@ -138,7 +138,9 @@ s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le plus fin. Le
 bandeau de planification ne garde que « Retirer », « Effacer » et « Revenir ».
 
 La page « Itinéraires », dans le menu, réunit le calcul et l'enregistrement,
-sortis des réglages. On y coche le mode strict et les chemins officiels. Les
+sortis des réglages. On y coche le mode strict (« ne pas utiliser les blocages
+à vérifier ») et les chemins officiels, nommés d'après les lots installés
+(« Utiliser les chemins IGN BD TOPO », « ATKIS »…). Les
 lots de routage installés s'y listent avec leur taille, « Mettre à jour » quand
 le serveur en a une plus récente et « Supprimer » après confirmation ; ceux du
 catalogue qui manquent sont annoncés, ils viennent d'eux-mêmes. Les lots que
