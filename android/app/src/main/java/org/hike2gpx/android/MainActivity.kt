@@ -43,6 +43,8 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
@@ -155,6 +157,8 @@ class MainActivity : Activity() {
     /** Case dont le téléchargement automatique est proposé ou en cours. */
     private var autoLotDemande: String? = null
     private var fenetreReglages: LinearLayout? = null
+    /** La page « Cartes » du menu, refaite après chaque téléchargement ou suppression. */
+    private var fenetreCartes: LinearLayout? = null
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
     private var apkEnAttente: File? = null
     private var attenteAutorisation = false
@@ -939,30 +943,154 @@ class MainActivity : Activity() {
 
     // ------------------------------------------------------------------ fonds de carte
 
-    /** Les fonds en ligne, les fonds hors ligne installés, et ceux que les PC proposent. */
-    private fun choisirFond() {
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) {
-            lireFondsPc { choisirFond() }; return
+    // ------------------------------------------------------------------ cartes
+
+    /**
+     * La page « Cartes » du menu : le fond affiché, ceux qu'un PC partage (son
+     * QR code), la suppression d'un fond et les calques. Ces commandes étaient
+     * noyées dans les réglages ; elles ont ici leur page, comme sur le PC.
+     */
+    private fun ouvrirCartes() {
+        val colonne = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
         }
-        val choix = mutableListOf<Pair<String, () -> Unit>>()
-        choix.add(getString(R.string.fond_osm) to { appliquerFond("osm") })
-        choix.add(getString(R.string.fond_topo) to { appliquerFond("topo") })
-        for ((source, fichiers) in fonds.parSource()) {
-            choix.add(getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
-                Formatter.formatShortFileSize(this, fichiers.sumOf { it.length() })) to
-                { appliquerFond(source); cadrerSur(fichiers) })
-        }
-        val proposes = fondsProposes(cataloguesPc ?: emptyList(), fonds.installes().map { it.nameWithoutExtension }.toSet())
-        for ((source, fond) in proposes) {
-            choix.add(getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom,
-                Formatter.formatShortFileSize(this, fond.octets), source.libelle) to
-                { telechargerFond(source, fond) })
-        }
-        if (reglages.pcs().isEmpty()) choix.add(getString(R.string.fond_sans_pc) to { scannerQr() })
-        else if (proposes.isEmpty()) choix.add(getString(R.string.fond_relire) to { cataloguesPc = null; choisirFond() })
+        fenetreCartes = colonne
+        remplirCartes()
         AlertDialog.Builder(this)
-            .setTitle(R.string.titre_fond)
-            .setItems(choix.map { it.first }.toTypedArray()) { _, i -> choix[i].second() }
+            .setTitle(R.string.menu_cartes)
+            .setView(ScrollView(this).apply { addView(colonne) })
+            .setPositiveButton(R.string.fermer, null)
+            .setOnDismissListener { fenetreCartes = null }
+            .show()
+        // Les fonds d'un PC déjà ajouté se lisent en arrivant, comme le faisait
+        // le bouton Fond ; un PC injoignable le dit sans bloquer la page.
+        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) lireFondsPc { remplirCartes() }
+    }
+
+    /** Le contenu de la page « Cartes », refait après chaque téléchargement, suppression ou ajout de PC. */
+    private fun remplirCartes() {
+        val colonne = fenetreCartes ?: return
+        colonne.removeAllViews()
+
+        titre(colonne, R.string.titre_fond)
+        val groupe = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        fun fondChoisi(cle: String, libelle: String, action: () -> Unit) {
+            groupe.addView(RadioButton(this).apply {
+                // Un identifiant est nécessaire pour que le groupe décoche
+                // l'ancien fond quand un autre est choisi.
+                id = View.generateViewId()
+                text = libelle
+                isChecked = reglages.fond == cle
+                setOnClickListener { action() }
+            })
+        }
+        fondChoisi("osm", getString(R.string.fond_osm)) { appliquerFond("osm") }
+        fondChoisi("topo", getString(R.string.fond_topo)) { appliquerFond("topo") }
+        for ((source, fichiers) in fonds.parSource()) {
+            fondChoisi(source, getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
+                Formatter.formatShortFileSize(this, fichiers.sumOf { it.length() }))) {
+                appliquerFond(source)
+                cadrerSur(fichiers)
+            }
+        }
+        colonne.addView(groupe)
+
+        // Les fonds installés, supprimables un par un.
+        titre(colonne, R.string.titre_fonds)
+        val installes = fonds.installes()
+        if (installes.isEmpty()) colonne.addView(TextView(this).apply { setText(R.string.aucun_fond) })
+        for (f in installes) {
+            val ligne = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            ligne.addView(TextView(this).apply {
+                text = getString(R.string.ligne_fond, f.nameWithoutExtension,
+                    Formatter.formatShortFileSize(this@MainActivity, f.length()))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppressionFond(f) })
+            colonne.addView(ligne)
+        }
+
+        // Les fonds d'un PC : son QR code l'ajoute, puis ses fonds manquants se téléchargent.
+        titre(colonne, R.string.cartes_a_telecharger)
+        colonne.addView(TextView(this).apply { setText(R.string.aide_qr); textSize = 12f })
+        val proposes = fondsProposes(cataloguesPc ?: emptyList(), installes.map { it.nameWithoutExtension }.toSet())
+        for ((source, fond) in proposes) {
+            colonne.addView(Button(this).apply {
+                text = getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom,
+                    Formatter.formatShortFileSize(this@MainActivity, fond.octets), source.libelle)
+                setOnClickListener { telechargerFond(source, fond) }
+            })
+        }
+        if (proposes.isEmpty() && cataloguesPc != null)
+            colonne.addView(TextView(this).apply { setText(R.string.cartes_aucun_fond) })
+        if (reglages.pcs().isNotEmpty() && cataloguesPc == null)
+            colonne.addView(Button(this).apply {
+                setText(R.string.fond_relire)
+                setOnClickListener { cataloguesPc = null; lireFondsPc { remplirCartes() } }
+            })
+        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
+        colonne.addView(Button(this).apply { setText(R.string.coller_lien); setOnClickListener { collerLien() } })
+
+        // Les PC déjà ajoutés se retirent ici, comme la source GitHub reste fixe.
+        if (reglages.pcs().isNotEmpty()) {
+            titre(colonne, R.string.cartes_partage)
+            for (pc in reglages.pcs()) {
+                val ligne = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                ligne.addView(TextView(this).apply { text = pc.libelle }, LinearLayout.LayoutParams(0, -2, 1f))
+                ligne.addView(boutonPetit(R.string.oublier) {
+                    reglages.oublierPc(pc)
+                    cataloguesPc = null
+                    remplirCartes()
+                })
+                colonne.addView(ligne)
+            }
+        }
+
+        // Les calques du lot, comme dans la page du PC. Un lot ancien sans
+        // fournisseur national ne montre que la coche OSM.
+        titre(colonne, R.string.titre_calques)
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.calque_osm); isChecked = reglages.calqueOsm
+            setOnCheckedChangeListener { _, v ->
+                reglages.calqueOsm = v
+                if (v) signalerCocheCalque() else calqueCoche = false
+                planifierCalques()
+            }
+        })
+        for (fournisseur in fournisseursDisponibles()) {
+            colonne.addView(CheckBox(this).apply {
+                text = getString(R.string.calque_fournisseur, fournisseur.nom)
+                isChecked = reglages.calqueOfficiel(fournisseur.cle)
+                setOnCheckedChangeListener { _, v ->
+                    reglages.changerCalqueOfficiel(fournisseur.cle, v)
+                    if (v) signalerCocheCalque() else calqueCoche = false
+                    planifierCalques()
+                }
+            })
+        }
+        colonne.addView(TextView(this).apply {
+            text = getString(R.string.calque_aide, String.format(Locale.getDefault(), "%.1f", carte.zoomLevelDouble))
+            textSize = 12f
+        })
+    }
+
+    /** Un fond effacé après confirmation ; s'il était affiché et que sa source disparaît, la carte revient en ligne. */
+    private fun confirmerSuppressionFond(f: File) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.cartes_supprimer_titre)
+            .setMessage(getString(R.string.cartes_supprimer_message, f.nameWithoutExtension))
+            .setPositiveButton(R.string.supprimer) { _, _ ->
+                val source = Fonds.source(f.nameWithoutExtension)
+                f.delete()
+                if (reglages.fond == source && fonds.parSource()[source] == null) appliquerFond("osm")
+                remplirCartes()
+            }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
@@ -980,7 +1108,12 @@ class MainActivity : Activity() {
                     }, continuer)
                     fonds.installer(recu, fond)
                     getString(R.string.etat_fond_installe, fond.nom)
-                }, ensuite = { reussi -> if (reussi) appliquerFond(Fonds.source(fond.nom)) })
+                }, ensuite = { reussi ->
+                    if (reussi) {
+                        appliquerFond(Fonds.source(fond.nom))
+                        remplirCartes()
+                    }
+                })
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -1083,6 +1216,7 @@ class MainActivity : Activity() {
         val entrees = listOf(
             Triple(R.drawable.ic_recherche, R.string.menu_recherche, ::ouvrirRecherche),
             Triple(R.drawable.ic_bibliotheque, R.string.menu_bibliotheque, ::ouvrirBibliotheque),
+            Triple(R.drawable.ic_carte, R.string.menu_cartes, ::ouvrirCartes),
             Triple(R.drawable.ic_enregistrer,
                 if (enregistre) R.string.menu_arreter else R.string.menu_enregistrer,
                 ::basculerEnregistrement),
@@ -1264,7 +1398,7 @@ class MainActivity : Activity() {
             .show()
     }
 
-    /** Le contenu des réglages, refait après chaque changement des lots ou des sources. */
+    /** Le contenu des réglages, refait après chaque changement des lots. */
     private fun remplirReglages() {
         val colonne = fenetreReglages ?: return
         colonne.removeAllViews()
@@ -1276,31 +1410,6 @@ class MainActivity : Activity() {
         colonne.addView(Switch(this).apply {
             setText(R.string.officiels); isChecked = reglages.officiels
             setOnCheckedChangeListener { _, v -> reglages.officiels = v }
-        })
-
-        titre(colonne, R.string.titre_calques)
-        colonne.addView(CheckBox(this).apply {
-            setText(R.string.calque_osm); isChecked = reglages.calqueOsm
-            setOnCheckedChangeListener { _, v ->
-                reglages.calqueOsm = v
-                if (v) signalerCocheCalque() else calqueCoche = false
-                planifierCalques()
-            }
-        })
-        for (fournisseur in fournisseursDisponibles()) {
-            colonne.addView(CheckBox(this).apply {
-                text = getString(R.string.calque_fournisseur, fournisseur.nom)
-                isChecked = reglages.calqueOfficiel(fournisseur.cle)
-                setOnCheckedChangeListener { _, v ->
-                    reglages.changerCalqueOfficiel(fournisseur.cle, v)
-                    if (v) signalerCocheCalque() else calqueCoche = false
-                    planifierCalques()
-                }
-            })
-        }
-        colonne.addView(TextView(this).apply {
-            text = getString(R.string.calque_aide, String.format(Locale.getDefault(), "%.1f", carte.zoomLevelDouble))
-            textSize = 12f
         })
 
         titre(colonne, R.string.titre_affichage)
@@ -1315,14 +1424,6 @@ class MainActivity : Activity() {
         colonne.addView(CheckBox(this).apply {
             setText(R.string.afficher_recherche); isChecked = reglages.recherche
             setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
-        })
-
-        // Le choix du fond était dans le bandeau de planification ; il tient
-        // ici, avec les autres réglages, et la barre ne garde que les points.
-        titre(colonne, R.string.titre_fond)
-        colonne.addView(Button(this).apply {
-            setText(R.string.choisir_fond)
-            setOnClickListener { choisirFond() }
         })
 
         // Les réglages de trace de Locus Map, appliqués au prochain point même
@@ -1366,41 +1467,6 @@ class MainActivity : Activity() {
             })
         }
         colonne.addView(Button(this).apply { setText(R.string.actualiser); setOnClickListener { actualiser() } })
-
-        titre(colonne, R.string.titre_fonds)
-        val installesFonds = fonds.installes()
-        for (f in installesFonds) {
-            val ligne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            ligne.addView(TextView(this).apply { text = getString(R.string.ligne_fond, f.nameWithoutExtension,
-                Formatter.formatShortFileSize(this@MainActivity, f.length())) },
-                LinearLayout.LayoutParams(0, -2, 1f))
-            ligne.addView(Button(this).apply {
-                setText(R.string.supprimer)
-                setOnClickListener {
-                    val source = Fonds.source(f.nameWithoutExtension)
-                    if (reglages.fond == source) appliquerFond("osm")
-                    f.delete()
-                    remplirReglages()
-                }
-            })
-            colonne.addView(ligne)
-        }
-        if (installesFonds.isEmpty()) colonne.addView(TextView(this).apply { setText(R.string.aucun_fond) })
-
-        titre(colonne, R.string.titre_sources)
-        colonne.addView(TextView(this).apply { setText(R.string.source_github) })
-        for (pc in reglages.pcs()) {
-            val ligne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            ligne.addView(TextView(this).apply { text = pc.libelle }, LinearLayout.LayoutParams(0, -2, 1f))
-            ligne.addView(Button(this).apply {
-                setText(R.string.oublier)
-                setOnClickListener { reglages.oublierPc(pc); cataloguesPc = null; remplirReglages() }
-            })
-            colonne.addView(ligne)
-        }
-        colonne.addView(TextView(this).apply { setText(R.string.aide_qr) })
-        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
-        colonne.addView(Button(this).apply { setText(R.string.coller_lien); setOnClickListener { collerLien() } })
 
         titre(colonne, R.string.titre_cache)
         colonne.addView(Button(this).apply {
@@ -1679,9 +1745,9 @@ class MainActivity : Activity() {
             .setMessage(getString(R.string.confirmer_pc, source.catalogue))
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 reglages.ajouterPc(source)
-                remplirReglages()
                 cataloguesPc = null
-                choisirFond()       // ce que le PC apporte au téléphone : ses fonds
+                // Ce que le PC apporte au téléphone : ses fonds, sur la page Cartes.
+                lireFondsPc { remplirCartes() }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

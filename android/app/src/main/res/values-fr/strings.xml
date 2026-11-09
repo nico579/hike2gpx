@@ -16,6 +16,7 @@
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Recherche</string>
     <string name="menu_bibliotheque">Ma bibliothèque</string>
+    <string name="menu_cartes">Cartes</string>
     <string name="menu_enregistrer">Enregistrer un parcours</string>
     <string name="menu_arreter">Arrêter l’enregistrement</string>
     <string name="menu_planifier">Planifier un itinéraire</string>
@@ -26,14 +27,17 @@
     <string name="plan_gpx_enregistrer">Enregistrer</string>
 
     <string name="titre_fond">Fond de carte</string>
-    <string name="choisir_fond">Choisir le fond de carte…</string>
     <string name="fond_osm">OpenStreetMap (en ligne)</string>
     <string name="fond_topo">OpenTopoMap (en ligne)</string>
     <string name="fond_hors_ligne">%1$s, hors ligne (%2$d fond(s), %3$s)</string>
     <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$s, depuis %4$s</string>
-    <string name="fond_sans_pc">Recevoir les fonds d’un PC (scannez son QR code)…</string>
     <string name="fond_relire">Relire les fonds partagés par le PC</string>
     <string name="etat_fond_installe">Fond %1$s installé.</string>
+    <string name="cartes_partage">Partage du PC</string>
+    <string name="cartes_a_telecharger">Télécharger depuis le partage du PC</string>
+    <string name="cartes_aucun_fond">Aucun fond à télécharger pour l’instant. Ajoutez un PC avec son QR code pour recevoir les siens.</string>
+    <string name="cartes_supprimer_titre">Supprimer le fond</string>
+    <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
 
     <string name="titre_itineraire">Itinéraire</string>
     <string name="strict">Mode strict</string>
@@ -69,9 +73,7 @@
 
     <string name="titre_lots">Lots hors ligne</string>
     <string name="titre_fonds">Fonds hors ligne</string>
-    <string name="titre_sources">Sources</string>
     <string name="actualiser">Relire les catalogues</string>
-    <string name="source_github">GitHub : les lots hors ligne du serveur</string>
     <string name="oublier">Oublier</string>
     <string name="aide_qr">Un PC partage ses fonds de carte. Pour l’ajouter, ouvrez « Partager au téléphone » dans ses réglages, puis scannez le QR code qu’il affiche, sur le même Wi-Fi.</string>
     <string name="scanner_qr">Scanner le QR code d’un PC</string>

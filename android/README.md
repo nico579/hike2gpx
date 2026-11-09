@@ -8,9 +8,9 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. Un
 bouton à trois traits, en bas à gauche, ouvre le menu de Locus Map :
-« Recherche », « Ma bibliothèque », « Enregistrer un parcours », « Planifier un
-itinéraire » et « Réglages ». La carte reste seule tant qu'on n'a pas choisi un
-mode. En planification, on touche la carte pour poser le départ, puis l'arrivée
+« Recherche », « Ma bibliothèque », « Cartes », « Enregistrer un parcours »,
+« Planifier un itinéraire » et « Réglages ». La carte reste seule tant qu'on n'a
+pas choisi un mode. En planification, on touche la carte pour poser le départ, puis l'arrivée
 et d'éventuelles étapes ; « Retirer » retire le dernier point, « Effacer » les
 retire tous, et « Revenir » ajoute le départ en fin de parcours pour fermer une
 boucle. Dès qu'il y a deux points, l'itinéraire se calcule hors ligne et
@@ -33,10 +33,10 @@ Les calques du lot s'affichent sur la carte, comme ceux de la page : les
 chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
 qui gênent un piéton et les franchissements bloquants (rouge) ou à vérifier
 (orange), et les chemins de chaque fournisseur national retenu par le lot
-(BD TOPO en France, turquoise), chacun avec sa coche dans les réglages
+(BD TOPO en France, turquoise), chacun avec sa coche dans la page « Cartes »
 (« Chemin IGN BD TOPO », « Chemin ATKIS »…). Ils n'apparaissent qu'à
 partir du zoom 14, celui des tuiles vectorielles du lot : en dessous, mieux
-vaut ne rien montrer qu'un réseau tronqué. Les réglages rappellent le zoom
+vaut ne rien montrer qu'un réseau tronqué. La page rappelle le zoom
 courant ; une coche sous ce zoom, ou une vue sans chemin de calque, le dit
 plutôt que de laisser croire que la case ne marche pas. Les calques sont lus dans
 `calques.mbtiles` (MVT) en arrière-plan, sans gêner le calcul de l'itinéraire ;
@@ -123,18 +123,22 @@ n'est pas repris avant une heure, et un lot supprimé à la main ne revient pas
 de la séance. Les lots et les fonds installés affichent leur taille réelle
 (« 254 kB » pour un petit lot d'essai, jamais un « 0 Mo » trompeur).
 
-Le bouton « Choisir le fond de carte », dans les réglages, choisit le fond :
-OpenStreetMap ou OpenTopoMap en
-ligne, ou un fond hors ligne reçu d'un PC (le SCAN 25 ou le Plan IGN qu'il a
-fabriqués, `hike2gpx/fonds.py`). Les fonds qu'un PC partage et qui manquent
-au téléphone sont proposés dans la même liste, avec leur taille. Un fond est
-un MBTiles rangé sous `hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une
-même source s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le
-plus fin. Le bandeau de planification ne garde que « Retirer », « Effacer » et
-« Revenir ».
+La page « Cartes », dans le menu, réunit tout ce qui touche au fond et aux
+calques, sorti des réglages. On y choisit le fond : OpenStreetMap ou
+OpenTopoMap en ligne, ou un fond hors ligne reçu d'un PC (le SCAN 25 ou le Plan
+IGN qu'il a fabriqués, `hike2gpx/fonds.py`). Les fonds qu'un PC partage et qui
+manquent au téléphone y sont proposés, avec leur taille et un bouton de
+téléchargement ; le QR code du PC (« Partager au téléphone » dans ses réglages)
+l'ajoute, sur le même Wi-Fi, ou son lien se colle. Chaque fond installé
+s'affiche avec sa taille et « Supprimer », après confirmation ; s'il était
+affiché, la carte revient en ligne. Les calques OSM et ceux de chaque
+fournisseur national (IGN BD TOPO…) ont là leur coche. Un fond est un MBTiles
+rangé sous `hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une même source
+s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le plus fin. Le
+bandeau de planification ne garde que « Retirer », « Effacer » et « Revenir ».
 
-Les réglages réunissent le reste : mode strict et chemins officiels, lots et
-fonds installés (mise à jour, suppression), sources, et « Vider le cache », qui
+Les réglages réunissent le reste : mode strict et chemins officiels, affichage,
+trace GPS, lots installés (mise à jour, suppression), et « Vider le cache », qui
 efface comme sur le PC les lots, les fonds, les téléchargements interrompus,
 les tuiles en ligne gardées et les tuiles de relief gpx2elev ; les lots du
 serveur reviennent d'eux-mêmes.
