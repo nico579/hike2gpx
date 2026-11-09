@@ -43,7 +43,7 @@
     <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
 
     <string name="titre_itineraire">Route</string>
-    <string name="strict">Strict mode: do not use crossings to check</string>
+    <string name="strict">Do not use crossings to check</string>
     <string name="officiels">Use the %1$s paths</string>
     <string name="officiels_aucun">Use the official paths</string>
 
@@ -75,9 +75,8 @@
     <string name="legende_bloque">blocking crossing</string>
     <string name="legende_verifier">crossing to check</string>
 
-    <string name="titre_lots">Offline bundles</string>
+    <string name="titre_lots">Routing areas on the phone</string>
     <string name="titre_fonds">Offline base maps</string>
-    <string name="actualiser">Reload the catalogues</string>
     <string name="oublier">Forget</string>
     <string name="aide_qr">A PC shares its base maps and the routing bundles it computes. To add one, open “Share with the phone” in its settings, then scan the QR code it shows, on the same Wi-Fi.</string>
     <string name="scanner_qr">Scan a PC’s QR code</string>
@@ -87,7 +86,6 @@
     <string name="confirmer_pc">Catalogue: %1$s</string>
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
-    <string name="au_catalogue">In the catalogue, downloaded on their own when a route or a layer goes there: %1$s.</string>
     <string name="aucun_lot">No bundle installed.</string>
     <string name="itineraires_modes">Route calculation</string>
     <string name="itineraires_relire">Reload the bundles shared by the PCs</string>

@@ -1193,16 +1193,6 @@ class MainActivity : Activity() {
             ligne.addView(boutonPetit(R.string.supprimer) { supprimerLot(lot) })
             colonne.addView(ligne)
         }
-        val absents = offres.filter { o -> installes.none { it.case == o.lot.case } }
-        if (absents.isNotEmpty()) {
-            colonne.addView(TextView(this).apply {
-                text = getString(R.string.au_catalogue, absents.joinToString(", ") {
-                    "${it.lot.case} (${Formatter.formatShortFileSize(this@MainActivity, it.lot.octets)})"
-                })
-                textSize = 12f
-            })
-        }
-        colonne.addView(Button(this).apply { setText(R.string.actualiser); setOnClickListener { actualiser() } })
 
         // Ce que seul un PC calcule : ses lots absents du serveur et du téléphone.
         titre(colonne, R.string.itineraires_pc)

@@ -138,12 +138,11 @@ s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le plus fin. Le
 bandeau de planification ne garde que « Retirer », « Effacer » et « Revenir ».
 
 La page « Itinéraires », dans le menu, réunit le calcul et l'enregistrement,
-sortis des réglages. On y coche le mode strict (« ne pas utiliser les blocages
-à vérifier ») et les chemins officiels, nommés d'après les lots installés
-(« Utiliser les chemins IGN BD TOPO », « ATKIS »…). Les
-lots de routage installés s'y listent avec leur taille, « Mettre à jour » quand
-le serveur en a une plus récente et « Supprimer » après confirmation ; ceux du
-catalogue qui manquent sont annoncés, ils viennent d'eux-mêmes. Les lots que
+sortis des réglages. On y coche « Ne pas utiliser les blocages à vérifier » et
+les chemins officiels, nommés d'après les lots installés (« Utiliser les
+chemins IGN BD TOPO », « ATKIS »…). Les zones de routage présentes sur le
+téléphone s'y listent avec leur taille, « Mettre à jour » quand le serveur en a
+une plus récente et « Supprimer » après confirmation. Les lots que
 seul un PC calcule (« Lots calculés sur le PC ») s'y téléchargent un par un
 depuis le QR code du PC, avec « Scanner le QR code d'un PC » et « Coller le lien
 d'un PC » ; un lot est pris au premier PC qui le sert, et un PC éteint ne bloque
