@@ -1352,6 +1352,7 @@ class MainActivity : Activity() {
                 if (modePlan) R.string.menu_terminer_plan else R.string.menu_planifier,
                 ::basculerPlanification),
             Triple(R.drawable.ic_reglages, R.string.reglages, ::ouvrirReglages),
+            Triple(R.drawable.ic_aide, R.string.menu_aide, ::ouvrirAide),
         )
         val dialogue = Dialog(this)
         for ((icone, texte, action) in entrees) {
@@ -1389,6 +1390,12 @@ class MainActivity : Activity() {
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             setDimAmount(0.35f)
         }
+    }
+
+    /** Le mode d'emploi de l'application : le README Android, sur GitHub. */
+    private fun ouvrirAide() {
+        startActivity(Intent(Intent.ACTION_VIEW,
+            Uri.parse("https://github.com/nico579/hike2gpx/blob/main/android/README.md")))
     }
 
     /** Le champ de recherche ne s'affiche qu'à la demande, depuis le menu. */

@@ -9,8 +9,9 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. Un
 bouton à trois traits, en bas à gauche, ouvre le menu de Locus Map :
 « Recherche », « Ma bibliothèque », « Cartes », « Itinéraires », « Enregistrer
-un parcours », « Planifier un itinéraire » et « Réglages ». La carte reste seule
-tant qu'on n'a pas choisi un mode. En planification, on touche la carte pour poser le départ, puis l'arrivée
+un parcours », « Planifier un itinéraire », « Réglages » et « Aide ». La carte
+reste seule tant qu'on n'a pas choisi un mode ; « Aide » ouvre ce mode d'emploi
+sur GitHub. En planification, on touche la carte pour poser le départ, puis l'arrivée
 et d'éventuelles étapes ; « Retirer » retire le dernier point, « Effacer » les
 retire tous, et « Revenir » ajoute le départ en fin de parcours pour fermer une
 boucle. Dès qu'il y a deux points, l'itinéraire se calcule hors ligne et
