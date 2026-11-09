@@ -19,6 +19,7 @@
     <string name="menu_recherche">Search</string>
     <string name="menu_bibliotheque">My library</string>
     <string name="menu_cartes">Maps</string>
+    <string name="menu_itineraires">Routes</string>
     <string name="menu_enregistrer">Record a track</string>
     <string name="menu_arreter">Stop recording</string>
     <string name="menu_planifier">Plan a route</string>
@@ -77,7 +78,7 @@
     <string name="titre_fonds">Offline base maps</string>
     <string name="actualiser">Reload the catalogues</string>
     <string name="oublier">Forget</string>
-    <string name="aide_qr">A PC shares its base maps. To add one, open “Share with the phone” in its settings, then scan the QR code it shows, on the same Wi-Fi.</string>
+    <string name="aide_qr">A PC shares its base maps and the routing bundles it computes. To add one, open “Share with the phone” in its settings, then scan the QR code it shows, on the same Wi-Fi.</string>
     <string name="scanner_qr">Scan a PC’s QR code</string>
     <string name="scan_invite">Aim at the QR code shown by hike2gpx on the PC</string>
     <string name="coller_lien">Paste a PC link</string>
@@ -87,6 +88,11 @@
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="au_catalogue">In the catalogue, downloaded on their own when a route or a layer goes there: %1$s.</string>
     <string name="aucun_lot">No bundle installed.</string>
+    <string name="itineraires_modes">Route calculation</string>
+    <string name="itineraires_relire">Reload the bundles shared by the PCs</string>
+    <string name="itineraires_pc">Bundles computed on the PC</string>
+    <string name="itineraires_lot">Download %1$s · %2$s · %3$s, from %4$s</string>
+    <string name="itineraires_aucun_lot">No routing bundle to download from the PC.</string>
     <string name="aucun_fond">No offline base map. They come from a PC that shares its own.</string>
     <string name="telecharger">Download</string>
     <string name="plus_tard">Later</string>
@@ -105,8 +111,8 @@
 
     <string name="etat_catalogue">Reading the catalogues…</string>
     <string name="etat_catalogue_lu">%1$d area(s) in the catalogue.</string>
-    <string name="etat_fonds_pc">Reading the base maps shared by the PC…</string>
-    <string name="etat_fonds_pc_lus">%1$d base map(s) shared by the PC.</string>
+    <string name="etat_pc">Reading the PC catalogues…</string>
+    <string name="etat_pc_lus">%1$d base map(s) and %2$d bundle(s) shared by the PCs.</string>
     <string name="etat_telechargement">Downloading…</string>
     <string name="etat_telechargement_lot">Downloading bundle %1$s (%2$s)…</string>
     <string name="etat_installe">Bundle %1$s installed.</string>
@@ -195,7 +201,7 @@
     <string name="maj_corrompu">Update file incomplete or corrupted.</string>
 
     <!-- GPS position and track recording, like Locus Map. -->
-    <string name="titre_trace">GPS track</string>
+    <string name="titre_trace">GPS track recording</string>
     <string name="trace_aide">A point is kept only if the GPS is accurate enough and both the distance and the time since the previous point are reached. The first point only has to meet the accuracy.</string>
     <string name="trace_distance">Minimum distance between points (m)</string>
     <string name="trace_duree">Minimum time between points (s)</string>

@@ -159,6 +159,8 @@ class MainActivity : Activity() {
     private var fenetreReglages: LinearLayout? = null
     /** La page « Cartes » du menu, refaite après chaque téléchargement ou suppression. */
     private var fenetreCartes: LinearLayout? = null
+    /** La page « Itinéraires » du menu, refaite après chaque téléchargement ou suppression. */
+    private var fenetreItineraires: LinearLayout? = null
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
     private var apkEnAttente: File? = null
     private var attenteAutorisation = false
@@ -836,21 +838,25 @@ class MainActivity : Activity() {
 
     /**
      * Le catalogue des lots, lu sur GitHub seulement (décision de Nico du
-     * 2026-11-04) : le serveur publie les lots, un PC ne sert au téléphone que
-     * ses fonds de carte (lireFondsPc). Un PC éteint ne retarde donc jamais le
+     * 2026-11-04) : le serveur publie les lots, les PC ajoutent les leurs à la
+     * demande (lireCataloguesPc). Un PC éteint ne retarde donc jamais le
      * lancement.
      */
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
         val choix = choisir(listOf(Source.GITHUB to Depot().lireCatalogue(Source.GITHUB)))
-        runOnUiThread { offres = choix; remplirReglages(); planifierCalques() }
+        runOnUiThread { offres = choix; remplirReglages(); remplirItineraires(); planifierCalques() }
         // Le conseil de pose ne vaut qu'en planification ; au repos, le bilan
         // se contente du catalogue lu.
         if (points.isEmpty() && modePlan) getString(R.string.etat_pret)
         else getString(R.string.etat_catalogue_lu, choix.size)
     }, ensuite = { avancer() })
 
-    /** Les fonds partagés par les PC, lus à la demande (bouton Fond, PC ajouté) ; un PC injoignable le dit sans rien bloquer. */
-    private fun lireFondsPc(ensuite: () -> Unit) = tache(R.string.etat_fonds_pc, false, { _ ->
+    /**
+     * Les catalogues des PC, lus à la demande (page Cartes ou Itinéraires, PC
+     * ajouté) ; un PC injoignable le dit sans rien bloquer. Ils portent les
+     * fonds de carte et les lots que le serveur ne publie pas.
+     */
+    private fun lireCataloguesPc(ensuite: () -> Unit) = tache(R.string.etat_pc, false, { _ ->
         val lus = mutableListOf<Pair<Source, Catalogue>>()
         val echecs = mutableListOf<String>()
         for (pc in reglages.pcs()) {
@@ -861,7 +867,8 @@ class MainActivity : Activity() {
             }
         }
         runOnUiThread { cataloguesPc = lus }
-        if (echecs.isEmpty()) getString(R.string.etat_fonds_pc_lus, lus.sumOf { it.second.fonds.size })
+        if (echecs.isEmpty()) getString(R.string.etat_pc_lus,
+            lus.sumOf { it.second.fonds.size }, lus.sumOf { it.second.lots.size })
         else echecs.joinToString("\n")
     }, ensuite = { ensuite() })
 
@@ -916,6 +923,7 @@ class MainActivity : Activity() {
         }, ensuite = { reussi ->
             if (!reussi) exclues[lot.case] = SystemClock.elapsedRealtime()
             remplirReglages()
+            remplirItineraires()
             planifierCalques()
             avancer()
         })
@@ -935,6 +943,7 @@ class MainActivity : Activity() {
                 etat.text = getString(R.string.etat_supprime, lot.case,
                     Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
+                remplirItineraires()
                 planifierCalques()
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -965,7 +974,7 @@ class MainActivity : Activity() {
             .show()
         // Les fonds d'un PC déjà ajouté se lisent en arrivant, comme le faisait
         // le bouton Fond ; un PC injoignable le dit sans bloquer la page.
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) lireFondsPc { remplirCartes() }
+        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) lireCataloguesPc { remplirCartes() }
     }
 
     /** Le contenu de la page « Cartes », refait après chaque téléchargement, suppression ou ajout de PC. */
@@ -1029,7 +1038,7 @@ class MainActivity : Activity() {
         if (reglages.pcs().isNotEmpty() && cataloguesPc == null)
             colonne.addView(Button(this).apply {
                 setText(R.string.fond_relire)
-                setOnClickListener { cataloguesPc = null; lireFondsPc { remplirCartes() } }
+                setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirCartes() } }
             })
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
         colonne.addView(Button(this).apply { setText(R.string.coller_lien); setOnClickListener { collerLien() } })
@@ -1117,6 +1126,131 @@ class MainActivity : Activity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    // ------------------------------------------------------------------ itinéraires
+
+    /**
+     * La page « Itinéraires » du menu : le mode strict et les chemins
+     * officiels, les lots de routage installés ou calculés sur un PC, et
+     * l'enregistrement de trace GPS. Ces commandes quittent les réglages.
+     */
+    private fun ouvrirItineraires() {
+        val colonne = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+        }
+        fenetreItineraires = colonne
+        remplirItineraires()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.menu_itineraires)
+            .setView(ScrollView(this).apply { addView(colonne) })
+            .setPositiveButton(R.string.fermer, null)
+            .setOnDismissListener { fenetreItineraires = null }
+            .show()
+        // Les catalogues d'un PC déjà ajouté portent ses lots de routage ; un
+        // PC injoignable le dit sans bloquer la page.
+        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) lireCataloguesPc { remplirItineraires() }
+    }
+
+    /** Le contenu de la page « Itinéraires », refait après chaque téléchargement ou suppression. */
+    private fun remplirItineraires() {
+        val colonne = fenetreItineraires ?: return
+        colonne.removeAllViews()
+
+        titre(colonne, R.string.itineraires_modes)
+        colonne.addView(Switch(this).apply {
+            setText(R.string.strict); isChecked = reglages.strict
+            setOnCheckedChangeListener { _, v -> reglages.strict = v }
+        })
+        colonne.addView(Switch(this).apply {
+            setText(R.string.officiels); isChecked = reglages.officiels
+            setOnCheckedChangeListener { _, v -> reglages.officiels = v }
+        })
+
+        // Les lots de routage installés, supprimables un par un.
+        titre(colonne, R.string.titre_lots)
+        val installes = horsLigne.lots()
+        if (installes.isEmpty()) colonne.addView(TextView(this).apply { setText(R.string.aucun_lot) })
+        for (lot in installes) {
+            val offre = offres.firstOrNull { it.lot.case == lot.case }
+            val ligne = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            ligne.addView(TextView(this).apply {
+                text = getString(R.string.ligne_installe, lot.case, description(lot),
+                    Formatter.formatShortFileSize(this@MainActivity, lot.octets))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            if (offre != null && plusRecent(offre.lot, lot))
+                ligne.addView(boutonPetit(R.string.mettre_a_jour) { telecharger(offre) })
+            ligne.addView(boutonPetit(R.string.supprimer) { supprimerLot(lot) })
+            colonne.addView(ligne)
+        }
+        val absents = offres.filter { o -> installes.none { it.case == o.lot.case } }
+        if (absents.isNotEmpty()) {
+            colonne.addView(TextView(this).apply {
+                text = getString(R.string.au_catalogue, absents.joinToString(", ") {
+                    "${it.lot.case} (${Formatter.formatShortFileSize(this@MainActivity, it.lot.octets)})"
+                })
+                textSize = 12f
+            })
+        }
+        colonne.addView(Button(this).apply { setText(R.string.actualiser); setOnClickListener { actualiser() } })
+
+        // Ce que seul un PC calcule : ses lots absents du serveur et du téléphone.
+        titre(colonne, R.string.itineraires_pc)
+        colonne.addView(TextView(this).apply { setText(R.string.aide_qr); textSize = 12f })
+        val duPc = lotsDuPc(installes)
+        for ((source, lot) in duPc) {
+            colonne.addView(Button(this).apply {
+                text = getString(R.string.itineraires_lot, lot.case, description(lot),
+                    Formatter.formatShortFileSize(this@MainActivity, lot.octets), source.libelle)
+                setOnClickListener { telecharger(Offre(source, lot)) }
+            })
+        }
+        if (duPc.isEmpty() && cataloguesPc != null)
+            colonne.addView(TextView(this).apply { setText(R.string.itineraires_aucun_lot) })
+        if (reglages.pcs().isNotEmpty() && cataloguesPc == null)
+            colonne.addView(Button(this).apply {
+                setText(R.string.itineraires_relire)
+                setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirItineraires() } }
+            })
+        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
+        colonne.addView(Button(this).apply { setText(R.string.coller_lien); setOnClickListener { collerLien() } })
+
+        // L'enregistrement de trace de Locus Map, appliqué au prochain point
+        // même quand un enregistrement est en cours.
+        titre(colonne, R.string.titre_trace)
+        colonne.addView(TextView(this).apply { setText(R.string.trace_aide); textSize = 12f })
+        champNombre(colonne, R.string.trace_distance, reglages.distanceMin, entier = false) {
+            reglages.distanceMin = it
+            appliquerReglagesTrace()
+        }
+        champNombre(colonne, R.string.trace_duree, reglages.dureeMin.toDouble(), entier = true) {
+            reglages.dureeMin = it.roundToInt()
+            appliquerReglagesTrace()
+        }
+        champNombre(colonne, R.string.trace_precision, reglages.precisionMax, entier = false) {
+            reglages.precisionMax = it
+            appliquerReglagesTrace()
+        }
+    }
+
+    /**
+     * Les lots qu'un PC propose et qui manquent au téléphone, sans ceux que le
+     * serveur publie déjà (il les fait venir de lui-même) : ce que seul un PC
+     * calcule. Un lot est pris au premier PC qui le sert.
+     */
+    private fun lotsDuPc(installes: List<Lot>): List<Pair<Source, Lot>> {
+        val presents = installes.map { it.case }.toSet()
+        val github = offres.map { it.lot.case }.toSet()
+        val vus = LinkedHashMap<String, Pair<Source, Lot>>()
+        for ((source, catalogue) in cataloguesPc ?: emptyList())
+            for (lot in catalogue.lots)
+                if (lot.case !in presents && lot.case !in github && lot.case !in vus)
+                    vus[lot.case] = source to lot
+        return vus.values.sortedBy { it.second.case }
     }
 
     /** La table metadata d'un MBTiles (bounds « ouest,sud,est,nord », minzoom…), vide si illisible. */
@@ -1217,6 +1351,7 @@ class MainActivity : Activity() {
             Triple(R.drawable.ic_recherche, R.string.menu_recherche, ::ouvrirRecherche),
             Triple(R.drawable.ic_bibliotheque, R.string.menu_bibliotheque, ::ouvrirBibliotheque),
             Triple(R.drawable.ic_carte, R.string.menu_cartes, ::ouvrirCartes),
+            Triple(R.drawable.ic_itineraires, R.string.menu_itineraires, ::ouvrirItineraires),
             Triple(R.drawable.ic_enregistrer,
                 if (enregistre) R.string.menu_arreter else R.string.menu_enregistrer,
                 ::basculerEnregistrement),
@@ -1398,20 +1533,10 @@ class MainActivity : Activity() {
             .show()
     }
 
-    /** Le contenu des réglages, refait après chaque changement des lots. */
+    /** Le contenu des réglages, refait après chaque changement du cache ou des lots. */
     private fun remplirReglages() {
         val colonne = fenetreReglages ?: return
         colonne.removeAllViews()
-        titre(colonne, R.string.titre_itineraire)
-        colonne.addView(Switch(this).apply {
-            setText(R.string.strict); isChecked = reglages.strict
-            setOnCheckedChangeListener { _, v -> reglages.strict = v }
-        })
-        colonne.addView(Switch(this).apply {
-            setText(R.string.officiels); isChecked = reglages.officiels
-            setOnCheckedChangeListener { _, v -> reglages.officiels = v }
-        })
-
         titre(colonne, R.string.titre_affichage)
         colonne.addView(CheckBox(this).apply {
             setText(R.string.afficher_legende); isChecked = reglages.legende
@@ -1426,48 +1551,7 @@ class MainActivity : Activity() {
             setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
         })
 
-        // Les réglages de trace de Locus Map, appliqués au prochain point même
-        // quand un enregistrement est en cours.
-        titre(colonne, R.string.titre_trace)
-        colonne.addView(TextView(this).apply { setText(R.string.trace_aide); textSize = 12f })
-        champNombre(colonne, R.string.trace_distance, reglages.distanceMin, entier = false) {
-            reglages.distanceMin = it
-            appliquerReglagesTrace()
-        }
-        champNombre(colonne, R.string.trace_duree, reglages.dureeMin.toDouble(), entier = true) {
-            reglages.dureeMin = it.roundToInt()
-            appliquerReglagesTrace()
-        }
-        champNombre(colonne, R.string.trace_precision, reglages.precisionMax, entier = false) {
-            reglages.precisionMax = it
-            appliquerReglagesTrace()
-        }
-
-        titre(colonne, R.string.titre_lots)
-        val installes = horsLigne.lots()
-        for (lot in installes) {
-            val offre = offres.firstOrNull { it.lot.case == lot.case }
-            val ligne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            ligne.addView(TextView(this).apply {
-                text = getString(R.string.ligne_installe, lot.case, description(lot),
-                    Formatter.formatShortFileSize(this@MainActivity, lot.octets))
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-            if (offre != null && plusRecent(offre.lot, lot))
-                ligne.addView(Button(this).apply { setText(R.string.mettre_a_jour); setOnClickListener { telecharger(offre) } })
-            ligne.addView(Button(this).apply { setText(R.string.supprimer); setOnClickListener { supprimerLot(lot) } })
-            colonne.addView(ligne)
-        }
-        if (installes.isEmpty()) colonne.addView(TextView(this).apply { setText(R.string.aucun_lot) })
-        val absents = offres.filter { o -> installes.none { it.case == o.lot.case } }
-        if (absents.isNotEmpty()) {
-            colonne.addView(TextView(this).apply {
-                text = getString(R.string.au_catalogue, absents.joinToString(", ") {
-                    "${it.lot.case} (${Formatter.formatShortFileSize(this@MainActivity, it.lot.octets)})"
-                })
-            })
-        }
-        colonne.addView(Button(this).apply { setText(R.string.actualiser); setOnClickListener { actualiser() } })
-
+        // Les réglages de trace et les lots ont leur page « Itinéraires ».
         titre(colonne, R.string.titre_cache)
         colonne.addView(Button(this).apply {
             text = getString(R.string.vider_cache, Formatter.formatShortFileSize(this@MainActivity, octetsCaches()))
@@ -1746,8 +1830,8 @@ class MainActivity : Activity() {
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 reglages.ajouterPc(source)
                 cataloguesPc = null
-                // Ce que le PC apporte au téléphone : ses fonds, sur la page Cartes.
-                lireFondsPc { remplirCartes() }
+                // Ce que le PC apporte au téléphone : ses fonds et ses lots, sur les pages Cartes et Itinéraires.
+                lireCataloguesPc { remplirCartes(); remplirItineraires() }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

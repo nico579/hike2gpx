@@ -8,9 +8,9 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. Un
 bouton à trois traits, en bas à gauche, ouvre le menu de Locus Map :
-« Recherche », « Ma bibliothèque », « Cartes », « Enregistrer un parcours »,
-« Planifier un itinéraire » et « Réglages ». La carte reste seule tant qu'on n'a
-pas choisi un mode. En planification, on touche la carte pour poser le départ, puis l'arrivée
+« Recherche », « Ma bibliothèque », « Cartes », « Itinéraires », « Enregistrer
+un parcours », « Planifier un itinéraire » et « Réglages ». La carte reste seule
+tant qu'on n'a pas choisi un mode. En planification, on touche la carte pour poser le départ, puis l'arrivée
 et d'éventuelles étapes ; « Retirer » retire le dernier point, « Effacer » les
 retire tous, et « Revenir » ajoute le départ en fin de parcours pour fermer une
 boucle. Dès qu'il y a deux points, l'itinéraire se calcule hors ligne et
@@ -74,8 +74,8 @@ recentre la carte sur le GPS, avec le point bleu et son halo de précision. Le
 démarrage d'une trace passe par « Enregistrer un parcours » : pendant
 l'enregistrement, un bouton rond rouge apparaît en bas à droite pour arrêter
 (carré) sans rouvrir le menu, et le GPX est rangé dans
-`traces/`, avec l'heure et l'altitude de chaque point. Les réglages suivent
-ceux de Locus : distance minimale entre deux points (10 m), durée minimale
+`traces/`, avec l'heure et l'altitude de chaque point. La page « Itinéraires »
+suit ceux de Locus : distance minimale entre deux points (10 m), durée minimale
 (10 s) et déviation GPS maximale (100 m). Un point n'est retenu que si le GPS
 est plus précis que la déviation, et si la distance et la durée depuis le point
 précédent sont toutes deux atteintes ; le premier point n'a que la précision à
@@ -137,11 +137,19 @@ rangé sous `hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une même source
 s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le plus fin. Le
 bandeau de planification ne garde que « Retirer », « Effacer » et « Revenir ».
 
-Les réglages réunissent le reste : mode strict et chemins officiels, affichage,
-trace GPS, lots installés (mise à jour, suppression), et « Vider le cache », qui
-efface comme sur le PC les lots, les fonds, les téléchargements interrompus,
-les tuiles en ligne gardées et les tuiles de relief gpx2elev ; les lots du
-serveur reviennent d'eux-mêmes.
+La page « Itinéraires », dans le menu, réunit le calcul et l'enregistrement,
+sortis des réglages. On y coche le mode strict et les chemins officiels. Les
+lots de routage installés s'y listent avec leur taille, « Mettre à jour » quand
+le serveur en a une plus récente et « Supprimer » après confirmation ; ceux du
+catalogue qui manquent sont annoncés, ils viennent d'eux-mêmes. Les lots que
+seul un PC calcule (« Lots calculés sur le PC ») s'y téléchargent un par un
+depuis le QR code du PC, avec « Scanner le QR code d'un PC » et « Coller le lien
+d'un PC » ; un lot est pris au premier PC qui le sert, et un PC éteint ne bloque
+rien. Le volet « Enregistrement de trace GPS » y règle la distance minimale, la
+durée minimale et la déviation GPS maximale. Les réglages ne gardent que
+l'affichage, le cache et la mise à jour ; « Vider le cache » efface comme sur le
+PC les lots, les fonds, les téléchargements interrompus, les tuiles en ligne
+gardées et les tuiles de relief gpx2elev ; les lots du serveur reviennent d'eux-mêmes.
 
 L'application parle anglais ou français selon la langue du téléphone, comme
 watch2notif : l'anglais dans `res/values`, la langue par défaut, le français
@@ -199,7 +207,7 @@ BRouter 1.7.10 est un sous-module épinglé, compilé dans l'APK. Ses profils
 `app/src/main/assets/brouter`, écrits par `tools/profils_android.py` avec les
 fonctions mêmes du PC ; `tests/test_android.py` vérifie qu'ils n'ont pas dérivé.
 
-## Un PC pour les fonds de carte
+## Un PC pour les fonds et les lots
 
 Le PC affiche un QR code qui porte un lien
 `hike2gpx://depot?url=<adresse du catalogue, encodée>&jeton=<jeton>`.
@@ -209,10 +217,13 @@ lien peut aussi se coller à la main. Toutes les requêtes vers ce PC portent
 `Authorization: Bearer <jeton>`, et seulement vers l'origine de son catalogue.
 Le HTTP simple n'est accepté que vers le réseau local.
 
-Les lots se lisent sur GitHub seulement (décision du 2026-11-04) : le
-catalogue du serveur, au lancement. Un PC ne sert au téléphone que ses fonds
-de carte ; son catalogue ne se lit qu'à la demande, quand on choisit un fond ou
-qu'on ajoute le PC, si bien qu'un PC éteint ne retarde jamais le lancement.
+Les lots du serveur se lisent sur GitHub au lancement (décision du
+2026-11-04) et se téléchargent d'eux-mêmes. Un PC sert au téléphone ses fonds
+de carte et les lots de routage qu'il a calculés : son catalogue ne se lit
+qu'à la demande, sur les pages Cartes et Itinéraires ou quand on ajoute le PC,
+si bien qu'un PC éteint ne retarde jamais le lancement. Les lots d'un PC ne
+sont proposés que s'ils manquent au téléphone et au catalogue GitHub, qui les
+publie déjà.
 
 ## Construire
 
