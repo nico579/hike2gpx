@@ -161,7 +161,11 @@ def main(argv=None) -> int:
 
 def lots(dossier, args) -> int:
     """hike2gpx bundles : les lots des cases demandées, dans --output."""
+    import logging
     from . import case, fabrication
+    # Le journal des modules (téléchargements en bloc, chronométrage du damier)
+    # dans celui du serveur, à côté des lignes de suivi.
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     installation = brouter.Installation(dossier)
     if not installation.installee():
         installation.installer()

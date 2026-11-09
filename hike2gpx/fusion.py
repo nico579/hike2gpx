@@ -187,6 +187,11 @@ class Reseau:
         index = self.index()
         self._liens = []
         bouts = {} if bouts is None else bouts
+        # Les clés de bouts écrites par cet appel, les seules qu'il puisse
+        # changer : bouts est partagé par toute une case (des millions de
+        # points), le parcourir en entier à chaque maille rendait la fusion
+        # quadratique (issue #80). Lu par case.Registre pour son apport.
+        self.bouts_ecrits = []
         crees = set()               # bouts nés ici, les seuls à raccorder
         bords_vectoriels = defaultdict(list) if bords is None else bords  # extrémités découpées par basemap.de
         ajoutes = 0
@@ -219,6 +224,7 @@ class Reseau:
                             crees.add(nid)
                         # Un voisin d'une autre maille y est déjà raccordé.
                         bouts[cle] = nid
+                        self.bouts_ecrits.append(cle)
                         if bord:
                             bords_vectoriels[case].append((lat, lon, nid, t["land"],
                                                            t.get("niveau", 0), t["id"]))
@@ -243,9 +249,11 @@ class Reseau:
         for wid in self.ign:
             ids = self.voies[wid][0]
             self.voies[wid][0] = [remplace.get(n, n) for n in ids]
-        for cle, nid in bouts.items():
-            if nid in remplace:
-                bouts[cle] = remplace[nid]
+        # Seuls des nœuds nés ici sont raccordés (_raccorder_osm sur crees), et
+        # seules les clés écrites ici y mènent.
+        for cle in self.bouts_ecrits:
+            if bouts[cle] in remplace:
+                bouts[cle] = remplace[bouts[cle]]
         for nid, cible in remplace.items():
             if nid != cible:
                 self.noeuds.pop(nid, None)

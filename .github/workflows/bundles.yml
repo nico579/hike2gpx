@@ -377,6 +377,11 @@ jobs:
             mv "$RUNNER_TEMP/$ACTIF" "$BEF" && echo "RELIEF_PUBLIE=1" >> "$GITHUB_ENV" && echo "relief repris : $ACTIF"
           fi
 
+      - name: Machine
+        run: |
+          # Les 4 vCPU du runner ne valent peut-être que 2 cœurs (issue #80).
+          nproc; lscpu | grep -E "^(Model name|Thread|Core|Socket|CPU\(s\))"; free -g
+
       - name: Calculer la case
         # Fusion, RD5 et relief ; les calques suivent sur PARTS machines. Un lot
         # OSM, sans rien à répartir, se fait ici en entier.

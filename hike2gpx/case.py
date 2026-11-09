@@ -113,6 +113,7 @@ class Registre:
         self.voies = {}             # voies ajoutées : id -> (ids, tags)
         self.raccords = {}          # voie OSM -> {rang du segment d'origine -> {nœud: abscisse}}
         self.franchissements = {}   # clé -> franchissement
+        self._bouts_ecrits = None   # clés de bouts écrites depuis isoler()
 
     def fusionner(self, elements: list, troncons: list, sud: float, ouest: float, source: str = "ign") -> dict:
         """Fusionne une maille : ses tronçons (ceux dont le premier point y tombe)
@@ -125,6 +126,8 @@ class Registre:
         origine = {wid: list(ids) for wid, (ids, _) in reseau.voies.items()}
         a_moi = [t for t in troncons if t.get("pts") and dedans(*t["pts"][0])]
         ajoutes = reseau.ajouter_ign(a_moi, source=source, bouts=self.bouts, bords=self.bords)
+        if self._bouts_ecrits is not None:          # maille isolée : relevé pour apport()
+            self._bouts_ecrits.update(reseau.bouts_ecrits)
         for wid in reseau.ign:
             ids, tags = reseau.voies[wid]
             self.voies[wid] = (list(ids), dict(tags))
@@ -162,7 +165,10 @@ class Registre:
     def isoler(self) -> None:
         """Prépare la fusion d'une maille dans un processus fils : ce qu'elle
         ajoute est relevé à part (apport()), les bouts déjà connus restent."""
-        self._bouts_avant = dict(self.bouts)
+        # Les clés écrites, et non une copie de bouts : celle-ci, refaite à
+        # chaque maille sur des millions de points, puis comparée en entier
+        # dans apport(), coûtait plus que la fusion elle-même (issue #80).
+        self._bouts_ecrits = set()
         self._bords_avant = {cle: len(v) for cle, v in self.bords.items()}
         self.noeuds, self.voies, self.raccords, self.franchissements = {}, {}, {}, {}
 
@@ -170,7 +176,7 @@ class Registre:
         """Ce que la maille isolée a ajouté, à rendre au registre commun."""
         return {"noeuds": self.noeuds, "voies": self.voies, "raccords": self.raccords,
                 "franchissements": self.franchissements,
-                "bouts": {p: n for p, n in self.bouts.items() if self._bouts_avant.get(p) != n},
+                "bouts": {p: self.bouts[p] for p in self._bouts_ecrits},
                 "bords": {cle: v[self._bords_avant.get(cle, 0):] for cle, v in self.bords.items()
                           if len(v) > self._bords_avant.get(cle, 0)}}
 
