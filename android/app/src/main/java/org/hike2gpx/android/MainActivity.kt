@@ -3,30 +3,56 @@ package org.hike2gpx.android
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
+import android.app.Dialog
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Canvas
+import android.graphics.DashPathEffect
+import android.graphics.Paint
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.provider.Settings
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
 import android.text.format.Formatter
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.database.sqlite.SQLiteDatabase
 import android.view.Gravity
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
 import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.modules.OfflineTileProvider
@@ -39,11 +65,16 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.roundToInt
 
 /**
  * L'écran unique, comme la page du PC : la carte d'abord. Toucher la carte pose
@@ -57,10 +88,57 @@ class MainActivity : Activity() {
     private lateinit var horsLigne: HorsLigne
     private lateinit var fonds: Fonds
     private lateinit var routeur: Routeur
+    private lateinit var calques: Calques
+    private lateinit var relief: Mapterhorn
+    private lateinit var overlayCalques: CalquesOverlay
     private lateinit var carte: MapView
     private lateinit var etat: TextView
     private lateinit var progression: ProgressBar
     private lateinit var arreter: Button
+    private var champVille: EditText? = null
+    private var boutonVille: Button? = null
+    private var rechercheVille: LinearLayout? = null
+    private var sequenceVille = 0
+    private var legende: LinearLayout? = null
+    private var courbe: CourbeDenivele? = null
+    private var repereProfil: RepereProfil? = null
+    private var coordonneesProfil: List<DoubleArray> = emptyList()
+    private var distancesProfil: DoubleArray = DoubleArray(0)
+    private lateinit var bandeauHaut: LinearLayout
+    private lateinit var bandeauBas: LinearLayout
+    private var bandeauxMasques = false
+    private var positionOverlay: PositionOverlay? = null
+    private lateinit var boutonPosition: BoutonRond
+    private lateinit var boutonTrace: BoutonRond
+    private lateinit var boutonMenu: BoutonRond
+    private var commandesCarte: LinearLayout? = null
+    private var commandesTrace: LinearLayout? = null
+    /** La planification n'affiche ses commandes que lorsqu'on la choisit dans le menu. */
+    private var modePlan = false
+    /** La recherche de ville se referme après le choix d'une ville. */
+    private var modeRecherche = false
+    /**
+     * Une recherche qui a abouti (ou un tap sur la carte) referme son bandeau :
+     * la carte reste seule jusqu'au prochain mode choisi dans le menu.
+     */
+    private var rechercheRepliee = false
+    /** Une tâche de fond montre son état quelques secondes, même hors mode. */
+    private var tacheAffichee = false
+    private var sequenceTache = 0
+    private var fenetreBibliotheque: LinearLayout? = null
+    private var ecoutePosition: LocationListener? = null
+    private var apresPermission: (() -> Unit)? = null
+    private var centrerDesQuePosition = false
+    private var traceEnregistree: Polyline? = null
+    private var fichierTrace: File? = null
+    private var insetBas = 0
+    /** Le relief de la trace : cache gpx2elev seulement, sans réseau. */
+    private lateinit var reliefTrace: Mapterhorn
+    private val traceOccupe = AtomicBoolean(false)
+    @Volatile private var traceARefaire = false
+    private var contenuExport: ByteArray? = null
+    private var echelle: ScaleBarOverlay? = null
+    private var droits: CopyrightOverlay? = null
     private val points = mutableListOf<Point>()
     private val reperes = mutableListOf<Marker>()
     private var trace: Polyline? = null
@@ -74,10 +152,22 @@ class MainActivity : Activity() {
     private val retirees = mutableSetOf<String>()
     /** Un point posé pendant une tâche : on reprend à sa fin. */
     private var aReprendre = false
+    /** Case dont le téléchargement automatique est proposé ou en cours. */
+    private var autoLotDemande: String? = null
     private var fenetreReglages: LinearLayout? = null
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
     private var apkEnAttente: File? = null
     private var attenteAutorisation = false
+    private var bilanItineraire = ""
+    /** Une lecture de calques à la fois ; une demande pendant ce temps est rejouée à la fin. */
+    private val calquesOccupe = AtomicBoolean(false)
+    private var calquesARefaire = false
+    private var sequenceCalques = 0
+    /** Un cochage attend la lecture en cours pour dire si la vue a des chemins. */
+    private var calqueCoche = false
+    private val planificateur = Handler(Looper.getMainLooper())
+    /** Un calcul de relief plus récent remplace celui qui tourne encore. */
+    private var sequenceDenivele = 0
 
     override fun onCreate(etatSauve: Bundle?) {
         super.onCreate(etatSauve)
@@ -88,11 +178,15 @@ class MainActivity : Activity() {
         horsLigne = HorsLigne(filesDir)
         fonds = Fonds(horsLigne.racine)
         routeur = Routeur(Reglages.profils(this))
+        calques = Calques(horsLigne)
+        relief = Mapterhorn(filesDir)
+        reliefTrace = Mapterhorn(filesDir, reseau = false)
         construire()
         appliquerFond(reglages.fond)
         lireLien(intent)
         actualiser()
         verifierMajAuLancement()
+        planifierCalques()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -105,64 +199,347 @@ class MainActivity : Activity() {
     private fun construire() {
         val racine = FrameLayout(this)
         val vue = reglages.vue
+        overlayCalques = CalquesOverlay(this)
         carte = MapView(this).apply {
             setMultiTouchControls(true)
             controller.setZoom(vue.third)
             controller.setCenter(GeoPoint(vue.first, vue.second))
+            // Les calques du lot restent sous le tracé et sous les repères.
+            overlays.add(0, overlayCalques)
+            // Le point de la courbe se dessine juste au-dessus du tracé.
+            repereProfil = RepereProfil(this@MainActivity).also { overlays.add(1, it) }
+            // La position GPS, sous les repères et au-dessus des calques.
+            positionOverlay = PositionOverlay(this@MainActivity).also { overlays.add(2, it) }
             // Au-dessus de la barre de boutons : l'attribution du fond doit rester lisible.
-            overlays.add(CopyrightOverlay(this@MainActivity).apply { setOffset(dp(8), dp(64)) })
-            overlays.add(ScaleBarOverlay(this).apply { setAlignBottom(true); setScaleBarOffset(dp(8), dp(84)) })
+            droits = CopyrightOverlay(this@MainActivity).apply { setOffset(dp(8), dp(64)) }
+            overlays.add(droits)
+            echelle = ScaleBarOverlay(this).apply { setAlignBottom(true); setScaleBarOffset(dp(8), dp(84)) }
+            overlays.add(echelle)
             overlays.add(MapEventsOverlay(object : MapEventsReceiver {
                 override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                    ajouterPoint(Point(p.latitude, p.longitude)); return true
+                    // Un tap sur la carte referme aussi le bandeau de recherche.
+                    fermerRecherche()
+                    if (modePlan) ajouterPoint(Point(p.latitude, p.longitude))
+                    return true
                 }
                 override fun longPressHelper(p: GeoPoint) = false
             }))
+            // Un double tap sur la carte masque les bandeaux et laisse la carte
+            // seule, un second les ramène (geste de Locus Map). Il ne pose pas
+            // de point : osmdroid réserve le simple tap au-dessus.
+            overlays.add(object : Overlay() {
+                override fun onDoubleTap(e: MotionEvent, mapView: MapView): Boolean {
+                    basculerBandeaux(); return true
+                }
+            })
+            addMapListener(object : MapListener {
+                override fun onScroll(event: ScrollEvent): Boolean {
+                    planifierCalques(); return false
+                }
+
+                override fun onZoom(event: ZoomEvent): Boolean {
+                    planifierCalques(); return false
+                }
+            })
         }
         racine.addView(carte, FrameLayout.LayoutParams(-1, -1))
 
         val marge = dp(8)
         // Marges posées d'emblée : avant Android 15, l'écran ne passe pas sous
         // les barres du système et le rappel des marges ci-dessous peut ne pas venir.
-        val haut = LinearLayout(this).apply {
+        bandeauHaut = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(VOILE); setPadding(marge, marge, marge, marge)
         }
         etat = TextView(this).apply { setText(R.string.etat_pret); setTextColor(0xff202020.toInt()) }
-        haut.addView(etat)
+        val recherche = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        }
+        rechercheVille = recherche
+        champVille = EditText(this).apply {
+            hint = getString(R.string.recherche_placeholder)
+            textSize = 14f
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            setOnEditorActionListener { _, actionId, event ->
+                val valide = actionId == EditorInfo.IME_ACTION_SEARCH ||
+                    (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER &&
+                        event.action == KeyEvent.ACTION_DOWN)
+                if (valide) chercherVille()
+                valide
+            }
+        }
+        recherche.addView(champVille, LinearLayout.LayoutParams(0, -2, 1f))
+        boutonVille = Button(this).apply {
+            setText(R.string.recherche_bouton); textSize = 12f; isAllCaps = false
+            minWidth = 0; minimumWidth = 0
+            setPadding(dp(12), paddingTop, dp(12), paddingBottom)
+            setOnClickListener { chercherVille() }
+        }
+        recherche.addView(boutonVille)
+        bandeauHaut.addView(recherche)
+        bandeauHaut.addView(etat)
         progression = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000; visibility = View.GONE
         }
-        haut.addView(progression)
+        bandeauHaut.addView(progression)
         arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }
-        haut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
-        racine.addView(haut, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        bandeauHaut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
+        legende = construireLegende()
+        bandeauHaut.addView(legende)
+        racine.addView(bandeauHaut, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
+        bandeauBas = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        courbe = CourbeDenivele(this).apply {
+            visibility = View.GONE
+            setBackgroundColor(0xf7ffffff.toInt())
+            contentDescription = getString(R.string.courbe_aide)
+            onPosition = ::montrerPositionProfil
+        }
+        bandeauBas.addView(courbe, LinearLayout.LayoutParams(-1, dp(96)))
         val bas = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE); setPadding(marge / 2, marge / 2, marge / 2, marge / 2)
         }
         for ((texte, action) in listOf<Pair<Int, () -> Unit>>(
-            R.string.fond to ::choisirFond,
-            R.string.retour to ::retirerPoint,
+            R.string.retirer to ::retirerPoint,
             R.string.effacer to ::effacer,
-            R.string.exporter to ::exporter,
-            R.string.reglages to ::ouvrirReglages,
+            R.string.revenir to ::revenirAuDepart,
         )) {
             bas.addView(Button(this).apply {
-                setText(texte); textSize = 13f; isAllCaps = false; setOnClickListener { action() }
+                setText(texte); textSize = 12f; isAllCaps = false; minWidth = 0; minimumWidth = 0
+                setPadding(0, paddingTop, 0, paddingBottom)
+                setOnClickListener { action() }
             }, LinearLayout.LayoutParams(0, -2, 1f))
         }
-        racine.addView(bas, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        bandeauBas.addView(bas, LinearLayout.LayoutParams(-1, -2))
+        racine.addView(bandeauBas, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+
+        // Les deux boutons ronds de Locus Map, en bas à gauche et à
+        // l'horizontale : le menu au coin, la position à côté. Le carré rouge
+        // de la trace reste seul en bas à droite, à portée de pouce.
+        commandesCarte = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        commandesTrace = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val cote = dp(56)
+        boutonPosition = BoutonRond(this, BoutonRond.Genre.POSITION).apply {
+            contentDescription = getString(R.string.bouton_position)
+            setOnClickListener { centrerSurPosition() }
+        }
+        boutonTrace = BoutonRond(this, BoutonRond.Genre.TRACE).apply {
+            // Le carré rouge arrête la trace en cours, ou termine la
+            // planification quand on n'enregistre pas.
+            setOnClickListener {
+                when {
+                    EnregistrementGps.actif -> arreterEnregistrement()
+                    modePlan -> basculerPlanification()
+                }
+            }
+        }
+        boutonMenu = BoutonRond(this, BoutonRond.Genre.MENU).apply {
+            contentDescription = getString(R.string.bouton_menu)
+            setOnClickListener { ouvrirMenu() }
+        }
+        commandesTrace!!.addView(boutonTrace, LinearLayout.LayoutParams(cote, cote))
+        commandesCarte!!.addView(boutonMenu, LinearLayout.LayoutParams(cote, cote).apply {
+            rightMargin = dp(12)
+        })
+        commandesCarte!!.addView(boutonPosition, LinearLayout.LayoutParams(cote, cote))
+        racine.addView(commandesTrace, FrameLayout.LayoutParams(-2, -2,
+            Gravity.BOTTOM or Gravity.END).apply {
+            rightMargin = dp(12)
+            bottomMargin = dp(84)
+        })
+        racine.addView(commandesCarte, FrameLayout.LayoutParams(-2, -2,
+            Gravity.BOTTOM or Gravity.START).apply {
+            leftMargin = dp(12)
+            bottomMargin = dp(84)
+        })
+        majBoutonTrace()
+        bandeauBas.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placerCommandes() }
 
         // Android 15 dessine l'application sous les barres du système : les bandeaux s'en écartent.
         racine.setOnApplyWindowInsetsListener { _, insets ->
             val (dessus, dessous) = if (Build.VERSION.SDK_INT >= 30)
                 insets.getInsets(WindowInsets.Type.systemBars()).let { it.top to it.bottom }
             else @Suppress("DEPRECATION") (insets.systemWindowInsetTop to insets.systemWindowInsetBottom)
-            haut.setPadding(marge, marge + dessus, marge, marge)
-            bas.setPadding(marge / 2, marge / 2, marge / 2, marge / 2 + dessous)
+            bandeauHaut.setPadding(marge, marge + dessus, marge, marge)
+            bandeauBas.setPadding(0, 0, 0, dessous)
+            insetBas = dessous
+            placerCommandes()
             insets
         }
         setContentView(racine)
+        appliquerAffichage()
+        if (EnregistrementGps.actif) {
+            dessinerTraceEnregistree()
+            majBoutonTrace()
+        } else {
+            recupererTraces()
+        }
+    }
+
+    /**
+     * Une trace que le processus n'a pas pu finir (tué par Android, batterie
+     * vide) a laissé son journal : il redevient un GPX de la bibliothèque.
+     */
+    private fun recupererTraces() {
+        val refaites = EnregistrementGps.recuperer(dossierTraces())
+        if (refaites.isEmpty()) return
+        fichierTrace = refaites.last()
+        Toast.makeText(this, getString(R.string.trace_recuperee,
+            refaites.joinToString(", ") { it.name }), Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * La légende de la page, sous le bandeau d'état : les mêmes symboles que
+     * ceux dessinés par CalquesOverlay et par le tracé de l'itinéraire. Les
+     * couleurs viennent des overlays, pour qu'une légende ne mente jamais sur
+     * ce que la carte montre.
+     */
+    private fun construireLegende(): LinearLayout {
+        val boite = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        boite.addView(TextView(this).apply {
+            setText(R.string.legende_titre); textSize = 12f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xff202020.toInt())
+        })
+        fun ligne(texte: Int, couleur: Int, pastille: Boolean = false, tirets: Boolean = false) {
+            val rangee = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            }
+            val densite = resources.displayMetrics.density
+            // Le même trait que CalquesOverlay : plein, en tirets, ou une pastille cerclée de blanc.
+            rangee.addView(object : View(this) {
+                private val pinceau = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeCap = Paint.Cap.ROUND
+                }
+
+                override fun onDraw(canvas: Canvas) {
+                    val y = height / 2f
+                    if (pastille) {
+                        pinceau.style = Paint.Style.FILL
+                        pinceau.color = couleur
+                        canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
+                        pinceau.style = Paint.Style.STROKE
+                        pinceau.strokeWidth = 2 * densite
+                        pinceau.color = 0xffffffff.toInt()
+                        canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
+                    } else {
+                        pinceau.style = Paint.Style.STROKE
+                        pinceau.strokeWidth = 3 * densite
+                        pinceau.color = couleur
+                        pinceau.pathEffect = if (tirets)
+                            DashPathEffect(floatArrayOf(4 * densite, 3 * densite), 0f) else null
+                        canvas.drawLine(2 * densite, y, width - 2 * densite, y, pinceau)
+                    }
+                }
+            }, LinearLayout.LayoutParams(dp(28), dp(16)))
+            rangee.addView(TextView(this).apply {
+                setText(texte); textSize = 11f; setTextColor(0xff404040.toInt())
+            })
+            boite.addView(rangee)
+        }
+        // Le tracé de l'itinéraire, puis les calques du lot.
+        ligne(R.string.legende_itineraire, 0xff175dcb.toInt())
+        ligne(R.string.legende_officiel, CalquesOverlay.COULEUR_OFFICIEL, tirets = true)
+        ligne(R.string.legende_osm, CalquesOverlay.COULEUR_OSM, tirets = true)
+        ligne(R.string.legende_barriere, CalquesOverlay.COULEUR_BARRIERE)
+        ligne(R.string.legende_bloque, CalquesOverlay.COULEUR_BLOQUE, true)
+        ligne(R.string.legende_verifier, CalquesOverlay.COULEUR_A_VERIFIER, true)
+        return boite
+    }
+
+    /**
+     * Chaque mode a ses commandes : la carte seule au repos, le bandeau et la
+     * barre d'itinéraire en planification, l'état de la trace pendant un
+     * enregistrement, le champ de recherche quand on le demande. Les coches des
+     * réglages ne font que préciser ce que ces modes montrent.
+     */
+    private fun appliquerAffichage() {
+        val enregistre = EnregistrementGps.actif
+        // La recherche se referme dès qu'elle a situé son point : le bandeau ne
+        // revient que pour une tâche de fond, un enregistrement ou un mode choisi.
+        val replie = rechercheRepliee && !tacheAffichee && !enregistre
+        val haut = (modePlan || modeRecherche || enregistre || tacheAffichee) && !replie
+        bandeauHaut.visibility = if (!bandeauxMasques && haut) View.VISIBLE else View.GONE
+        rechercheVille?.visibility =
+            if (!enregistre && modeRecherche) View.VISIBLE else View.GONE
+        etat.visibility = if (modePlan || enregistre || tacheAffichee) View.VISIBLE else View.GONE
+        // Ni légende ni recherche dans les bandeaux de planification et
+        // d'enregistrement : la carte, l'état et les commandes suffisent.
+        legende?.visibility = View.GONE
+        bandeauBas.visibility = if (!bandeauxMasques && modePlan) View.VISIBLE else View.GONE
+        afficherCourbe()
+        placerCommandes()
+    }
+
+    /**
+     * Le double tap de Locus Map : les bandeaux disparaissent et la carte reste
+     * seule, un second double tap les ramène. L'échelle et l'attribution OSM
+     * restent : elles font partie de la carte. Un champ de recherche qui
+     * disparaît rend d'abord le clavier, sinon il resterait ouvert sur du vide.
+     */
+    private fun basculerBandeaux() {
+        bandeauxMasques = !bandeauxMasques
+        if (bandeauxMasques) cacherClavier()
+        else rechercheRepliee = false
+        appliquerAffichage()
+    }
+
+    /**
+     * Les boutons ronds restent juste au-dessus de la barre du bas, quelle que
+     * soit sa hauteur (courbe du dénivelé comprise). Bandeaux masqués, ils
+     * descendent au ras de la barre du système, comme les commandes de Locus.
+     */
+    private fun placerCommandes() {
+        // Une vue GONE garde sa dernière hauteur mesurée : sans cette garde,
+        // les boutons resteraient hauts après la sortie de la planification.
+        val hauteur =
+            if (!bandeauxMasques && bandeauBas.visibility == View.VISIBLE)
+                maxOf(bandeauBas.height, insetBas)
+            else insetBas
+        for (vue in listOf(commandesCarte, commandesTrace)) {
+            val parametres = vue?.layoutParams as? FrameLayout.LayoutParams ?: continue
+            parametres.bottomMargin = hauteur + dp(10)
+            vue.layoutParams = parametres
+        }
+        // L'échelle et l'attribution se rangent au-dessus des boutons ronds,
+        // comme sur Locus Map ; la courbe du dénivelé les remonte avec eux.
+        droits?.setOffset(dp(8), hauteur + dp(84))
+        echelle?.setScaleBarOffset(dp(8), hauteur + dp(104))
+    }
+
+    /**
+     * La courbe n'a de sens qu'avec un profil calculé. Quand elle prend la
+     * place au-dessus des boutons, l'échelle et l'attribution remontent pour
+     * rester lisibles, comme les bandeaux de la page.
+     */
+    private fun afficherCourbe() {
+        val vue = courbe ?: return
+        val montre = reglages.courbeDenivele && vue.profil != null && modePlan && !bandeauxMasques
+        vue.visibility = if (montre) View.VISIBLE else View.GONE
+        if (!montre) cacherRepereProfil()
+    }
+
+    /** Le point du tracé sous le doigt, comme le circleMarker du profil de la page. */
+    private fun montrerPositionProfil(fraction: Double?) {
+        val position = fraction?.let { Denivele.positionSurTrace(coordonneesProfil, distancesProfil, it) }
+        val geo = position?.let { GeoPoint(it[1], it[0]) }
+        if (geo == null) {
+            cacherRepereProfil(); return
+        }
+        repereProfil?.position = geo
+        carte.invalidate()
+    }
+
+    private fun cacherRepereProfil() {
+        val repere = repereProfil ?: return
+        if (repere.position == null) return
+        repere.position = null
+        carte.invalidate()
     }
 
     // ------------------------------------------------------------------ points et calcul
@@ -181,6 +558,18 @@ class MainActivity : Activity() {
         if (points.size < 2) effacerTrace() else avancer()
     }
 
+    /**
+     * « Revenir » de la page : le départ est ajouté en fin de parcours pour
+     * fermer une boucle. Rien à faire sans au moins deux points, ni quand le
+     * dernier point est déjà le départ.
+     */
+    private fun revenirAuDepart() {
+        val depart = points.firstOrNull() ?: return
+        val dernier = points.last()
+        if (points.size < 2 || (depart.lat == dernier.lat && depart.lon == dernier.lon)) return
+        ajouterPoint(depart)
+    }
+
     private fun effacer() {
         points.clear()
         dessinerPoints()
@@ -189,8 +578,7 @@ class MainActivity : Activity() {
     }
 
     private fun dessinerPoints() {
-        reperes.forEach { carte.overlays.remove(it) }
-        reperes.clear()
+        effacerReperes()
         points.forEachIndexed { i, p ->
             reperes.add(Marker(carte).apply {
                 position = GeoPoint(p.lat, p.lon)
@@ -207,10 +595,27 @@ class MainActivity : Activity() {
         carte.invalidate()
     }
 
+    /**
+     * Les doigts verts du tracé disparaissent hors planification : seule la
+     * ligne GPX reste sur la carte. Ils reviennent au retour dans le mode.
+     */
+    private fun effacerReperes() {
+        reperes.forEach { carte.overlays.remove(it) }
+        reperes.clear()
+        carte.invalidate()
+    }
+
     private fun effacerTrace() {
         trace?.let { carte.overlays.remove(it) }
         trace = null
         dernier = null
+        sequenceDenivele += 1
+        bilanItineraire = ""
+        coordonneesProfil = emptyList()
+        distancesProfil = DoubleArray(0)
+        cacherRepereProfil()
+        courbe?.profil = null
+        afficherCourbe()
         carte.invalidate()
     }
 
@@ -228,6 +633,7 @@ class MainActivity : Activity() {
         val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
         val aFaire = lotsATelecharger(offres, horsLigne.lots(), Zone.autour(points), exclu)
         if (aFaire.isNotEmpty()) {
+            autoLotDemande = aFaire.first().lot.case
             telechargerAuto(aFaire.first()); return
         }
         if (points.size >= 2) calculer()
@@ -236,20 +642,83 @@ class MainActivity : Activity() {
     private fun calculer() {
         val etapes = points.toList()
         val memoire = (getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass
+        sequenceDenivele += 1
         tache(R.string.etat_calcul, false, { _ ->
             val resultat = Itineraire(horsLigne, routeur).calculer(etapes, reglages.strict, reglages.officiels, memoire)
-            runOnUiThread { if (etapes == points) { dernier = resultat; montrer(resultat.coordonnees) } }
             val proprietes = resultat.feature.optJSONObject("properties")
-            getString(R.string.etat_itineraire, resultat.lot.case,
+            val bilan = getString(R.string.etat_itineraire, resultat.lot.case,
                 (proprietes?.optString("track-length")?.toDoubleOrNull() ?: 0.0) / 1000)
-        })
+            runOnUiThread {
+                if (etapes == points) {
+                    dernier = resultat
+                    bilanItineraire = bilan
+                    montrer(resultat.coordonnees)
+                    etat.text = bilan
+                }
+            }
+            bilan
+        }, ensuite = { reussi -> if (reussi && etapes == points) demanderDenivele() })
+    }
+
+    /**
+     * Le relief du tracé, en arrière-plan comme sur le PC : le tracé s'affiche
+     * d'abord, le dénivelé et la durée de marche arrivent ensuite. Le calcul
+     * n'occupe pas la tâche unique, un autre parcours reste possible.
+     */
+    private fun demanderDenivele() {
+        val resultat = dernier ?: return
+        val base = bilanItineraire
+        val coordonnees = List(resultat.coordonnees.length()) { i ->
+            val p = resultat.coordonnees.getJSONArray(i)
+            doubleArrayOf(p.getDouble(0), p.getDouble(1))
+        }
+        val sequence = ++sequenceDenivele
+        etat.text = listOf(base, getString(R.string.etat_denivele_calcul)).filter { it.isNotEmpty() }.joinToString("\n")
+        val sources = sourcesRelief(relief)
+        EXECUTEUR_DENIVELE.execute {
+            var profil: ProfilAltimetrique? = null
+            var erreur = ""
+            try {
+                profil = Denivele.calculer(coordonnees, sources)
+            } catch (e: Exception) {
+                erreur = e.message ?: e.toString()
+            }
+            val calcule = profil
+            runOnUiThread {
+                if (sequence != sequenceDenivele || dernier !== resultat || isDestroyed) return@runOnUiThread
+                etat.text = if (calcule != null)
+                    listOf(base, getString(R.string.etat_denivele, calcule.monteeM, calcule.descenteM,
+                        duree(calcule.dureeMarcheS))).filter { it.isNotEmpty() }.joinToString("\n")
+                else
+                    listOf(base, getString(R.string.etat_denivele_indisponible, erreur.take(160)))
+                        .filter { it.isNotEmpty() }.joinToString("\n")
+                courbe?.profil = calcule
+                afficherCourbe()
+            }
+        }
+    }
+
+    /** La durée de marche arrondie au quart d'heure supérieur, comme la page. */
+    private fun duree(secondes: Long): String {
+        val minutes = (((secondes + 299) / 300) * 5).toInt()
+        return if (minutes >= 60) getString(R.string.duree_heures, minutes / 60, minutes % 60)
+        else getString(R.string.duree_minutes, minutes)
     }
 
     private fun montrer(coordonnees: JSONArray) {
         trace?.let { carte.overlays.remove(it) }
+        cacherRepereProfil()
+        courbe?.profil = null
+        afficherCourbe()
         val geo = List(coordonnees.length()) {
             coordonnees.getJSONArray(it).let { p -> GeoPoint(p.getDouble(1), p.getDouble(0)) }
         }
+        // Le tracé complet, distances cumulées comprises : la courbe s'y
+        // reporte au doigt, comme positionSurProfil sur la page.
+        coordonneesProfil = List(coordonnees.length()) { i ->
+            coordonnees.getJSONArray(i).let { p -> doubleArrayOf(p.getDouble(0), p.getDouble(1)) }
+        }
+        distancesProfil = Denivele.distances(coordonneesProfil)
         trace = Polyline(carte).apply {
             setPoints(geo)
             outlinePaint.color = 0xff175dcb.toInt()
@@ -264,6 +733,101 @@ class MainActivity : Activity() {
         carte.invalidate()
     }
 
+    // ------------------------------------------------------------------ calques du lot
+
+    /**
+     * Une coche sous le zoom 14 ne montre rien : le dire tout de suite, sinon
+     * la case semble sans effet. Au-dessus, la lecture prévient si la vue ne
+     * contient aucun chemin de calque.
+     */
+    private fun signalerCocheCalque() {
+        if (carte.zoomLevelDouble < ZOOM_CALQUES) {
+            calqueCoche = false
+            Toast.makeText(this, R.string.calque_zoom, Toast.LENGTH_LONG).show()
+        } else {
+            calqueCoche = true
+        }
+    }
+
+    /**
+     * Les calques ne se lisent qu'au zoom 14, celui des tuiles du lot, comme
+     * la page ; en dessous, mieux vaut ne rien montrer qu'un réseau tronqué.
+     */
+    private fun planifierCalques() {
+        sequenceCalques += 1
+        planificateur.removeCallbacksAndMessages(null)
+        if ((!reglages.calqueOsm && reglages.calquesOfficiels.isEmpty()) ||
+            carte.zoomLevelDouble < ZOOM_CALQUES) {
+            calqueCoche = false
+            overlayCalques.donnees = DonneesCalques()
+            carte.invalidate()
+            return
+        }
+        proposerLotCalques()
+        planificateur.postDelayed({ rafraichirCalques() }, 350)
+    }
+
+    /**
+     * Comme la page, afficher un calque est un usage réel de la région : le
+     * lot de la case du centre se télécharge de lui-même s'il manque, ou si
+     * le catalogue en a un plus récent. Un survol sous le zoom 14 ne suffit
+     * pas, et une case refusée ou en échec attend une heure.
+     */
+    private fun proposerLotCalques() {
+        if (enCours.get() || autoLotDemande != null) return
+        val boite = carte.boundingBox ?: return
+        val maintenant = SystemClock.elapsedRealtime()
+        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
+        val zone = Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast)
+        val offre = offreAuCentre(offres, horsLigne.lots(), zone, exclu) ?: return
+        autoLotDemande = offre.lot.case
+        telechargerAuto(offre)
+    }
+
+    /** Lit les tuiles de la vue en arrière-plan ; une lecture à la fois. */
+    private fun rafraichirCalques() {
+        if (isDestroyed) return
+        val osm = reglages.calqueOsm
+        val officiels = reglages.calquesOfficiels
+        if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < ZOOM_CALQUES) {
+            calqueCoche = false
+            overlayCalques.donnees = DonneesCalques()
+            carte.invalidate()
+            return
+        }
+        val boite = carte.boundingBox ?: return
+        if (!calquesOccupe.compareAndSet(false, true)) {
+            calquesARefaire = true
+            return
+        }
+        val sequence = ++sequenceCalques
+        val zone = Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast)
+        EXECUTEUR_CALQUES.execute {
+            val donnees = try {
+                calques.lire(zone, osm, officiels)
+            } catch (e: Exception) {
+                DonneesCalques()
+            }
+            calquesOccupe.set(false)
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                if (sequence == sequenceCalques) {
+                    overlayCalques.donnees = donnees
+                    carte.invalidate()
+                    if (calqueCoche) {
+                        calqueCoche = false
+                        if (donnees.vide && !enCours.get() && autoLotDemande == null)
+                            Toast.makeText(this, R.string.calque_vide, Toast.LENGTH_LONG).show()
+                    }
+                }
+                if (calquesARefaire) {
+                    calquesARefaire = false
+                    planifierCalques()
+                }
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ lots
 
     /**
@@ -274,8 +838,11 @@ class MainActivity : Activity() {
      */
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
         val choix = choisir(listOf(Source.GITHUB to Depot().lireCatalogue(Source.GITHUB)))
-        runOnUiThread { offres = choix; remplirReglages() }
-        if (points.isEmpty()) getString(R.string.etat_pret) else getString(R.string.etat_catalogue_lu, choix.size)
+        runOnUiThread { offres = choix; remplirReglages(); planifierCalques() }
+        // Le conseil de pose ne vaut qu'en planification ; au repos, le bilan
+        // se contente du catalogue lu.
+        if (points.isEmpty() && modePlan) getString(R.string.etat_pret)
+        else getString(R.string.etat_catalogue_lu, choix.size)
     }, ensuite = { avancer() })
 
     /** Les fonds partagés par les PC, lus à la demande (bouton Fond, PC ajouté) ; un PC injoignable le dit sans rien bloquer. */
@@ -294,33 +861,45 @@ class MainActivity : Activity() {
         else echecs.joinToString("\n")
     }, ensuite = { ensuite() })
 
-    /** Le lot qui manque pour le parcours : de lui-même sur le Wi-Fi, sur demande sur un réseau facturé. */
+    /** Le lot qui manque : de lui-même sur le Wi-Fi, sur demande sur un réseau facturé. */
     private fun telechargerAuto(offre: Offre) {
+        autoLotDemande = offre.lot.case
         val reseau = getSystemService(ConnectivityManager::class.java)
         if (reseau.activeNetwork == null) {
+            autoLotDemande = null
+            // Un calque sans réseau ne réessaie pas en boucle ; un parcours, lui, le dit à chaque calcul.
+            if (points.size < 2) exclues[offre.lot.case] = SystemClock.elapsedRealtime()
             if (points.size >= 2) calculer()
             return
         }
         if (!reseau.isActiveNetworkMetered) {
+            autoLotDemande = null
             telecharger(offre); return
         }
         AlertDialog.Builder(this)
             .setTitle(offre.lot.case)
-            .setMessage(getString(R.string.confirmer_donnees_mobiles, offre.lot.case, offre.lot.octets / 1_000_000,
-                offre.source.libelle))
-            .setPositiveButton(R.string.telecharger) { _, _ -> telecharger(offre) }
+            .setMessage(getString(R.string.confirmer_donnees_mobiles, offre.lot.case,
+                Formatter.formatShortFileSize(this, offre.lot.octets), offre.source.libelle))
+            .setPositiveButton(R.string.telecharger) { _, _ ->
+                autoLotDemande = null
+                telecharger(offre)
+            }
             .setNegativeButton(R.string.plus_tard) { _, _ ->
+                autoLotDemande = null
                 exclues[offre.lot.case] = SystemClock.elapsedRealtime()
                 avancer()
+                planifierCalques()
             }
             .setCancelable(false)
             .show()
     }
 
     private fun telecharger(offre: Offre) {
+        autoLotDemande = null
         val lot = offre.lot
         tache(R.string.etat_telechargement, true, { continuer ->
-            runOnUiThread { etat.text = getString(R.string.etat_telechargement_lot, lot.case, lot.octets / 1_000_000) }
+            runOnUiThread { etat.text = getString(R.string.etat_telechargement_lot, lot.case,
+                Formatter.formatShortFileSize(this, lot.octets)) }
             val travail = File(File(filesDir, "telechargements"), lot.case)
             Depot().telecharger(lot, offre.source, travail, { faits, total ->
                 runOnUiThread { progression.progress = (1000 * faits / maxOf(total, 1)).toInt() }
@@ -333,6 +912,7 @@ class MainActivity : Activity() {
         }, ensuite = { reussi ->
             if (!reussi) exclues[lot.case] = SystemClock.elapsedRealtime()
             remplirReglages()
+            planifierCalques()
             avancer()
         })
     }
@@ -348,8 +928,10 @@ class MainActivity : Activity() {
                 routeur.annuler()
                 val octets = horsLigne.supprimer(lot.case)
                 retirees.add(lot.case)
-                etat.text = getString(R.string.etat_supprime, lot.case, octets / 1_000_000)
+                etat.text = getString(R.string.etat_supprime, lot.case,
+                    Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
+                planifierCalques()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -367,12 +949,14 @@ class MainActivity : Activity() {
         choix.add(getString(R.string.fond_topo) to { appliquerFond("topo") })
         for ((source, fichiers) in fonds.parSource()) {
             choix.add(getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
-                fichiers.sumOf { it.length() } / 1_000_000) to { appliquerFond(source); cadrerSur(fichiers) })
+                Formatter.formatShortFileSize(this, fichiers.sumOf { it.length() })) to
+                { appliquerFond(source); cadrerSur(fichiers) })
         }
         val proposes = fondsProposes(cataloguesPc ?: emptyList(), fonds.installes().map { it.nameWithoutExtension }.toSet())
         for ((source, fond) in proposes) {
-            choix.add(getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom, fond.octets / 1_000_000,
-                source.libelle) to { telechargerFond(source, fond) })
+            choix.add(getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom,
+                Formatter.formatShortFileSize(this, fond.octets), source.libelle) to
+                { telechargerFond(source, fond) })
         }
         if (reglages.pcs().isEmpty()) choix.add(getString(R.string.fond_sans_pc) to { scannerQr() })
         else if (proposes.isEmpty()) choix.add(getString(R.string.fond_relire) to { cataloguesPc = null; choisirFond() })
@@ -386,7 +970,8 @@ class MainActivity : Activity() {
     private fun telechargerFond(source: Source, fond: Fond) {
         AlertDialog.Builder(this)
             .setTitle(fond.nom)
-            .setMessage(getString(R.string.confirmer_telechargement, fond.octets / 1_000_000, source.libelle))
+            .setMessage(getString(R.string.confirmer_telechargement,
+                Formatter.formatShortFileSize(this, fond.octets), source.libelle))
             .setPositiveButton(R.string.telecharger) { _, _ ->
                 tache(R.string.etat_telechargement, true, { continuer ->
                     val travail = File(filesDir, "telechargements")
@@ -462,6 +1047,208 @@ class MainActivity : Activity() {
         carte.invalidate()
     }
 
+    // ------------------------------------------------------------------ menu
+
+    /**
+     * Le panneau du menu, comme celui de Locus Map : il monte du bas et laisse
+     * la carte visible derrière. Chaque entrée ouvre un mode ou une fenêtre ;
+     * la carte seule reste l'écran par défaut.
+     */
+    private fun ouvrirMenu() {
+        val colonne = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(10), dp(20), dp(20))
+            background = GradientDrawable().apply {
+                setColor(0xfffafafa.toInt())
+                cornerRadii = floatArrayOf(
+                    dp(20).toFloat(), dp(20).toFloat(),
+                    dp(20).toFloat(), dp(20).toFloat(),
+                    0f, 0f, 0f, 0f)
+            }
+        }
+        colonne.addView(View(this).apply { setBackgroundColor(0xffcfd8dc.toInt()) },
+            LinearLayout.LayoutParams(dp(40), dp(4)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = dp(10)
+            })
+        colonne.addView(TextView(this).apply {
+            setText(R.string.menu_titre)
+            textSize = 18f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xff263238.toInt())
+            setPadding(0, 0, 0, dp(4))
+        })
+
+        val enregistre = EnregistrementGps.actif
+        val entrees = listOf(
+            Triple(R.drawable.ic_recherche, R.string.menu_recherche, ::ouvrirRecherche),
+            Triple(R.drawable.ic_bibliotheque, R.string.menu_bibliotheque, ::ouvrirBibliotheque),
+            Triple(R.drawable.ic_enregistrer,
+                if (enregistre) R.string.menu_arreter else R.string.menu_enregistrer,
+                ::basculerEnregistrement),
+            Triple(R.drawable.ic_planifier,
+                if (modePlan) R.string.menu_terminer_plan else R.string.menu_planifier,
+                ::basculerPlanification),
+            Triple(R.drawable.ic_reglages, R.string.reglages, ::ouvrirReglages),
+        )
+        val dialogue = Dialog(this)
+        for ((icone, texte, action) in entrees) {
+            val ligne = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                isClickable = true
+                isFocusable = true
+                setPadding(dp(4), dp(14), dp(4), dp(14))
+                setBackgroundResource(android.R.drawable.list_selector_background)
+            }
+            ligne.addView(ImageView(this).apply {
+                setImageResource(icone)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(dp(28), dp(28)))
+            ligne.addView(TextView(this).apply {
+                setText(texte)
+                textSize = 16f
+                setTextColor(0xff263238.toInt())
+                setPadding(dp(18), 0, 0, 0)
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            ligne.setOnClickListener {
+                dialogue.dismiss()
+                action()
+            }
+            colonne.addView(ligne)
+        }
+
+        dialogue.setContentView(colonne)
+        dialogue.show()
+        dialogue.window?.apply {
+            setBackgroundDrawable(ColorDrawable(0x00000000))
+            setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
+            setGravity(Gravity.BOTTOM)
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            setDimAmount(0.35f)
+        }
+    }
+
+    /** Le champ de recherche ne s'affiche qu'à la demande, depuis le menu. */
+    private fun ouvrirRecherche() {
+        // Pendant une trace, le bandeau ne montre que l'état de l'enregistrement.
+        if (EnregistrementGps.actif) {
+            Toast.makeText(this, R.string.plan_trace_en_cours, Toast.LENGTH_LONG).show()
+            return
+        }
+        modeRecherche = true
+        rechercheRepliee = false
+        appliquerAffichage()
+        val champ = champVille ?: return
+        champ.requestFocus()
+        // La fenêtre reprend le focus après la fermeture du panneau : on laisse
+        // un instant au système avant de demander le clavier.
+        champ.postDelayed({
+            if (isDestroyed) return@postDelayed
+            (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
+                ?.showSoftInput(champ, InputMethodManager.SHOW_IMPLICIT)
+        }, 250)
+    }
+
+    /**
+     * Referme la recherche et son bandeau : dès qu'une ville est située sur la
+     * carte, ou qu'on touche la carte, il n'a plus de raison d'occuper l'écran.
+     */
+    private fun fermerRecherche() {
+        if (!modeRecherche) return
+        modeRecherche = false
+        rechercheRepliee = true
+        cacherClavier()
+        appliquerAffichage()
+    }
+
+    /**
+     * La planification est un mode : ses boutons et son état n'apparaissent
+     * qu'une fois choisi dans le menu. Un parcours enregistré reste affiché
+     * quand on en sort, et les points déjà posés sont repris au retour.
+     */
+    private fun basculerPlanification() {
+        if (!modePlan && EnregistrementGps.actif) {
+            Toast.makeText(this, R.string.plan_trace_en_cours, Toast.LENGTH_LONG).show()
+            return
+        }
+        modePlan = !modePlan
+        modeRecherche = false
+        rechercheRepliee = false
+        majBoutonTrace()
+        if (modePlan) {
+            dessinerPoints()
+            when {
+                points.isEmpty() -> etat.setText(R.string.etat_pret)
+                points.size == 1 -> etat.setText(R.string.etat_depart_pose)
+                bilanItineraire.isNotEmpty() -> etat.text = bilanItineraire
+            }
+        } else {
+            cacherClavier()
+            effacerReperes()
+            if (dernier != null) proposerGpx()
+        }
+        appliquerAffichage()
+    }
+
+    // ------------------------------------------------------------------ bibliothèque
+
+    /** L'historique des parcours enregistrés, rangé dans « Ma bibliothèque ». */
+    private fun ouvrirBibliotheque() {
+        val colonne = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+        }
+        fenetreBibliotheque = colonne
+        remplirBibliotheque()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.menu_bibliotheque)
+            .setView(ScrollView(this).apply { addView(colonne) })
+            .setPositiveButton(R.string.fermer, null)
+            .setOnDismissListener { fenetreBibliotheque = null }
+            .show()
+    }
+
+    private fun remplirBibliotheque() {
+        val colonne = fenetreBibliotheque ?: return
+        colonne.removeAllViews()
+        titre(colonne, R.string.titre_traces)
+        val traces = tracesEnregistrees()
+        if (traces.isEmpty()) {
+            colonne.addView(TextView(this).apply { setText(R.string.traces_aucune) })
+            return
+        }
+        val cases = linkedMapOf<File, CheckBox>()
+        val date = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        for (f in traces) {
+            val ligne = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val selection = CheckBox(this)
+            cases[f] = selection
+            ligne.addView(selection, LinearLayout.LayoutParams(-2, -2))
+            ligne.addView(TextView(this).apply {
+                text = "${date.format(Date(f.lastModified()))} · " +
+                    Formatter.formatShortFileSize(this@MainActivity, f.length())
+                textSize = 13f
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            ligne.addView(boutonPetit(R.string.exporter) { exporterTrace(f) })
+            ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppression(listOf(f)) })
+            colonne.addView(ligne)
+        }
+        colonne.addView(Button(this).apply {
+            setText(R.string.traces_supprimer_selection)
+            setOnClickListener {
+                val choisies = cases.filterValues { it.isChecked }.keys.toList()
+                if (choisies.isEmpty())
+                    Toast.makeText(this@MainActivity, R.string.traces_selection_vide,
+                        Toast.LENGTH_SHORT).show()
+                else confirmerSuppression(choisies)
+            }
+        })
+    }
+
     // ------------------------------------------------------------------ réglages
 
     private fun ouvrirReglages() {
@@ -491,13 +1278,78 @@ class MainActivity : Activity() {
             setOnCheckedChangeListener { _, v -> reglages.officiels = v }
         })
 
+        titre(colonne, R.string.titre_calques)
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.calque_osm); isChecked = reglages.calqueOsm
+            setOnCheckedChangeListener { _, v ->
+                reglages.calqueOsm = v
+                if (v) signalerCocheCalque() else calqueCoche = false
+                planifierCalques()
+            }
+        })
+        for (fournisseur in fournisseursDisponibles()) {
+            colonne.addView(CheckBox(this).apply {
+                text = getString(R.string.calque_fournisseur, fournisseur.nom)
+                isChecked = reglages.calqueOfficiel(fournisseur.cle)
+                setOnCheckedChangeListener { _, v ->
+                    reglages.changerCalqueOfficiel(fournisseur.cle, v)
+                    if (v) signalerCocheCalque() else calqueCoche = false
+                    planifierCalques()
+                }
+            })
+        }
+        colonne.addView(TextView(this).apply {
+            text = getString(R.string.calque_aide, String.format(Locale.getDefault(), "%.1f", carte.zoomLevelDouble))
+            textSize = 12f
+        })
+
+        titre(colonne, R.string.titre_affichage)
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.afficher_legende); isChecked = reglages.legende
+            setOnCheckedChangeListener { _, v -> reglages.legende = v; appliquerAffichage() }
+        })
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
+            setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
+        })
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.afficher_recherche); isChecked = reglages.recherche
+            setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
+        })
+
+        // Le choix du fond était dans le bandeau de planification ; il tient
+        // ici, avec les autres réglages, et la barre ne garde que les points.
+        titre(colonne, R.string.titre_fond)
+        colonne.addView(Button(this).apply {
+            setText(R.string.choisir_fond)
+            setOnClickListener { choisirFond() }
+        })
+
+        // Les réglages de trace de Locus Map, appliqués au prochain point même
+        // quand un enregistrement est en cours.
+        titre(colonne, R.string.titre_trace)
+        colonne.addView(TextView(this).apply { setText(R.string.trace_aide); textSize = 12f })
+        champNombre(colonne, R.string.trace_distance, reglages.distanceMin, entier = false) {
+            reglages.distanceMin = it
+            appliquerReglagesTrace()
+        }
+        champNombre(colonne, R.string.trace_duree, reglages.dureeMin.toDouble(), entier = true) {
+            reglages.dureeMin = it.roundToInt()
+            appliquerReglagesTrace()
+        }
+        champNombre(colonne, R.string.trace_precision, reglages.precisionMax, entier = false) {
+            reglages.precisionMax = it
+            appliquerReglagesTrace()
+        }
+
         titre(colonne, R.string.titre_lots)
         val installes = horsLigne.lots()
         for (lot in installes) {
             val offre = offres.firstOrNull { it.lot.case == lot.case }
             val ligne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             ligne.addView(TextView(this).apply {
-                text = getString(R.string.ligne_installe, lot.case, description(lot), lot.octets / 1_000_000)
+                text = getString(R.string.ligne_installe, lot.case, description(lot),
+                    Formatter.formatShortFileSize(this@MainActivity, lot.octets))
             }, LinearLayout.LayoutParams(0, -2, 1f))
             if (offre != null && plusRecent(offre.lot, lot))
                 ligne.addView(Button(this).apply { setText(R.string.mettre_a_jour); setOnClickListener { telecharger(offre) } })
@@ -508,7 +1360,9 @@ class MainActivity : Activity() {
         val absents = offres.filter { o -> installes.none { it.case == o.lot.case } }
         if (absents.isNotEmpty()) {
             colonne.addView(TextView(this).apply {
-                text = getString(R.string.au_catalogue, absents.joinToString(", ") { "${it.lot.case} (${it.lot.octets / 1_000_000} Mo)" })
+                text = getString(R.string.au_catalogue, absents.joinToString(", ") {
+                    "${it.lot.case} (${Formatter.formatShortFileSize(this@MainActivity, it.lot.octets)})"
+                })
             })
         }
         colonne.addView(Button(this).apply { setText(R.string.actualiser); setOnClickListener { actualiser() } })
@@ -517,7 +1371,8 @@ class MainActivity : Activity() {
         val installesFonds = fonds.installes()
         for (f in installesFonds) {
             val ligne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            ligne.addView(TextView(this).apply { text = getString(R.string.ligne_fond, f.nameWithoutExtension, f.length() / 1_000_000) },
+            ligne.addView(TextView(this).apply { text = getString(R.string.ligne_fond, f.nameWithoutExtension,
+                Formatter.formatShortFileSize(this@MainActivity, f.length())) },
                 LinearLayout.LayoutParams(0, -2, 1f))
             ligne.addView(Button(this).apply {
                 setText(R.string.supprimer)
@@ -549,13 +1404,91 @@ class MainActivity : Activity() {
 
         titre(colonne, R.string.titre_cache)
         colonne.addView(Button(this).apply {
-            text = getString(R.string.vider_cache, octetsCaches() / 1_000_000)
+            text = getString(R.string.vider_cache, Formatter.formatShortFileSize(this@MainActivity, octetsCaches()))
             setOnClickListener { viderCache() }
         })
 
         titre(colonne, R.string.maj_titre)
         colonne.addView(TextView(this).apply { text = getString(R.string.maj_version, versionInstallee()) })
         colonne.addView(Button(this).apply { setText(R.string.maj_verifier); setOnClickListener { verifierMaj() } })
+    }
+
+    // ------------------------------------------------------------------ recherche de ville
+
+    /**
+     * La recherche de la page : une ville recentre la carte, des coordonnées
+     * aussi. La requête part en arrière-plan (elle passe par le réseau) ; le
+     * bouton reste occupé jusque-là, et une réponse plus ancienne ne peut pas
+     * écraser la plus récente.
+     */
+    private fun chercherVille() {
+        val champ = champVille ?: return
+        val demande = champ.text.toString().trim()
+        if (demande.length < 2) {
+            Toast.makeText(this, R.string.recherche_court, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val sequence = ++sequenceVille
+        val coordonnees = Communes.lireCoordonnees(demande)
+        if (coordonnees != null) {
+            centrerSurVille(coordonnees.first, coordonnees.second, 14.0)
+            return
+        }
+        cacherClavier()
+        val bouton = boutonVille ?: return
+        bouton.isEnabled = false
+        bouton.setText(R.string.recherche_attente)
+        Thread {
+            var villes: List<Ville>? = null
+            var erreur = ""
+            try {
+                villes = Communes.chercher(demande)
+            } catch (e: Exception) {
+                erreur = e.message ?: e.toString()
+            }
+            val trouvees = villes
+            runOnUiThread {
+                if (sequence != sequenceVille || isDestroyed) return@runOnUiThread
+                bouton.isEnabled = true
+                bouton.setText(R.string.recherche_bouton)
+                when {
+                    trouvees == null -> Toast.makeText(this,
+                        getString(R.string.recherche_erreur, erreur.take(160)),
+                        Toast.LENGTH_LONG).show()
+                    trouvees.isEmpty() ->
+                        Toast.makeText(this, R.string.recherche_aucun, Toast.LENGTH_SHORT).show()
+                    trouvees.size == 1 -> choisirVille(trouvees[0])
+                    else -> AlertDialog.Builder(this)
+                        .setTitle(R.string.recherche_titre)
+                        .setItems(trouvees.map { if (it.detail.isEmpty()) it.nom else "${it.nom} · ${it.detail}" }
+                            .toTypedArray()) { _, i -> choisirVille(trouvees[i]) }
+                        .show()
+                }
+            }
+        }.start()
+    }
+
+    private fun choisirVille(ville: Ville) {
+        champVille?.setText(ville.nom)
+        champVille?.setSelection(ville.nom.length)
+        centrerSurVille(ville.lat, ville.lon, 13.0)
+    }
+
+    private fun centrerSurVille(lat: Double, lon: Double, zoom: Double) {
+        cacherClavier()
+        carte.controller.setZoom(zoom)
+        carte.controller.setCenter(GeoPoint(lat, lon))
+        carte.invalidate()
+        // Le point est situé : le bandeau de recherche se referme aussitôt.
+        fermerRecherche()
+        planifierCalques()
+    }
+
+    private fun cacherClavier() {
+        val champ = champVille ?: return
+        (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
+            ?.hideSoftInputFromWindow(champ.windowToken, 0)
+        champ.clearFocus()
     }
 
     // ------------------------------------------------------------------ mise à jour
@@ -644,7 +1577,8 @@ class MainActivity : Activity() {
 
     /** Ce que le vidage efface : lots et fonds, téléchargements interrompus, tuiles en ligne gardées par osmdroid. */
     private fun caches(): List<File> =
-        listOf(horsLigne.racine, File(filesDir, "telechargements"), File(cacheDir, "osmdroid"))
+        listOf(horsLigne.racine, File(filesDir, "telechargements"), File(filesDir, "gpx2elev"),
+            File(cacheDir, "osmdroid"))
 
     private fun octetsCaches(): Long = caches().sumOf { d -> d.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
 
@@ -656,7 +1590,8 @@ class MainActivity : Activity() {
     private fun viderCache() {
         AlertDialog.Builder(this)
             .setTitle(R.string.titre_cache)
-            .setMessage(getString(R.string.confirmer_vider_cache, octetsCaches() / 1_000_000))
+            .setMessage(getString(R.string.confirmer_vider_cache,
+                Formatter.formatShortFileSize(this, octetsCaches())))
             .setPositiveButton(R.string.vider) { _, _ ->
                 if (enCours.get()) {
                     etat.setText(R.string.etat_occupe_cache); return@setPositiveButton
@@ -669,15 +1604,24 @@ class MainActivity : Activity() {
                 exclues.clear()
                 effacerTrace()
                 appliquerFond(if (reglages.fond == "topo") "topo" else "osm")     // un fournisseur neuf, sur un cache neuf
-                etat.text = getString(R.string.etat_cache_vide, octets / 1_000_000)
+                etat.text = getString(R.string.etat_cache_vide,
+                    Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
+                planifierCalques()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
+    /** Les fournisseurs nationaux des lots installés : chacun a sa coche de calque. */
+    private fun fournisseursDisponibles(): List<Fournisseur> =
+        horsLigne.lots().flatMap { Fournisseurs.duLot(it) }
+            .distinctBy { it.cle }.sortedBy { it.nom }
+
     private fun description(lot: Lot): String =
-        if (lot.osm) "OSM" else getString(R.string.lot_enrichi, lot.fournisseurs.joinToString("+"))
+        if (lot.osm) "OSM" else getString(R.string.lot_enrichi,
+            Fournisseurs.duLot(lot).joinToString("+") { it.nom }
+                .ifEmpty { lot.fournisseurs.joinToString("+") })
 
     // ------------------------------------------------------------------ PC
 
@@ -743,6 +1687,374 @@ class MainActivity : Activity() {
             .show()
     }
 
+    // ------------------------------------------------------------------ position et trace GPS
+
+    private val gestionnairePosition by lazy {
+        getSystemService(LOCATION_SERVICE) as LocationManager
+    }
+
+    private fun aPosition(): Boolean =
+        checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /** La position n'est demandée qu'au premier appui sur un bouton, pas au lancement. */
+    private fun avecPosition(action: () -> Unit) {
+        if (aPosition()) {
+            demarrerPosition()
+            action()
+            return
+        }
+        apresPermission = { demarrerPosition(); action() }
+        requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION), PERMISSION_POSITION)
+    }
+
+    override fun onRequestPermissionsResult(requete: Int, permissions: Array<out String>,
+                                            resultats: IntArray) {
+        super.onRequestPermissionsResult(requete, permissions, resultats)
+        if (requete != PERMISSION_POSITION) return
+        val action = apresPermission
+        apresPermission = null
+        if (aPosition()) action?.invoke() else etat.setText(R.string.position_refusee)
+    }
+
+    /**
+     * Les mises à jour de position, GPS et réseau : elles tournent tant que
+     * l'écran existe, pour le point bleu et pour la trace. Le GPS ne dit rien
+     * quand il est coupé ; le message du bouton le rappelle.
+     */
+    private fun demarrerPosition() {
+        if (ecoutePosition != null || !aPosition()) return
+        val ecoute = object : LocationListener {
+            override fun onLocationChanged(location: Location) = surPosition(location)
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+        }
+        var posee = false
+        for (fournisseur in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+            try {
+                gestionnairePosition.requestLocationUpdates(fournisseur, 1_000L, 0f, ecoute,
+                    Looper.getMainLooper())
+                posee = true
+            } catch (e: Exception) {
+                // fournisseur absent : l'autre suffit
+            }
+        }
+        if (posee) ecoutePosition = ecoute
+        dernierPointConnu()?.let { surPosition(it) }
+    }
+
+    private fun arreterPosition() {
+        val ecoute = ecoutePosition ?: return
+        try {
+            gestionnairePosition.removeUpdates(ecoute)
+        } catch (e: Exception) {
+            // permission retirée entre-temps
+        }
+        ecoutePosition = null
+    }
+
+    private fun dernierPointConnu(): Location? {
+        if (!aPosition()) return null
+        return listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).mapNotNull {
+            try {
+                gestionnairePosition.getLastKnownLocation(it)
+            } catch (e: Exception) {
+                null
+            }
+        }.maxByOrNull { it.time }
+    }
+
+    private fun gpsActif(): Boolean = try {
+        gestionnairePosition.isProviderEnabled(LocationManager.GPS_PROVIDER)
+    } catch (e: Exception) {
+        false
+    }
+
+    /**
+     * Une position reçue par l'écran : le point bleu et le recentrage. La
+     * trace, elle, reçoit ses points de ServiceTrace, qui tourne aussi écran
+     * éteint.
+     */
+    private fun surPosition(location: Location) {
+        if (isDestroyed) return
+        val precision = if (location.hasAccuracy()) location.accuracy else 0f
+        val point = GeoPoint(location.latitude, location.longitude)
+        positionOverlay?.apply {
+            position = point
+            this.precision = precision
+        }
+        carte.invalidate()
+        if (centrerDesQuePosition) {
+            centrerDesQuePosition = false
+            centrerCarte(point)
+        }
+    }
+
+    /** Un point retenu par ServiceTrace : l'écran visible le dessine. */
+    private val surPointTrace: () -> Unit = {
+        if (!isDestroyed) {
+            dessinerTraceEnregistree()
+            majEtatTrace()
+            calculerDeniveleTrace()
+        }
+    }
+
+    private fun centrerSurPosition() {
+        avecPosition {
+            val connu = dernierPointConnu()
+            if (connu != null) {
+                centrerCarte(GeoPoint(connu.latitude, connu.longitude))
+            } else {
+                centrerDesQuePosition = true
+                etat.setText(if (gpsActif()) R.string.position_recherchee else R.string.gps_inactif)
+            }
+        }
+    }
+
+    private fun centrerCarte(point: GeoPoint) {
+        if (carte.zoomLevelDouble < 14.0) carte.controller.setZoom(15.0)
+        carte.controller.setCenter(point)
+        carte.invalidate()
+    }
+
+    private fun basculerEnregistrement() {
+        if (EnregistrementGps.actif) arreterEnregistrement() else avecPosition { demarrerEnregistrement() }
+    }
+
+    private fun demarrerEnregistrement() {
+        val dossier = dossierTraces().apply { mkdirs() }
+        val nom = "trace-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
+        val trace = TraceGps(reglages.distanceMin, reglages.dureeMin * 1_000L, reglages.precisionMax)
+        EnregistrementGps.demarrer(trace, File(dossier, nom))
+        // Le service tient le GPS écran éteint ; sans la notification (refusée
+        // sur Android 13 et plus), il tourne quand même.
+        ServiceTrace.demarrer(this)
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), PERMISSION_NOTIFICATIONS)
+        traceEnregistree?.let { carte.overlays.remove(it) }
+        traceEnregistree = null
+        modePlan = false
+        modeRecherche = false
+        rechercheRepliee = false
+        effacerReperes()
+        majBoutonTrace()
+        appliquerAffichage()
+        etat.setText(R.string.trace_demarree)
+        if (!gpsActif()) Toast.makeText(this, R.string.gps_inactif, Toast.LENGTH_LONG).show()
+    }
+
+    private fun arreterEnregistrement() {
+        ServiceTrace.arreter(this)
+        val trace = EnregistrementGps.arreter() ?: return
+        val fichier = EnregistrementGps.fichier
+        majBoutonTrace()
+        if (trace.taille == 0) {
+            fichier?.let { EnregistrementGps.terminer(it) }
+            appliquerAffichage()
+            Toast.makeText(this, R.string.trace_sans_point, Toast.LENGTH_LONG).show()
+            return
+        }
+        try {
+            fichier?.writeText(Gpx.ecrireTrace(trace.points, fichier.nameWithoutExtension))
+            fichier?.let { EnregistrementGps.terminer(it) }
+        } catch (e: Exception) {
+            // Le journal reste : la trace sera refaite au prochain lancement.
+            appliquerAffichage()
+            Toast.makeText(this, texte(e), Toast.LENGTH_LONG).show()
+            return
+        }
+        fichierTrace = fichier
+        appliquerAffichage()
+        val resume = resumeTrace(trace)
+        etat.text = resume
+        AlertDialog.Builder(this)
+            .setTitle(R.string.trace_titre)
+            .setMessage(listOf(resume, getString(R.string.trace_fichier, fichier?.name ?: ""))
+                .joinToString("\n"))
+            .setPositiveButton(R.string.trace_exporter) { _, _ -> exporterTrace(fichier) }
+            .setNegativeButton(R.string.fermer, null)
+            .show()
+    }
+
+    /**
+     * Le dénivelé de la trace en cours, calculé avec gpx2elev sur les seules
+     * tuiles du cache : en randonnée, le téléphone n'a pas de réseau. Le calcul
+     * se fait hors de l'écran ; un point arrivé entre-temps le relance une fois.
+     */
+    private fun calculerDeniveleTrace() {
+        val trace = EnregistrementGps.trace ?: return
+        if (trace.taille < 2) return
+        if (!traceOccupe.compareAndSet(false, true)) {
+            traceARefaire = true
+            return
+        }
+        val points = trace.points
+        EXECUTEUR_TRACE.execute {
+            val profil = try {
+                Denivele.calculer(points.map { doubleArrayOf(it.lon, it.lat) }, reliefTrace)
+            } catch (e: Exception) {
+                null
+            }
+            runOnUiThread {
+                traceOccupe.set(false)
+                if (isDestroyed) return@runOnUiThread
+                if (EnregistrementGps.trace === trace) {
+                    trace.profil = profil
+                    majEtatTrace()
+                }
+                if (traceARefaire) {
+                    traceARefaire = false
+                    calculerDeniveleTrace()
+                }
+            }
+        }
+    }
+
+    private fun dessinerTraceEnregistree() {
+        val trace = EnregistrementGps.trace ?: return
+        if (trace.taille == 0) return
+        val ligne = traceEnregistree ?: Polyline(carte).also {
+            it.outlinePaint.color = 0xffe64a19.toInt()
+            it.outlinePaint.strokeWidth = dp(4).toFloat()
+            it.outlinePaint.strokeCap = Paint.Cap.ROUND
+            carte.overlays.add(2, it)          // au-dessus de l'itinéraire, sous les repères
+            traceEnregistree = it
+        }
+        ligne.setPoints(trace.points.map { GeoPoint(it.lat, it.lon) })
+        carte.invalidate()
+    }
+
+    private fun majBoutonTrace() {
+        if (!::boutonTrace.isInitialized) return
+        val actif = EnregistrementGps.actif
+        val plan = modePlan && !actif
+        boutonTrace.enregistre = actif || plan
+        // Le carré rouge n'apparaît que pendant une trace ou une planification :
+        // le départ se donne par le menu, l'arrêt doit rester à portée de pouce.
+        boutonTrace.visibility = if (actif || plan) View.VISIBLE else View.GONE
+        boutonTrace.contentDescription = getString(when {
+            actif -> R.string.bouton_trace_stop
+            plan -> R.string.menu_terminer_plan
+            else -> R.string.bouton_trace
+        })
+    }
+
+    private fun majEtatTrace() {
+        val trace = EnregistrementGps.trace ?: return
+        val profil = trace.profil
+        etat.text = when {
+            trace.taille < 2 -> getString(R.string.trace_etat_debut, pointsTexte(trace.taille),
+                distanceTexte(trace.distance), dureeTexte(trace.duree))
+            profil != null -> getString(R.string.trace_etat, pointsTexte(trace.taille),
+                distanceTexte(trace.distance), dureeTexte(trace.duree),
+                profil.monteeM, profil.descenteM)
+            else -> getString(R.string.trace_etat_sans_denivele, pointsTexte(trace.taille),
+                distanceTexte(trace.distance), dureeTexte(trace.duree))
+        }
+    }
+
+    private fun resumeTrace(trace: TraceGps): String {
+        val points = pointsTexte(trace.taille)
+        val distance = distanceTexte(trace.distance)
+        val duree = dureeTexte(trace.duree)
+        val profil = trace.profil
+        return when {
+            trace.taille < 2 ->
+                getString(R.string.trace_resume_court, points, distance, duree)
+            profil != null ->
+                getString(R.string.trace_resume_denivele, points, distance, duree,
+                    profil.monteeM, profil.descenteM)
+            else -> getString(R.string.trace_resume_sans_denivele, points, distance, duree)
+        }
+    }
+
+    private fun dossierTraces(): File =
+        File(getExternalFilesDir(null) ?: filesDir, "traces")
+
+    private fun tracesEnregistrees(): List<File> =
+        dossierTraces().listFiles { f -> f.isFile && f.extension.equals("gpx", true) }
+            ?.sortedByDescending { it.lastModified() } ?: emptyList()
+
+    private fun reseauDisponible(): Boolean = try {
+        getSystemService(ConnectivityManager::class.java).activeNetwork != null
+    } catch (e: Exception) {
+        false
+    }
+
+    /**
+     * L'export relit le GPX et remet le dénivelé gpx2elev : d'abord le cache,
+     * qui suffit souvent ; sinon le réseau, s'il est là. Sans les deux, le
+     * fichier part tel qu'il a été enregistré.
+     */
+    private fun exporterTrace(fichier: File?) {
+        if (fichier == null || !fichier.exists()) return
+        fichierTrace = fichier
+        etat.setText(R.string.trace_denivele_calcul)
+        EXECUTEUR_TRACE.execute {
+            val texte = try {
+                fichier.readText()
+            } catch (e: Exception) {
+                null
+            }
+            val points = texte?.let { Gpx.lireTrace(it) } ?: emptyList()
+            val enrichi = preparerGpxEnrichi(points, fichier)
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                contenuExport = enrichi?.toByteArray()
+                lancerExport(fichier.name)
+            }
+        }
+    }
+
+    private fun preparerGpxEnrichi(points: List<PointTrace>, fichier: File): String? {
+        if (points.size < 2) return null
+        // Une instance neuve : le calcul du tracé peut lire le relief en même
+        // temps, et Mapterhorn n'est pas partagé entre deux tâches.
+        val sources = sourcesRelief(Mapterhorn(filesDir, reseau = reseauDisponible()))
+        return try {
+            val (enrichis, profil) = Gpx.enrichir(points, sources)
+            Gpx.ecrireTrace(enrichis, fichier.nameWithoutExtension,
+                getString(R.string.trace_gpx_desc, profil.monteeM, profil.descenteM))
+        } catch (e: Exception) {
+            null        // aucun relief complet : le GPX reste tel quel
+        }
+    }
+
+    /**
+     * L'ordre de gpx2elev : IGN LiDAR HD quand le réseau est là, puis
+     * Mapterhorn (son cache d'abord, le réseau s'il le permet).
+     */
+    private fun sourcesRelief(mapterhorn: Mapterhorn): List<SourceRelief> =
+        if (reseauDisponible()) listOf(IgnLidar(), mapterhorn.source()) else listOf(mapterhorn.source())
+
+    private fun lancerExport(nom: String) {
+        startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/gpx+xml"
+            putExtra(Intent.EXTRA_TITLE, nom)
+        }, EXPORT_TRACE)
+    }
+
+    private fun pointsTexte(nombre: Int): String =
+        resources.getQuantityString(R.plurals.trace_points, nombre, nombre)
+
+    private fun distanceTexte(metres: Double): String =
+        if (metres < 1_000) getString(R.string.distance_metres, metres.roundToInt())
+        else getString(R.string.distance_km, metres / 1_000)
+
+    private fun dureeTexte(millisecondes: Long): String {
+        val secondes = (millisecondes / 1_000).coerceAtLeast(0)
+        return when {
+            secondes >= 3_600 -> getString(R.string.duree_heures, (secondes / 3_600).toInt(),
+                ((secondes % 3_600) / 60).toInt())
+            secondes >= 60 -> getString(R.string.duree_minutes, (secondes / 60).toInt())
+            else -> getString(R.string.duree_secondes, secondes.toInt())
+        }
+    }
+
     // ------------------------------------------------------------------ export
 
     private fun exporter() {
@@ -756,11 +2068,44 @@ class MainActivity : Activity() {
         }, EXPORT)
     }
 
+    /**
+     * À l'arrêt de la planification, le parcours calculé est proposé en GPX :
+     * c'est le seul moment où on l'enregistre, le bouton « GPX » de la barre a
+     * disparu.
+     */
+    private fun proposerGpx() {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.plan_gpx_proposer)
+            .setPositiveButton(R.string.plan_gpx_enregistrer) { _, _ -> exporter() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     @Deprecated("Activity de la plateforme : pas d'AndroidX dans cette application.")
     override fun onActivityResult(requete: Int, resultat: Int, donnees: Intent?) {
         super.onActivityResult(requete, resultat, donnees)
         IntentIntegrator.parseActivityResult(requete, resultat, donnees)?.let { scan ->
             scan.contents?.let { lienScanne(it) }       // null : scan annulé
+            return
+        }
+        if (requete == EXPORT_TRACE) {
+            if (resultat != RESULT_OK) {
+                contenuExport = null
+                etat.setText(R.string.trace_export_annule)
+                return
+            }
+            val adresse = donnees?.data ?: return
+            try {
+                contentResolver.openOutputStream(adresse)?.use { sortie ->
+                    val contenu = contenuExport
+                    if (contenu != null) sortie.write(contenu)
+                    else fichierTrace?.takeIf { it.isFile }?.let { sortie.write(it.readBytes()) }
+                }
+                etat.setText(R.string.export_fait)
+            } catch (e: Exception) {
+                etat.text = texte(e)
+            }
+            contenuExport = null
             return
         }
         val coordonnees = dernier?.coordonnees ?: return
@@ -787,12 +2132,16 @@ class MainActivity : Activity() {
             etat.setText(R.string.etat_occupe); return
         }
         val arret = AtomicBoolean(false)
+        val sequence = ++sequenceTache
+        tacheAffichee = true
         etat.setText(message)
+        etat.visibility = View.VISIBLE
         progression.progress = 0
         progression.isIndeterminate = !interruptible
         progression.visibility = View.VISIBLE
         arreter.visibility = if (interruptible) View.VISIBLE else View.GONE
         arreter.setOnClickListener { arret.set(true) }
+        appliquerAffichage()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         EXECUTEUR.execute {
             var reussie = false
@@ -811,6 +2160,14 @@ class MainActivity : Activity() {
                 progression.visibility = View.GONE
                 arreter.visibility = View.GONE
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                // Le bilan d'une tâche de fond reste lisible quelques secondes,
+                // puis l'écran revient à son mode (carte seule, plan ou trace).
+                planificateur.postDelayed({
+                    if (sequence == sequenceTache) {
+                        tacheAffichee = false
+                        appliquerAffichage()
+                    }
+                }, 5000)
                 val reprendre = aReprendre
                 ensuite?.invoke(reussie)
                 if (reprendre && !enCours.get()) avancer()
@@ -825,20 +2182,122 @@ class MainActivity : Activity() {
     private fun titre(parent: LinearLayout, texte: Int) =
         parent.addView(TextView(this).apply { setText(texte); textSize = 18f; setPadding(0, dp(16), 0, dp(4)) })
 
+    /**
+     * Un réglage numérique : libellé à gauche, champ à droite. Chaque saisie
+     * valide est enregistrée aussitôt (virgule décimale acceptée), pour ne pas
+     * perdre la dernière valeur quand la fenêtre se ferme.
+     */
+    private fun champNombre(parent: LinearLayout, libelle: Int, valeur: Double,
+                            entier: Boolean, enregistrer: (Double) -> Unit) {
+        val ligne = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        ligne.addView(TextView(this).apply { setText(libelle) }, LinearLayout.LayoutParams(0, -2, 1f))
+        val champ = EditText(this).apply {
+            setText(nombre(valeur, entier))
+            inputType = if (entier) InputType.TYPE_CLASS_NUMBER
+            else InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setSingleLine()
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    val v = s?.toString()?.trim()?.replace(',', '.')?.toDoubleOrNull() ?: return
+                    if (v.isFinite() && v >= 0) enregistrer(v)
+                }
+            })
+        }
+        ligne.addView(champ, LinearLayout.LayoutParams(dp(96), -2))
+        parent.addView(ligne)
+    }
+
+    private fun nombre(valeur: Double, entier: Boolean): String =
+        if (entier || valeur == valeur.roundToInt().toDouble()) valeur.roundToInt().toString()
+        else String.format(Locale.getDefault(), "%.1f", valeur)
+
+    /** Un changement de réglage s'applique au prochain point, sans arrêter la trace. */
+    private fun appliquerReglagesTrace() {
+        EnregistrementGps.trace?.apply {
+            distanceMin = reglages.distanceMin
+            dureeMin = reglages.dureeMin * 1_000L
+            precisionMax = reglages.precisionMax
+        }
+    }
+
+    private fun boutonPetit(texte: Int, action: () -> Unit) = Button(this).apply {
+        setText(texte); textSize = 12f; isAllCaps = false
+        minWidth = 0; minimumWidth = 0
+        setPadding(dp(8), paddingTop, dp(8), paddingBottom)
+        setOnClickListener { action() }
+    }
+
+    private fun confirmerSuppression(fichiers: List<File>) {
+        if (fichiers.isEmpty()) return
+        val message = if (fichiers.size == 1)
+            getString(R.string.trace_supprimer_message, fichiers.first().name)
+        else getString(R.string.traces_supprimer_message, fichiers.size)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.trace_supprimer_titre)
+            .setMessage(message)
+            .setPositiveButton(R.string.supprimer) { _, _ ->
+                fichiers.forEach { it.delete() }
+                if (fichiers.any { it == fichierTrace }) fichierTrace = null
+                contenuExport = null
+                remplirBibliotheque()
+                remplirReglages()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Retour : d'abord quitter le mode (planification ou recherche), ensuite l'application. */
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun onBackPressed() {
+        if (modePlan || modeRecherche) {
+            modePlan = false
+            modeRecherche = false
+            effacerReperes()
+            majBoutonTrace()
+            cacherClavier()
+            appliquerAffichage()
+            return
+        }
+        super.onBackPressed()
+    }
+
     override fun onResume() {
         super.onResume(); carte.onResume()
+        // La position ne se demande pas au lancement : sans autorisation,
+        // demarrerPosition ne fait rien.
+        demarrerPosition()
+        EnregistrementGps.abonner(surPointTrace)
+        if (EnregistrementGps.actif) {
+            dessinerTraceEnregistree()
+            majBoutonTrace()
+            majEtatTrace()
+            appliquerAffichage()
+            calculerDeniveleTrace()
+        }
         if (attenteAutorisation) {
             attenteAutorisation = false
-            if (packageManager.canRequestPackageInstalls()) installerMaj() else etat.setText(R.string.maj_autorisation_refusee)
+            if (packageManager.canRequestPackageInstalls()) installerMaj()
+            else Toast.makeText(this, R.string.maj_autorisation_refusee, Toast.LENGTH_LONG).show()
         }
     }
 
     override fun onPause() {
         reglages.vue = Triple(carte.mapCenter.latitude, carte.mapCenter.longitude, carte.zoomLevelDouble)
+        // L'écran caché n'a plus besoin du point bleu : le GPS se repose, et une
+        // trace en cours continue dans ServiceTrace.
+        EnregistrementGps.desabonner(surPointTrace)
+        arreterPosition()
         carte.onPause(); super.onPause()
     }
 
     override fun onDestroy() {
+        arreterPosition()
+        planificateur.removeCallbacksAndMessages(null)
         routeur.annuler()
         carte.onDetach()
         super.onDestroy()
@@ -846,10 +2305,22 @@ class MainActivity : Activity() {
 
     companion object {
         private const val EXPORT = 1
+        private const val EXPORT_TRACE = 2
+        private const val PERMISSION_POSITION = 3
+        private const val PERMISSION_NOTIFICATIONS = 4
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
+        /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */
+        private const val ZOOM_CALQUES = 14.0
         // Au niveau du processus : un téléchargement survit à l'écran qui l'a lancé.
         private val EXECUTEUR = Executors.newSingleThreadExecutor()
+        // Les calques et le relief ne prennent pas la tâche unique : l'itinéraire
+        // reste calculable pendant qu'ils se lisent.
+        private val EXECUTEUR_CALQUES = Executors.newSingleThreadExecutor()
+        private val EXECUTEUR_DENIVELE = Executors.newSingleThreadExecutor()
+        // La trace GPS et son export se suivent ; le calcul du dénivelé live
+        // n'empêche pas l'écran de répondre.
+        private val EXECUTEUR_TRACE = Executors.newSingleThreadExecutor()
         private val enCours = AtomicBoolean(false)
     }
 }
