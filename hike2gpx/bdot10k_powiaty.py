@@ -27,6 +27,7 @@ import re
 import shutil
 import sqlite3
 import threading
+import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -43,6 +44,7 @@ TELECHARGEMENT = "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/{vo
 MS = "{http://mapserver.gis.umn.edu/mapserver}"
 AGENT = {"User-Agent": f"hike2gpx/{__version__} (BDOT10k par powiats)"}
 VOIVODIES = tuple(f"{v:02d}" for v in range(2, 33, 2))     # les seize, codes TERYT pairs de 02 à 32
+INDEX_TTL_S = 6 * 86400             # l'index d'une case, relu au plus tard chaque semaine
 FILS = 6                            # powiats téléchargés en même temps (quelques dizaines de Mo chacun)
 EPSG = 2180
 TABLE, GEOMETRIE, CLE = "OT_SKRP_L", "geometria", "id"
@@ -50,9 +52,19 @@ DOSSIER = "bdot10k-powiaty"
 FILTRE = "t.RODZAJ = 'ścieżka' AND (t.KATEGORIAISTNIENIA IS NULL OR t.KATEGORIAISTNIENIA = 'eksploatowany')"
 
 
-def _xml(url: str) -> ET.Element:
-    with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT), timeout=120) as reponse:
-        return ET.fromstring(reponse.read())
+def _xml(url: str, essais: int = 4, pause=time.sleep) -> ET.Element:
+    """L'index du GUGiK, quatre essais espacés de 10, 20 puis 40 s : il a
+    laissé passer une fois le délai de 120 s (essai 42705418372, une part
+    des calques d'E20_N45 perdue sur une seule requête)."""
+    for essai in range(essais):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT), timeout=120) as reponse:
+                return ET.fromstring(reponse.read())
+        except (OSError, ET.ParseError) as exc:
+            if essai == essais - 1:
+                raise
+            journal.info("index BDOT10k : %s, nouvel essai", exc)
+            pause(10 * 2 ** essai)
 
 
 def powiats_de_zone(sud: float, ouest: float, nord: float, est: float, lire=_xml) -> list:
@@ -170,8 +182,22 @@ class Lecteur:
         # Le centre de l'emprise : ses bords débordent un peu sur la case voisine.
         case = ((sud + nord) / 2 // 5 * 5, (ouest + est) / 2 // 5 * 5)
         if case not in self._powiats:
-            self._powiats[case] = powiats_de_zone(case[0], case[1], case[0] + 5, case[1] + 5)
+            self._powiats[case] = self._index_de_case(*case)
         return self._powiats[case]
+
+    def _index_de_case(self, sud: float, ouest: float) -> list:
+        """Les powiats de la case, gardés sur disque INDEX_TTL_S : l'étape
+        « données » les écrit dans son artefact, et le calcul, les calques et la
+        fin les relisent sans redemander l'index au GUGiK."""
+        from nico579_commons import atomique
+        chemin = Path(self.dossier) / DOSSIER / f"index_{sud:g}_{ouest:g}.json"
+        lu = atomique.lire_json(chemin, None)
+        if isinstance(lu, dict) and isinstance(lu.get("powiats"), list) \
+                and time.time() - lu.get("lu", 0) < INDEX_TTL_S:
+            return lu["powiats"]
+        powiats = powiats_de_zone(sud, ouest, sud + 5, ouest + 5)
+        atomique.ecrire_json(chemin, {"lu": time.time(), "powiats": powiats})
+        return powiats
 
     def date(self, sud: float, ouest: float, nord: float, est: float) -> str | None:
         """L'édition de la BDOT10k pour le manifeste : la mise à jour la plus
