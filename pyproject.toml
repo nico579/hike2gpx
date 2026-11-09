@@ -30,6 +30,10 @@ dependencies = [
     # QR code du partage au téléphone (partage.py), en SVG pour la page :
     # norme ISO/IEC 18004, Python pur, sans aucune dépendance.
     "segno>=1.6,<2",
+    # Lecture de l'archive Shapefile nationale de swissTLM3D sur le serveur
+    # des lots (swisstlm3d_national.py) : la bibliothèque de référence du
+    # format en Python pur, sans dépendance.
+    "pyshp>=2.3,<4",
 ]
 
 [project.optional-dependencies]

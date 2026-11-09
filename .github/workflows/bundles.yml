@@ -150,13 +150,77 @@ jobs:
           path: ${{ runner.workspace }}/donnees/bdtopo-regions
           key: ${{ steps.editions.outputs.cle }}
 
+  zabaged:
+    # Jumelle de « bdtopo » pour la Tchéquie : le GeoPackage national de ZABAGED
+    # (6,7 Go, vers 1 Mo/s depuis GitHub Actions, près de deux heures), réduit
+    # aux sentiers et chemins, préparé une fois par édition et gardé par
+    # actions/cache. Sans elle, chacune des quatre cases tchèques le
+    # retéléchargerait chaque dimanche.
+    needs: liste
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    outputs:
+      cle: ${{ steps.edition.outputs.cle }}
+    env:
+      HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
+      CASES: ${{ join(fromJSON(needs.liste.outputs.cases), ' ') }}
+    steps:
+      - name: Checkout hike2gpx
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - id: edition
+        run: |
+          # L'édition courante (« ZABAGED-3045-gpkg-20261004 ») si une case touche
+          # la Tchéquie : la clé du cache. Vide sinon, ou si le flux de l'ČÚZK ne
+          # répond pas : chaque case tchèque lira alors ZABAGED elle-même.
+          EDITION=$(python -c "import sys; from hike2gpx import fabrication, lot, zabaged_national as z; print(z.derniere_edition()['nom'] if any('zabaged' in fabrication.fournisseurs_de_zone(sys.argv[1], lot.boite_case(c)) for c in sys.argv[2:]) else '')" "$HIKE2GPX_HOME" $CASES) || EDITION=""
+          echo "édition : ${EDITION:-aucune}"
+          # « v1 » : le format de la base réduite (zabaged_national._garder_les_chemins).
+          if [ -n "$EDITION" ]; then echo "cle=zabaged-v1-$EDITION" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Reprendre les chemins ZABAGED
+        id: cache
+        if: steps.edition.outputs.cle != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # Clé exacte seulement : une base d'une autre édition ne servirait pas.
+          path: ${{ runner.workspace }}/donnees/zabaged-national
+          key: ${{ steps.edition.outputs.cle }}
+
+      - name: Télécharger l'édition
+        if: steps.edition.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
+        run: |
+          time python -c "import logging, sys; logging.basicConfig(level=logging.INFO); from hike2gpx import zabaged_national; print(zabaged_national.geopackage(sys.argv[1]))" "$HIKE2GPX_HOME"
+          du -sh "$HIKE2GPX_HOME/zabaged-national"; ls -la "$HIKE2GPX_HOME/zabaged-national"
+
+      - name: Garder les chemins ZABAGED
+        if: steps.edition.outputs.cle != '' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.workspace }}/donnees/zabaged-national
+          key: ${{ steps.edition.outputs.cle }}
+
   # Première moitié d'une case : ses téléchargements (extraits Geofabrik,
   # archives BD TOPO), près de deux heures pour E0_N45, passés à la tâche
   # « case » par un artefact. Chaque moitié a ses 6 heures, et une coupure du
   # calcul se relance seule (« Re-run failed jobs ») sans tout retélécharger.
   donnees:
-    needs: [liste, bdtopo]
-    # Sans la préparation BD TOPO (échouée), chaque case lit ses régions elle-même.
+    needs: [liste, bdtopo, zabaged]
+    # Sans la préparation BD TOPO ou ZABAGED (échouée), chaque case lit ses
+    # données elle-même.
     if: ${{ !cancelled() && needs.liste.result == 'success' }}
     name: données ${{ matrix.case }}
     runs-on: ubuntu-24.04
@@ -203,6 +267,19 @@ jobs:
         with:
           path: ${{ runner.workspace }}/donnees/bdtopo-regions
           key: ${{ needs.bdtopo.outputs.cle }}
+
+      - id: tcheque
+        if: needs.zabaged.outputs.cle != ''
+        run: |
+          # Seules les cases qui touchent la Tchéquie emportent ZABAGED dans leur artefact.
+          python -c "import sys; from hike2gpx import fabrication, lot; print('oui=' + str('zabaged' in fabrication.fournisseurs_de_zone(sys.argv[1], lot.boite_case(sys.argv[2]))).lower())" "$HIKE2GPX_HOME" "$CASE" >> "$GITHUB_OUTPUT"
+
+      - name: Reprendre les chemins ZABAGED
+        if: steps.tcheque.outputs.oui == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.workspace }}/donnees/zabaged-national
+          key: ${{ needs.zabaged.outputs.cle }}
 
       - name: Télécharger les données de la case
         run: python -m hike2gpx bundles "$CASE" --bulk --stage data --output "$RUNNER_TEMP/lots"

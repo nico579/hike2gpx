@@ -529,6 +529,10 @@ pyparsing==3.3.3 \
     --hash=sha256:928ae7e20211f3b6f3915a72f06a0cfd29ab9d24279dd6346b6b1a7146397d36 \
     --hash=sha256:ece8c00a69cf01b45d0b1dedabb469c90d8caf996d4fda40f147627a122849a4
     # via rasterio
+pyshp==3.1.7 \
+    --hash=sha256:13d28b2d576f124090bd09de047c435811c8a8e4c00b1cd3fe571f1331a352f7 \
+    --hash=sha256:bb7d91dedcf1f111c69957c0d7f76413ab21764bf719b31c2e79291da44f4469
+    # via hike2gpx (pyproject.toml)
 pystray==0.19.5 \
     --hash=sha256:a0c2229d02cf87207297c22d86ffc57c86c227517b038c0d3c59df79295ac617
     # via nico579-commons

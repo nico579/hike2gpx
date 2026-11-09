@@ -590,6 +590,10 @@ pyparsing==3.3.3 \
     # via
     #   -r requirements.txt
     #   rasterio
+pyshp==3.1.7 \
+    --hash=sha256:13d28b2d576f124090bd09de047c435811c8a8e4c00b1cd3fe571f1331a352f7 \
+    --hash=sha256:bb7d91dedcf1f111c69957c0d7f76413ab21764bf719b31c2e79291da44f4469
+    # via -r requirements.txt
 pystray==0.19.5 \
     --hash=sha256:a0c2229d02cf87207297c22d86ffc57c86c227517b038c0d3c59df79295ac617
     # via -r requirements.txt
