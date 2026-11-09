@@ -87,6 +87,22 @@ def test_le_lecteur_rend_les_sentiers_en_service(tmp_path, monkeypatch):
     assert sorted(p.name for p in racine.iterdir()) == ["0201_2024-02-27.sciezki.sqlite"]
 
 
+def test_preparer_telecharge_les_powiats_et_ouvre_le_damier(tmp_path, monkeypatch):
+    # Sans preparer, une case tchèque et polonaise (E15_N50) perdait le damier.
+    from hike2gpx import fabrication
+    vus = []
+    monkeypatch.setattr(bp, "powiats_de_zone", lambda *bornes: [{"teryt": "0201", "date": "2024-02-27"},
+                                                                {"teryt": "0202", "date": "2024-03-01"}])
+    monkeypatch.setattr(bp, "geopackage", lambda dossier, p: vus.append(p["teryt"]) or tmp_path / p["teryt"])
+    monkeypatch.setattr(fabrication, "couvertures", lambda dossier: {})
+    lecteur = bp.Lecteur(tmp_path)
+    lire = fabrication._lecteur(tmp_path, ["bdot10k_ds"], {"bdot10k_ds": lecteur})
+    assert hasattr(lire, "preparer")
+    lire.preparer(50.0, 15.0, 55.0, 20.0)
+    lire.preparer(50.0, 15.0, 55.0, 20.0)
+    assert vus == ["0201", "0202"], "chaque powiat une seule fois"
+
+
 def test_la_basse_silesie_se_lit_en_bloc():
     from hike2gpx import fabrication
     assert "bdot10k_ds" in fabrication.EN_BLOC

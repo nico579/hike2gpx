@@ -149,11 +149,21 @@ class Lecteur:
         récente des powiats de la case."""
         return max((p["date"] for p in self.powiats(sud, ouest, nord, est)), default=None)
 
-    def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
-        vus, resultat = set(), []
+    def preparer(self, sud: float, ouest: float, nord: float, est: float) -> None:
+        """Télécharge d'avance les powiats de l'emprise, sans rien lire, comme
+        bdtopo_regions.Lecteur.preparer : l'étape « données » du serveur les
+        range dans son artefact, et la fusion en damier (fabrication._lecteur)
+        ne s'active que si chaque lecteur de la case sait le faire. Sans elle,
+        E10_N50 et E15_N50, tchèques et polonaises, repassaient maille par
+        maille."""
         for powiat in self.powiats(sud, ouest, nord, est):
             if powiat["teryt"] not in self._gpkg:
                 self._gpkg[powiat["teryt"]] = geopackage(self.dossier, powiat)
+
+    def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
+        vus, resultat = set(), []
+        self.preparer(sud, ouest, nord, est)
+        for powiat in self.powiats(sud, ouest, nord, est):
             # Une voie qui passe la limite de deux powiats peut être dans les deux.
             for (lokalny,), k, pts in en_bloc.lignes_gpkg(self._gpkg[powiat["teryt"]], TABLE, ("LOKALNYID",), EPSG,
                                                            sud, ouest, nord, est, geometrie=GEOMETRIE, cle=CLE,
