@@ -498,7 +498,14 @@ _FUSION: dict = {}
 
 
 def _fusion_isolee(k: int):
-    """Fusionne la maille k dans un processus fils ; rend (k, apport ou None)."""
+    """Fusionne la maille k dans un processus fils ; rend (k, apport ou None,
+    secondes passées dans le fils)."""
+    debut = time.perf_counter()
+    k, apport = _fusion_isolee_seule(k)
+    return k, apport, time.perf_counter() - debut
+
+
+def _fusion_isolee_seule(k: int):
     c = _FUSION
     registre = c["registre"]
     if not isinstance(registre.identifiants, cases.IdentifiantsPartages):
@@ -561,12 +568,16 @@ def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, cont
             _FUSION.update(registre=registre, mailles=mailles, troncons=troncons, dossier=dossier,
                            source=source, compteurs=compteurs)
             apports = {}
+            # Chronométrage par phase (issue #80) : le temps des fils, cumulé,
+            # face à celui de la phase et à l'intégration, faite dans le parent.
+            debut, dans_les_fils = time.perf_counter(), 0.0
             with ProcessPoolExecutor(processus, mp_context=contexte) as groupe:
                 taches = [groupe.submit(_fusion_isolee, k) for k in phases[rang]]
                 try:
                     for tache in as_completed(taches):
-                        k, apport = tache.result()
+                        k, apport, secondes = tache.result()
                         apports[k] = apport
+                        dans_les_fils += secondes
                         faites += 1
                         suivi("fusion", faites, len(mailles))
                         if not continuer():
@@ -575,11 +586,16 @@ def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, cont
                     for tache in taches:
                         tache.cancel()
                     raise
+            parallele = time.perf_counter()
             for k in sorted(apports):
                 if apports[k]:
                     if hasattr(troncons, "apportes"):
                         troncons.apportes.update(apports[k]["apportes"])
                     registre.integrer(apports[k])
+            journal.info("fusion en damier, phase %s : %d mailles en %.0f s (fils %.0f s cumulés, soit ×%.1f), "
+                         "intégration %.0f s, %d bouts", rang, len(phases[rang]), parallele - debut, dans_les_fils,
+                         dans_les_fils / max(parallele - debut, 1e-9), time.perf_counter() - parallele,
+                         len(registre.bouts))
     finally:
         _FUSION.clear()
     registre.identifiants._noeud = compteurs["noeud"].value
