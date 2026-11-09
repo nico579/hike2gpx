@@ -28,6 +28,7 @@
     <string name="plan_gpx_enregistrer">Save</string>
 
     <string name="titre_fond">Base map</string>
+    <string name="choisir_fond">Choose the base map…</string>
     <string name="fond_osm">OpenStreetMap (online)</string>
     <string name="fond_topo">OpenTopoMap (online)</string>
     <string name="fond_hors_ligne">%1$s, offline (%2$d map(s), %3$s)</string>

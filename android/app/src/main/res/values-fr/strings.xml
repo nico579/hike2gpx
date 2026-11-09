@@ -26,6 +26,7 @@
     <string name="plan_gpx_enregistrer">Enregistrer</string>
 
     <string name="titre_fond">Fond de carte</string>
+    <string name="choisir_fond">Choisir le fond de carte…</string>
     <string name="fond_osm">OpenStreetMap (en ligne)</string>
     <string name="fond_topo">OpenTopoMap (en ligne)</string>
     <string name="fond_hors_ligne">%1$s, hors ligne (%2$d fond(s), %3$s)</string>

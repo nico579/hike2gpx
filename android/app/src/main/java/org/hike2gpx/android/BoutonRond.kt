@@ -55,7 +55,9 @@ class BoutonRond(context: Context, val genre: Genre) : View(context) {
         fond.color = when {
             genre == Genre.TRACE && enregistre -> 0xffd32f2f.toInt()
             genre == Genre.TRACE -> 0xff689f38.toInt()
-            else -> 0xdd263238.toInt()
+            // Semi-transparents comme les commandes de Locus Map : la carte
+            // reste lisible dessous.
+            else -> 0xaa263238.toInt()
         }
         if (isPressed) fond.color = (fond.color and 0x00ffffff) or 0xbb000000.toInt()
         canvas.drawCircle(cx, cy, rayon, fond)

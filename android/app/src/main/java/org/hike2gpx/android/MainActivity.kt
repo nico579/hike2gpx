@@ -112,6 +112,7 @@ class MainActivity : Activity() {
     private lateinit var boutonTrace: BoutonRond
     private lateinit var boutonMenu: BoutonRond
     private var commandesCarte: LinearLayout? = null
+    private var commandesTrace: LinearLayout? = null
     /** La planification n'affiche ses commandes que lorsqu'on la choisit dans le menu. */
     private var modePlan = false
     /** La recherche de ville se referme après le choix d'une ville. */
@@ -300,7 +301,6 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE); setPadding(marge / 2, marge / 2, marge / 2, marge / 2)
         }
         for ((texte, action) in listOf<Pair<Int, () -> Unit>>(
-            R.string.fond to ::choisirFond,
             R.string.retirer to ::retirerPoint,
             R.string.effacer to ::effacer,
             R.string.revenir to ::revenirAuDepart,
@@ -314,9 +314,11 @@ class MainActivity : Activity() {
         bandeauBas.addView(bas, LinearLayout.LayoutParams(-1, -2))
         racine.addView(bandeauBas, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
 
-        // Les deux boutons ronds de Locus Map, à droite de la carte : l'échelle
-        // et l'attribution restent lisibles à gauche.
-        commandesCarte = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // Les deux boutons ronds de Locus Map, en bas à gauche et à
+        // l'horizontale : le menu au coin, la position à côté. Le carré rouge
+        // de la trace reste seul en bas à droite, à portée de pouce.
+        commandesCarte = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        commandesTrace = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val cote = dp(56)
         boutonPosition = BoutonRond(this, BoutonRond.Genre.POSITION).apply {
             contentDescription = getString(R.string.bouton_position)
@@ -336,16 +338,19 @@ class MainActivity : Activity() {
             contentDescription = getString(R.string.bouton_menu)
             setOnClickListener { ouvrirMenu() }
         }
-        commandesCarte!!.addView(boutonTrace, LinearLayout.LayoutParams(cote, cote).apply {
-            bottomMargin = dp(12)
+        commandesTrace!!.addView(boutonTrace, LinearLayout.LayoutParams(cote, cote))
+        commandesCarte!!.addView(boutonMenu, LinearLayout.LayoutParams(cote, cote).apply {
+            rightMargin = dp(12)
         })
-        commandesCarte!!.addView(boutonPosition, LinearLayout.LayoutParams(cote, cote).apply {
-            bottomMargin = dp(12)
-        })
-        commandesCarte!!.addView(boutonMenu, LinearLayout.LayoutParams(cote, cote))
-        racine.addView(commandesCarte, FrameLayout.LayoutParams(-2, -2,
+        commandesCarte!!.addView(boutonPosition, LinearLayout.LayoutParams(cote, cote))
+        racine.addView(commandesTrace, FrameLayout.LayoutParams(-2, -2,
             Gravity.BOTTOM or Gravity.END).apply {
             rightMargin = dp(12)
+            bottomMargin = dp(84)
+        })
+        racine.addView(commandesCarte, FrameLayout.LayoutParams(-2, -2,
+            Gravity.BOTTOM or Gravity.START).apply {
+            leftMargin = dp(12)
             bottomMargin = dp(84)
         })
         majBoutonTrace()
@@ -477,11 +482,21 @@ class MainActivity : Activity() {
      * descendent au ras de la barre du système, comme les commandes de Locus.
      */
     private fun placerCommandes() {
-        val vue = commandesCarte ?: return
-        val parametres = vue.layoutParams as? FrameLayout.LayoutParams ?: return
-        val hauteur = if (bandeauxMasques) insetBas else maxOf(bandeauBas.height, insetBas)
-        parametres.bottomMargin = hauteur + dp(10)
-        vue.layoutParams = parametres
+        // Une vue GONE garde sa dernière hauteur mesurée : sans cette garde,
+        // les boutons resteraient hauts après la sortie de la planification.
+        val hauteur =
+            if (!bandeauxMasques && bandeauBas.visibility == View.VISIBLE)
+                maxOf(bandeauBas.height, insetBas)
+            else insetBas
+        for (vue in listOf(commandesCarte, commandesTrace)) {
+            val parametres = vue?.layoutParams as? FrameLayout.LayoutParams ?: continue
+            parametres.bottomMargin = hauteur + dp(10)
+            vue.layoutParams = parametres
+        }
+        // L'échelle et l'attribution se rangent au-dessus des boutons ronds,
+        // comme sur Locus Map ; la courbe du dénivelé les remonte avec eux.
+        droits?.setOffset(dp(8), hauteur + dp(84))
+        echelle?.setScaleBarOffset(dp(8), hauteur + dp(104))
     }
 
     /**
@@ -494,9 +509,6 @@ class MainActivity : Activity() {
         val montre = reglages.courbeDenivele && vue.profil != null && modePlan && !bandeauxMasques
         vue.visibility = if (montre) View.VISIBLE else View.GONE
         if (!montre) cacherRepereProfil()
-        val hauteur = if (montre) dp(100) else 0
-        echelle?.setScaleBarOffset(dp(8), dp(84) + hauteur)
-        droits?.setOffset(dp(8), dp(64) + hauteur)
     }
 
     /** Le point du tracé sous le doigt, comme le circleMarker du profil de la page. */
@@ -814,7 +826,10 @@ class MainActivity : Activity() {
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
         val choix = choisir(listOf(Source.GITHUB to Depot().lireCatalogue(Source.GITHUB)))
         runOnUiThread { offres = choix; remplirReglages(); planifierCalques() }
-        if (points.isEmpty()) getString(R.string.etat_pret) else getString(R.string.etat_catalogue_lu, choix.size)
+        // Le conseil de pose ne vaut qu'en planification ; au repos, le bilan
+        // se contente du catalogue lu.
+        if (points.isEmpty() && modePlan) getString(R.string.etat_pret)
+        else getString(R.string.etat_catalogue_lu, choix.size)
     }, ensuite = { avancer() })
 
     /** Les fonds partagés par les PC, lus à la demande (bouton Fond, PC ajouté) ; un PC injoignable le dit sans rien bloquer. */
@@ -1287,6 +1302,14 @@ class MainActivity : Activity() {
         colonne.addView(CheckBox(this).apply {
             setText(R.string.afficher_recherche); isChecked = reglages.recherche
             setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
+        })
+
+        // Le choix du fond était dans le bandeau de planification ; il tient
+        // ici, avec les autres réglages, et la barre ne garde que les points.
+        titre(colonne, R.string.titre_fond)
+        colonne.addView(Button(this).apply {
+            setText(R.string.choisir_fond)
+            setOnClickListener { choisirFond() }
         })
 
         // Les réglages de trace de Locus Map, appliqués au prochain point même

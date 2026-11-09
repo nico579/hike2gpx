@@ -7,7 +7,7 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 ## Ce qu'elle fait
 
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. Un
-bouton à trois traits, en bas à droite, ouvre le menu de Locus Map :
+bouton à trois traits, en bas à gauche, ouvre le menu de Locus Map :
 « Recherche », « Ma bibliothèque », « Enregistrer un parcours », « Planifier un
 itinéraire » et « Réglages ». La carte reste seule tant qu'on n'a pas choisi un
 mode. En planification, on touche la carte pour poser le départ, puis l'arrivée
@@ -65,11 +65,12 @@ Un double tap sur la carte, comme sur Locus Map, masque les deux bandeaux et
 laisse la carte seule ; un second double tap les ramène. L'échelle et
 l'attribution OSM restent visibles : elles font partie de la carte.
 
-Le bouton rond du bas, à trois traits, ouvre le menu ; juste au-dessus, celui
-de la position recentre la carte sur le GPS, avec le point bleu et son halo de
-précision. Le démarrage d'une trace passe par « Enregistrer un parcours » :
-pendant l'enregistrement, un bouton rond rouge apparaît au-dessus de la
-position pour arrêter (carré) sans rouvrir le menu, et le GPX est rangé dans
+Les deux boutons ronds du bas, à gauche, sont alignés à l'horizontale et
+semi-transparents : celui à trois traits ouvre le menu, et celui de la position
+recentre la carte sur le GPS, avec le point bleu et son halo de précision. Le
+démarrage d'une trace passe par « Enregistrer un parcours » : pendant
+l'enregistrement, un bouton rond rouge apparaît en bas à droite pour arrêter
+(carré) sans rouvrir le menu, et le GPX est rangé dans
 `traces/`, avec l'heure et l'altitude de chaque point. Les réglages suivent
 ceux de Locus : distance minimale entre deux points (10 m), durée minimale
 (10 s) et déviation GPS maximale (100 m). Un point n'est retenu que si le GPS
@@ -107,14 +108,15 @@ n'est pas repris avant une heure, et un lot supprimé à la main ne revient pas
 de la séance. Les lots et les fonds installés affichent leur taille réelle
 (« 254 kB » pour un petit lot d'essai, jamais un « 0 Mo » trompeur).
 
-Le bouton « Fond », dans le bandeau de planification, choisit le fond de carte :
+Le bouton « Choisir le fond de carte », dans les réglages, choisit le fond :
 OpenStreetMap ou OpenTopoMap en
 ligne, ou un fond hors ligne reçu d'un PC (le SCAN 25 ou le Plan IGN qu'il a
 fabriqués, `hike2gpx/fonds.py`). Les fonds qu'un PC partage et qui manquent
 au téléphone sont proposés dans la même liste, avec leur taille. Un fond est
 un MBTiles rangé sous `hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une
 même source s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le
-plus fin.
+plus fin. Le bandeau de planification ne garde que « Retirer », « Effacer » et
+« Revenir ».
 
 Les réglages réunissent le reste : mode strict et chemins officiels, lots et
 fonds installés (mise à jour, suppression), sources, et « Vider le cache », qui
@@ -190,7 +192,7 @@ Le HTTP simple n'est accepté que vers le réseau local.
 
 Les lots se lisent sur GitHub seulement (décision du 2026-11-04) : le
 catalogue du serveur, au lancement. Un PC ne sert au téléphone que ses fonds
-de carte ; son catalogue ne se lit qu'à la demande, quand on ouvre « Fond » ou
+de carte ; son catalogue ne se lit qu'à la demande, quand on choisit un fond ou
 qu'on ajoute le PC, si bien qu'un PC éteint ne retarde jamais le lancement.
 
 ## Construire
