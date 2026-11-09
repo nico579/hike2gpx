@@ -309,8 +309,8 @@ def test_les_fournisseurs_d_une_zone_suivent_les_frontieres(tmp_path, monkeypatc
     assert fabrication.fournisseurs_de_zone(tmp_path, ZONE) == ["ign"]
     assert fabrication.fournisseurs_de_zone(tmp_path, (46.0, 6.9, 46.1, 7.1)) == ["ign", "swisstlm3d"], \
         "une case frontalière prend les deux"
-    assert fabrication.fournisseurs_de_zone(tmp_path, (53.0, 20.0, 53.1, 20.1)) == [], \
-        "BDOT10k ne couvre que la Basse-Silésie"
+    assert fabrication.fournisseurs_de_zone(tmp_path, (53.0, 20.0, 53.1, 20.1)) == ["bdot10k_ds"], \
+        "la BDOT10k couvre toute la Pologne depuis le 2026-11-09"
     assert fabrication.fournisseurs_de_zone(tmp_path, (51.0, 16.0, 51.1, 16.1)) == ["bdot10k_ds"]
 
 
@@ -477,8 +477,8 @@ def test_les_calques_ne_lisent_que_la_tuile_demandee(tmp_path, mode_en_ligne, mo
 def test_les_cases_d_un_fournisseur_suivent_son_pays(tmp_path, monkeypatch):
     monkeypatch.setattr(geofabrik, "regions_attendues", lambda dossier: REGIONS)
     assert fabrication.cases_des_fournisseurs(tmp_path, ["swisstlm3d"]) == ["E10_N45", "E5_N45"]
-    assert fabrication.cases_des_fournisseurs(tmp_path, ["bdot10k_ds"]) == ["E10_N50", "E15_N50"], \
-        "la Basse-Silésie seule, pas toute la Pologne"
+    assert {"E10_N50", "E15_N45", "E15_N50", "E20_N45", "E20_N50"} <= \
+        set(fabrication.cases_des_fournisseurs(tmp_path, ["bdot10k_ds"])), "toute la Pologne, pas la Basse-Silésie seule"
     france = fabrication.cases_des_fournisseurs(tmp_path, ["ign"])
     assert "E5_N40" in france and "E10_N45" not in france
     assert set(fabrication.cases_des_fournisseurs(tmp_path)) >= set(france) | {"E10_N45"}

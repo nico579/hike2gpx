@@ -17,15 +17,18 @@ def _index(powiats):
                          f'xmlns:ms="http://mapserver.gis.umn.edu/mapserver">{membres}</wfs:FeatureCollection>')
 
 
-def test_les_powiats_de_basse_silesie_d_apres_l_index_officiel():
+def test_les_powiats_de_toute_la_pologne_d_apres_l_index_officiel():
     demandes = []
-    index = _index([("0212", "2023-10-23"), ("0201", "2024-02-27"), ("3005", "2024-01-01")])
+    index = _index([("0212", "2023-10-23"), ("0201", "2024-02-27"), ("3005", "2024-01-01"),
+                    ("3305", "2024-01-01")])
     powiats = bp.powiats_de_zone(50, 15, 55, 20, lambda url: demandes.append(url) or index)
     assert powiats == [{"teryt": "0201", "date": "2024-02-27",
                         "url": "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/02/0201_GPKG.zip"},
                        {"teryt": "0212", "date": "2023-10-23",
-                        "url": "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/02/0212_GPKG.zip"}], \
-        "la Grande-Pologne (30) reste hors du périmètre de bdot10k_ds"
+                        "url": "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/02/0212_GPKG.zip"},
+                       {"teryt": "3005", "date": "2024-01-01",
+                        "url": "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/30/3005_GPKG.zip"}], \
+        "la Grande-Pologne (30) aussi ; 33 n'est pas une voïvodie"
     assert "BBOX=50%2C15%2C55%2C20" in demandes[0]
 
 

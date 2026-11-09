@@ -44,7 +44,7 @@ function documentEnglish() {
     "This table is generated from `hike2gpx/assets/web/providers/*.js`. It lists each national map, its path layers and the data used by BRouter for route calculation. OpenStreetMap remains available everywhere.",
     "", "| Country | Map base | Path layers | Route calculation |",
     "| --- | --- | --- | --- |", ...lignesPays("en"),
-    "", "Official paths are loaded only for the area being viewed. In Poland, the BDOT10k path layer and routing support cover Lower Silesia only. Marked trails in Spain and the United States are display only.",
+    "", "Official paths are loaded only for the area being viewed. Marked trails in Spain and the United States are display only.",
     "", "For the measurements and source limitations, see the [French report](RAPPORT_SOURCES_CHEMINS_BROUTER.md).",
     ""].join("\n");
 }

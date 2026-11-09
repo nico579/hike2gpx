@@ -452,11 +452,11 @@ test("le rapport des pays présente fond, chemins et itinéraire depuis les prov
   assert.match(fr.find((p) => p.code === "cz").chemins, /ZABAGED/);
   assert.equal(fr.find((p) => p.code === "cz").itineraire, "OSM + ZABAGED");
   assert.match(fr.find((p) => p.code === "ch").chemins, /swissTLM3D.*swisstopo/);
-  assert.equal(fr.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k (Basse-Silésie)");
+  assert.equal(fr.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k");
   assert.equal(fr.find((p) => p.code === "at").chemins, "OSM");
   assert.equal(fr.find((p) => p.code === "es").itineraire, "OSM");
   const en = couvertureCartographique(page.providers, "en");
-  assert.equal(en.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k (Lower Silesia)");
+  assert.equal(en.find((p) => p.code === "pl").itineraire, "OSM + BDOT10k");
   assert.equal(en.find((p) => p.code === "us").fond, "USGS topographic map");
   assert.ok(fs.readFileSync(path.join(__dirname, "..", "RAPPORT_SOURCES_CHEMINS_BROUTER.md"), "utf8")
     .includes(sectionGeneree()), "le tableau du rapport doit être régénéré depuis les providers");
@@ -742,7 +742,7 @@ test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => 
   assert.equal(page.CALQUES.atkis.groupe.layers.length, 1);
 });
 
-test("les nouveaux providers transmettent leur source au calcul, avec limite régionale polonaise", async () => {
+test("les nouveaux providers transmettent leur source au calcul, la BDOT10k dans toute la Pologne", async () => {
   for (const [pays, source, centre] of [
     ["cz", "zabaged", [49.125, 13.475]],
     ["ch", "swisstlm3d", [46.225, 8.625]],
@@ -767,9 +767,11 @@ test("les nouveaux providers transmettent leur source au calcul, avec limite ré
     repondre(requete, { erreur: "fin de l'essai" });
     await calcul;
     if (pays === "pl") {
+      // Poznań, hors de Basse-Silésie : la BDOT10k couvre toute la Pologne
+      // depuis le 2026-11-09, l'option reste active.
       carte.vue = { s: 52.0, w: 16.0, n: 52.01, e: 16.01 };
       carte.handlers.moveend();
-      assert.equal(elements.get("ign").disabled, true);
+      assert.equal(elements.get("ign").disabled, false);
     }
   }
 });

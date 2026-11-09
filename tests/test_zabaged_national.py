@@ -219,6 +219,48 @@ def test_sans_plages_le_telechargement_se_fait_d_un_seul_tenant(tmp_path):
     assert sorted(p.name for p in tmp_path.iterdir()) == ["z.zip"]
 
 
+class Horloge:
+    """Une horloge qui avance de pas secondes à chaque lecture."""
+
+    def __init__(self, pas):
+        self.t, self.pas = 0.0, pas
+
+    def __call__(self):
+        self.t += self.pas
+        return self.t
+
+
+def test_une_connexion_trop_lente_est_abandonnee():
+    lente = io.BytesIO(b"x" * (40 * en_bloc._LECTURE))
+    with pytest.raises(en_bloc._TropLent):      # 64 ko toutes les 5 s : 13 ko/s
+        en_bloc._copier(lente, io.BytesIO(), horloge=Horloge(5))
+    rapide = io.BytesIO(b"x" * (40 * en_bloc._LECTURE))
+    sortie = io.BytesIO()
+    en_bloc._copier(rapide, sortie, horloge=Horloge(0.01))
+    assert len(sortie.getvalue()) == 40 * en_bloc._LECTURE
+
+
+def test_une_connexion_engluee_est_reprise_sans_rien_perdre(tmp_path, monkeypatch):
+    # La première connexion s'englue : elle est coupée, la suivante reprend.
+    contenu = bytes(range(256)) * (2 * en_bloc._LECTURE // 256 + 3)
+    lentes = [True]
+
+    def ouvrir(demande, timeout):
+        plage = demande.get_header("Range")
+        debut = int(re.fullmatch(r"bytes=(\d+)-(\d*)", plage).group(1)) if plage else 0
+        if lentes.pop() if lentes else False:
+            def copier(reponse, f, horloge=None):
+                f.write(reponse.read(en_bloc._LECTURE))
+                raise en_bloc._TropLent("englué")
+            monkeypatch.setattr(en_bloc, "_copier", copier)
+        else:
+            monkeypatch.setattr(en_bloc, "_copier", lambda reponse, f, horloge=None: f.write(reponse.read()))
+        return Reponse(contenu[debut:], 206 if plage else 200)
+    cible = tmp_path / "z.zip"
+    en_bloc.telecharger({"url": URL, "octets": len(contenu), "md5": None}, cible, ouvrir, pause=lambda s: None)
+    assert cible.read_bytes() == contenu
+
+
 def test_zabaged_se_lit_en_bloc():
     from hike2gpx import fabrication
     assert "zabaged" in fabrication.EN_BLOC

@@ -1,9 +1,9 @@
-"""La BDOT10k par powiats, pour fabriquer des cases polonaises sur le serveur.
+"""La BDOT10k par powiats, pour toute la Pologne : les cases du serveur et,
+powiat par powiat, le calque de la page (providers/bdot10k.py).
 
-Le service ArcGIS de Basse-Silésie (providers/bdot10k.py) convient à une vue ;
-une case entière en demanderait des milliers de requêtes. Le GUGiK publie la
-BDOT10k par powiat (l'équivalent d'un arrondissement), en GeoPackage, avec un
-index officiel, sur le modèle de la BD TOPO régionale (bdtopo_regions) :
+Le GUGiK publie la BDOT10k par powiat (l'équivalent d'un arrondissement), en
+GeoPackage, avec un index officiel, sur le modèle de la BD TOPO régionale
+(bdtopo_regions) :
 
 1. les powiats qui touchent une case, leur code TERYT et leur date de mise à
    jour : une requête à l'index de téléchargement du GUGiK (WFS
@@ -15,9 +15,10 @@ index officiel, sur le modèle de la BD TOPO régionale (bdtopo_regions) :
 4. les sentiers d'une emprise, lus par l'index RTree (en_bloc.lignes_gpkg),
    avec le filtre du lecteur en ligne : rodzaj « ścieżka », en service.
 
-Seule la Basse-Silésie (voïvodie 02) est lue : c'est le périmètre du
-fournisseur bdot10k_ds, le seul que lise aussi le service en ligne. Étendre
-la lecture à toute la Pologne est une question ouverte (voir la PR).
+Jusqu'au 2026-11-09, seule la Basse-Silésie (voïvodie 02) était lue, celle du
+service ArcGIS régional dont dépendait le mode en ligne. Les seize voïvodies
+le sont désormais (décision de Nico) : une case comme E15_N50 touche 233
+powiats, d'où des téléchargements parallèles (FILS).
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ import logging
 import re
 import shutil
 import sqlite3
+import threading
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -40,7 +42,8 @@ INDEX = "https://mapy.geoportal.gov.pl/wss/service/PZGIK/BDOT/WFS/PobieranieBDOT
 TELECHARGEMENT = "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/{voivodie}/{teryt}_GPKG.zip"
 MS = "{http://mapserver.gis.umn.edu/mapserver}"
 AGENT = {"User-Agent": f"hike2gpx/{__version__} (BDOT10k par powiats)"}
-VOIVODIES = ("02",)                 # Basse-Silésie : le périmètre de bdot10k_ds
+VOIVODIES = tuple(f"{v:02d}" for v in range(2, 33, 2))     # les seize, codes TERYT pairs de 02 à 32
+FILS = 6                            # powiats téléchargés en même temps (quelques dizaines de Mo chacun)
 EPSG = 2180
 TABLE, GEOMETRIE, CLE = "OT_SKRP_L", "geometria", "id"
 DOSSIER = "bdot10k-powiaty"
@@ -74,10 +77,26 @@ def _taille(url: str) -> int:
         return int(reponse.headers.get("Content-Length") or 0)
 
 
+_verrou_global = threading.Lock()
+_verrous = {}
+
+
+def _verrou(teryt: str) -> threading.Lock:
+    with _verrou_global:
+        return _verrous.setdefault(teryt, threading.Lock())
+
+
 def geopackage(dossier, powiat: dict) -> Path:
     """Les voies piétonnes du powiat à sa date de mise à jour, téléchargées une
     fois et gardées dans dossier/bdot10k-powiaty ; les versions plus anciennes
-    du powiat sont effacées."""
+    du powiat sont effacées. Un seul téléchargement à la fois par powiat :
+    deux vues de la page voisines le demandent parfois ensemble, et deux
+    téléchargements dans le même dossier de travail s'écraseraient."""
+    with _verrou(powiat["teryt"]):
+        return _geopackage(dossier, powiat)
+
+
+def _geopackage(dossier, powiat: dict) -> Path:
     racine = Path(dossier) / DOSSIER
     base = racine / f"{powiat['teryt']}_{powiat['date']}.sciezki.sqlite"
     if base.is_file():
@@ -130,14 +149,24 @@ class Lecteur:
     """Lecture des sentiers BDOT10k d'une emprise dans les GeoPackage des
     powiats, pour fabrication.fabriquer(troncons={"bdot10k_ds": ...}). Les
     powiats d'une case ne sont cherchés qu'une fois, et chaque archive n'est
-    téléchargée qu'à la première emprise qui en a besoin."""
+    téléchargée qu'à la première emprise qui en a besoin.
 
-    def __init__(self, dossier):
+    par_case faux, pour la page : les powiats de l'emprise elle-même, et non
+    de toute sa case de 5°, pour ne télécharger que ceux de la vue."""
+
+    def __init__(self, dossier, *, par_case: bool = True):
         self.dossier = dossier
-        self._powiats = {}          # case (sud, ouest) -> powiats
+        self.par_case = par_case
+        self._powiats = {}          # case (sud, ouest), ou emprise -> powiats
         self._gpkg = {}             # TERYT -> chemin
+        self._bornes = {}           # TERYT -> (xmin, ymin, xmax, ymax) en EPSG 2180, None si vide
 
     def powiats(self, sud: float, ouest: float, nord: float, est: float) -> list:
+        if not self.par_case:
+            emprise = (sud, ouest, nord, est)
+            if emprise not in self._powiats:
+                self._powiats[emprise] = powiats_de_zone(*emprise)
+            return self._powiats[emprise]
         # Le centre de l'emprise : ses bords débordent un peu sur la case voisine.
         case = ((sud + nord) / 2 // 5 * 5, (ouest + est) / 2 // 5 * 5)
         if case not in self._powiats:
@@ -155,15 +184,38 @@ class Lecteur:
         range dans son artefact, et la fusion en damier (fabrication._lecteur)
         ne s'active que si chaque lecteur de la case sait le faire. Sans elle,
         E10_N50 et E15_N50, tchèques et polonaises, repassaient maille par
-        maille."""
-        for powiat in self.powiats(sud, ouest, nord, est):
-            if powiat["teryt"] not in self._gpkg:
-                self._gpkg[powiat["teryt"]] = geopackage(self.dossier, powiat)
+        maille. Plusieurs powiats à la fois (FILS) : chacun a son dossier de
+        travail, et une case de toute la Pologne en compte jusqu'à 233."""
+        from concurrent.futures import ThreadPoolExecutor
+        manquants = [p for p in self.powiats(sud, ouest, nord, est) if p["teryt"] not in self._gpkg]
+        if manquants:
+            with ThreadPoolExecutor(min(FILS, len(manquants))) as groupe:
+                for powiat, chemin in zip(manquants, groupe.map(lambda p: geopackage(self.dossier, p), manquants)):
+                    self._gpkg[powiat["teryt"]] = chemin
+
+    def _emprise(self, teryt: str):
+        """L'emprise des voies du powiat en EPSG 2180, lue une fois à la racine
+        de son index RTree ; None si le powiat n'a aucune voie."""
+        if teryt not in self._bornes:
+            with closing(sqlite3.connect(f"file:{Path(self._gpkg[teryt]).resolve().as_posix()}?mode=ro",
+                                         uri=True)) as base:
+                xmin, xmax, ymin, ymax = base.execute(
+                    f'SELECT MIN(minx), MAX(maxx), MIN(miny), MAX(maxy) FROM "rtree_{TABLE}_{GEOMETRIE}"').fetchone()
+            self._bornes[teryt] = None if xmin is None else (xmin, ymin, xmax, ymax)
+        return self._bornes[teryt]
 
     def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
+        from rasterio.warp import transform_bounds
         vus, resultat = set(), []
         self.preparer(sud, ouest, nord, est)
+        # L'emprise en EPSG 2180, un peu élargie : seuls les powiats qu'elle
+        # touche sont lus, et non les 233 d'une case à chaque maille.
+        x0, y0, x1, y1 = transform_bounds("EPSG:4326", f"EPSG:{EPSG}", ouest, sud, est, nord)
+        x0, y0, x1, y1 = x0 - 100, y0 - 100, x1 + 100, y1 + 100
         for powiat in self.powiats(sud, ouest, nord, est):
+            bornes = self._emprise(powiat["teryt"])
+            if bornes is None or bornes[0] > x1 or bornes[2] < x0 or bornes[1] > y1 or bornes[3] < y0:
+                continue
             # Une voie qui passe la limite de deux powiats peut être dans les deux.
             for (lokalny,), k, pts in en_bloc.lignes_gpkg(self._gpkg[powiat["teryt"]], TABLE, ("LOKALNYID",), EPSG,
                                                            sud, ouest, nord, est, geometrie=GEOMETRIE, cle=CLE,

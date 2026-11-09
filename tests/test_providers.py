@@ -1,8 +1,14 @@
 """Contrat des sources officielles et filtrage des voies réellement routables."""
+import dataclasses
+
 import pytest
 
 from hike2gpx import application, providers
 from hike2gpx.franchissements import ErreurDonnees
+
+# Une source régionale, pour le mécanisme de borne : la BDOT10k bornée à la
+# Basse-Silésie, comme elle l'était jusqu'au 2026-11-09.
+BASSE_SILESIE = (50.0, 14.7, 51.85, 17.85)
 
 
 def test_registre_separe_pays_calque_et_source():
@@ -10,9 +16,27 @@ def test_registre_separe_pays_calque_et_source():
     assert len({p.calque for p in providers.SOURCES.values()}) == len(providers.SOURCES)
     with pytest.raises(ValueError):
         providers.source("inconnue")
-    regional = providers.source("bdot10k_ds")
+    assert providers.source("bdot10k_ds").disponible((52, 16, 52.1, 16.1)), "toute la Pologne"
+    regional = dataclasses.replace(providers.source("bdot10k_ds"), borne=BASSE_SILESIE)
     assert regional.disponible((50.7, 15.5, 50.8, 15.6))
     assert not regional.disponible((52, 16, 52.1, 16.1))
+
+
+def test_le_dossier_et_la_version_du_cache(tmp_path):
+    appels = []
+    module = providers.TuilesOfficielles("essai", lambda *zone: appels.append(zone) or [], avec_dossier=True,
+                                         version=2)
+    module.charger_tuile(1000, 300, tmp_path)
+    assert appels[0][-1] == tmp_path, "le dossier des données en dernier"
+    assert (tmp_path / "essai" / "v2_1000_300.json").is_file()
+
+
+def test_la_page_ne_demande_que_les_powiats_de_sa_tuile(tmp_path, monkeypatch):
+    from hike2gpx import bdot10k_powiaty
+    demandes = []
+    monkeypatch.setattr(bdot10k_powiaty, "powiats_de_zone", lambda *zone: demandes.append(zone) or [])
+    assert providers.bdot10k.lire(52.0, 16.0, 52.05, 16.05, tmp_path) == []
+    assert demandes == [(52.0, 16.0, 52.05, 16.05)], "la tuile, et non sa case de 5°"
 
 
 def test_arcgis_garde_les_identifiants_et_filtre_les_objets(monkeypatch):
@@ -26,7 +50,9 @@ def test_arcgis_garde_les_identifiants_et_filtre_les_objets(monkeypatch):
              "geometry": {"paths": [[[15.5, 50.7], [15.6, 50.8]]]}},
         ]}
     monkeypatch.setattr(providers.core, "_json", lire)
-    [troncon] = providers.bdot10k.lire(50.7, 15.5, 50.8, 15.6)
+    url = "https://geoportal.dolnyslask.pl/gisserver1/rest/services/BDOT10k/FeatureServer/18"
+    [troncon] = providers.core._arcgis(((url, "ścieżka"),), (50.7, 15.5, 50.8, 15.6),
+                                       lambda a: a.get("rodzaj") == "ścieżka")
     assert troncon["id"] == "18:7:0" and troncon["pts"] == [[50.7, 15.5], [50.8, 15.6]]
     assert "resultOffset=0" in vu[0] and "geometry=15.5%2C50.7%2C15.6%2C50.8" in vu[0]
 
@@ -61,7 +87,9 @@ def test_cache_de_tuiles_partage_calque_et_brouter(tmp_path):
         module.charger_tuile(1001, 300, tmp_path, en_ligne=False)
 
 
-def test_calcul_refuse_la_source_regionale_hors_zone(tmp_path):
+def test_calcul_refuse_la_source_regionale_hors_zone(tmp_path, monkeypatch):
+    monkeypatch.setitem(providers.SOURCES, "bdot10k_ds",
+                        dataclasses.replace(providers.SOURCES["bdot10k_ds"], borne=BASSE_SILESIE))
     resultat = application.Application(tmp_path).itineraire({
         "points": [[52.0, 16.0], [52.01, 16.01]], "source": "bdot10k_ds", "ign": True})
     assert resultat["code"] == "source_hors_zone"
