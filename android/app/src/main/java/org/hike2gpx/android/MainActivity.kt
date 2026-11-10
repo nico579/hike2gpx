@@ -1319,18 +1319,27 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(10), dp(20), dp(20))
             background = GradientDrawable().apply {
-                setColor(0xfffafafa.toInt())
+                // Le panneau laisse voir la carte derrière, comme une feuille
+                // posée sur l'écran.
+                setColor(0xccfafafa.toInt())
                 cornerRadii = floatArrayOf(
                     dp(20).toFloat(), dp(20).toFloat(),
                     dp(20).toFloat(), dp(20).toFloat(),
                     0f, 0f, 0f, 0f)
             }
         }
-        colonne.addView(View(this).apply { setBackgroundColor(0xffcfd8dc.toInt()) },
+        // La poignée du haut : on la glisse vers le bas pour refermer le panneau.
+        val poignee = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            isClickable = true
+        }
+        poignee.addView(View(this).apply { setBackgroundColor(0xffcfd8dc.toInt()) },
             LinearLayout.LayoutParams(dp(40), dp(4)).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(10)
                 bottomMargin = dp(10)
             })
+        colonne.addView(poignee, LinearLayout.LayoutParams(-1, dp(24)))
         colonne.addView(TextView(this).apply {
             setText(R.string.menu_titre)
             textSize = 18f
@@ -1389,6 +1398,35 @@ class MainActivity : Activity() {
             setGravity(Gravity.BOTTOM)
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             setDimAmount(0.35f)
+        }
+
+        // Glisser la poignée vers le bas referme le panneau ; un petit
+        // mouvement le laisse revenir en place.
+        val seuil = dp(96).toFloat()
+        var depart = 0f
+        var glisse = 0f
+        poignee.setOnTouchListener { _, evenement ->
+            when (evenement.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    depart = evenement.rawY
+                    glisse = 0f
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    glisse = (evenement.rawY - depart).coerceAtLeast(0f)
+                    dialogue.window?.decorView?.translationY = glisse
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (glisse > seuil)
+                        dialogue.dismiss()
+                    else
+                        dialogue.window?.decorView?.animate()
+                            ?.translationY(0f)?.setDuration(150)?.start()
+                    true
+                }
+                else -> false
+            }
         }
     }
 

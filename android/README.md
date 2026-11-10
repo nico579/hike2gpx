@@ -7,18 +7,20 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 ## Ce qu'elle fait
 
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. Un
-bouton à trois traits, en bas à gauche, ouvre le menu de Locus Map :
-« Recherche », « Ma bibliothèque », « Cartes », « Itinéraires », « Enregistrer
-un parcours », « Planifier un itinéraire », « Réglages » et « Aide ». La carte
-reste seule tant qu'on n'a pas choisi un mode ; « Aide » ouvre ce mode d'emploi
-sur GitHub. En planification, on touche la carte pour poser le départ, puis l'arrivée
-et d'éventuelles étapes ; « Retirer » retire le dernier point, « Effacer » les
-retire tous, et « Revenir » ajoute le départ en fin de parcours pour fermer une
-boucle. Dès qu'il y a deux points, l'itinéraire se calcule hors ligne et
-s'affiche. Un bouton rond rouge au carré, comme celui de la trace, arrête la
-planification et propose d'enregistrer le parcours en GPX ; un second choix de
-« Planifier un itinéraire » le fait aussi. Les doigts verts des points
-disparaissent alors : seule la trace GPX reste sur la carte, sans être effacée.
+bouton à trois traits, en bas à gauche, ouvre le menu : « Recherche », « Ma
+bibliothèque », « Gestion des cartes », « Gestion des itinéraires »,
+« Enregistrer un parcours », « Planifier un itinéraire », « Réglages » et
+« Aide ». La carte reste seule tant qu'on n'a pas choisi un mode ; « Aide »
+ouvre ce mode d'emploi sur GitHub. Le panneau laisse voir la carte derrière, et
+sa poignée du haut se glisse vers le bas pour le refermer. En planification, on
+touche la carte pour poser le départ, puis l'arrivée et d'éventuelles étapes ; « Retirer » retire le
+dernier point, « Effacer » les retire tous, et « Revenir » ajoute le départ en
+fin de parcours pour fermer une boucle. Dès qu'il y a deux points, l'itinéraire
+se calcule hors ligne et s'affiche. Un bouton rond rouge au carré, comme celui
+de la trace, arrête la planification et propose d'enregistrer le parcours en
+GPX ; un second choix de « Planifier un itinéraire » le fait aussi. Les doigts
+verts des points disparaissent alors : seule la trace GPX reste sur la carte,
+sans être effacée.
 
 Le menu « Recherche » ouvre le champ de la page : il recentre la carte sur
 une ville ou sur des coordonnées « lat, lon », sans poser de point. Les
@@ -34,8 +36,8 @@ Les calques du lot s'affichent sur la carte, comme ceux de la page : les
 chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
 qui gênent un piéton et les franchissements bloquants (rouge) ou à vérifier
 (orange), et les chemins de chaque fournisseur national retenu par le lot
-(BD TOPO en France, turquoise), chacun avec sa coche dans la page « Cartes »
-(« Chemin IGN BD TOPO », « Chemin ATKIS »…). Ils n'apparaissent qu'à
+(BD TOPO en France, turquoise), chacun avec sa coche dans la page « Gestion des
+cartes » (« Chemin IGN BD TOPO », « Chemin ATKIS »…). Ils n'apparaissent qu'à
 partir du zoom 14, celui des tuiles vectorielles du lot : en dessous, mieux
 vaut ne rien montrer qu'un réseau tronqué. La page rappelle le zoom
 courant ; une coche sous ce zoom, ou une vue sans chemin de calque, le dit
@@ -44,14 +46,13 @@ plutôt que de laisser croire que la case ne marche pas. Les calques sont lus da
 un lot ancien qui n'a pas ce fichier n'affiche simplement rien.
 
 Sous la distance, l'itinéraire donne aussi le dénivelé et la durée de marche,
-calculés comme sur le PC par le protocole de gpx2elev : altitude échantillonnée
-tous les 5 m, lissage gaussien de 20 m, D+/D− avec une hystérésis de 2 m, puis
-modèle de Tobler tous les 20 m. Les sources suivent l'ordre de gpx2elev : avec
-le réseau, le MNT IGN LiDAR HD de la Géoplateforme d'abord ; s'il ne couvre pas
-tout le parcours (hors de France, en mer), ou sans réseau, Mapterhorn (tuiles
-Terrarium du zoom 12), que le téléphone rapatrie à la demande dans
-`gpx2elev/tiles` ; une tuile déjà là sert aux parcours suivants. Le PC lit
-Mapterhorn au zoom 13 : l'écart mesuré sur le D+ reste sous 1 %.
+calculés sur un modèle de terrain : altitude échantillonnée tous les 5 m,
+lissage gaussien de 20 m, D+/D− avec une hystérésis de 2 m, puis modèle de
+Tobler tous les 20 m. Avec le réseau, le MNT IGN LiDAR HD de la Géoplateforme
+passe d'abord ; s'il ne couvre pas tout le parcours (hors de France, en mer),
+ou sans réseau, Mapterhorn (tuiles Terrarium du zoom 12) est rapatrié à la
+demande et gardé en cache ; une tuile déjà là sert aux parcours suivants. Le
+PC lit Mapterhorn au zoom 13 : l'écart mesuré sur le D+ reste sous 1 %.
 Le calcul du relief est séparé de celui de l'itinéraire : le tracé s'affiche
 d'abord, le dénivelé arrive ensuite. Sans relief disponible, la ligne le dit et
 la valeur BRouter ne le remplace pas, comme sur le PC. Les bandeaux de
@@ -65,7 +66,7 @@ courbe montre le point du tracé correspondant : un trait vertical, la distance
 et l'altitude sous le doigt, et un disque bleu cerclé de blanc sur la carte.
 Lever le doigt efface les deux.
 
-Un double tap sur la carte, comme sur Locus Map, masque les deux bandeaux et
+Un double tap sur la carte masque les deux bandeaux et
 laisse la carte seule ; un second double tap les ramène. L'échelle et
 l'attribution OSM restent visibles : elles font partie de la carte.
 
@@ -75,18 +76,19 @@ recentre la carte sur le GPS, avec le point bleu et son halo de précision. Le
 démarrage d'une trace passe par « Enregistrer un parcours » : pendant
 l'enregistrement, un bouton rond rouge apparaît en bas à droite pour arrêter
 (carré) sans rouvrir le menu, et le GPX est rangé dans
-`traces/`, avec l'heure et l'altitude de chaque point. La page « Itinéraires »
-suit ceux de Locus : distance minimale entre deux points (10 m), durée minimale
-(10 s) et déviation GPS maximale (100 m). Un point n'est retenu que si le GPS
-est plus précis que la déviation, et si la distance et la durée depuis le point
-précédent sont toutes deux atteintes ; le premier point n'a que la précision à
-respecter. Un changement de réglage s'applique au point suivant, même pendant
-un enregistrement. La localisation n'est demandée qu'au premier appui sur le
-bouton de position ou au démarrage d'une trace, jamais au lancement. La trace
-enregistrée s'affiche en orange, au-dessus de l'itinéraire bleu.
+`traces/`, avec l'heure et l'altitude de chaque point. La page « Gestion des
+itinéraires » règle l'enregistrement : distance minimale entre deux points
+(10 m), durée minimale (10 s) et déviation GPS maximale (100 m). Un point n'est
+retenu que si le GPS est plus précis que la déviation, et si la distance et la
+durée depuis le point précédent sont toutes deux atteintes ; le premier point
+n'a que la précision à respecter. Un changement de réglage s'applique au point
+suivant, même pendant un enregistrement. La localisation n'est demandée qu'au
+premier appui sur le bouton de position ou au démarrage d'une trace, jamais au
+lancement. La trace enregistrée s'affiche en orange, au-dessus de l'itinéraire
+bleu.
 
 La trace continue écran éteint, téléphone en poche ou application fermée : un
-service de premier plan (`ServiceTrace`, type `location`) tient le GPS, avec
+service de premier plan (type `location`) tient le GPS, avec
 une notification « Trace GPS en cours » qui rouvre l'application. Sans lui,
 Android ne donne plus que quelques positions par heure à une application en
 arrière-plan. Chaque point retenu est aussi écrit aussitôt dans
@@ -97,15 +99,15 @@ premier enregistrement demande aussi d'autoriser les notifications ; un refus
 cache la notification sans arrêter la trace.
 
 Pendant l'enregistrement, le bandeau donne la distance, la durée et le dénivelé
-D+/D− calculé comme gpx2elev. Le calcul ne lit que le cache `gpx2elev/tiles` :
-en randonnée, le téléphone n'a pas de réseau. Si le cache ne couvre pas encore
-le parcours, le dénivelé reste absent du bandeau, sans arrêter la trace. À
-l'export, le GPX est relu et les altitudes sont remplacées par celles de
-gpx2elev : IGN LiDAR HD si le réseau est là et qu'il couvre la trace, sinon
-Mapterhorn, son cache d'abord, puis le réseau s'il le faut ; sans relief
+D+/D− calculé sur le modèle de terrain. Le calcul ne lit que le cache de
+relief : en randonnée, le téléphone n'a pas de réseau. Si le cache ne couvre pas
+encore le parcours, le dénivelé reste absent du bandeau, sans arrêter la trace.
+À l'export, le GPX est relu et les altitudes sont remplacées par celles du
+modèle de terrain : IGN LiDAR HD si le réseau est là et qu'il couvre la trace,
+sinon Mapterhorn, son cache d'abord, puis le réseau s'il le faut ; sans relief
 complet, le fichier part tel qu'il a été enregistré. Le D+ du bandeau, lu
 hors ligne sur Mapterhorn, peut donc différer de quelques mètres de celui de
-l'export. La description du GPX porte alors « D+ … m / D− … m (gpx2elev) ».
+l'export. La description du GPX porte alors le D+ et le D− du relief.
 
 « Ma bibliothèque », dans le menu, liste l'historique des traces : chaque
 fichier de `traces/` affiche sa date et sa taille réelle, avec un bouton
@@ -113,80 +115,62 @@ fichier de `traces/` affiche sa date et sa taille réelle, avec un bouton
 « Supprimer la sélection » effacent plusieurs traces d'un coup, après
 confirmation. « Vider le cache » ne touche pas à cet historique.
 
-Les lots du serveur se téléchargent d'eux-mêmes, comme sur le PC
-(`application._lot_automatique`) : l'application lit les catalogues à son
-lancement, et quand un parcours touche une case dont le lot manque, ou dont le
-dépôt a une édition plus récente, ce lot part aussitôt. Afficher un calque du
-lot au zoom 14 compte aussi comme un usage de la région : le lot de la case du
+Les lots du serveur se téléchargent d'eux-mêmes : l'application lit les
+catalogues à son lancement, et quand un parcours touche une case dont le lot
+manque, ou dont le dépôt a une édition plus récente, ce lot part aussitôt.
+Afficher un calque du lot au zoom 14 compte aussi comme un usage de la région : le lot de la case du
 centre se télécharge de lui-même. Sur le Wi-Fi, sans rien demander ; sur un
 réseau facturé (données mobiles), après confirmation. Un échec ou un refus
 n'est pas repris avant une heure, et un lot supprimé à la main ne revient pas
-de la séance. Les lots et les fonds installés affichent leur taille réelle
-(« 254 kB » pour un petit lot d'essai, jamais un « 0 Mo » trompeur).
+de la séance. Les lots et les fonds installés affichent leur taille réelle,
+jamais un « 0 Mo » trompeur.
 
-La page « Cartes », dans le menu, réunit tout ce qui touche au fond et aux
-calques, sorti des réglages. On y choisit le fond : OpenStreetMap ou
+La page « Gestion des cartes », dans le menu, réunit tout ce qui touche au fond
+et aux calques, sorti des réglages. On y choisit le fond : OpenStreetMap ou
 OpenTopoMap en ligne, ou un fond hors ligne reçu d'un PC (le SCAN 25 ou le Plan
-IGN qu'il a fabriqués, `hike2gpx/fonds.py`). Les fonds qu'un PC partage et qui
-manquent au téléphone y sont proposés, avec leur taille et un bouton de
-téléchargement ; le QR code du PC (« Partager au téléphone » dans ses réglages)
-l'ajoute, sur le même Wi-Fi, ou son lien se colle. Chaque fond installé
-s'affiche avec sa taille et « Supprimer », après confirmation ; s'il était
-affiché, la carte revient en ligne. Les calques OSM et ceux de chaque
-fournisseur national (IGN BD TOPO…) ont là leur coche. Un fond est un MBTiles
-rangé sous `hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une même source
-s'affichent ensemble, et osmdroid agrandit au-delà de leur zoom le plus fin. Le
-bandeau de planification ne garde que « Retirer », « Effacer » et « Revenir ».
+IGN qu'il a fabriqués). Les fonds qu'un PC partage et qui manquent au téléphone
+y sont proposés, avec leur taille et un bouton de téléchargement ; le QR code du
+PC (« Partager au téléphone » dans ses réglages) l'ajoute, sur le même Wi-Fi, ou
+son lien se colle. Chaque fond installé s'affiche avec sa taille et
+« Supprimer », après confirmation ; s'il était affiché, la carte revient en
+ligne. Les calques OSM et ceux de chaque fournisseur national (IGN BD TOPO…) ont
+là leur coche. Un fond est un MBTiles rangé sous `hors-ligne/fonds/`, comme sur
+le PC ; tous ceux d'une même source s'affichent ensemble, et la carte agrandit
+au-delà de leur zoom le plus fin. Le bandeau de planification ne garde que
+« Retirer », « Effacer » et « Revenir ».
 
-La page « Itinéraires », dans le menu, réunit le calcul et l'enregistrement,
-sortis des réglages. On y coche « Prendre en compte les blocages à vérifier » et
-les chemins officiels, nommés d'après les lots installés (« Utiliser les
-chemins IGN BD TOPO », « ATKIS »…). Les zones de routage présentes sur le
-téléphone s'y listent avec leur taille, « Mettre à jour » quand le serveur en a
-une plus récente et « Supprimer » après confirmation. « Télécharger les zones de
-routage depuis le PC » propose celles que seul un PC calcule, avec « Scanner le
-QR code d'un PC » ; un lot est pris au premier PC qui le sert, et un PC éteint ne
-bloque rien. Le volet « Enregistrement de trace GPS » y règle la distance
-minimale, la durée minimale et la déviation GPS maximale. Les réglages ne
-gardent que l'affichage, le cache et la mise à jour ; « Vider le cache » efface
-comme sur le PC les lots, les fonds, les téléchargements interrompus, les tuiles
-en ligne gardées et les tuiles de relief gpx2elev ; les lots du serveur
-reviennent d'eux-mêmes.
+La page « Gestion des itinéraires », dans le menu, réunit le calcul et
+l'enregistrement, sortis des réglages. On y coche « Prendre en compte les
+blocages à vérifier » et les chemins officiels, nommés d'après les lots
+installés (« Utiliser les chemins IGN BD TOPO », « ATKIS »…). Les zones de
+routage présentes sur le téléphone s'y listent avec leur taille, « Mettre à
+jour » quand le serveur en a une plus récente et « Supprimer » après
+confirmation. « Télécharger les zones de routage depuis le PC » propose celles
+que seul un PC calcule, avec « Scanner le QR code d'un PC » ; un lot est pris au
+premier PC qui le sert, et un PC éteint ne bloque rien. Le volet « Enregistrement
+de trace GPS » y règle la distance minimale, la durée minimale et la déviation
+GPS maximale. Les réglages ne gardent que l'affichage, le cache et la mise à
+jour ; « Vider le cache » efface comme sur le PC les lots, les fonds, les
+téléchargements interrompus, les tuiles en ligne gardées et les tuiles de
+relief ; les lots du serveur reviennent d'eux-mêmes.
 
-L'application parle anglais ou français selon la langue du téléphone, comme
-watch2notif : l'anglais dans `res/values`, la langue par défaut, le français
-dans `res/values-fr`. Les erreurs du code métier portent la ressource de leur
-texte (`ErreurTexte`) et l'écran les traduit ; `tests/test_android.py` vérifie
-que les deux langues ont les mêmes phrases et les mêmes arguments.
-
-L'APK de débogage s'installe à côté de la version publiée, sous l'identifiant
-`org.hike2gpx.android.debug` et le nom « hike2gpx (essai) » : sa clé diffère,
-il ne pourrait pas la remplacer, et l'essayer n'efface rien.
+L'application parle anglais ou français selon la langue du téléphone. Les deux
+versions portent les mêmes textes et les mêmes arguments.
 
 ## Mise à jour
 
-L'application se met à jour depuis les releases GitHub, comme gpxelev et
-blink2temp (`MiseAJour.kt`, d'après leur `ReleaseUpdates.kt`). Au lancement,
-sans bruit, et à la demande dans les réglages (« Vérifier les mises à jour »),
-elle lit `releases/latest` ; une version plus récente se propose. L'APK
-`hike2gpx-android.apk` ne se télécharge que depuis GitHub en HTTPS, contrôlé
-par sa taille et son SHA-256 (le champ `digest` de l'API, sinon le fichier
-`.sha256` publié à côté), puis par son paquet, sa version et sa signature, qui
-doit être celle de l'application installée. Il passe alors à l'installateur
-d'Android par un `FileProvider` (`FournisseurMaj`, qui ne partage que
-`cache/maj`). La première fois, Android demande d'autoriser hike2gpx à
-installer des applications ; la mise à jour reprend au retour. Lots, fonds et
-réglages sont gardés. L'APK d'essai ne se compare pas aux releases au
-lancement : ce n'est pas le même paquet. Il a donc son propre stockage : les
-lots et les fonds téléchargés dans l'application normale ne s'y voient pas, il
-faut les y télécharger ou les recevoir d'un PC.
+L'application se met à jour depuis les releases GitHub. Au lancement, et à la
+demande dans les réglages (« Vérifier les mises à jour »), elle cherche une
+version plus récente et la propose. L'APK est téléchargé en HTTPS, vérifié par
+sa taille, son empreinte SHA-256, son paquet, sa version et sa signature, puis
+confié à l'installateur d'Android. La première fois, Android demande
+l'autorisation d'installer des applications ; la mise à jour reprend au retour.
+Les lots, les fonds et les réglages sont conservés.
 
-Le catalogue des lots (`catalog.json`) a le format de `hike2gpx/depot.py`.
-Un lot se télécharge fichier par fichier ; une
-coupure reprend là où elle s'est arrêtée (en-tête `Range`), et chaque fichier
-est contrôlé par son SHA-256, puis tout le lot une seconde fois contre son
-manifeste à l'installation, comme `HorsLigne.installer` sur le PC. Les
-fichiers sont rangés comme sur le PC :
+Le catalogue des lots décrit chaque fichier avec sa taille et son empreinte
+SHA-256. Un lot se télécharge fichier par fichier ; une coupure reprend là où
+elle s'est arrêtée, et chaque fichier est contrôlé, puis le lot entier une
+seconde fois à l'installation. Les fichiers sont rangés ainsi :
 
 ```text
 hors-ligne/segments/E5_N40.rd5          RD5 des lots enrichis
@@ -194,20 +178,17 @@ hors-ligne/segments-osm/E5_N40.rd5      RD5 officielles des lots OSM
 hors-ligne/E5_N40/manifest.json, franchissements.json.gz, calques.mbtiles
 ```
 
-Les tuiles de relief vont dans `gpx2elev/tiles/`, à la racine des fichiers de
+Les tuiles de relief sont gardées en cache, à la racine des fichiers de
 l'application, sous le même nom que sur le PC (`mapterhorn_12_x_y.webp`) : un
 cache recopié d'un PC sert tel quel.
 
-Le calcul suit la règle du PC : un parcours dont la zone tient dans un lot se
-calcule sur ce lot seul. Les franchissements de la zone deviennent des coupes
-`polylines` de BRouter (interdites ou pondérées, les interdites en dernier),
-la zone s'élargit si le tracé en sort, et un dernier contrôle refuse un tracé
-qui passerait encore une coupe interdite. Le tracé s'exporte en GPX.
+Le calcul suit la même règle que la page du PC : un parcours dont la zone tient
+dans un lot se calcule sur ce lot seul. Les franchissements de la zone
+deviennent des coupes dans BRouter (interdites ou pondérées), la zone s'élargit
+si le tracé en sort, et un dernier contrôle refuse un tracé qui passerait encore
+une coupe interdite. Le tracé s'exporte en GPX.
 
-BRouter 1.7.10 est un sous-module épinglé, compilé dans l'APK. Ses profils
-(table de tags et `hike2gpx.brf`, standard et « maison ») sont dans
-`app/src/main/assets/brouter`, écrits par `tools/profils_android.py` avec les
-fonctions mêmes du PC ; `tests/test_android.py` vérifie qu'ils n'ont pas dérivé.
+BRouter 1.7.10 est compilé dans l'APK, avec ses profils de randonnée.
 
 ## Un PC pour les fonds et les lots
 
@@ -219,13 +200,12 @@ lien peut aussi se coller à la main. Toutes les requêtes vers ce PC portent
 `Authorization: Bearer <jeton>`, et seulement vers l'origine de son catalogue.
 Le HTTP simple n'est accepté que vers le réseau local.
 
-Les lots du serveur se lisent sur GitHub au lancement (décision du
-2026-11-04) et se téléchargent d'eux-mêmes. Un PC sert au téléphone ses fonds
-de carte et les lots de routage qu'il a calculés : son catalogue ne se lit
-qu'à la demande, sur les pages Cartes et Itinéraires ou quand on ajoute le PC,
-si bien qu'un PC éteint ne retarde jamais le lancement. Les lots d'un PC ne
-sont proposés que s'ils manquent au téléphone et au catalogue GitHub, qui les
-publie déjà.
+Les lots du serveur se lisent sur GitHub au lancement et se téléchargent
+d'eux-mêmes. Un PC sert au téléphone ses fonds de carte et les lots de routage
+qu'il a calculés : son catalogue ne se lit qu'à la demande, sur les pages
+Cartes et Itinéraires ou quand on ajoute le PC, si bien qu'un PC éteint ne
+retarde jamais le lancement. Les lots d'un PC ne sont proposés que s'ils
+manquent au téléphone et au catalogue GitHub, qui les publie déjà.
 
 ## Construire
 
@@ -234,13 +214,6 @@ git submodule update --init android/brouter
 powershell -File android/build-local.ps1
 ```
 
-Le script lance les tests unitaires (JVM) puis construit l'APK de débogage,
-sous `android/app/build/outputs/apk/debug/`, avec le JDK et le SDK d'Android
-Studio. Le workflow `.github/workflows/android.yml` fait de même à chaque
-demande de fusion qui touche `android/` et garde l'APK en artefact.
-
-Deux essais demandent des données hors du dépôt et ne tournent que si leur
-variable d'environnement est définie : `HIKE2GPX_SEGMENTS_OSM` (un dossier qui
-contient `E5_N40.rd5`) pour BRouter seul, et `HIKE2GPX_ESSAI_GITHUB` (un
-dossier de travail) pour le parcours complet : catalogue GitHub, lot E5_N40
-interrompu puis repris, installation, itinéraire.
+Le script lance les tests unitaires puis construit l'APK, avec le JDK et le SDK
+d'Android Studio. Le workflow GitHub fait de même à chaque demande de fusion
+qui touche `android/`.

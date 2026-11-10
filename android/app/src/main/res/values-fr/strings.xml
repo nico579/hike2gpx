@@ -16,8 +16,8 @@
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Recherche</string>
     <string name="menu_bibliotheque">Ma bibliothèque</string>
-    <string name="menu_cartes">Cartes</string>
-    <string name="menu_itineraires">Itinéraires</string>
+    <string name="menu_cartes">Gestion des cartes</string>
+    <string name="menu_itineraires">Gestion des itinéraires</string>
     <string name="menu_aide">Aide</string>
     <string name="menu_enregistrer">Enregistrer un parcours</string>
     <string name="menu_arreter">Arrêter l’enregistrement</string>

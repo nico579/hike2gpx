@@ -18,8 +18,8 @@
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Search</string>
     <string name="menu_bibliotheque">My library</string>
-    <string name="menu_cartes">Maps</string>
-    <string name="menu_itineraires">Routes</string>
+    <string name="menu_cartes">Map management</string>
+    <string name="menu_itineraires">Route management</string>
     <string name="menu_aide">Help</string>
     <string name="menu_enregistrer">Record a track</string>
     <string name="menu_arreter">Stop recording</string>
