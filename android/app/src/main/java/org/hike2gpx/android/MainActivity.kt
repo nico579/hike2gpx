@@ -173,6 +173,11 @@ class MainActivity : Activity() {
     /** Un cochage attend la lecture en cours pour dire si la vue a des chemins. */
     private var calqueCoche = false
     private val planificateur = Handler(Looper.getMainLooper())
+    /** Le pays du centre de la carte commande le fond national, comme la page. */
+    private lateinit var pays: Pays
+    private var paysAffiche = Pays.AUTRE
+    private val minuteurPays = Handler(Looper.getMainLooper())
+    private val verifierPays = Runnable { majPays() }
     /** Un calcul de relief plus récent remplace celui qui tourne encore. */
     private var sequenceDenivele = 0
 
@@ -184,12 +189,14 @@ class MainActivity : Activity() {
         reglages = Reglages(this)
         horsLigne = HorsLigne(filesDir)
         fonds = Fonds(horsLigne.racine)
+        pays = Pays(assets)
         routeur = Routeur(Reglages.profils(this))
         calques = Calques(horsLigne)
         relief = Mapterhorn(filesDir)
         reliefTrace = Mapterhorn(filesDir, reseau = false)
         construire()
-        appliquerFond(reglages.fond)
+        paysAffiche = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
+        appliquerFond(reglages.fondDe(paysAffiche) ?: CartesEnLigne.defaut(paysAffiche))
         lireLien(intent)
         actualiser()
         verifierMajAuLancement()
@@ -241,11 +248,11 @@ class MainActivity : Activity() {
             })
             addMapListener(object : MapListener {
                 override fun onScroll(event: ScrollEvent): Boolean {
-                    planifierCalques(); return false
+                    planifierCalques(); planifierPays(); return false
                 }
 
                 override fun onZoom(event: ZoomEvent): Boolean {
-                    planifierCalques(); return false
+                    planifierCalques(); planifierPays(); return false
                 }
             })
         }
@@ -995,8 +1002,8 @@ class MainActivity : Activity() {
                 setOnClickListener { action() }
             })
         }
-        for (carte in CartesEnLigne.disponibles(reglages.cleIgn))
-            fondChoisi(carte.cle, getString(carte.libelle)) { appliquerFond(carte.cle) }
+        for (carte in CartesEnLigne.disponibles(paysAffiche, reglages.cleIgn))
+            fondChoisi(carte.cle, getString(carte.libelle)) { choisirFond(carte.cle) }
         for ((source, fichiers) in fonds.parSource()) {
             fondChoisi(source, getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
                 Formatter.formatShortFileSize(this, fichiers.sumOf { it.length() }))) {
@@ -1092,7 +1099,8 @@ class MainActivity : Activity() {
             .setPositiveButton(R.string.supprimer) { _, _ ->
                 val source = Fonds.source(f.nameWithoutExtension)
                 f.delete()
-                if (reglages.fond == source && fonds.parSource()[source] == null) appliquerFond("osm")
+                if (reglages.fond == source && fonds.parSource()[source] == null)
+                    appliquerFond(CartesEnLigne.defaut(paysAffiche))
                 remplirCartes()
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -1284,7 +1292,7 @@ class MainActivity : Activity() {
     private fun appliquerFond(cle: String) {
         val fichiers = fonds.parSource()[cle]
         val enLigne = CartesEnLigne.parCle(cle)
-        val servi = enLigne != null && (!enLigne.cleRequise || reglages.cleIgn.isNotBlank())
+        val servi = CartesEnLigne.disponible(cle, paysAffiche, reglages.cleIgn)
         when {
             fichiers != null -> {
                 val minimum = zoomMin(fichiers)
@@ -1294,20 +1302,55 @@ class MainActivity : Activity() {
                 carte.setMinZoomLevel(minimum.toDouble())
                 if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum.toDouble())
             }
-            servi -> {
-                val carteEnLigne = enLigne!!
+            servi && enLigne != null -> {
                 carte.setTileProvider(MapTileProviderBasic(applicationContext))
-                carte.setTileSource(CartesEnLigne.tuile(carteEnLigne, reglages.cleIgn))
+                carte.setTileSource(CartesEnLigne.tuile(enLigne, reglages.cleIgn))
                 carte.setMinZoomLevel(null)         // le zoom le plus bas de la source en ligne
             }
             else -> {
+                // La carte d'un autre pays n'a rien à faire ici : celle du pays
+                // affiché prend sa place, comme le fond par défaut de la page.
+                val defaut = CartesEnLigne.defaut(paysAffiche)
+                if (defaut != cle && CartesEnLigne.disponible(defaut, paysAffiche, reglages.cleIgn)) {
+                    appliquerFond(defaut)
+                    return
+                }
                 carte.setTileProvider(MapTileProviderBasic(applicationContext))
                 carte.setTileSource(TileSourceFactory.MAPNIK)
                 carte.setMinZoomLevel(null)
             }
         }
-        reglages.fond = if (fichiers != null || servi) cle else "osm"
+        reglages.fond = if (fichiers != null || (servi && enLigne != null)) cle else "osm"
         carte.invalidate()
+    }
+
+    /**
+     * Le fond choisi à la main vaut pour le pays affiché, comme la page : en
+     * revenant dans ce pays, la carte le reprend plutôt que son fond national.
+     */
+    private fun choisirFond(cle: String) {
+        appliquerFond(cle)
+        if (reglages.fond == cle) reglages.retenirFond(paysAffiche, cle)
+    }
+
+    /** Le pays se lit après un temps de repos, comme la page (600 ms). */
+    private fun planifierPays() {
+        minuteurPays.removeCallbacks(verifierPays)
+        minuteurPays.postDelayed(verifierPays, 600)
+    }
+
+    /**
+     * Le centre de la carte commande la carte nationale : en Suisse, la carte
+     * swisstopo remplace le Plan IGN, comme sur la page. Un fond hors ligne
+     * reste, et un fond déjà choisi pour ce pays reprend sa place.
+     */
+    private fun majPays() {
+        val nouveau = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
+        if (nouveau == paysAffiche) return
+        paysAffiche = nouveau
+        if (fonds.parSource()[reglages.fond] == null)
+            appliquerFond(reglages.fondDe(nouveau) ?: CartesEnLigne.defaut(nouveau))
+        if (fenetreCartes != null) remplirCartes()
     }
 
     // ------------------------------------------------------------------ menu
@@ -1610,7 +1653,8 @@ class MainActivity : Activity() {
                     if (!CLE_IGN.matches(valeur) || valeur == reglages.cleIgn) return
                     reglages.cleIgn = valeur
                     if (fenetreCartes != null) remplirCartes()
-                    if (valeur.isEmpty() && reglages.fond == "scan25") appliquerFond("plan")
+                    if (valeur.isEmpty() && CartesEnLigne.parCle(reglages.fond)?.cleRequise == true)
+                        appliquerFond(CartesEnLigne.defaut(paysAffiche))
                 }
             })
         }

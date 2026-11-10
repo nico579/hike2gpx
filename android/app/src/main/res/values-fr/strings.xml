@@ -35,6 +35,16 @@
     <string name="fond_scan25">SCAN 25 (IGN)</string>
     <string name="fond_photos">Photos aériennes (IGN)</string>
     <string name="fond_relief">Relief LiDAR HD (IGN)</string>
+    <string name="fond_suisse">Carte nationale (swisstopo)</string>
+    <string name="fond_allemagne">Carte officielle (BKG TopPlusOpen)</string>
+    <string name="fond_autriche">Carte officielle (basemap.at)</string>
+    <string name="fond_tchequie">Carte topographique (ČÚZK)</string>
+    <string name="fond_espagne">Carte topographique (IGN Espagne)</string>
+    <string name="fond_luxembourg">Carte topographique (Luxembourg)</string>
+    <string name="fond_pays_bas">Carte topographique (PDOK)</string>
+    <string name="fond_norvege">Carte de randonnée (Kartverket)</string>
+    <string name="fond_etats_unis">Carte topographique (USGS)</string>
+    <string name="fond_pologne">Carte topographique (Geoportal Pologne)</string>
     <string name="fond_satellite">Satellite (Esri)</string>
     <string name="fond_hors_ligne">%1$s, hors ligne (%2$d fond(s), %3$s)</string>
     <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$s, depuis %4$s</string>
