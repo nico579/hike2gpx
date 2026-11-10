@@ -3,13 +3,15 @@ package org.hike2gpx.android
 /**
  * Un fournisseur national de chemins, nommé comme sur le PC (providers.py) :
  * « IGN BD TOPO » pour la France, ATKIS pour l'Allemagne, etc. Le calque est
- * celui des tuiles du lot (`troncons_<calque>`).
+ * celui des tuiles du lot (`troncons_<calque>`) ; `court` est le nom de la
+ * coche de la page Cartes.
  */
-data class Fournisseur(val cle: String, val calque: String, val nom: String)
+data class Fournisseur(val cle: String, val calque: String, val nom: String,
+    val court: String = nom)
 
 object Fournisseurs {
     val TOUS = listOf(
-        Fournisseur("ign", "bdtopo", "IGN BD TOPO"),
+        Fournisseur("ign", "bdtopo", "IGN BD TOPO", "IGN"),
         Fournisseur("atkis", "atkis", "ATKIS"),
         Fournisseur("zabaged", "zabaged", "ZABAGED"),
         Fournisseur("swisstlm3d", "swisstlm3d", "swissTLM3D"),

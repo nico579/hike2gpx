@@ -28,28 +28,31 @@
     <string name="plan_gpx_proposer">Enregistrer le parcours en GPX ?</string>
     <string name="plan_gpx_enregistrer">Enregistrer</string>
 
-    <string name="titre_fond">Fond de carte</string>
-    <string name="fond_osm">OpenStreetMap (en ligne)</string>
-    <string name="fond_topo">OpenTopoMap (en ligne)</string>
+    <string name="titre_fond">En ligne</string>
+    <string name="fond_osm">OpenStreetMap</string>
+    <string name="fond_topo">OpenTopoMap</string>
+    <string name="fond_plan">Plan IGN</string>
+    <string name="fond_scan25">SCAN 25 (IGN)</string>
+    <string name="fond_photos">Photos aériennes (IGN)</string>
+    <string name="fond_relief">Relief LiDAR HD (IGN)</string>
+    <string name="fond_satellite">Satellite (Esri)</string>
     <string name="fond_hors_ligne">%1$s, hors ligne (%2$d fond(s), %3$s)</string>
     <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$s, depuis %4$s</string>
     <string name="fond_relire">Relire les fonds partagés par le PC</string>
     <string name="etat_fond_installe">Fond %1$s installé.</string>
     <string name="cartes_partage">Partage du PC</string>
-    <string name="cartes_a_telecharger">Télécharger depuis le partage du PC</string>
+    <string name="cartes_a_telecharger">Télécharger depuis l’ordinateur</string>
     <string name="cartes_aucun_fond">Aucun fond à télécharger pour l’instant. Ajoutez un PC avec son QR code pour recevoir les siens.</string>
     <string name="cartes_supprimer_titre">Supprimer le fond</string>
     <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
 
     <string name="titre_itineraire">Itinéraire</string>
-    <string name="strict">Prendre en compte les blocages à vérifier</string>
-    <string name="officiels">Utiliser les chemins %1$s</string>
-    <string name="officiels_aucun">Utiliser les chemins officiels</string>
+    <string name="strict">Inclure les blocages à vérifier</string>
+    <string name="officiels">Inclure les chemins %1$s</string>
+    <string name="officiels_aucun">Inclure les chemins officiels</string>
 
-    <string name="titre_calques">Calques de la carte</string>
-    <string name="calque_osm">Chemins OSM</string>
-    <string name="calque_fournisseur">Chemin %1$s</string>
-    <string name="calque_aide">Les calques viennent du lot hors ligne et s’affichent à partir du zoom 14, comme sur le PC (zoom actuel : %1$s). Chaque fournisseur national du lot a sa coche.</string>
+    <string name="titre_calques">Superposition des chemins</string>
+    <string name="calque_osm">OSM</string>
     <string name="calque_zoom">Les calques apparaissent à partir du zoom 14 : zoomez pour les voir.</string>
     <string name="calque_vide">Aucun chemin de calque dans cette vue.</string>
 
@@ -62,6 +65,9 @@
     <string name="recherche_court">Saisissez au moins deux caractères.</string>
 
     <string name="titre_affichage">Affichage</string>
+    <string name="reglages_cle_ign">Clé IGN pour le SCAN 25</string>
+    <string name="reglages_cle_note">Le SCAN 25 n’est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</string>
+    <string name="reglages_cle_afficher">Afficher la clé</string>
     <string name="afficher_legende">Afficher légendes</string>
     <string name="afficher_courbe">Afficher courbe du dénivelé</string>
     <string name="afficher_recherche">Afficher la recherche de ville</string>
@@ -74,21 +80,19 @@
     <string name="legende_bloque">franchissement bloquant</string>
     <string name="legende_verifier">franchissement à vérifier</string>
 
-    <string name="titre_lots">Zones de routage présentes sur le téléphone</string>
-    <string name="titre_fonds">Fonds hors ligne</string>
+    <string name="titre_lots">Zones stockées localement</string>
+    <string name="titre_fonds">Hors ligne</string>
     <string name="oublier">Oublier</string>
-    <string name="aide_qr">Un PC partage ses fonds de carte et les lots de routage qu’il calcule. Pour l’ajouter, ouvrez « Partager au téléphone » dans ses réglages, puis scannez le QR code qu’il affiche, sur le même Wi-Fi.</string>
-    <string name="scanner_qr">Scanner le QR code d’un PC</string>
+    <string name="scanner_qr">Scanner le QR code de l’ordinateur</string>
     <string name="scan_invite">Visez le QR code affiché par hike2gpx sur le PC</string>
-    <string name="coller_lien">Coller le lien d’un PC</string>
     <string name="ajouter_pc">Ajouter ce PC comme source ?</string>
     <string name="confirmer_pc">Catalogue : %1$s</string>
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="aucun_lot">Aucun lot installé.</string>
-    <string name="itineraires_modes">Calcul des itinéraires</string>
+    <string name="itineraires_modes">Mode de calcul</string>
     <string name="itineraires_relire">Relire les lots partagés par les PC</string>
-    <string name="itineraires_pc">Télécharger les zones de routage depuis le PC</string>
+    <string name="itineraires_pc">Télécharger depuis l’ordinateur</string>
     <string name="itineraires_lot">Télécharger %1$s · %2$s · %3$s, depuis %4$s</string>
     <string name="itineraires_aucun_lot">Aucun lot de routage à télécharger depuis le PC.</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>

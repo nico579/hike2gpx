@@ -22,10 +22,18 @@ class Reglages(context: Context) {
 
     fun oublierPc(source: Source) = enregistrer(pcs().filter { it.catalogue != source.catalogue })
 
-    /** Le fond affiché : « osm », « topo », ou la source d'un fond hors ligne (« scan25 »…). */
+    /** Le fond affiché : une carte en ligne (« plan », « scan25 »…) ou la source d'un fond hors ligne. */
     var fond: String
-        get() = preferences.getString(FOND, "osm") ?: "osm"
+        get() = preferences.getString(FOND, "plan") ?: "plan"
         set(v) = preferences.edit().putString(FOND, v).apply()
+
+    /**
+     * La clé IGN de l'utilisateur, pour le SCAN 25, comme le réglage du PC
+     * (prefs « cle_ign »). Vide : la page propose le Plan IGN à sa place.
+     */
+    var cleIgn: String
+        get() = preferences.getString(CLE_IGN, "") ?: ""
+        set(v) = preferences.edit().putString(CLE_IGN, v.trim()).apply()
 
     var strict: Boolean
         get() = preferences.getBoolean(STRICT, false)
@@ -108,6 +116,7 @@ class Reglages(context: Context) {
     companion object {
         private const val PCS = "pcs"
         private const val FOND = "fond"
+        private const val CLE_IGN = "cle_ign"
         private const val STRICT = "strict"
         private const val OFFICIELS = "officiels"
         private const val CALQUE_OSM = "calque_osm"
