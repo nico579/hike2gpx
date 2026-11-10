@@ -86,13 +86,17 @@ def entree_lot(m: dict, manifeste: Path, url) -> dict:
             "octets": sum(f["octets"] for f in fichiers), "fichiers": fichiers}
 
 
-def catalogue(lots: list, fonds: list | None = None) -> dict:
+def catalogue(lots: list, fonds: list | None = None, cartes: list | None = None) -> dict:
     """Le catalogue lui-même. Les fonds de carte (partage.py) n'y figurent que
     servis par un PC à son téléphone, jamais dans une publication ; un lecteur
-    qui ne les connaît pas ignore la clé « fonds »."""
+    qui ne les connaît pas ignore la clé « fonds ». De même pour « cartes »,
+    les cartes vectorielles d'OpenStreetMap (mapsforge.py), décrites comme
+    les fonds."""
     contenu = {"format": FORMAT, "genere": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "lots": lots}
     if fonds is not None:
         contenu["fonds"] = fonds
+    if cartes:
+        contenu["cartes"] = cartes
     return contenu
 
 

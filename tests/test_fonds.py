@@ -79,8 +79,8 @@ def test_l_application_prepare_le_fond_affiche(tmp_path, monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", ouvrir)
     monkeypatch.setattr(fonds, "DEBIT", 0)
     monkeypatch.setattr(fonds, "ZOOMS_CARRE", (7, 8))        # quelques tuiles, pas 60 000
-    assert "erreur" in a.preparer_fond({"carres": ["N43E006"], "source": "osm"}), \
-        "OpenStreetMap ne se garde pas hors ligne"
+    assert "erreur" in a.preparer_fond({"carres": ["N43E006"], "source": "satellite"}), \
+        "l'imagerie d'Esri ne se garde pas hors ligne"
     assert "clé IGN" in a.preparer_fond({"carres": ["N43E006"], "source": "scan25"})["erreur"]
     # IGN España : une adresse WMTS (TILEMATRIX…), celle que lit le faux service.
     a.preparer_fond({"carres": ["N43E006"], "source": "espagne"})
