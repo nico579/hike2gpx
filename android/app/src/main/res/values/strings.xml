@@ -18,6 +18,9 @@
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Search</string>
     <string name="menu_bibliotheque">My library</string>
+    <string name="menu_cartes">Map management</string>
+    <string name="menu_itineraires">Route management</string>
+    <string name="menu_aide">Help</string>
     <string name="menu_enregistrer">Record a track</string>
     <string name="menu_arreter">Stop recording</string>
     <string name="menu_planifier">Plan a route</string>
@@ -28,18 +31,22 @@
     <string name="plan_gpx_enregistrer">Save</string>
 
     <string name="titre_fond">Base map</string>
-    <string name="choisir_fond">Choose the base map…</string>
     <string name="fond_osm">OpenStreetMap (online)</string>
     <string name="fond_topo">OpenTopoMap (online)</string>
     <string name="fond_hors_ligne">%1$s, offline (%2$d map(s), %3$s)</string>
     <string name="fond_a_telecharger">Download %1$s: %2$s, %3$s, from %4$s</string>
-    <string name="fond_sans_pc">Get the base maps of a PC (scan its QR code)…</string>
     <string name="fond_relire">Reload the maps shared by the PC</string>
     <string name="etat_fond_installe">Base map %1$s installed.</string>
+    <string name="cartes_partage">PC sharing</string>
+    <string name="cartes_a_telecharger">Download from the PC share</string>
+    <string name="cartes_aucun_fond">No base map to download yet. Add a PC with its QR code to receive its own.</string>
+    <string name="cartes_supprimer_titre">Delete the base map</string>
+    <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
 
     <string name="titre_itineraire">Route</string>
-    <string name="strict">Strict mode</string>
-    <string name="officiels">Official paths</string>
+    <string name="strict">Take crossings to check into account</string>
+    <string name="officiels">Use the %1$s paths</string>
+    <string name="officiels_aucun">Use the official paths</string>
 
     <string name="titre_calques">Map layers</string>
     <string name="calque_osm">OSM paths</string>
@@ -69,13 +76,10 @@
     <string name="legende_bloque">blocking crossing</string>
     <string name="legende_verifier">crossing to check</string>
 
-    <string name="titre_lots">Offline bundles</string>
+    <string name="titre_lots">Routing areas on the phone</string>
     <string name="titre_fonds">Offline base maps</string>
-    <string name="titre_sources">Sources</string>
-    <string name="actualiser">Reload the catalogues</string>
-    <string name="source_github">GitHub: the server’s offline bundles</string>
     <string name="oublier">Forget</string>
-    <string name="aide_qr">A PC shares its base maps. To add one, open “Share with the phone” in its settings, then scan the QR code it shows, on the same Wi-Fi.</string>
+    <string name="aide_qr">A PC shares its base maps and the routing bundles it computes. To add one, open “Share with the phone” in its settings, then scan the QR code it shows, on the same Wi-Fi.</string>
     <string name="scanner_qr">Scan a PC’s QR code</string>
     <string name="scan_invite">Aim at the QR code shown by hike2gpx on the PC</string>
     <string name="coller_lien">Paste a PC link</string>
@@ -83,8 +87,12 @@
     <string name="confirmer_pc">Catalogue: %1$s</string>
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
-    <string name="au_catalogue">In the catalogue, downloaded on their own when a route or a layer goes there: %1$s.</string>
     <string name="aucun_lot">No bundle installed.</string>
+    <string name="itineraires_modes">Route calculation</string>
+    <string name="itineraires_relire">Reload the bundles shared by the PCs</string>
+    <string name="itineraires_pc">Download routing areas from the PC</string>
+    <string name="itineraires_lot">Download %1$s · %2$s · %3$s, from %4$s</string>
+    <string name="itineraires_aucun_lot">No routing bundle to download from the PC.</string>
     <string name="aucun_fond">No offline base map. They come from a PC that shares its own.</string>
     <string name="telecharger">Download</string>
     <string name="plus_tard">Later</string>
@@ -103,8 +111,8 @@
 
     <string name="etat_catalogue">Reading the catalogues…</string>
     <string name="etat_catalogue_lu">%1$d area(s) in the catalogue.</string>
-    <string name="etat_fonds_pc">Reading the base maps shared by the PC…</string>
-    <string name="etat_fonds_pc_lus">%1$d base map(s) shared by the PC.</string>
+    <string name="etat_pc">Reading the PC catalogues…</string>
+    <string name="etat_pc_lus">%1$d base map(s) and %2$d bundle(s) shared by the PCs.</string>
     <string name="etat_telechargement">Downloading…</string>
     <string name="etat_telechargement_lot">Downloading bundle %1$s (%2$s)…</string>
     <string name="etat_installe">Bundle %1$s installed.</string>
@@ -193,8 +201,7 @@
     <string name="maj_corrompu">Update file incomplete or corrupted.</string>
 
     <!-- GPS position and track recording, like Locus Map. -->
-    <string name="titre_trace">GPS track</string>
-    <string name="trace_aide">A point is kept only if the GPS is accurate enough and both the distance and the time since the previous point are reached. The first point only has to meet the accuracy.</string>
+    <string name="titre_trace">GPS track recording</string>
     <string name="trace_distance">Minimum distance between points (m)</string>
     <string name="trace_duree">Minimum time between points (s)</string>
     <string name="trace_precision">Maximum GPS deviation (m)</string>

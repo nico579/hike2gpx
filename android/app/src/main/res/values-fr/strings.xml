@@ -16,6 +16,9 @@
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Recherche</string>
     <string name="menu_bibliotheque">Ma bibliothèque</string>
+    <string name="menu_cartes">Gestion des cartes</string>
+    <string name="menu_itineraires">Gestion des itinéraires</string>
+    <string name="menu_aide">Aide</string>
     <string name="menu_enregistrer">Enregistrer un parcours</string>
     <string name="menu_arreter">Arrêter l’enregistrement</string>
     <string name="menu_planifier">Planifier un itinéraire</string>
@@ -26,18 +29,22 @@
     <string name="plan_gpx_enregistrer">Enregistrer</string>
 
     <string name="titre_fond">Fond de carte</string>
-    <string name="choisir_fond">Choisir le fond de carte…</string>
     <string name="fond_osm">OpenStreetMap (en ligne)</string>
     <string name="fond_topo">OpenTopoMap (en ligne)</string>
     <string name="fond_hors_ligne">%1$s, hors ligne (%2$d fond(s), %3$s)</string>
     <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$s, depuis %4$s</string>
-    <string name="fond_sans_pc">Recevoir les fonds d’un PC (scannez son QR code)…</string>
     <string name="fond_relire">Relire les fonds partagés par le PC</string>
     <string name="etat_fond_installe">Fond %1$s installé.</string>
+    <string name="cartes_partage">Partage du PC</string>
+    <string name="cartes_a_telecharger">Télécharger depuis le partage du PC</string>
+    <string name="cartes_aucun_fond">Aucun fond à télécharger pour l’instant. Ajoutez un PC avec son QR code pour recevoir les siens.</string>
+    <string name="cartes_supprimer_titre">Supprimer le fond</string>
+    <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
 
     <string name="titre_itineraire">Itinéraire</string>
-    <string name="strict">Mode strict</string>
-    <string name="officiels">Chemins officiels</string>
+    <string name="strict">Prendre en compte les blocages à vérifier</string>
+    <string name="officiels">Utiliser les chemins %1$s</string>
+    <string name="officiels_aucun">Utiliser les chemins officiels</string>
 
     <string name="titre_calques">Calques de la carte</string>
     <string name="calque_osm">Chemins OSM</string>
@@ -67,13 +74,10 @@
     <string name="legende_bloque">franchissement bloquant</string>
     <string name="legende_verifier">franchissement à vérifier</string>
 
-    <string name="titre_lots">Lots hors ligne</string>
+    <string name="titre_lots">Zones de routage présentes sur le téléphone</string>
     <string name="titre_fonds">Fonds hors ligne</string>
-    <string name="titre_sources">Sources</string>
-    <string name="actualiser">Relire les catalogues</string>
-    <string name="source_github">GitHub : les lots hors ligne du serveur</string>
     <string name="oublier">Oublier</string>
-    <string name="aide_qr">Un PC partage ses fonds de carte. Pour l’ajouter, ouvrez « Partager au téléphone » dans ses réglages, puis scannez le QR code qu’il affiche, sur le même Wi-Fi.</string>
+    <string name="aide_qr">Un PC partage ses fonds de carte et les lots de routage qu’il calcule. Pour l’ajouter, ouvrez « Partager au téléphone » dans ses réglages, puis scannez le QR code qu’il affiche, sur le même Wi-Fi.</string>
     <string name="scanner_qr">Scanner le QR code d’un PC</string>
     <string name="scan_invite">Visez le QR code affiché par hike2gpx sur le PC</string>
     <string name="coller_lien">Coller le lien d’un PC</string>
@@ -81,8 +85,12 @@
     <string name="confirmer_pc">Catalogue : %1$s</string>
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
-    <string name="au_catalogue">Au catalogue, téléchargés d’eux-mêmes quand un parcours ou un calque y passe : %1$s.</string>
     <string name="aucun_lot">Aucun lot installé.</string>
+    <string name="itineraires_modes">Calcul des itinéraires</string>
+    <string name="itineraires_relire">Relire les lots partagés par les PC</string>
+    <string name="itineraires_pc">Télécharger les zones de routage depuis le PC</string>
+    <string name="itineraires_lot">Télécharger %1$s · %2$s · %3$s, depuis %4$s</string>
+    <string name="itineraires_aucun_lot">Aucun lot de routage à télécharger depuis le PC.</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>
     <string name="telecharger">Télécharger</string>
     <string name="plus_tard">Plus tard</string>
@@ -101,8 +109,8 @@
 
     <string name="etat_catalogue">Lecture des catalogues…</string>
     <string name="etat_catalogue_lu">%1$d case(s) au catalogue.</string>
-    <string name="etat_fonds_pc">Lecture des fonds partagés par le PC…</string>
-    <string name="etat_fonds_pc_lus">%1$d fond(s) partagé(s) par le PC.</string>
+    <string name="etat_pc">Lecture des catalogues des PC…</string>
+    <string name="etat_pc_lus">%1$d fond(s) de carte et %2$d lot(s) partagés par les PC.</string>
     <string name="etat_telechargement">Téléchargement…</string>
     <string name="etat_telechargement_lot">Téléchargement du lot %1$s (%2$s)…</string>
     <string name="etat_installe">Lot %1$s installé.</string>
@@ -191,8 +199,7 @@
     <string name="maj_corrompu">Fichier de mise à jour incomplet ou corrompu.</string>
 
     <!-- La position GPS et l’enregistrement d’une trace, comme Locus Map. -->
-    <string name="titre_trace">Trace GPS</string>
-    <string name="trace_aide">Un point n’est retenu que si le GPS est assez précis et si la distance et la durée depuis le point précédent sont atteintes. Le premier point n’a que la précision à respecter.</string>
+    <string name="titre_trace">Enregistrement de trace GPS</string>
     <string name="trace_distance">Distance minimale entre deux points (m)</string>
     <string name="trace_duree">Durée minimale entre deux points (s)</string>
     <string name="trace_precision">Déviation GPS maximale (m)</string>
