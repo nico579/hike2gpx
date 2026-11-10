@@ -64,10 +64,9 @@ const TEXTES = {
     "horsLigne.selInstallees": "{n} déjà sur ce PC ({taille}).",
     "horsLigne.telecharger": "Télécharger",
     "horsLigne.supprimerSelection": "Supprimer",
-    "horsLigne.supprimerN": "Supprimer les {n} déjà là",
-    "horsLigne.partagerN": "Partager les {n} au téléphone",
+    "horsLigne.partager": "Partager au téléphone",
     "horsLigne.enAttente": "({n} en attente)",
-    "horsLigne.confirmerSuppressionN": "Retirer de ce PC {n} tuile(s), {taille} en tout ?",
+    "horsLigne.confirmerSuppressionN": "Supprimer de ce PC :\n{liste}\n\n{taille} en tout. Ce qui vient du serveur se retéléchargera si besoin ; un fond ou une zone fabriqué ici serait à refaire.",
     "horsLigne.supprimees": "{n} tuile(s) retirée(s), {taille} libérés.",
     "aide": "Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.",
     "bouton.retirerDernier": "Retirer",
@@ -320,10 +319,9 @@ const TEXTES = {
     "horsLigne.selInstallees": "{n} already on this PC ({taille}).",
     "horsLigne.telecharger": "Download",
     "horsLigne.supprimerSelection": "Delete",
-    "horsLigne.supprimerN": "Delete the {n} already here",
-    "horsLigne.partagerN": "Share the {n} with the phone",
+    "horsLigne.partager": "Share with the phone",
     "horsLigne.enAttente": "({n} waiting)",
-    "horsLigne.confirmerSuppressionN": "Remove {n} tile(s) from this PC, {taille} in all?",
+    "horsLigne.confirmerSuppressionN": "Delete from this PC:\n{liste}\n\n{taille} in all. What comes from the server will download again if needed; a base map or zone built here would have to be built again.",
     "horsLigne.supprimees": "{n} tile(s) removed, {taille} freed.",
     "aide": "Click the map to place the start, then the waypoints and the finish. Drag a point to move it; “Back to start” closes a loop.",
     "bouton.retirerDernier": "Remove",
@@ -1717,9 +1715,7 @@ function afficherSelection() {
   $("hlTelecharger").disabled = !b.aFaire.length || (!routage && !sourceFond());
   // Ce qui est sur ce PC dans la sélection se partage au téléphone, seul.
   $("hlPartager").hidden = !b.installees.length;
-  $("hlPartager").textContent = t("horsLigne.partagerN", { n: b.installees.length });
   $("hlSupprimer").hidden = !b.installees.length;
-  $("hlSupprimer").textContent = t("horsLigne.supprimerN", { n: b.installees.length });
 }
 
 // Télécharger : la sélection rejoint la file, qui part tout de suite si rien ne se prépare.
@@ -1769,7 +1765,13 @@ function afficherFile(message) {
 async function supprimerSelection() {
   const b = bilanSelection();
   if (!b.installees.length) return;
-  if (!confirm(t("horsLigne.confirmerSuppressionN", { n: b.installees.length, taille: tailleTexte(b.octetsInstalles) }))) return;
+  // La confirmation nomme ce qui part : chaque zone ou carré, le fond et la taille.
+  const routage = horsLigne.mode === "routage";
+  const titre = (etat.fondsHorsLigne || {})[sourceFond()] || sourceFond();
+  const liste = b.installees.map((nom) => routage
+    ? `• ${nom} · ${tailleTexte(lotsInstalles.find((l) => l.case === nom)?.octets || 0)}`
+    : `• ${nom} · ${titre} · ${tailleTexte(fondDuCarre(nom)?.octets || 0)}`).join("\n");
+  if (!confirm(t("horsLigne.confirmerSuppressionN", { liste, taille: tailleTexte(b.octetsInstalles) }))) return;
   let octets = 0;
   for (const nom of b.installees) {
     const r = horsLigne.mode === "routage" ? await api("supprimer_case", { case: nom, fonds: false })

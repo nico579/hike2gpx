@@ -172,7 +172,10 @@ body.profile-collapsed .map-activity{bottom:81px}
 .hl-pastille.selectionne{border-color:#1565c0;background:#1e88e5aa}
 .hl-pastille.encours{border-color:#e07b00;background:#e07b0055}
 .hl-pastille.serveur{border-color:#1565c0;background:transparent}
-.hl-actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+/* Les boutons du volet : un par ligne, chacun avec son icône. */
+.hl-actions{display:grid;justify-items:start;gap:8px;margin:8px 0}
+.hl-actions button{display:inline-flex;align-items:center;gap:7px}
+.hl-actions button svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .hl-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .hl-file[hidden]{display:none}
 /* Le QR code du partage, dans sa fenêtre comme lidar2map : à sa taille (8 px par

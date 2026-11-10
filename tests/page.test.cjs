@@ -274,11 +274,12 @@ test("un fond de carte installé ne s'ajoute pas aux fonds en ligne, et se retir
   page.grilleCases.layers[0].handlers.click();
   assert.equal(elements.get("hlSelection").textContent, "1 déjà sur ce PC (600 Mo).");
   assert.equal(elements.get("hlTelecharger").disabled, true, "rien à télécharger : le Plan IGN est déjà là");
-  assert.equal(elements.get("hlSupprimer").textContent, "Supprimer les 1 déjà là");
+  assert.equal(elements.get("hlSupprimer").hidden, false, "« Supprimer », libellé fixe");
   confirmations.reponse = true;
   elements.get("hlSupprimer").click();
   await tic();
-  assert.match(confirmations.at(-1), /^Retirer de ce PC 1 tuile\(s\), 600 Mo en tout/);
+  assert.match(confirmations.at(-1), /^Supprimer de ce PC :\n• N43E006 · Plan IGN · 600 Mo\n\n600 Mo en tout/,
+    "la confirmation nomme le carré, le fond et la taille");
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body),
     { carre: "N43E006", source: "plan" }, "le fond choisi seul, pas les autres du carré");
 });
@@ -351,7 +352,7 @@ test("le volet de la grille partage sa sélection seule au téléphone", async (
   assert.equal(elements.get("hlPartager").hidden, true, "rien de sélectionné");
   page.grilleCases.layers[0].handlers.click();
   assert.equal(elements.get("hlPartager").hidden, false);
-  assert.equal(elements.get("hlPartager").textContent, "Partager les 1 au téléphone");
+  assert.equal(elements.get("hlPartager").hidden, false, "« Partager au téléphone », libellé fixe");
   elements.get("hlPartager").click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/partage").options.body),
     { ouvrir: true, lots: ["E5_N40"], carres: [] }, "la zone choisie, pas tout le PC");
