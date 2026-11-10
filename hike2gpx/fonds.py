@@ -47,24 +47,32 @@ class Source:
     attribution: str
 
 
-def _ign(couche: str, mime: str, cle: bool) -> str:
+def _ign(couche: str, mime: str, cle: bool, matrice: str = "PM") -> str:
     """L'adresse WMTS de la Géoplateforme, comme tuileIgn() de providers/fr.js."""
     base = "https://data.geopf.fr/private/wmts" if cle else "https://data.geopf.fr/wmts"
     return (f"{base}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER={couche}&STYLE=normal"
-            f"&TILEMATRIXSET=PM&FORMAT={mime}&TILEMATRIX={{z}}&TILECOL={{x}}&TILEROW={{y}}"
+            f"&TILEMATRIXSET={matrice}&FORMAT={mime}&TILEMATRIX={{z}}&TILECOL={{x}}&TILEROW={{y}}"
             + ("&apikey={cle}" if cle else ""))
 
 
 # Les fonds de la page qu'on peut emporter hors ligne, sous la clé que leur
 # donne providers/<pays>.js : le PC fabrique le fond affiché. N'y entrent que
 # les services dont la licence permet de garder les tuiles : le SCAN 25 pour
-# l'usage de l'utilisateur, avec sa clé ; Licence Ouverte (Plan IGN),
-# dl-de/by-2-0 (TopPlusOpen) et CC BY 4.0 (IGN España, Kartverket, PDOK),
-# l'attribution suivant le fond jusque dans le MBTiles. Les autres fonds de
-# la page (photos, relief, OpenStreetMap, OpenTopoMap, Esri) restent en ligne.
+# l'usage de l'utilisateur, avec sa clé ; Licence Ouverte (Plan IGN, photos
+# aériennes et relief LiDAR HD de l'IGN), dl-de/by-2-0 (TopPlusOpen) et
+# CC BY 4.0 (IGN España, Kartverket, PDOK), l'attribution suivant le fond
+# jusque dans le MBTiles. Restent en ligne les fonds dont le serveur interdit
+# la recopie en masse, quelle que soit la licence des données : les tuiles
+# d'OpenStreetMap et d'OpenTopoMap (serveurs de bénévoles, qui bloquent les
+# téléchargements en masse) et l'imagerie d'Esri (stockage hors ligne interdit
+# par ses conditions).
 SOURCES = {
     "scan25": Source(_ign("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", True), "jpg", True, "SCAN 25 (IGN)", "© IGN"),
     "plan": Source(_ign("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png", False), "png", False, "Plan IGN", "© IGN"),
+    "photos": Source(_ign("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg", False), "jpg", False,
+                     "Photos aériennes (IGN)", "© IGN"),
+    "reliefLidar": Source(_ign("IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png", False,
+                               "PM_0_18"), "png", False, "Relief LiDAR HD (IGN)", "© IGN"),
     "allemagne": Source("https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/"
                         "{z}/{y}/{x}.png", "png", False, "TopPlusOpen (BKG)", "© BKG, dl-de/by-2-0"),
     "espagne": Source("https://www.ign.es/wmts/mapa-raster?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=MTN"

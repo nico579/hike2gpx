@@ -300,8 +300,12 @@ fonds hors ligne compris. Un lot du serveur se retélécharge en quelques
 secondes ; un lot ou un fond préparé sur l'ordinateur est à refaire.
 
 Reste la carte elle-même. En France, « Gestion des cartes » prépare aussi, par
-carrés de 1° choisis sur la carte, le **fond de carte hors ligne** : les tuiles que la page affiche, le SCAN 25 si vous avez
-une clé IGN, sinon le Plan IGN, rangées sur ce PC dans un fichier MBTiles. Il
+carrés de 1° choisis sur la carte, le **fond de carte hors ligne** : les tuiles du fond choisi dans la liste, rangées
+sur ce PC dans un fichier MBTiles. Se gardent ainsi les fonds dont la licence
+le permet : le SCAN 25 (avec une clé IGN), le Plan IGN, les photos aériennes
+et le relief LiDAR HD de l'IGN. Les tuiles d'OpenStreetMap, d'OSM rando et la
+vue satellite restent en ligne : leurs serveurs interdisent de les recopier
+en masse. Il
 apparaît ensuite parmi les fonds sous le nom « Carte hors ligne ». Une vue
 d'écran se prend jusqu'au zoom 16, celui des sentiers : autour de Garéoult,
 631 tuiles, 12 Mo en SCAN 25 (27 Mo en Plan IGN), un peu plus d'une minute.
