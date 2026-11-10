@@ -93,7 +93,7 @@ def test_l_application_ne_verifie_qu_une_fois_par_seance(tmp_path, monkeypatch):
     a = Application(tmp_path)
     appels = []
     a.autoriser_pare_feu = lambda: appels.append(1) or "creee"
-    monkeypatch.setattr(a.partage, "ouvrir", lambda: {"ouvert": True})
+    monkeypatch.setattr(a.partage, "ouvrir", lambda selection=None: {"ouvert": True})
     assert a.partager({"ouvrir": True}) == {"ouvert": True, "pare_feu": "creee"}
     assert a.partager({"ouvrir": True})["pare_feu"] == "creee"
     assert appels == [1], "la règle en place : PowerShell n'est plus relancé"
