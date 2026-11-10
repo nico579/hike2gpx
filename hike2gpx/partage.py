@@ -75,7 +75,10 @@ def dresser(hors_ligne, empreintes: dict | None = None, selection: dict | None =
     carrés, que le téléphone récupère d'un coup. Sans elle, tout ce qui est là."""
     garder_lot = (lambda case: True) if selection is None else set(selection.get("lots") or []).__contains__
     carres = None if selection is None else set(selection.get("carres") or [])
-    garder_fond = (lambda nom: True) if carres is None else (lambda nom: nom.split("-", 1)[0] in carres)
+    # Un carré partagé ne porte que le fond de la source choisie, s'il y en a une.
+    source = None if selection is None else selection.get("source")
+    garder_fond = (lambda nom: True) if carres is None else (
+        lambda nom: nom.split("-", 1)[0] in carres and (source is None or nom.split("-", 1)[1] == source))
     empreintes = {} if empreintes is None else empreintes
     fichiers, lots = {}, []
     for m in hors_ligne.lots():

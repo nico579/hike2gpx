@@ -1253,14 +1253,17 @@ class Application:
         return {"octets": octets}
 
     def supprimer_fond(self, corps) -> dict:
-        """Retire de l'ordinateur les fonds d'un carré de 1°, depuis l'onglet « Hors
-        ligne ». corps : {"carre": "N43E006"}. Rend {"octets"} libérés, ou {"erreur"}."""
-        carre = (corps or {}).get("carre")
+        """Retire de l'ordinateur le fond d'un carré de 1°, depuis le volet de la
+        grille. corps : {"carre": "N43E006", "source": "plan"} ; sans source, tous
+        les fonds du carré. Rend {"octets"} libérés, ou {"erreur"}."""
+        carre, source = (corps or {}).get("carre"), (corps or {}).get("source")
         if not isinstance(carre, str) or not fonds.carre_valide(carre):
             return {"erreur": "Carré de fond de carte invalide."}
+        if source is not None and not (isinstance(source, str) and fonds.nom_valide(source)):
+            return {"erreur": "Fond de carte invalide."}
         if self._fil_lot and self._fil_lot.is_alive() and self._lot.get("case") == carre:
             return {"erreur": "Ce fond se prépare. Arrêtez-le d'abord."}
-        octets = self.hors_ligne.supprimer_fond(carre)
+        octets = self.hors_ligne.supprimer_fond(carre, source)
         journal.info("Fonds du carré %s retirés de l'ordinateur : %d octets libérés", carre, octets)
         return {"octets": octets}
 
@@ -1440,11 +1443,13 @@ class Application:
         # paraître la fenêtre d'autorisation du pare-feu pour rien.
         selection = None
         if "lots" in corps or "carres" in corps:
-            lots, carres = corps.get("lots") or [], corps.get("carres") or []
+            lots, carres, source = corps.get("lots") or [], corps.get("carres") or [], corps.get("source")
             if not all(isinstance(c, str) and re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", c) for c in lots) \
                     or not all(isinstance(c, str) and fonds.carre_valide(c) for c in carres):
                 return {"ouvert": False, "erreur": "Sélection de partage invalide."}
-            selection = {"lots": lots, "carres": carres}
+            if source is not None and not (isinstance(source, str) and fonds.nom_valide(source)):
+                return {"ouvert": False, "erreur": "Sélection de partage invalide."}
+            selection = {"lots": lots, "carres": carres, "source": source}
         # Sous Windows, la règle du pare-feu (pare_feu.py), créée au besoin après
         # une demande UAC ; vérifiée une fois par séance quand elle est en place.
         if self._pare_feu not in ("ok", "creee", "inutile"):

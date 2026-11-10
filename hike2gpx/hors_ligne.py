@@ -96,11 +96,13 @@ class HorsLigne:
             return None
         return origine if isinstance(origine, dict) else None
 
-    def supprimer_fond(self, carre: str) -> int:
-        """Retire les fonds d'un carré de 1° (N43E006-scan25, N43E006-plan…) ; rend les octets libérés."""
+    def supprimer_fond(self, carre: str, source: str | None = None) -> int:
+        """Retire le fond d'un carré de 1° de cette source (N43E006-plan), ou sans
+        source tous ceux du carré (N43E006-scan25, N43E006-osm…) ; rend les octets libérés."""
         if not fonds.carre_valide(carre):
             raise ValueError(f"Carré invalide : {carre}")
-        fichiers = [p for p in self.dossier_fonds.glob(f"{carre}-*") if p.is_file() and p.suffix in SUFFIXES_FONDS] \
+        motif = f"{carre}-{source}.*" if source else f"{carre}-*"
+        fichiers = [p for p in self.dossier_fonds.glob(motif) if p.is_file() and p.suffix in SUFFIXES_FONDS] \
             if self.dossier_fonds.is_dir() else []
         octets = sum(p.stat().st_size for p in fichiers)
         for p in fichiers:

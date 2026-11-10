@@ -210,3 +210,17 @@ def test_une_selection_invalide_est_refusee_avant_le_pare_feu(tmp_path):
         {"ouvert": False, "erreur": "Sélection de partage invalide."}
     assert post["partage"]({"ouvrir": True, "carres": ["N99"]})["erreur"] == "Sélection de partage invalide."
     assert demandes == [], "pas de fenêtre d'autorisation de Windows pour une demande refusée"
+
+
+def test_un_carre_partage_et_supprime_ne_vise_que_la_source_choisie(tmp_path):
+    # Le carré E5_N40 a un SCAN 25 et une carte OSM : la page qui affiche le
+    # SCAN 25 ne partage et ne supprime que lui.
+    h = preparer(tmp_path)
+    (h.dossier_fonds / "E5_N40-scan25.mbtiles").rename(h.dossier_fonds / "N43E006-scan25.mbtiles")
+    (h.dossier_fonds / "N43E006-osm.map").write_bytes(b"mapsforge binary OSM")
+    catalogue, _ = partage.dresser(h, selection={"lots": [], "carres": ["N43E006"], "source": "scan25"})
+    assert [f["nom"] for f in catalogue["fonds"]] == ["N43E006-scan25"] and "cartes" not in catalogue
+    assert h.supprimer_fond("N43E006", "scan25") > 0
+    assert [f["nom"] for f in h.fonds()] == ["N43E006-osm"], "la carte OSM du carré reste"
+    assert h.supprimer_fond("N43E006") == 20, "sans source, tous les fonds du carré"
+    assert h.fonds() == []

@@ -1686,11 +1686,12 @@ function bilanSelection() {
       octets: aTelecharger.reduce((somme, nom) => somme + (serveur(nom).octets || 0), 0),
       octetsInstalles: installees.reduce((somme, nom) => somme + (installee(nom).octets || 0), 0) };
   }
+  // Seul compte le fond choisi dans la liste : un carré qui a un SCAN 25 mais
+  // pas de Plan IGN est à télécharger en Plan IGN, pas « déjà là ».
   const aFaire = noms.filter((carre) => !fondDuCarre(carre));
-  const installees = noms.filter((carre) => fondsInstalles.some((f) => f.nom.startsWith(`${carre}-`)));
+  const installees = noms.filter((carre) => fondDuCarre(carre));
   return { noms, aFaire, installees, octets: aFaire.length * coutCarre(sourceFond())[0],
-    octetsInstalles: installees.reduce((somme, carre) => somme + fondsInstalles
-      .filter((f) => f.nom.startsWith(`${carre}-`)).reduce((s, f) => s + (f.octets || 0), 0), 0) };
+    octetsInstalles: installees.reduce((somme, carre) => somme + (fondDuCarre(carre).octets || 0), 0) };
 }
 
 function afficherSelection() {
@@ -1777,7 +1778,7 @@ async function supprimerSelection() {
   let octets = 0;
   for (const nom of b.installees) {
     const r = horsLigne.mode === "routage" ? await api("supprimer_case", { case: nom, fonds: false })
-      : await api("supprimer_fond", { carre: nom });
+      : await api("supprimer_fond", { carre: nom, source: sourceFond() });
     if (r.erreur) afficherLot({ case: nom, erreur: r.erreur });
     else octets += r.octets || 0;
   }
@@ -1928,7 +1929,7 @@ $("partagerTelephone").addEventListener("click", () => basculerPartage(true));
 $("hlPartager").addEventListener("click", () => {
   const b = bilanSelection();
   basculerPartage(true, horsLigne.mode === "routage" ? { lots: b.installees, carres: [] }
-    : { lots: [], carres: b.installees });
+    : { lots: [], carres: b.installees, source: sourceFond() });
 });
 $("fermerPartage").addEventListener("click", () => basculerPartage(false));
 $("revoirQr").addEventListener("click", () => { if (etat.partage?.ouvert) $("partageFenetre").hidden = false; });

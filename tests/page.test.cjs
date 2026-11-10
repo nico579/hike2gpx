@@ -276,7 +276,28 @@ test("un fond de carte installé ne s'ajoute pas aux fonds en ligne, et se retir
   elements.get("hlSupprimer").click();
   await tic();
   assert.match(confirmations.at(-1), /^Retirer de ce PC 1 tuile\(s\), 600 Mo en tout/);
-  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body), { carre: "N43E006" });
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body),
+    { carre: "N43E006", source: "plan" }, "le fond choisi seul, pas les autres du carré");
+});
+
+test("un carré qui n'a qu'un autre fond n'est pas « déjà là » pour le fond choisi", async () => {
+  const { page, elements, requetes, carte } = charger();
+  page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN" };
+  // Le carré de Garéoult a un SCAN 25 ; la carte affiche le Plan IGN.
+  const fonds = [{ nom: "N43E006-scan25", zone: [43, 6, 44, 7], zoom: [13, 16], source: "scan25", octets: 6e8 }];
+  const charge = page.chargerFonds();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds });
+  await charge;
+  await ouvrirHorsLigne(page, requetes, [], [], fonds);
+  elements.get("hlFond").checked = true;
+  changer(elements.get("hlFond"));
+  carte.zoom = 12;
+  page.dessinerCases();
+  page.grilleCases.layers[0].handlers.click();
+  assert.equal(elements.get("hlSelection").textContent, "1 carré(s) : environ 1 Go et 35 min.");
+  assert.equal(elements.get("hlTelecharger").disabled, false, "le Plan IGN est à télécharger");
+  assert.equal(elements.get("hlSupprimer").hidden, true, "rien à supprimer en Plan IGN");
+  assert.equal(elements.get("hlPartager").hidden, true, "rien à partager en Plan IGN");
 });
 
 test("supprimer une case depuis l'onglet retire le routage seul, pas les fonds", async () => {
