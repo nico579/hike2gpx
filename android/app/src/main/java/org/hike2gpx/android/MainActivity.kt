@@ -22,6 +22,7 @@ import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
 import android.text.format.Formatter
+import android.text.method.PasswordTransformationMethod
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -994,8 +995,8 @@ class MainActivity : Activity() {
                 setOnClickListener { action() }
             })
         }
-        fondChoisi("osm", getString(R.string.fond_osm)) { appliquerFond("osm") }
-        fondChoisi("topo", getString(R.string.fond_topo)) { appliquerFond("topo") }
+        for (carte in CartesEnLigne.disponibles(reglages.cleIgn))
+            fondChoisi(carte.cle, getString(carte.libelle)) { appliquerFond(carte.cle) }
         for ((source, fichiers) in fonds.parSource()) {
             fondChoisi(source, getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
                 Formatter.formatShortFileSize(this, fichiers.sumOf { it.length() }))) {
@@ -1282,6 +1283,8 @@ class MainActivity : Activity() {
      */
     private fun appliquerFond(cle: String) {
         val fichiers = fonds.parSource()[cle]
+        val enLigne = CartesEnLigne.parCle(cle)
+        val servi = enLigne != null && (!enLigne.cleRequise || reglages.cleIgn.isNotBlank())
         when {
             fichiers != null -> {
                 val minimum = zoomMin(fichiers)
@@ -1291,13 +1294,19 @@ class MainActivity : Activity() {
                 carte.setMinZoomLevel(minimum.toDouble())
                 if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum.toDouble())
             }
-            else -> {
+            servi -> {
+                val carteEnLigne = enLigne!!
                 carte.setTileProvider(MapTileProviderBasic(applicationContext))
-                carte.setTileSource(if (cle == "topo") TileSourceFactory.OpenTopo else TileSourceFactory.MAPNIK)
+                carte.setTileSource(CartesEnLigne.tuile(carteEnLigne, reglages.cleIgn))
                 carte.setMinZoomLevel(null)         // le zoom le plus bas de la source en ligne
             }
+            else -> {
+                carte.setTileProvider(MapTileProviderBasic(applicationContext))
+                carte.setTileSource(TileSourceFactory.MAPNIK)
+                carte.setMinZoomLevel(null)
+            }
         }
-        reglages.fond = if (fichiers != null || cle == "topo") cle else "osm"
+        reglages.fond = if (fichiers != null || servi) cle else "osm"
         carte.invalidate()
     }
 
@@ -1583,6 +1592,40 @@ class MainActivity : Activity() {
             setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
         })
 
+        // La clé IGN du SCAN 25, le même réglage que sur le PC.
+        titre(colonne, R.string.reglages_cle_ign)
+        colonne.addView(TextView(this).apply {
+            setText(R.string.reglages_cle_note); textSize = 12f
+        })
+        val cleIgn = EditText(this).apply {
+            setSingleLine()             // avant la transformation : sinon elle serait remplacée
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            transformationMethod = PasswordTransformationMethod.getInstance()
+            setText(reglages.cleIgn)
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    val valeur = s?.toString()?.trim() ?: ""
+                    if (!CLE_IGN.matches(valeur) || valeur == reglages.cleIgn) return
+                    reglages.cleIgn = valeur
+                    if (fenetreCartes != null) remplirCartes()
+                    if (valeur.isEmpty() && reglages.fond == "scan25") appliquerFond("plan")
+                }
+            })
+        }
+        colonne.addView(cleIgn)
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.reglages_cle_afficher)
+            setOnCheckedChangeListener { _, v ->
+                cleIgn.inputType = InputType.TYPE_CLASS_TEXT or
+                    (if (v) InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD else InputType.TYPE_TEXT_VARIATION_PASSWORD)
+                cleIgn.transformationMethod =
+                    if (v) null else PasswordTransformationMethod.getInstance()
+                cleIgn.setSelection(cleIgn.text.length)
+            }
+        })
+
         // Les réglages de trace et les lots ont leur page « Itinéraires ».
         titre(colonne, R.string.titre_cache)
         colonne.addView(Button(this).apply {
@@ -1785,7 +1828,7 @@ class MainActivity : Activity() {
                 retirees.clear()
                 exclues.clear()
                 effacerTrace()
-                appliquerFond(if (reglages.fond == "topo") "topo" else "osm")     // un fournisseur neuf, sur un cache neuf
+                appliquerFond(reglages.fond)     // un fournisseur neuf, sur un cache neuf
                 etat.text = getString(R.string.etat_cache_vide,
                     Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
@@ -2475,6 +2518,8 @@ class MainActivity : Activity() {
         private const val PERMISSION_NOTIFICATIONS = 4
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
+        /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */
+        private val CLE_IGN = Regex("[A-Za-z0-9_-]{0,100}")
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */
         private const val ZOOM_CALQUES = 14.0
         // Au niveau du processus : un téléchargement survit à l'écran qui l'a lancé.

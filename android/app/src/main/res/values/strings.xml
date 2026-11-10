@@ -31,8 +31,13 @@
     <string name="plan_gpx_enregistrer">Save</string>
 
     <string name="titre_fond">Online</string>
-    <string name="fond_osm">OpenStreetMap (online)</string>
-    <string name="fond_topo">OpenTopoMap (online)</string>
+    <string name="fond_osm">OpenStreetMap</string>
+    <string name="fond_topo">OpenTopoMap</string>
+    <string name="fond_plan">Plan IGN</string>
+    <string name="fond_scan25">SCAN 25 (IGN)</string>
+    <string name="fond_photos">Aerial photos (IGN)</string>
+    <string name="fond_relief">LiDAR HD terrain relief (IGN)</string>
+    <string name="fond_satellite">Satellite (Esri)</string>
     <string name="fond_hors_ligne">%1$s, offline (%2$d map(s), %3$s)</string>
     <string name="fond_a_telecharger">Download %1$s: %2$s, %3$s, from %4$s</string>
     <string name="fond_relire">Reload the maps shared by the PC</string>
@@ -62,6 +67,9 @@
     <string name="recherche_court">Type at least two characters.</string>
 
     <string name="titre_affichage">Display</string>
+    <string name="reglages_cle_ign">IGN key for SCAN 25</string>
+    <string name="reglages_cle_note">SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.</string>
+    <string name="reglages_cle_afficher">Show the key</string>
     <string name="afficher_legende">Show legend</string>
     <string name="afficher_courbe">Show elevation profile</string>
     <string name="afficher_recherche">Show town search</string>

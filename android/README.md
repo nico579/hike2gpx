@@ -126,8 +126,12 @@ de la séance. Les lots et les fonds installés affichent leur taille réelle,
 jamais un « 0 Mo » trompeur.
 
 La page « Gestion des cartes », dans le menu, réunit tout ce qui touche au fond
-et aux chemins, sorti des réglages. On y choisit le fond dans « En ligne » :
-OpenStreetMap ou OpenTopoMap, ou dans « Hors ligne » un fond reçu d'un PC (le
+et aux chemins, sorti des réglages. On y choisit le fond dans « En ligne » : les
+mêmes cartes que la page du PC en France, le Plan IGN par défaut, le SCAN 25
+(IGN), OpenStreetMap, OpenTopoMap, les photos aériennes (IGN), le relief LiDAR HD
+(IGN) et le satellite (Esri). Le SCAN 25 n'est pas une donnée libre : il
+n'apparaît qu'une fois la clé IGN renseignée dans les réglages, et sans elle la
+carte reste sur le Plan IGN. Dans « Hors ligne », un fond reçu d'un PC (le
 SCAN 25 ou le Plan IGN qu'il a fabriqués). Les fonds qu'un PC partage et qui
 manquent au téléphone y sont proposés, avec leur taille et un bouton de
 téléchargement ; le QR code du PC (« Partager au téléphone » dans ses réglages)
@@ -149,8 +153,9 @@ l'ordinateur » propose celles que seul un ordinateur calcule, avec « Scanner l
 QR code de l'ordinateur » ; un lot est pris au premier PC qui le sert, et un PC
 éteint ne bloque rien. Le volet « Enregistrement de trace GPS » y règle la
 distance minimale, la durée minimale et la déviation GPS maximale. Les réglages
-ne gardent que l'affichage, le cache et la mise à jour ; « Vider le cache »
-efface comme sur le PC les lots, les fonds, les téléchargements interrompus, les
+ne gardent que l'affichage, la clé IGN, le cache et la mise à jour ; « Vider le
+cache » efface comme sur le PC les lots, les fonds, les téléchargements
+interrompus, les
 tuiles en ligne gardées et les tuiles de relief ; les lots du serveur reviennent
 d'eux-mêmes.
 

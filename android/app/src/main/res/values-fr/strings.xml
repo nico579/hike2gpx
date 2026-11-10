@@ -29,8 +29,13 @@
     <string name="plan_gpx_enregistrer">Enregistrer</string>
 
     <string name="titre_fond">En ligne</string>
-    <string name="fond_osm">OpenStreetMap (en ligne)</string>
-    <string name="fond_topo">OpenTopoMap (en ligne)</string>
+    <string name="fond_osm">OpenStreetMap</string>
+    <string name="fond_topo">OpenTopoMap</string>
+    <string name="fond_plan">Plan IGN</string>
+    <string name="fond_scan25">SCAN 25 (IGN)</string>
+    <string name="fond_photos">Photos aériennes (IGN)</string>
+    <string name="fond_relief">Relief LiDAR HD (IGN)</string>
+    <string name="fond_satellite">Satellite (Esri)</string>
     <string name="fond_hors_ligne">%1$s, hors ligne (%2$d fond(s), %3$s)</string>
     <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$s, depuis %4$s</string>
     <string name="fond_relire">Relire les fonds partagés par le PC</string>
@@ -60,6 +65,9 @@
     <string name="recherche_court">Saisissez au moins deux caractères.</string>
 
     <string name="titre_affichage">Affichage</string>
+    <string name="reglages_cle_ign">Clé IGN pour le SCAN 25</string>
+    <string name="reglages_cle_note">Le SCAN 25 n’est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</string>
+    <string name="reglages_cle_afficher">Afficher la clé</string>
     <string name="afficher_legende">Afficher légendes</string>
     <string name="afficher_courbe">Afficher courbe du dénivelé</string>
     <string name="afficher_recherche">Afficher la recherche de ville</string>
