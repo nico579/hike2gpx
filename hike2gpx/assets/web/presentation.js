@@ -27,11 +27,12 @@ function lienCouverturePays(langue) {
 if (typeof module !== "undefined") module.exports = { couvertureCartographique, lienCouverturePays };
 (() => {
   if (typeof document === "undefined") return;
+  // Les pages du menu : chaque entrée [data-pane] ouvre la sienne dans le panneau.
   const tabs = [...document.querySelectorAll("[data-pane]")];
+  const pageNames = tabs.map(tab => tab.dataset.pane);
   const panel = document.getElementById("panneau");
-  const panelToggle = document.getElementById("panelToggle");
-  const panelPreference = "hike2gpx.panelCollapsed";
-  const tabPreference = "hike2gpx.activeTab";
+  const pageTitle = document.getElementById("pageTitre");
+  const pagePreference = "hike2gpx.page";
   const transparencySlider = document.getElementById("panelTransparency");
   const transparencyValue = document.getElementById("panelTransparencyValue");
   const transparencyPreference = "hike2gpx.panelTransparency";
@@ -49,23 +50,14 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   try { savedTransparency = localStorage.getItem(transparencyPreference) ?? savedTransparency; } catch (error) {}
   setTransparency(savedTransparency);
   transparencySlider.addEventListener("input", () => setTransparency(transparencySlider.value, true));
-  function setPanelCollapsed(collapsed, remember = false) {
+  // Sans page ouverte, le panneau s'efface : la carte reste seule, comme sur le téléphone.
+  function setPanelCollapsed(collapsed) {
     document.body.classList.toggle("panel-collapsed", collapsed);
     panel.toggleAttribute("inert", collapsed);
     panel.setAttribute("aria-hidden", String(collapsed));
-    panelToggle.setAttribute("aria-expanded", String(!collapsed));
-    const label = collapsed ? "Afficher le panneau du parcours" : "Replier le panneau du parcours";
-    panelToggle.setAttribute("aria-label", label);
-    panelToggle.title = label;
-    if (remember) {
-      try { localStorage.setItem(panelPreference, String(collapsed)); } catch (error) {}
-    }
     setTimeout(() => window.dispatchEvent(new Event("resize")), 260);
   }
-  try { setPanelCollapsed(localStorage.getItem(panelPreference) === "true"); }
-  catch (error) { setPanelCollapsed(false); }
-  panelToggle.addEventListener("click", () => setPanelCollapsed(!document.body.classList.contains("panel-collapsed"), true));
-  // Les états réels de app.js restent visibles sur la carte dans tous les onglets.
+  // Les états réels de app.js restent visibles sur la carte, quelle que soit la page.
   const activity = document.getElementById("mapActivity");
   const activityRows = document.getElementById("mapActivityRows");
   const jobs = [
@@ -119,35 +111,114 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       { attributes: true, childList: true, characterData: true, subtree: true });
   }
   refreshActivity();
-  function selectPane(name, focus = false, remember = true) {
+  // Le volet des tuiles hors ligne : un seul bloc, que « Gestion des cartes »
+  // ouvre pour les fonds (carrés de 1°) et « Gestion des itinéraires » pour le
+  // routage (cases de 5°). Ouvert, app.js affiche la grille sur la carte.
+  const offline = document.getElementById("horsLigne");
+  const offlineButtons = [...document.querySelectorAll(".hl-ouvrir")];
+  function setOffline(mode) {
+    for (const button of offlineButtons) {
+      const open = button.dataset.hlMode === mode;
+      button.setAttribute("aria-expanded", String(open));
+      button.dataset.i18n = open ? "horsLigne.terminer" : button.dataset.hlTexte;
+      button.textContent = t(button.dataset.i18n);
+      if (!open) continue;
+      button.after(offline);
+      const radio = document.getElementById(mode === "fond" ? "hlFond" : "hlRoutage");
+      if (!radio.checked) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event("change"));
+      }
+    }
+    offline.hidden = !mode;
+  }
+  for (const button of offlineButtons) {
+    button.addEventListener("click", () =>
+      setOffline(button.getAttribute("aria-expanded") === "true" ? "" : button.dataset.hlMode));
+  }
+  // Une page du menu, ou aucune ("") : la carte seule.
+  function selectPane(name, remember = true) {
+    const open = pageNames.includes(name);
     for (const tab of tabs) {
       const selected = tab.dataset.pane === name;
-      tab.setAttribute("aria-selected", String(selected));
-      tab.tabIndex = selected ? 0 : -1;
+      if (selected) tab.setAttribute("aria-current", "page");
+      else tab.removeAttribute("aria-current");
       document.getElementById(`pane-${tab.dataset.pane}`).hidden = !selected;
-      if (selected && focus) tab.focus();
     }
+    setOffline("");
+    if (open) {
+      pageTitle.dataset.i18n = `menu.${name}`;
+      pageTitle.textContent = t(`menu.${name}`);
+    }
+    setPanelCollapsed(!open);
     panel.querySelector(".panel-scroll").scrollTop = 0;
     if (name === "reglages") chargerDonnees();
-    if (innerWidth <= 700 && name !== "trace") document.body.classList.add("sheet-expanded");
+    document.body.classList.toggle("sheet-expanded", open && innerWidth <= 700 && name !== "trace");
     if (remember) {
-      try { localStorage.setItem(tabPreference, name); } catch (error) {}
+      try { localStorage.setItem(pagePreference, open ? name : ""); } catch (error) {}
     }
-    setTimeout(() => window.dispatchEvent(new Event("resize")), 280);
   }
-  tabs.forEach((tab, index) => {
-    tab.addEventListener("click", () => selectPane(tab.dataset.pane));
-    tab.addEventListener("keydown", event => {
-      const next = { ArrowRight: (index + 1) % tabs.length, ArrowLeft: (index + tabs.length - 1) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
-      if (next === undefined) return;
-      event.preventDefault();
-      selectPane(tabs[next].dataset.pane, true);
-    });
+  // Le menu : un bouton à trois traits sur la carte, puis une entrée par page.
+  const menuButton = document.getElementById("menuButton");
+  const menu = document.getElementById("menuPrincipal");
+  const menuBackdrop = document.getElementById("menuFond");
+  function setMenuOpen(open) {
+    menu.hidden = !open;
+    menuBackdrop.hidden = !open;
+    menuButton.setAttribute("aria-expanded", String(open));
+    if (open) menu.querySelector(".menu-entry").focus();
+  }
+  // Ces éléments sont posés sur la carte : un clic dessus ne doit ni poser un
+  // point ni déplacer la carte. C'est l'idiome de Leaflet pour ses contrôles.
+  for (const element of [menuButton, menu, menuBackdrop]) {
+    L.DomEvent.disableClickPropagation(element);
+    L.DomEvent.disableScrollPropagation(element);
+  }
+  menuButton.addEventListener("click", () => setMenuOpen(menu.hidden));
+  menuBackdrop.addEventListener("click", () => setMenuOpen(false));
+  document.getElementById("aide").addEventListener("click", () => setMenuOpen(false));
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !menu.hidden) {
+      setMenuOpen(false);
+      menuButton.focus();
+    }
   });
-  try {
-    const savedTab = localStorage.getItem(tabPreference);
-    if (tabs.some(tab => tab.dataset.pane === savedTab)) selectPane(savedTab, false, false);
-  } catch (error) {}
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => {
+      setMenuOpen(false);
+      selectPane(tab.dataset.pane);
+    });
+  }
+  document.getElementById("pageFermer").addEventListener("click", () => {
+    selectPane("");
+    menuButton.focus();
+  });
+  // « Recherche » montre ou replie le champ, en haut de la carte.
+  const search = document.getElementById("citySearch");
+  const searchEntry = document.getElementById("menuRecherche");
+  const searchPreference = "hike2gpx.searchOpen";
+  function setSearchOpen(open, remember = false) {
+    search.hidden = !open;
+    searchEntry.setAttribute("aria-pressed", String(open));
+    if (!remember) return;
+    if (open) document.getElementById("cityQuery").focus();
+    try { localStorage.setItem(searchPreference, String(open)); } catch (error) {}
+  }
+  searchEntry.addEventListener("click", () => {
+    setMenuOpen(false);
+    setSearchOpen(search.hidden, true);
+  });
+  try { setSearchOpen(localStorage.getItem(searchPreference) === "true"); }
+  catch (error) { setSearchOpen(false); }
+  let savedPage = "";
+  try { savedPage = localStorage.getItem(pagePreference) || ""; } catch (error) {}
+  selectPane(savedPage, false);
+  // Un premier point posé sur la carte seule ouvre « Planifier un itinéraire » :
+  // ses boutons et l'état du calcul sont là.
+  const removeLast = document.getElementById("retirerDernier");
+  new MutationObserver(() => {
+    if (!removeLast.disabled && document.body.classList.contains("panel-collapsed")) selectPane("trace");
+  }).observe(removeLast, { attributes: true, attributeFilter: ["disabled"] });
   const routeSummary = document.getElementById("routeSummary");
   const result = document.getElementById("resultat");
   const elevationPanel = document.getElementById("elevationPanel");
@@ -320,23 +391,10 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   document.getElementById("carte").addEventListener("click", () => {
     if (innerWidth <= 700) document.body.classList.remove("sheet-expanded");
   });
-  // Habillage de la commande Leaflet existante : les vrais fonds et calques
-  // restent gérés par app.js, y compris lorsqu'une langue les recrée.
+  // Le contrôle Leaflet des fonds et des calques s'affiche dans la page
+  // « Gestion des cartes », comme sur le téléphone. app.js le gère toujours,
+  // y compris lorsqu'une langue ou un pays le recrée : on le replace alors.
   const toolbar = document.querySelector(".map-widget-toolbar");
-  const hideMapToolbar = document.getElementById("hideMapToolbar");
-  const mapVisibilityPreference = "hike2gpx.hideMapToolbar";
-  try { hideMapToolbar.checked = localStorage.getItem(mapVisibilityPreference) === "true"; } catch (error) {}
-  function syncMapToolbarVisibility() {
-    document.body.classList.toggle("hide-map-toolbar", hideMapToolbar.checked);
-    toolbar.toggleAttribute("inert", hideMapToolbar.checked);
-    toolbar.setAttribute("aria-hidden", String(hideMapToolbar.checked));
-  }
-  hideMapToolbar.addEventListener("change", () => {
-    try { localStorage.setItem(mapVisibilityPreference, String(hideMapToolbar.checked)); } catch (error) {}
-    syncMapToolbarVisibility();
-  });
-  syncMapToolbarVisibility();
-  const layersButton = document.getElementById("layersButton");
   const providersInfoLink = document.getElementById("providersInfoButton");
   function updateProvidersInfoLink() {
     const english = document.documentElement.lang === "en";
@@ -347,101 +405,32 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   }
   document.addEventListener("nico579-langue", updateProvidersInfoLink);
   updateProvidersInfoLink();
-  const layersPreference = "hike2gpx.layersOpen";
-  try {
-    const open = localStorage.getItem(layersPreference) === "true";
-    toolbar.classList.toggle("layers-open", open);
-    layersButton.setAttribute("aria-expanded", String(open));
-  } catch (error) {}
-  const baseLabel = document.getElementById("baseLabel");
   const expandButton = document.getElementById("expandMapButton");
   const map = document.getElementById("carte");
   const legend = document.getElementById("mapLegend");
   const leafletControls = document.querySelector(".leaflet-top.leaflet-right");
-  const layersLayoutObserver = new ResizeObserver(() => requestAnimationFrame(syncProfileWidth));
-  let observedLayersControl = null;
-  layersLayoutObserver.observe(elevationPanel);
-  function syncProfileWidth() {
-    const control = toolbar.querySelector(".leaflet-control-layers");
-    if (!control) return;
-    const profileVisible = toolbar.classList.contains("layers-open") && !elevationPanel.hidden
-      && !document.body.classList.contains("hide-elevation")
-      && !document.body.classList.contains("hide-map-toolbar");
-    if (!profileVisible) {
-      control.style.maxHeight = "";
-      map.classList.remove("profile-beside-layers");
-      return;
-    }
-    const profile = elevationPanel.getBoundingClientRect();
-    const menu = control.getBoundingClientRect();
-    const room = menu.left - profile.left - 12;
-    if (room < 320) {
-      control.style.maxHeight = `${Math.max(100, profile.top - menu.top - 12)}px`;
-      map.classList.remove("profile-beside-layers");
-      return;
-    }
-    control.style.maxHeight = "";
-    const fullMenu = control.getBoundingClientRect();
-    if (fullMenu.bottom > profile.top) {
-      map.style.setProperty("--layers-profile-right", `${map.getBoundingClientRect().right - fullMenu.left + 12}px`);
-      map.classList.add("profile-beside-layers");
-    } else {
-      map.classList.remove("profile-beside-layers");
-    }
-  }
+  const layersHost = document.getElementById("cartesCalques");
   document.querySelector(".leaflet-control-zoom").after(expandButton);
   for (const eventName of ["click", "mousedown", "dblclick"]) {
     expandButton.addEventListener(eventName, event => event.stopPropagation());
   }
-  function closeLayers(remember = true) {
-    toolbar.classList.remove("layers-open");
-    layersButton.setAttribute("aria-expanded", "false");
-    requestAnimationFrame(syncProfileWidth);
-    if (remember) {
-      try { localStorage.setItem(layersPreference, "false"); } catch (error) {}
-    }
-  }
   function syncLayers() {
-    const control = leafletControls.querySelector(".leaflet-control-layers") || toolbar.querySelector(".leaflet-control-layers");
+    const control = leafletControls.querySelector(".leaflet-control-layers")
+      || layersHost.querySelector(".leaflet-control-layers");
     if (!control) return;
-    if (control !== observedLayersControl) {
-      if (observedLayersControl) layersLayoutObserver.unobserve(observedLayersControl);
-      observedLayersControl = control;
-      layersLayoutObserver.observe(control);
-    }
-    if (control.parentElement !== toolbar) {
-      toolbar.append(control);
-    }
+    if (control.parentElement !== layersHost) layersHost.replaceChildren(control);
     const list = control.querySelector(".leaflet-control-layers-list");
     if (list) {
-      list.id = "mapLayersMenu";
       if (legend.parentElement !== list) list.append(legend);
       legend.hidden = false;
     }
-    const selected = control.querySelector(".leaflet-control-layers-base input:checked");
-    if (selected) baseLabel.textContent = selected.closest("label").textContent.trim();
-    requestAnimationFrame(syncProfileWidth);
   }
   syncLayers();
   new MutationObserver(syncLayers).observe(leafletControls, { childList: true });
+  // L'aide des tuiles hors ligne reste posée sur la carte.
   toolbar.addEventListener("mousedown", event => event.stopPropagation());
   toolbar.addEventListener("dblclick", event => event.stopPropagation());
   toolbar.addEventListener("click", event => event.stopPropagation());
-  // Leaflet interrompt la propagation sur ses champs : capter le changement
-  // avant lui pour actualiser le nom du fond choisi.
-  toolbar.addEventListener("change", () => setTimeout(syncLayers, 0), true);
-  layersButton.addEventListener("click", () => {
-    const open = toolbar.classList.toggle("layers-open");
-    layersButton.setAttribute("aria-expanded", String(open));
-    try { localStorage.setItem(layersPreference, String(open)); } catch (error) {}
-    requestAnimationFrame(syncProfileWidth);
-  });
-  document.addEventListener("keydown", event => {
-    if (event.key === "Escape") {
-      closeLayers();
-    }
-  });
-  window.addEventListener("resize", () => requestAnimationFrame(syncProfileWidth));
   function syncFullscreen() {
     const expanded = document.fullscreenElement === map;
     document.body.classList.toggle("plein-ecran", expanded);
@@ -449,7 +438,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     expandButton.setAttribute("aria-pressed", String(expanded));
     expandButton.setAttribute("aria-label", label);
     expandButton.title = label;
-    closeLayers(false);
     setTimeout(() => window.dispatchEvent(new Event("resize")), 60);
   }
   document.addEventListener("fullscreenchange", syncFullscreen);

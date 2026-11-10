@@ -4,15 +4,13 @@
 html,body{overflow:hidden;color:var(--texte);background:#f7f9fc;font:14px/1.5 "Segoe UI",system-ui,sans-serif}
 button,input{font:inherit}
 button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #4d8ded;outline-offset:3px}
-.app-header{position:absolute;inset:0 0 auto;height:52px;z-index:1300;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);border-bottom:1px solid var(--bordure);display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 23px}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.city-search{position:relative;display:flex;align-items:center;flex:0 1 320px;min-width:200px;height:34px;border:1px solid #cddcec;border-radius:8px;background:rgb(255 255 255 / .8);box-shadow:0 2px 8px #243b5310}
+.city-search{position:relative;display:flex;align-items:center;flex:0 1 320px;min-width:0;height:34px;border:1px solid #cddcec;border-radius:8px;background:rgb(255 255 255 / .92);box-shadow:0 2px 8px #243b5320}
 .city-search:focus-within{border-color:#4d8ded;box-shadow:0 0 0 2px #4d8ded33}
 .city-search input{width:100%;min-width:0;height:100%;padding:0 10px;border:0;outline:0;background:transparent;color:var(--texte);font-size:12px}
 .city-search input:focus-visible{outline:0}
 .city-search>button{height:100%;padding:0 12px;border:0;border-left:1px solid #d9e5f1;border-radius:0 7px 7px 0;background:#edf5ff;color:#1854b1;font-size:12px;cursor:pointer}
 .city-search>button:disabled{opacity:.55;cursor:default}
-.city-search>.echelle-entete{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);margin:0}
 .city-results{position:absolute;top:calc(100% + 6px);left:0;right:0;max-height:260px;overflow-y:auto;padding:6px;border:1px solid #d9e5f1;border-radius:9px;background:#fff;box-shadow:0 10px 28px #1b354533;color:#52677e;font-size:12px}
 .city-results:not(:has(button)){padding:10px 12px}
 .city-results button{display:block;width:100%;padding:8px 9px;border:0;border-radius:5px;background:transparent;color:#294762;text-align:left;font-size:12px;cursor:pointer}
@@ -34,17 +32,12 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid
    laissent un filet du fond visible. Le recouvrement reste à 2 px affichés,
    même quand Leaflet agrandit un fond au-delà de son zoom natif. */
 #carte .leaflet-tile-pane img.leaflet-tile{width:calc(256px + var(--tile-overlap, 2px))!important;height:calc(256px + var(--tile-overlap, 2px))!important;mix-blend-mode:normal}
-#panneau{top:52px;left:0;bottom:0;width:var(--panneau);padding:0;display:flex;flex-direction:column;overflow:hidden;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);border-right:1px solid var(--bordure);z-index:1001;box-shadow:4px 0 20px #20395208}
+#panneau{top:0;left:0;bottom:0;width:var(--panneau);padding:0;display:flex;flex-direction:column;overflow:hidden;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);border-right:1px solid var(--bordure);z-index:1001;box-shadow:4px 0 20px #20395208}
 body.panel-collapsed{--panneau:0px}
 body.plein-ecran{--panneau:0px}
 #panneau{transition:width .24s ease}
 #progression{transition:left .24s ease}
 body.panel-collapsed #panneau{visibility:hidden;pointer-events:none}
-.panel-toggle{position:absolute;top:235px;left:var(--panneau);z-index:1200;width:29px;height:52px;display:flex;align-items:center;justify-content:center;padding:0;border:1px solid #dce6f0;border-left:0;border-radius:0 9px 9px 0;background:#fff;box-shadow:2px 2px 10px #243b5318;color:#42617e;cursor:pointer;transition:left .24s ease}
-.panel-toggle:hover{background:#f2f7ff;color:var(--accent)}
-.panel-toggle svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
-body.panel-collapsed .panel-toggle svg{transform:rotate(180deg)}
-body.plein-ecran .panel-toggle{display:none}
 .sheet-grip{display:none}
 .route-summary{flex-shrink:0;padding:11px 22px 13px;border-bottom:1px solid var(--bordure);background:#f8fbff26}
 .route-summary>strong{display:block;font-size:12px;color:#3d5e80;margin-bottom:8px}
@@ -59,12 +52,6 @@ body.plein-ecran .panel-toggle{display:none}
 .langues{align-self:center;gap:4px}
 .bouton-langue{padding:4px 7px;font-size:11px;color:#728093;background:#f7f9fc;border-radius:6px}
 .bouton-langue.active{background:#eaf2ff;color:#1854b1;border-color:#cddff7}
-.bouton-aide{margin-right:-12px;border:1px solid #d7e3f0;font-weight:700;text-decoration:none}
-.panel-tabs{display:flex;gap:7px;padding:7px 17px;border-bottom:1px solid #cfdaea;background:#fff;flex-shrink:0}
-.panel-tabs button{flex:1;border:1px solid #cbd9e8;background:#edf3fa;border-radius:7px;color:#304963;padding:8px 7px;font-size:12px;font-weight:650}
-.panel-tabs button:hover{background:#dfeaf8}
-.panel-tabs button[aria-selected=true]{border-color:#2367d1;background:#2367d1;color:#fff;font-weight:700}
-.panel-tabs button[aria-selected=true]:hover{background:#1854b1}
 .panel-scroll{overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:#ced8e5 transparent}
 .pane{padding:19px 23px 25px}
 .pane-title{font-size:19px;line-height:1.25;margin:0 0 6px}
@@ -107,7 +94,7 @@ body.plein-ecran .panel-toggle{display:none}
 .legende .trait{flex:none;width:24px}.legende .pastille{flex:none}
 .legende .trait.gpx{border-top:4px dashed #ffe14a;filter:drop-shadow(0 0 1px #344132)}
 #reglages,#journal{display:block;margin:0;border:1px solid var(--bordure);border-radius:11px;padding:14px;background:transparent}
-.map-activity{position:absolute;left:calc(var(--panneau) + 18px);bottom:22px;z-index:1100;width:min(420px,calc(100% - var(--panneau) - 36px));max-height:min(42vh,330px);overflow-y:auto;border:1px solid #d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);border-radius:10px;padding:11px 14px;box-shadow:0 7px 30px #1b354533;pointer-events:none;transition:left .24s ease,width .24s ease}
+.map-activity{position:absolute;left:calc(var(--panneau) + 78px);bottom:22px;z-index:1100;width:min(420px,calc(100% - var(--panneau) - 96px));max-height:min(42vh,330px);overflow-y:auto;border:1px solid #d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);border-radius:10px;padding:11px 14px;box-shadow:0 7px 30px #1b354533;pointer-events:none;transition:left .24s ease,width .24s ease}
 .map-activity-row{padding:8px 0;border-top:1px solid #dce8f6}
 .map-activity-row:first-child{border-top:0;padding-top:0}
 .map-activity-row:last-child{padding-bottom:0}
@@ -118,8 +105,7 @@ body.plein-ecran .panel-toggle{display:none}
 .map-activity-row .piste.indeterminee .barre{position:absolute;width:30%;animation:va-et-vient 1.2s ease-in-out infinite alternate}
 body.profile-open .map-activity{bottom:264px}
 body.profile-collapsed .map-activity{bottom:81px}
-.elevation-panel{position:absolute;left:calc(var(--panneau) + 18px);right:18px;bottom:25px;z-index:1050;max-height:40vh;border:1px solid #d9e5f18c;border-radius:12px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 10px 34px #1b354538;overflow:hidden;transition:left .24s ease,right .18s ease}
-#carte.profile-beside-layers .elevation-panel{right:var(--layers-profile-right)}
+.elevation-panel{position:absolute;left:calc(var(--panneau) + 78px);right:18px;bottom:25px;z-index:1050;max-height:40vh;border:1px solid #d9e5f18c;border-radius:12px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 10px 34px #1b354538;overflow:hidden;transition:left .24s ease,right .18s ease}
 .elevation-panel button{border:0;background:none;cursor:pointer}
 #elevationToggle{display:flex;align-items:center;gap:10px;width:100%;padding:10px 16px;color:#305574;text-align:left;font-size:12px;font-weight:700}
 #elevationToggle:hover{background:#f5f9ff50}
@@ -148,9 +134,8 @@ body.profile-collapsed .map-activity{bottom:81px}
 .info-tooltip:focus-visible{outline:2px solid #d4a100;outline-offset:2px}
 .info-tooltip [role=tooltip]{display:none;position:absolute;z-index:1400;top:24px;left:-10px;width:260px;padding:9px 11px;border:1px solid #edd789;border-radius:8px;background:#fff9db;box-shadow:0 5px 18px #5b4b1b30;color:#4b431f;font-size:11px;font-weight:400;line-height:1.4}
 .info-tooltip:hover [role=tooltip],.info-tooltip:focus [role=tooltip]{display:block}
-.header-actions{display:flex;align-items:center;gap:18px}
 .readiness-group{display:inline-flex;align-items:center;gap:5px}
-.readiness-info [role=tooltip]{left:auto;right:-8px;width:290px;max-width:calc(100vw - 24px);white-space:pre-line}
+.readiness-info [role=tooltip]{left:-120px;width:290px;max-width:calc(100vw - 24px);white-space:pre-line}
 .readiness{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border-radius:14px;font-size:11px;font-weight:700;white-space:nowrap}
 .readiness.available{color:#176547;background:#e4f5ec}
 .readiness.unavailable{color:#a13a38;background:#fbe9e8}
@@ -170,17 +155,17 @@ body.profile-collapsed .map-activity{bottom:81px}
 #reglages .setting-row label{margin:0;font-size:12px;line-height:1.5;color:#546a80}
 .settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
 .display-settings{margin-top:17px;padding-top:7px;border-top:1px solid var(--bordure)}
-#horsLigne #partageOuvert{display:flex;gap:8px;flex-wrap:wrap}
-#horsLigne #partageOuvert[hidden]{display:none}
-/* L'onglet « Hors ligne » : le mode, la légende de la grille, les actions, la file. */
-#horsLigne{display:block;margin:0;border:1px solid var(--bordure);border-radius:11px;padding:14px}
-#horsLigne .hl-mode{border:0;margin:0 0 6px;padding:0}
-#horsLigne .hl-mode legend{font-size:13px;font-weight:700;color:#2e455d;margin-bottom:4px}
+#partageOuvert{display:flex;gap:8px;flex-wrap:wrap}
+#partageOuvert[hidden]{display:none}
+/* Le volet des tuiles hors ligne : la légende de la grille, les actions, la file. Le mode
+   (routage ou fond) vient de la page qui l'ouvre : son choix à cocher reste caché. */
+#horsLigne{display:block;margin:12px 0 0;border:1px solid var(--bordure);border-radius:11px;padding:14px}
+#horsLigne .hl-mode{display:none}
 #horsLigne .option{display:flex;align-items:center;gap:8px;margin:0;padding:5px 0;font-size:13px}
-#horsLigne select{margin-left:8px}
+#horsLigne .setting-row{grid-template-columns:auto minmax(0,1fr)}
+#horsLigne select{margin-left:8px;min-width:0;width:100%}
 #horsLigne .note{font-size:12px;line-height:1.5;color:#546a80;margin:8px 0}
 #horsLigne #hlSelection{color:#1f3347;font-weight:600}
-#horsLigne h3{font-size:13px;border-top:1px solid var(--bordure);padding-top:14px;margin-top:16px}
 .hl-legende{list-style:none;margin:6px 0;padding:0;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:#546a80}
 .hl-legende li{display:flex;align-items:center;gap:6px}
 .hl-legende li[hidden]{display:none}
@@ -211,7 +196,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 .journal-settings button{padding:9px 12px;border:1px solid #d5e5fa;border-radius:8px;background:#eef5ff;color:#1959b5;font-size:12px;cursor:pointer}
 .journal-settings button:hover:not(:disabled){background:#e1efff}
 .journal-settings .note{margin:8px 0 0;color:#bc3944}
-body.hide-elevation .elevation-panel,body.hide-map-toolbar .map-widget-toolbar{display:none!important}
+body.hide-elevation .elevation-panel{display:none!important}
 #noteCalques,#extraitOsm,#brouterEnCours{display:none!important}
 #resultat #sourceDenivele,#resultat #comparaison,#resultat #aucunAVerifier{display:none!important}
 #resultat.empty{display:none!important}
@@ -242,50 +227,78 @@ body.hide-elevation .elevation-panel,body.hide-map-toolbar .map-widget-toolbar{d
 .leaflet-control-layers-expanded{padding:12px!important;font-size:12px}
 .leaflet-control-layers-expanded input{accent-color:var(--accent)}
 .bouton-plein-ecran{display:none}
-.map-widget-toolbar{position:absolute;top:66px;right:16px;z-index:1000;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
-.map-widget-heading{display:flex;align-items:center;justify-content:flex-end;gap:6px}
-.map-providers-info-button{border:0;padding:0;font-family:inherit;line-height:1;text-decoration:none;cursor:pointer}
+.map-widget-toolbar{position:absolute;top:14px;right:16px;z-index:1000;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .map-widget-button{height:38px;border:1px solid #e0e6ed;border-radius:8px;background:#fff;box-shadow:0 2px 8px #243b5310;color:#344860;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 11px;font-size:11px;cursor:pointer}
-.layers-trigger{border-color:#d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px)}
-.map-widget-button.actif{border-color:var(--accent);color:var(--accent);font-weight:600}
 .map-offline-hint{max-width:300px;margin:0;padding:7px 10px;border:1px solid #d9e5f18c;border-radius:8px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 2px 8px #243b5310;color:#344860;font-size:11px;line-height:1.35}
 .map-widget-button:hover{background:#f5f8fc;color:var(--accent)}
 .map-widget-button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.map-widget-button .chevron{width:13px;height:13px;transition:transform .18s}
-.map-widget-button[aria-expanded=true] .chevron{transform:rotate(180deg)}
 .map-expand-button{width:38px;padding:0}
 .map-expand-button svg{width:18px;height:18px}
 .leaflet-top.leaflet-left .map-expand-button{float:left;clear:both;margin:9px 0 0 10px;width:34px;height:34px;padding:0;border:2px solid #0003;border-radius:4px;background-clip:padding-box}
-.map-widget-toolbar .leaflet-control-layers{position:absolute;right:0;top:44px;float:none;margin:0!important;width:288px;max-width:calc(100vw - 32px);max-height:calc(100vh - 132px);overflow-y:auto;padding:11px!important;border:1px solid #d9e5f18c!important;border-radius:12px!important;box-shadow:0 10px 34px #1b354538!important;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px)}
-.map-widget-toolbar .leaflet-control-layers-list{display:none!important}
-.map-widget-toolbar.layers-open .leaflet-control-layers-list{display:block!important}
-.map-widget-toolbar:not(.layers-open) .leaflet-control-layers{display:none!important}
-.map-widget-toolbar .leaflet-control-layers label{padding:3px 0;font-size:12px;line-height:1.25;cursor:pointer}
-.map-widget-toolbar .leaflet-control-layers-separator{margin:7px 0}
-body.plein-ecran .map-widget-toolbar .leaflet-control-layers{display:block}
-body.plein-ecran .map-widget-toolbar:not(.layers-open) .leaflet-control-layers{display:none}
 #carte:fullscreen{inset:0!important;width:100vw!important;height:100vh!important}
 .leaflet-top.leaflet-left{left:var(--panneau);transition:left .24s ease}
-.leaflet-top{top:52px}
 .leaflet-control-attribution{font-family:inherit!important;font-size:10px!important}
+/* La carte prend tout l'écran, comme dans l'application Android : plus d'en-tête.
+   La recherche et l'échelle flottent en haut, à droite des boutons de zoom. */
+.map-top{position:absolute;top:12px;left:calc(var(--panneau) + 58px);z-index:1250;display:flex;align-items:center;gap:10px;max-width:calc(100% - var(--panneau) - 74px);pointer-events:none;transition:left .24s ease}
+.map-top>*{pointer-events:auto}
+.map-top .city-search{width:320px}
+.map-top>.echelle-entete{flex:none;margin:0}
+body.plein-ecran .map-top{display:none}
+/* Le menu : un bouton rond à trois traits en bas à gauche de la carte, qui ouvre
+   une feuille translucide avec une entrée par page. */
+.menu-button{position:absolute;left:calc(var(--panneau) + 18px);bottom:25px;z-index:1060;width:48px;height:48px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:#263238d9;box-shadow:0 4px 16px #1b354555;color:#fff;cursor:pointer;transition:left .24s ease,background .15s}
+.menu-button:hover:not(:disabled){background:#1f2a30}
+.menu-button svg,.menu-entry svg,.page-close svg{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.menu-fond{position:absolute;inset:0;z-index:1255;background:rgb(0 0 0 / .35)}
+.menu-principal{position:absolute;left:calc(var(--panneau) + 18px);bottom:25px;z-index:1260;width:320px;max-width:calc(100% - var(--panneau) - 36px);padding:16px 10px 10px;border-radius:18px;background:rgb(250 250 250 / .88);backdrop-filter:blur(6px);box-shadow:0 14px 44px #10202c66;transition:left .24s ease}
+.menu-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 10px 10px}
+.menu-head .brand{font-size:20px}
+.menu-head .brand-icon{width:30px;height:30px}
+.menu-etat{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 10px 12px;margin-bottom:6px;border-bottom:1px solid #d5dee8}
+.menu-principal .menu-entry{display:flex;align-items:center;gap:18px;width:100%;padding:12px 12px;border:0;border-radius:10px;background:transparent;color:#263238;font-size:15px;line-height:1.3;text-align:left;text-decoration:none;cursor:pointer}
+.menu-principal .menu-entry:hover,.menu-principal .menu-entry:focus-visible{background:#e3edf9;color:#1854b1}
+.menu-principal .menu-entry[aria-current=page],.menu-principal .menu-entry[aria-pressed=true]{color:#1854b1;font-weight:650}
+body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran .menu-fond{display:none}
+/* Une page du menu dans le panneau : son titre, une croix pour revenir à la carte seule. */
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 12px 12px 23px;border-bottom:1px solid #cfdaea;background:#fff;flex-shrink:0}
+.page-head h2{margin:0;font-size:17px;line-height:1.25;color:#1f3347}
+.page-close{display:grid;place-items:center;flex:none;width:34px;height:34px;padding:0;border:0;border-radius:8px;background:transparent;color:#52677e;cursor:pointer}
+.page-close:hover:not(:disabled){background:#eef3f9;color:var(--accent)}
+.pane>.section-title{margin-top:20px;color:#3d5e80}
+.pane>.section-title:first-child{margin-top:0;padding-top:0;border-top:0}
+.pane>.section-title .info-tooltip{margin-left:8px;vertical-align:1px;text-decoration:none}
+.pane>.note{margin:0 0 10px;font-size:12px;line-height:1.5;color:#546a80}
+.page-action{padding:9px 12px;border:1px solid #d5e5fa;border-radius:8px;background:#eef5ff;color:#1959b5;font-size:12px;cursor:pointer}
+.page-action:hover:not(:disabled){background:#e1efff}
+.page-action[aria-expanded=true]{background:#2367d1;border-color:#2367d1;color:#fff}
+.page-action[aria-expanded=true]:hover:not(:disabled){background:#1854b1}
+.partage-settings h3{margin:10px 0 4px;font-size:13px;color:#2e455d}
+.partage-settings .note{margin:0 0 10px}
+/* Le contrôle Leaflet des fonds et des calques, sorti de la carte pour la page
+   « Gestion des cartes » : une simple liste, sans cadre ni ombre. */
+.cartes-calques .leaflet-control-layers{float:none;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent;color:#42566d}
+.cartes-calques .leaflet-control-layers-list{display:block!important;height:auto!important;overflow:visible!important;padding:0!important}
+.cartes-calques .leaflet-control-layers-toggle{display:none!important}
+.cartes-calques .leaflet-control-layers label{padding:5px 0;font-size:12px;line-height:1.35;cursor:pointer}
+.cartes-calques .leaflet-control-layers-separator{margin:9px 0}
 @media(max-height:780px) and (min-width:701px){.pane{padding-top:13px}.aide{padding:9px 12px;margin-bottom:11px}.boutons{gap:6px;margin-bottom:13px}.option{padding:8px 0}.panel-footer{padding:8px 20px}}
 @media(max-width:700px){
   :root{--panneau:0px}
-  .panel-toggle{display:none}
-  .app-header{padding:0 14px}.brand{font-size:20px}.brand-icon{width:32px;height:32px}#version{font-size:9px;margin-left:2px}
-  #carte{top:52px;bottom:49vh;left:0;right:0}
-  .leaflet-top{top:0}
+  #carte{top:0;bottom:49vh;left:0;right:0}
+  body.panel-collapsed #carte{bottom:0}
   #panneau{top:51vh;left:0;bottom:0;width:100%;border-right:0;border-top:1px solid #d7e2ee;border-radius:18px 18px 0 0;box-shadow:0 -7px 25px #193c5d18;transition:top .25s;z-index:1100}
   .sheet-grip{height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer}.sheet-grip>span{width:34px;height:4px;border-radius:3px;background:#c9d5e3}
-  .panel-tabs{padding:0 14px}.panel-tabs button{padding:8px 5px;font-size:11px}
   .pane{padding:14px 20px 25px}.aide{padding:10px 12px}.panel-footer{padding:7px 20px;font-size:8px}
   #progression{left:10px;right:10px;bottom:calc(49vh + 10px);margin:0}
-  body.sheet-expanded #panneau{top:68px}
+  body.sheet-expanded #panneau{top:16px}
   body.sheet-expanded #carte{bottom:0}
   body.sheet-expanded #progression{bottom:10px;z-index:1200}
-  body.plein-ecran #carte{bottom:0;top:52px}
+  body.plein-ecran #carte{bottom:0}
   body.plein-ecran #panneau{display:none}
   body.plein-ecran #progression{bottom:10px}
-  .map-widget-toolbar{top:10px;right:10px}
+  .map-widget-toolbar{top:58px;right:10px}
+  .map-top{left:54px;right:10px}
+  .page-head{padding:2px 12px 8px 20px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

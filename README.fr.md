@@ -31,9 +31,14 @@ contente d'ouvrir la page de la nouvelle version.
 ## Ce que fait hike2gpx
 
 Tout se passe dans une page locale, ouverte dans le navigateur, et dans le
-menu d'une icône de la zone de notification. Le bouton « ? », à côté de
-FR/EN, ouvre ce mode d'emploi dans la langue de la page, pour la version
-installée.
+menu d'une icône de la zone de notification. La page est celle de
+l'application Android : la carte d'abord, en plein écran, et un bouton à trois
+traits, en bas à gauche, qui ouvre le menu : « Recherche », « Gestion des
+cartes », « Gestion des itinéraires », « Planifier un itinéraire »,
+« Réglages » et « Aide ». Chaque entrée ouvre sa page dans un panneau à
+gauche, que sa croix referme pour rendre la carte seule ; le menu porte aussi
+le choix FR/EN et le voyant du calcul. « Aide » ouvre ce mode d'emploi dans la
+langue de la page, pour la version installée.
 
 **La carte.** Elle suit le pays de son centre, y compris quand on la déplace
 à la main, et propose les fonds de ce pays ; chaque pays garde son dernier
@@ -63,9 +68,11 @@ par BRouter ont en plus un lecteur dans `hike2gpx/providers/` (BD TOPO, ATKIS,
 ZABAGED, swissTLM3D ou BDOT10k). Le registre de ce dossier relie les pays aux
 sources ; la lecture par zone et l'affichage suivent ensuite le même mécanisme.
 
-Une recherche de ville recentre la carte : les communes françaises par l'API
-Géo de l'État, le reste du monde par Nominatim, le moteur de recherche
-d'OpenStreetMap. Un bouton passe la carte en plein écran. Un voyant indique
+Le fond et les calques se choisissent dans « Gestion des cartes », avec la
+légende. « Recherche » déplie en haut de la carte un champ qui la recentre sur
+une ville : les communes françaises par l'API Géo de l'État, le reste du monde
+par Nominatim, le moteur de recherche d'OpenStreetMap. Un bouton passe la
+carte en plein écran. Dans le menu, un voyant indique
 si le prochain calcul dispose du moteur et des tuiles BRouter ainsi que des
 données OSM de la zone (extrait, cache ou Overpass). Son « i » jaune détaille
 l'état d'Overpass et des extraits OSM local et régional, par exemple le Var
@@ -74,11 +81,12 @@ Un clic droit sur la carte affiche les coordonnées GPS du point choisi et
 permet de les copier.
 
 **Le tracé.** Un clic pose le départ, puis les étapes et l'arrivée ; un point
-se déplace en le faisant glisser et se retire depuis sa bulle. « Revenir »
-referme la boucle sur le départ, « Retirer » ôte le dernier point, « Effacer »
-repart de zéro. Le calcul est celui de BRouter, en local, avec les barrières
-d'OpenStreetMap mises en travers des chemins (voir plus bas). Trois options le
-règlent :
+se déplace en le faisant glisser et se retire depuis sa bulle. Le premier
+point posé ouvre la page « Planifier un itinéraire » : « Revenir » referme la
+boucle sur le départ, « Retirer » ôte le dernier point, « Effacer » repart de
+zéro. Le calcul est celui de BRouter, en local, avec les barrières
+d'OpenStreetMap mises en travers des chemins (voir plus bas). Trois options,
+dans « Gestion des itinéraires », le règlent :
 
 - **Mode strict** : éviter aussi les passages « à vérifier », pas seulement
   les bloquants ;
@@ -111,8 +119,9 @@ retire ce tracé de la carte sans toucher au fichier sur l'ordinateur. Le tracé
 chargé reste affiché jusqu'à la fermeture ou au rechargement de la page.
 
 **Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
-données téléchargées (30 jours par défaut), la transparence des bandeaux et
-leur masquage, et un bouton qui vide tous les caches locaux. Un bouton ouvre
+données téléchargées (30 jours par défaut), la transparence des bandeaux, le
+masquage du profil, le partage au téléphone et un bouton qui vide tous les
+caches locaux. Un bouton ouvre
 le dossier `logs`, qui contient les journaux de l'application et de BRouter ;
 un autre affiche la version installée et vérifie s'il en existe une plus
 récente. La page parle français ou anglais, et retrouve à sa réouverture la
@@ -254,9 +263,9 @@ hike2gpx travaille avec des lots : tout ce dont une case BRouter de 5° a besoin
 (données de routage, chemins officiels, franchissements, calques), chaque
 fichier vérifié contre l'empreinte SHA-256 d'un manifeste.
 
-Le bouton « Hors ligne », en haut de la carte (ou la case « Afficher les cases
-hors ligne (5°) » des réglages), montre la grille des cases. Un clic sur une
-case propose deux façons d'obtenir son lot :
+Dans « Gestion des itinéraires », « Choisir les zones sur la carte » montre la
+grille des cases de 5° : on clique celles qu'on veut, puis « Télécharger ».
+Un lot s'obtient de deux façons :
 
 - **le télécharger depuis le serveur.** Les cases de la France sont fabriquées
   chaque semaine et publiées sur
@@ -289,8 +298,8 @@ carte. Le bouton « Vider le cache » des réglages, lui, repart de zéro : cach
 fonds hors ligne compris. Un lot du serveur se retélécharge en quelques
 secondes ; un lot ou un fond préparé sur l'ordinateur est à refaire.
 
-Reste la carte elle-même. En France, la même bulle prépare aussi le **fond de
-carte hors ligne** : les tuiles que la page affiche, le SCAN 25 si vous avez
+Reste la carte elle-même. En France, « Gestion des cartes » prépare aussi, par
+carrés de 1° choisis sur la carte, le **fond de carte hors ligne** : les tuiles que la page affiche, le SCAN 25 si vous avez
 une clé IGN, sinon le Plan IGN, rangées sur ce PC dans un fichier MBTiles. Il
 apparaît ensuite parmi les fonds sous le nom « Carte hors ligne ». Une vue
 d'écran se prend jusqu'au zoom 16, celui des sentiers : autour de Garéoult,

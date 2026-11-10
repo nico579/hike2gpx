@@ -31,8 +31,13 @@ hike2gpx simply opens the page of the new version.
 ## What hike2gpx does
 
 Everything happens in a local page, opened in the browser, and in the menu of
-a tray icon. The "?" button, next to FR/EN, opens this guide in the language
-of the page, for the installed version.
+a tray icon. The page is that of the Android app: the map first, full screen,
+and a three-bar button, bottom left, that opens the menu: "Search", "Map
+management", "Route management", "Plan a route", "Settings" and "Help". Each
+entry opens its page in a panel on the left, which its cross closes to leave
+the map alone; the menu also holds the FR/EN choice and the routing
+indicator. "Help" opens this guide in the language of the page, for the
+installed version.
 
 **The map.** It follows the country at its center, including when you move it
 by hand, and offers that country's base maps; each country remembers the last
@@ -64,20 +69,22 @@ a reader in `hike2gpx/providers/` (BD TOPO, ATKIS, ZABAGED, swissTLM3D or
 BDOT10k). That directory's registry links countries to path sources; area
 loading and display then use the shared machinery.
 
-A town search recenters the map: French municipalities through the French
-government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
+The base map and the layers are chosen in "Map management", with the legend.
+"Search" unfolds a field at the top of the map that recenters it on a town:
+French municipalities through the French government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
 search engine. The same field accepts GPS coordinates such as `50.725, 10.275`
-or `50,725 ; 10,275` (latitude first). A button switches the map to full screen. An indicator tells
+or `50,725 ; 10,275` (latitude first). A button switches the map to full screen. In the menu, an indicator tells
 whether the next route has BRouter and its tiles plus OSM data for the area
 (an extract, cached data or Overpass). Its yellow “i” shows the state of
 Overpass and the local and regional OSM extracts.
 Right-click the map to show and copy the clicked point's GPS coordinates.
 
 **The route.** A click sets the start, then the waypoints and the finish; a
-point moves by dragging it and is removed from its popup. "Return" closes the
-loop on the start, "Remove" takes off the last point, "Clear" starts over. The
-routing is BRouter's, run locally, with OpenStreetMap's barriers laid across
-the paths (see below). Three options tune it:
+point moves by dragging it and is removed from its popup. The first point
+placed opens the "Plan a route" page: "Return" closes the loop on the start,
+"Remove" takes off the last point, "Clear" starts over. The routing is
+BRouter's, run locally, with OpenStreetMap's barriers laid across the paths
+(see below). Three options, in "Route management", tune it:
 
 - **Strict mode**: also avoid the passages "to check", not only the blocking
   ones;
@@ -108,8 +115,9 @@ without touching the file on the computer. The loaded track stays on screen
 until the page is closed or reloaded.
 
 **The settings.** The IGN key for the SCAN 25, how long downloaded data is
-kept before being renewed (30 days by default), the transparency of the panels
-and whether to hide them, and a button that empties all local caches. One
+kept before being renewed (30 days by default), the transparency of the panels,
+whether to hide the profile, sharing with the phone, and a button that empties
+all local caches. One
 button opens the `logs` folder, which holds the logs of the application and of
 BRouter; another shows the installed version and checks whether a newer one
 exists. The page speaks French or English, and when reopened it restores the
@@ -252,9 +260,8 @@ hike2gpx works with bundles: everything one 5° BRouter cell needs (routing
 data, official paths, crossings, map layers), each file checked against the
 SHA-256 of a manifest.
 
-The "Offline" button at the top of the map (or the "Show offline areas (5°)"
-box in the settings) shows the grid of cells. A click on a cell offers two
-ways to get its bundle:
+In "Route management", "Choose the areas on the map" shows the grid of 5°
+cells: click the ones you want, then "Download". A bundle comes in two ways:
 
 - **download it from the server.** The French cells are built every week and
   published on [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles);
@@ -285,8 +292,8 @@ popup: "Remove from this computer" deletes its bundle and its base maps. The
 bundles and maps included. A server bundle downloads again in seconds; a
 bundle or map prepared on the computer has to be made again.
 
-That leaves the map itself. In France, the same popup also prepares the
-**offline base map**: the tiles the page shows, SCAN 25 if you have an IGN
+That leaves the map itself. In France, "Map management" also prepares, in 1°
+squares chosen on the map, the **offline base map**: the tiles the page shows, SCAN 25 if you have an IGN
 key, Plan IGN otherwise, stored on this computer in an MBTiles file. It then
 appears among the base maps as "Offline map". A screen view goes down to
 zoom 16, where trails show: around Garéoult, 631 tiles, 12 MB of SCAN 25

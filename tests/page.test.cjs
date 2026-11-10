@@ -45,7 +45,7 @@ function charger(preferences = {}, documentGpx = null) {
   const pressePapiers = [];
   const confirmations = Object.assign([], { reponse: false });
   const corps = element();
-  for (const [id, cle] of [["tab-trace", "onglets.parcours"], ["tab-reglages", "onglets.reglages"]]) {
+  for (const [id, cle] of [["entree-trace", "menu.trace"], ["entree-reglages", "menu.reglages"]]) {
     const tab = element();
     tab.dataset.i18n = cle;
     elements.set(id, tab);
@@ -139,7 +139,7 @@ const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () 
 
 const tic = () => new Promise((fin) => setImmediate(fin));
 
-// L'onglet « Hors ligne » ouvert : la page relit les lots du PC, puis le catalogue du serveur.
+// Le volet des tuiles hors ligne ouvert : la page relit les lots du PC, puis le catalogue du serveur.
 async function ouvrirHorsLigne(page, requetes, lots = [], catalogue = [], fonds = []) {
   page.activerHorsLigne(true);
   repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots, fonds });
@@ -940,9 +940,9 @@ test("en anglais, la page traduit ses textes et les erreurs du serveur", async (
   const { page, elements, document, derniere } = charger();
   page.appliquerLangue("en");
   assert.equal(document.title, "hike2gpx — plan a route");
-  assert.equal(elements.get("tab-trace").textContent, "Route");
-  assert.equal(elements.get("tab-reglages").textContent, "Settings");
-  assert.equal(elements.get("panelTabs")["aria-label"], "Hiking tools");
+  assert.equal(elements.get("entree-trace").textContent, "Plan a route");
+  assert.equal(elements.get("entree-reglages").textContent, "Settings");
+  assert.equal(elements.get("menuPrincipal")["aria-label"], "Menu");
   assert.match(page.ts("Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier"), /ATKIS path missing/);
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   await page.calculer();
@@ -954,8 +954,8 @@ test("en anglais, la page traduit ses textes et les erreurs du serveur", async (
     "Calculation too long: bring the points closer.");
   page.appliquerLangue("fr");
   assert.equal(document.title, "hike2gpx — tracer un parcours");
-  assert.equal(elements.get("tab-trace").textContent, "Parcours");
-  assert.equal(elements.get("tab-reglages").textContent, "Réglages");
+  assert.equal(elements.get("entree-trace").textContent, "Planifier un itinéraire");
+  assert.equal(elements.get("entree-reglages").textContent, "Réglages");
   assert.equal(elements.get("statut").textContent, "Posez un deuxième point.");
 });
 
