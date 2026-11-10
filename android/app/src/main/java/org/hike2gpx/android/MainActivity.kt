@@ -22,6 +22,7 @@ import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
 import android.text.format.Formatter
+import android.text.method.PasswordTransformationMethod
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -156,6 +157,8 @@ class MainActivity : Activity() {
     private var aReprendre = false
     /** Case dont le téléchargement automatique est proposé ou en cours. */
     private var autoLotDemande: String? = null
+    /** Un recentrage a demandé le lot de sa zone avant que le catalogue soit lu. */
+    private var lotDeZoneEnAttente = false
     private var fenetreReglages: LinearLayout? = null
     /** La page « Cartes » du menu, refaite après chaque téléchargement ou suppression. */
     private var fenetreCartes: LinearLayout? = null
@@ -172,6 +175,11 @@ class MainActivity : Activity() {
     /** Un cochage attend la lecture en cours pour dire si la vue a des chemins. */
     private var calqueCoche = false
     private val planificateur = Handler(Looper.getMainLooper())
+    /** Le pays du centre de la carte commande le fond national, comme la page. */
+    private lateinit var pays: Pays
+    private var paysAffiche = Pays.AUTRE
+    private val minuteurPays = Handler(Looper.getMainLooper())
+    private val verifierPays = Runnable { majPays() }
     /** Un calcul de relief plus récent remplace celui qui tourne encore. */
     private var sequenceDenivele = 0
 
@@ -183,11 +191,13 @@ class MainActivity : Activity() {
         reglages = Reglages(this)
         horsLigne = HorsLigne(filesDir)
         fonds = Fonds(horsLigne.racine)
+        pays = Pays(assets)
         routeur = Routeur(Reglages.profils(this))
         calques = Calques(horsLigne)
         relief = Mapterhorn(filesDir)
         reliefTrace = Mapterhorn(filesDir, reseau = false)
         construire()
+        paysAffiche = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
         appliquerFond(reglages.fond)
         lireLien(intent)
         actualiser()
@@ -240,11 +250,11 @@ class MainActivity : Activity() {
             })
             addMapListener(object : MapListener {
                 override fun onScroll(event: ScrollEvent): Boolean {
-                    planifierCalques(); return false
+                    planifierCalques(); planifierPays(); return false
                 }
 
                 override fun onZoom(event: ZoomEvent): Boolean {
-                    planifierCalques(); return false
+                    planifierCalques(); planifierPays(); return false
                 }
             })
         }
@@ -769,18 +779,30 @@ class MainActivity : Activity() {
             carte.invalidate()
             return
         }
-        proposerLotCalques()
+        proposerLotZone()
         planificateur.postDelayed({ rafraichirCalques() }, 350)
     }
 
     /**
-     * Comme la page, afficher un calque est un usage réel de la région : le
-     * lot de la case du centre se télécharge de lui-même s'il manque, ou si
-     * le catalogue en a un plus récent. Un survol sous le zoom 14 ne suffit
-     * pas, et une case refusée ou en échec attend une heure.
+     * Comme la page, s'arrêter sur une région est un usage réel : le lot de la
+     * case du centre se télécharge de lui-même s'il manque, ou si le catalogue
+     * en a un plus récent. Un survol sous le zoom 14 ne suffit pas, mais un
+     * recentrage (recherche, position GPS) le propose aussitôt, sans attendre
+     * un geste sur la carte. Une case refusée ou en échec attend une heure.
      */
-    private fun proposerLotCalques() {
-        if (enCours.get() || autoLotDemande != null) return
+    private fun proposerLotZone(attendreCatalogue: Boolean = false) {
+        if (enCours.get() || autoLotDemande != null) {
+            // Une tâche occupe le téléchargement : la demande attend son tour.
+            if (attendreCatalogue) lotDeZoneEnAttente = true
+            return
+        }
+        if (offres.isEmpty()) {
+            // Une recherche peut aboutir avant la lecture du catalogue : le lot
+            // de sa zone se proposera dès qu'il sera là.
+            if (attendreCatalogue) lotDeZoneEnAttente = true
+            return
+        }
+        lotDeZoneEnAttente = false
         val boite = carte.boundingBox ?: return
         val maintenant = SystemClock.elapsedRealtime()
         val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
@@ -844,7 +866,11 @@ class MainActivity : Activity() {
      */
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
         val choix = choisir(listOf(Source.GITHUB to Depot().lireCatalogue(Source.GITHUB)))
-        runOnUiThread { offres = choix; remplirReglages(); remplirItineraires(); planifierCalques() }
+        runOnUiThread {
+            offres = choix; remplirReglages(); remplirItineraires(); planifierCalques()
+            // Une recherche faite avant la lecture du catalogue n'a pas perdu sa demande.
+            if (lotDeZoneEnAttente) proposerLotZone()
+        }
         // Le conseil de pose ne vaut qu'en planification ; au repos, le bilan
         // se contente du catalogue lu.
         if (points.isEmpty() && modePlan) getString(R.string.etat_pret)
@@ -994,8 +1020,8 @@ class MainActivity : Activity() {
                 setOnClickListener { action() }
             })
         }
-        fondChoisi("osm", getString(R.string.fond_osm)) { appliquerFond("osm") }
-        fondChoisi("topo", getString(R.string.fond_topo)) { appliquerFond("topo") }
+        for (carte in CartesEnLigne.disponibles(paysAffiche, reglages.cleIgn))
+            fondChoisi(carte.cle, getString(carte.libelle)) { appliquerFond(carte.cle) }
         for ((source, fichiers) in fonds.parSource()) {
             fondChoisi(source, getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
                 Formatter.formatShortFileSize(this, fichiers.sumOf { it.length() }))) {
@@ -1024,7 +1050,6 @@ class MainActivity : Activity() {
 
         // Les fonds d'un PC : son QR code l'ajoute, puis ses fonds manquants se téléchargent.
         titre(colonne, R.string.cartes_a_telecharger)
-        colonne.addView(TextView(this).apply { setText(R.string.aide_qr); textSize = 12f })
         val proposes = fondsProposes(cataloguesPc ?: emptyList(), installes.map { it.nameWithoutExtension }.toSet())
         for ((source, fond) in proposes) {
             colonne.addView(Button(this).apply {
@@ -1041,7 +1066,6 @@ class MainActivity : Activity() {
                 setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirCartes() } }
             })
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
-        colonne.addView(Button(this).apply { setText(R.string.coller_lien); setOnClickListener { collerLien() } })
 
         // Les PC déjà ajoutés se retirent ici, comme la source GitHub reste fixe.
         if (reglages.pcs().isNotEmpty()) {
@@ -1061,8 +1085,9 @@ class MainActivity : Activity() {
             }
         }
 
-        // Les calques du lot, comme dans la page du PC. Un lot ancien sans
-        // fournisseur national ne montre que la coche OSM.
+        // Les calques du lot, comme dans la page du PC : la coche OSM reste
+        // toujours, celle d'un fournisseur national n'apparaît que si le lot
+        // de la zone est installé (sinon il n'y a rien à dessiner).
         titre(colonne, R.string.titre_calques)
         colonne.addView(CheckBox(this).apply {
             setText(R.string.calque_osm); isChecked = reglages.calqueOsm
@@ -1072,9 +1097,9 @@ class MainActivity : Activity() {
                 planifierCalques()
             }
         })
-        for (fournisseur in fournisseursDisponibles()) {
+        for (fournisseur in fournisseursVisibles()) {
             colonne.addView(CheckBox(this).apply {
-                text = getString(R.string.calque_fournisseur, fournisseur.nom)
+                text = fournisseur.court
                 isChecked = reglages.calqueOfficiel(fournisseur.cle)
                 setOnCheckedChangeListener { _, v ->
                     reglages.changerCalqueOfficiel(fournisseur.cle, v)
@@ -1083,10 +1108,6 @@ class MainActivity : Activity() {
                 }
             })
         }
-        colonne.addView(TextView(this).apply {
-            text = getString(R.string.calque_aide, String.format(Locale.getDefault(), "%.1f", carte.zoomLevelDouble))
-            textSize = 12f
-        })
     }
 
     /** Un fond effacé après confirmation ; s'il était affiché et que sa source disparaît, la carte revient en ligne. */
@@ -1097,7 +1118,8 @@ class MainActivity : Activity() {
             .setPositiveButton(R.string.supprimer) { _, _ ->
                 val source = Fonds.source(f.nameWithoutExtension)
                 f.delete()
-                if (reglages.fond == source && fonds.parSource()[source] == null) appliquerFond("osm")
+                if (reglages.fond == source && fonds.parSource()[source] == null)
+                    appliquerFond(CartesEnLigne.defaut(paysAffiche))
                 remplirCartes()
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -1163,13 +1185,13 @@ class MainActivity : Activity() {
             setText(R.string.strict); isChecked = reglages.strict
             setOnCheckedChangeListener { _, v -> reglages.strict = v }
         })
-        // Le nom vient des lots : « Utiliser les chemins IGN BD TOPO », « ATKIS »…
+        // Le nom vient des lots : « Inclure les chemins IGN », « ATKIS »…
         val fournisseurs = fournisseursDisponibles().ifEmpty {
             offres.flatMap { Fournisseurs.duLot(it.lot) }.distinctBy { it.cle }.sortedBy { it.nom }
         }
         colonne.addView(Switch(this).apply {
             text = if (fournisseurs.isEmpty()) getString(R.string.officiels_aucun)
-            else getString(R.string.officiels, fournisseurs.joinToString(", ") { it.nom })
+            else getString(R.string.officiels, fournisseurs.joinToString(", ") { it.court })
             isChecked = reglages.officiels
             setOnCheckedChangeListener { _, v -> reglages.officiels = v }
         })
@@ -1285,26 +1307,63 @@ class MainActivity : Activity() {
      * source ; osmdroid agrandit au-delà de leur zoom le plus fin, comme la page
      * (maxNativeZoom), et ne demande rien au réseau. La carte ne descend pas
      * sous son zoom le plus bas, où elle n'aurait rien à montrer.
+     *
+     * Une carte nationale ne sert que dans son pays : si le centre de la carte
+     * en est sorti, celle du pays affiché prend sa place, ou OpenStreetMap s'il
+     * n'y en a pas. Un fond du monde ou hors ligne reste tel quel.
      */
     private fun appliquerFond(cle: String) {
-        val fichiers = fonds.parSource()[cle]
+        val horsLigne = fonds.parSource()[cle]
+        val national = CartesEnLigne.parCle(cle)?.pays != null
+        val choix = if (horsLigne == null && national &&
+            !CartesEnLigne.disponible(cle, paysAffiche, reglages.cleIgn))
+            CartesEnLigne.defaut(paysAffiche) else cle
+        val fichiers = fonds.parSource()[choix]
+        val enLigne = CartesEnLigne.parCle(choix)
+        val servi = CartesEnLigne.disponible(choix, paysAffiche, reglages.cleIgn)
         when {
             fichiers != null -> {
                 val minimum = zoomMin(fichiers)
                 carte.setTileProvider(OfflineTileProvider(SimpleRegisterReceiver(this), fichiers.toTypedArray()))
-                carte.setTileSource(XYTileSource("hors-ligne-$cle", minimum, 19, 256, "", arrayOf<String>(),
-                    "© ${Fonds.titre(cle)}"))
+                carte.setTileSource(XYTileSource("hors-ligne-$choix", minimum, 19, 256, "", arrayOf<String>(),
+                    "© ${Fonds.titre(choix)}"))
                 carte.setMinZoomLevel(minimum.toDouble())
                 if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum.toDouble())
             }
-            else -> {
+            servi && enLigne != null -> {
                 carte.setTileProvider(MapTileProviderBasic(applicationContext))
-                carte.setTileSource(if (cle == "topo") TileSourceFactory.OpenTopo else TileSourceFactory.MAPNIK)
+                carte.setTileSource(CartesEnLigne.tuile(enLigne, reglages.cleIgn))
                 carte.setMinZoomLevel(null)         // le zoom le plus bas de la source en ligne
             }
+            else -> {
+                carte.setTileProvider(MapTileProviderBasic(applicationContext))
+                carte.setTileSource(TileSourceFactory.MAPNIK)
+                carte.setMinZoomLevel(null)
+            }
         }
-        reglages.fond = if (fichiers != null || cle == "topo") cle else "osm"
+        reglages.fond = if (fichiers != null || (servi && enLigne != null)) choix else "osm"
         carte.invalidate()
+    }
+
+    /** Le pays se lit après un temps de repos, comme la page (600 ms). */
+    private fun planifierPays() {
+        minuteurPays.removeCallbacks(verifierPays)
+        minuteurPays.postDelayed(verifierPays, 600)
+    }
+
+    /**
+     * Une carte nationale suit le pays du centre : en Suisse, swisstopo prend la
+     * place du Plan IGN ; hors des pays couverts, OpenStreetMap. Un fond du
+     * monde (OSM, OpenTopoMap, satellite) et un fond hors ligne restent.
+     */
+    private fun majPays() {
+        val nouveau = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
+        if (nouveau == paysAffiche) return
+        paysAffiche = nouveau
+        if (fonds.parSource()[reglages.fond] == null &&
+            CartesEnLigne.parCle(reglages.fond)?.pays != null)
+            appliquerFond(CartesEnLigne.defaut(nouveau))
+        if (fenetreCartes != null) remplirCartes()
     }
 
     // ------------------------------------------------------------------ menu
@@ -1589,6 +1648,41 @@ class MainActivity : Activity() {
             setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
         })
 
+        // La clé IGN du SCAN 25, le même réglage que sur le PC.
+        titre(colonne, R.string.reglages_cle_ign)
+        colonne.addView(TextView(this).apply {
+            setText(R.string.reglages_cle_note); textSize = 12f
+        })
+        val cleIgn = EditText(this).apply {
+            setSingleLine()             // avant la transformation : sinon elle serait remplacée
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            transformationMethod = PasswordTransformationMethod.getInstance()
+            setText(reglages.cleIgn)
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    val valeur = s?.toString()?.trim() ?: ""
+                    if (!CLE_IGN.matches(valeur) || valeur == reglages.cleIgn) return
+                    reglages.cleIgn = valeur
+                    if (fenetreCartes != null) remplirCartes()
+                    // Sans clé, le SCAN 25 ne sert plus : la carte du pays prend sa place.
+                    if (valeur.isEmpty()) appliquerFond(reglages.fond)
+                }
+            })
+        }
+        colonne.addView(cleIgn)
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.reglages_cle_afficher)
+            setOnCheckedChangeListener { _, v ->
+                cleIgn.inputType = InputType.TYPE_CLASS_TEXT or
+                    (if (v) InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD else InputType.TYPE_TEXT_VARIATION_PASSWORD)
+                cleIgn.transformationMethod =
+                    if (v) null else PasswordTransformationMethod.getInstance()
+                cleIgn.setSelection(cleIgn.text.length)
+            }
+        })
+
         // Les réglages de trace et les lots ont leur page « Itinéraires ».
         titre(colonne, R.string.titre_cache)
         colonne.addView(Button(this).apply {
@@ -1669,7 +1763,11 @@ class MainActivity : Activity() {
         carte.invalidate()
         // Le point est situé : le bandeau de recherche se referme aussitôt.
         fermerRecherche()
+        // Le pays et le lot de la nouvelle zone n'attendent pas un geste sur la
+        // carte : la recherche a amené l'utilisateur ici, le lot y part.
+        planifierPays()
         planifierCalques()
+        proposerLotZone(attendreCatalogue = true)
     }
 
     private fun cacherClavier() {
@@ -1791,7 +1889,7 @@ class MainActivity : Activity() {
                 retirees.clear()
                 exclues.clear()
                 effacerTrace()
-                appliquerFond(if (reglages.fond == "topo") "topo" else "osm")     // un fournisseur neuf, sur un cache neuf
+                appliquerFond(reglages.fond)     // un fournisseur neuf, sur un cache neuf
                 etat.text = getString(R.string.etat_cache_vide,
                     Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
@@ -1805,6 +1903,13 @@ class MainActivity : Activity() {
     private fun fournisseursDisponibles(): List<Fournisseur> =
         horsLigne.lots().flatMap { Fournisseurs.duLot(it) }
             .distinctBy { it.cle }.sortedBy { it.nom }
+
+    /** Ceux du lot qui couvre la vue : les seules coches de superposition proposées. */
+    private fun fournisseursVisibles(): List<Fournisseur> {
+        val boite = carte.boundingBox
+        return calques.fournisseursVisibles(
+            Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast))
+    }
 
     private fun description(lot: Lot): String =
         if (lot.osm) "OSM" else getString(R.string.lot_enrichi,
@@ -1841,23 +1946,6 @@ class MainActivity : Activity() {
         } catch (e: ErreurDepot) {
             etat.text = texte(e)
         }
-    }
-
-    private fun collerLien() {
-        val champ = EditText(this).apply { hint = "hike2gpx://depot?url=…&jeton=…"; setSingleLine(true) }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.coller_lien)
-            .setMessage(R.string.aide_qr)
-            .setView(champ)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                try {
-                    ajouterPc(LienDepot.lire(champ.text.toString()))
-                } catch (e: ErreurDepot) {
-                    etat.text = texte(e)
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
     }
 
     /** Toujours confirmé : une page web pourrait ouvrir un tel lien à l'insu de l'utilisateur. */
@@ -2005,6 +2093,11 @@ class MainActivity : Activity() {
         if (carte.zoomLevelDouble < 14.0) carte.controller.setZoom(15.0)
         carte.controller.setCenter(point)
         carte.invalidate()
+        // Un recentrage sur la position est un usage réel de la zone : le lot
+        // qui la couvre se propose sans attendre un geste sur la carte.
+        planifierPays()
+        planifierCalques()
+        proposerLotZone(attendreCatalogue = true)
     }
 
     private fun basculerEnregistrement() {
@@ -2359,6 +2452,9 @@ class MainActivity : Activity() {
                 val reprendre = aReprendre
                 ensuite?.invoke(reussie)
                 if (reprendre && !enCours.get()) avancer()
+                // Un recentrage demandé pendant la tâche n'a pas perdu sa demande.
+                if (lotDeZoneEnAttente && !enCours.get() && autoLotDemande == null)
+                    proposerLotZone()
             }
         }
     }
@@ -2498,6 +2594,8 @@ class MainActivity : Activity() {
         private const val PERMISSION_NOTIFICATIONS = 4
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
+        /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */
+        private val CLE_IGN = Regex("[A-Za-z0-9_-]{0,100}")
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */
         private const val ZOOM_CALQUES = 14.0
         // Au niveau du processus : un téléchargement survit à l'écran qui l'a lancé.

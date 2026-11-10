@@ -30,28 +30,41 @@
     <string name="plan_gpx_proposer">Save the route as GPX?</string>
     <string name="plan_gpx_enregistrer">Save</string>
 
-    <string name="titre_fond">Base map</string>
-    <string name="fond_osm">OpenStreetMap (online)</string>
-    <string name="fond_topo">OpenTopoMap (online)</string>
+    <string name="titre_fond">Online</string>
+    <string name="fond_osm">OpenStreetMap</string>
+    <string name="fond_topo">OpenTopoMap</string>
+    <string name="fond_plan">Plan IGN</string>
+    <string name="fond_scan25">SCAN 25 (IGN)</string>
+    <string name="fond_photos">Aerial photos (IGN)</string>
+    <string name="fond_relief">LiDAR HD terrain relief (IGN)</string>
+    <string name="fond_suisse">National map (swisstopo)</string>
+    <string name="fond_allemagne">Official map (BKG TopPlusOpen)</string>
+    <string name="fond_autriche">Official map (basemap.at)</string>
+    <string name="fond_tchequie">Topographic map (ČÚZK)</string>
+    <string name="fond_espagne">Topographic map (Spanish IGN)</string>
+    <string name="fond_luxembourg">Topographic map (Luxembourg)</string>
+    <string name="fond_pays_bas">Topographic map (PDOK)</string>
+    <string name="fond_norvege">Hiking map (Kartverket)</string>
+    <string name="fond_etats_unis">Topographic map (USGS)</string>
+    <string name="fond_pologne">Topographic map (Polish Geoportal)</string>
+    <string name="fond_satellite">Satellite (Esri)</string>
     <string name="fond_hors_ligne">%1$s, offline (%2$d map(s), %3$s)</string>
     <string name="fond_a_telecharger">Download %1$s: %2$s, %3$s, from %4$s</string>
     <string name="fond_relire">Reload the maps shared by the PC</string>
     <string name="etat_fond_installe">Base map %1$s installed.</string>
     <string name="cartes_partage">PC sharing</string>
-    <string name="cartes_a_telecharger">Download from the PC share</string>
+    <string name="cartes_a_telecharger">Download from the computer</string>
     <string name="cartes_aucun_fond">No base map to download yet. Add a PC with its QR code to receive its own.</string>
     <string name="cartes_supprimer_titre">Delete the base map</string>
     <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
 
     <string name="titre_itineraire">Route</string>
-    <string name="strict">Take crossings to check into account</string>
-    <string name="officiels">Use the %1$s paths</string>
-    <string name="officiels_aucun">Use the official paths</string>
+    <string name="strict">Include crossings to check</string>
+    <string name="officiels">Include %1$s paths</string>
+    <string name="officiels_aucun">Include the official paths</string>
 
-    <string name="titre_calques">Map layers</string>
-    <string name="calque_osm">OSM paths</string>
-    <string name="calque_fournisseur">%1$s path</string>
-    <string name="calque_aide">The layers come from the offline bundle and appear from zoom 14, like on the PC (current zoom: %1$s). Each national provider in the bundle has its own checkbox.</string>
+    <string name="titre_calques">Path overlays</string>
+    <string name="calque_osm">OSM</string>
     <string name="calque_zoom">Layers appear from zoom 14: zoom in to see them.</string>
     <string name="calque_vide">No layer path in this view.</string>
 
@@ -64,6 +77,9 @@
     <string name="recherche_court">Type at least two characters.</string>
 
     <string name="titre_affichage">Display</string>
+    <string name="reglages_cle_ign">IGN key for SCAN 25</string>
+    <string name="reglages_cle_note">SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.</string>
+    <string name="reglages_cle_afficher">Show the key</string>
     <string name="afficher_legende">Show legend</string>
     <string name="afficher_courbe">Show elevation profile</string>
     <string name="afficher_recherche">Show town search</string>
@@ -76,21 +92,19 @@
     <string name="legende_bloque">blocking crossing</string>
     <string name="legende_verifier">crossing to check</string>
 
-    <string name="titre_lots">Routing areas on the phone</string>
-    <string name="titre_fonds">Offline base maps</string>
+    <string name="titre_lots">Zones stored locally</string>
+    <string name="titre_fonds">Offline</string>
     <string name="oublier">Forget</string>
-    <string name="aide_qr">A PC shares its base maps and the routing bundles it computes. To add one, open “Share with the phone” in its settings, then scan the QR code it shows, on the same Wi-Fi.</string>
-    <string name="scanner_qr">Scan a PC’s QR code</string>
+    <string name="scanner_qr">Scan the computer’s QR code</string>
     <string name="scan_invite">Aim at the QR code shown by hike2gpx on the PC</string>
-    <string name="coller_lien">Paste a PC link</string>
     <string name="ajouter_pc">Add this PC as a source?</string>
     <string name="confirmer_pc">Catalogue: %1$s</string>
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="aucun_lot">No bundle installed.</string>
-    <string name="itineraires_modes">Route calculation</string>
+    <string name="itineraires_modes">Calculation mode</string>
     <string name="itineraires_relire">Reload the bundles shared by the PCs</string>
-    <string name="itineraires_pc">Download routing areas from the PC</string>
+    <string name="itineraires_pc">Download from the computer</string>
     <string name="itineraires_lot">Download %1$s · %2$s · %3$s, from %4$s</string>
     <string name="itineraires_aucun_lot">No routing bundle to download from the PC.</string>
     <string name="aucun_fond">No offline base map. They come from a PC that shares its own.</string>

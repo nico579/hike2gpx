@@ -35,9 +35,10 @@ pendant l'enregistrement, seul l'état de la trace s'affiche.
 Les calques du lot s'affichent sur la carte, comme ceux de la page : les
 chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
 qui gênent un piéton et les franchissements bloquants (rouge) ou à vérifier
-(orange), et les chemins de chaque fournisseur national retenu par le lot
-(BD TOPO en France, turquoise), chacun avec sa coche dans la page « Gestion des
-cartes » (« Chemin IGN BD TOPO », « Chemin ATKIS »…). Ils n'apparaissent qu'à
+(orange), et les chemins du fournisseur national retenu par le lot du secteur
+(BD TOPO en France, turquoise), avec sa coche dans la page « Gestion des
+cartes » (« IGN », « ATKIS »…), proposée seulement quand ce lot est là. Ils
+n'apparaissent qu'à
 partir du zoom 14, celui des tuiles vectorielles du lot : en dessous, mieux
 vaut ne rien montrer qu'un réseau tronqué. La page rappelle le zoom
 courant ; une coche sous ce zoom, ou une vue sans chemin de calque, le dit
@@ -118,41 +119,58 @@ confirmation. « Vider le cache » ne touche pas à cet historique.
 Les lots du serveur se téléchargent d'eux-mêmes : l'application lit les
 catalogues à son lancement, et quand un parcours touche une case dont le lot
 manque, ou dont le dépôt a une édition plus récente, ce lot part aussitôt.
-Afficher un calque du lot au zoom 14 compte aussi comme un usage de la région : le lot de la case du
-centre se télécharge de lui-même. Sur le Wi-Fi, sans rien demander ; sur un
+S'arrêter sur une région compte aussi comme un usage : une recherche de ville,
+un recentrage sur la position GPS, ou l'affichage d'un calque du lot au zoom
+14 proposent aussitôt le lot de la case du centre, sans attendre un geste sur
+la carte. Sur le Wi-Fi, sans rien demander ; sur un
 réseau facturé (données mobiles), après confirmation. Un échec ou un refus
 n'est pas repris avant une heure, et un lot supprimé à la main ne revient pas
 de la séance. Les lots et les fonds installés affichent leur taille réelle,
 jamais un « 0 Mo » trompeur.
 
 La page « Gestion des cartes », dans le menu, réunit tout ce qui touche au fond
-et aux calques, sorti des réglages. On y choisit le fond : OpenStreetMap ou
-OpenTopoMap en ligne, ou un fond hors ligne reçu d'un PC (le SCAN 25 ou le Plan
-IGN qu'il a fabriqués). Les fonds qu'un PC partage et qui manquent au téléphone
-y sont proposés, avec leur taille et un bouton de téléchargement ; le QR code du
-PC (« Partager au téléphone » dans ses réglages) l'ajoute, sur le même Wi-Fi, ou
-son lien se colle. Chaque fond installé s'affiche avec sa taille et
+et aux chemins, sorti des réglages. On y choisit le fond dans « En ligne » : les
+mêmes cartes que la page du PC. Les cartes nationales proposées suivent le pays
+du centre de la carte : en France le Plan IGN par défaut, le SCAN 25 (IGN), les
+photos aériennes (IGN) et le relief LiDAR HD (IGN) ; en Suisse la carte
+swisstopo, en Allemagne la carte du BKG, en Autriche basemap.at, en Tchéquie
+ČÚZK, en Espagne l'IGN, au Luxembourg l'ACT, aux Pays-Bas PDOK, en Norvège
+Kartverket, aux États-Unis l'USGS et en Pologne le Geoportal. OpenTopoMap,
+OpenStreetMap et le satellite (Esri) servent partout. Une carte nationale suit
+le pays : en passant en Suisse, le Plan IGN laisse la place à swisstopo, et
+hors des pays couverts la carte revient à OpenStreetMap. Un fond du monde
+(OpenStreetMap, OpenTopoMap, satellite) ou un fond hors ligne reste en place
+quand on change de pays. Le SCAN 25 n'est pas une donnée libre : il
+n'apparaît qu'une fois la clé IGN renseignée dans les réglages, et sans elle la
+carte reste sur le Plan IGN. Dans « Hors ligne », un fond reçu d'un PC (le
+SCAN 25 ou le Plan IGN qu'il a fabriqués). Les fonds qu'un PC partage et qui
+manquent au téléphone y sont proposés, avec leur taille et un bouton de
+téléchargement ; le QR code du PC (« Partager au téléphone » dans ses réglages)
+l'ajoute, sur le même Wi-Fi. Chaque fond installé s'affiche avec sa taille et
 « Supprimer », après confirmation ; s'il était affiché, la carte revient en
-ligne. Les calques OSM et ceux de chaque fournisseur national (IGN BD TOPO…) ont
-là leur coche. Un fond est un MBTiles rangé sous `hors-ligne/fonds/`, comme sur
-le PC ; tous ceux d'une même source s'affichent ensemble, et la carte agrandit
-au-delà de leur zoom le plus fin. Le bandeau de planification ne garde que
-« Retirer », « Effacer » et « Revenir ».
+ligne. « Superposition des chemins » y coche les chemins OSM, toujours
+proposés, et ceux du fournisseur national du lot qui couvre la vue (IGN,
+ATKIS…) : la coche du pays n'apparaît que si ce lot est installé, et elle
+disparaît dès que la carte sort de sa zone. Un fond est un MBTiles rangé sous
+`hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une même source s'affichent
+ensemble, et la carte agrandit au-delà de leur zoom le plus fin. Le bandeau de
+planification ne garde que « Retirer », « Effacer » et « Revenir ».
 
 La page « Gestion des itinéraires », dans le menu, réunit le calcul et
-l'enregistrement, sortis des réglages. On y coche « Prendre en compte les
+l'enregistrement, sortis des réglages. « Mode de calcul » y coche « Inclure les
 blocages à vérifier » et les chemins officiels, nommés d'après les lots
-installés (« Utiliser les chemins IGN BD TOPO », « ATKIS »…). Les zones de
-routage présentes sur le téléphone s'y listent avec leur taille, « Mettre à
-jour » quand le serveur en a une plus récente et « Supprimer » après
-confirmation. « Télécharger les zones de routage depuis le PC » propose celles
-que seul un PC calcule, avec « Scanner le QR code d'un PC » ; un lot est pris au
-premier PC qui le sert, et un PC éteint ne bloque rien. Le volet « Enregistrement
-de trace GPS » y règle la distance minimale, la durée minimale et la déviation
-GPS maximale. Les réglages ne gardent que l'affichage, le cache et la mise à
-jour ; « Vider le cache » efface comme sur le PC les lots, les fonds, les
-téléchargements interrompus, les tuiles en ligne gardées et les tuiles de
-relief ; les lots du serveur reviennent d'eux-mêmes.
+installés (« Inclure les chemins IGN », « ATKIS »…). Les zones stockées
+localement s'y listent avec leur taille, « Mettre à jour » quand le serveur en a
+une plus récente et « Supprimer » après confirmation. « Télécharger depuis
+l'ordinateur » propose celles que seul un ordinateur calcule, avec « Scanner le
+QR code de l'ordinateur » ; un lot est pris au premier PC qui le sert, et un PC
+éteint ne bloque rien. Le volet « Enregistrement de trace GPS » y règle la
+distance minimale, la durée minimale et la déviation GPS maximale. Les réglages
+ne gardent que l'affichage, la clé IGN, le cache et la mise à jour ; « Vider le
+cache » efface comme sur le PC les lots, les fonds, les téléchargements
+interrompus, les
+tuiles en ligne gardées et les tuiles de relief ; les lots du serveur reviennent
+d'eux-mêmes.
 
 L'application parle anglais ou français selon la langue du téléphone. Les deux
 versions portent les mêmes textes et les mêmes arguments.
@@ -195,8 +213,8 @@ BRouter 1.7.10 est compilé dans l'APK, avec ses profils de randonnée.
 Le PC affiche un QR code qui porte un lien
 `hike2gpx://depot?url=<adresse du catalogue, encodée>&jeton=<jeton>`.
 L'appareil photo du téléphone l'ouvre dans l'application (le lien est déclaré
-dans le manifeste Android), qui demande confirmation avant d'ajouter le PC ; le
-lien peut aussi se coller à la main. Toutes les requêtes vers ce PC portent
+dans le manifeste Android), qui demande confirmation avant d'ajouter le PC.
+Toutes les requêtes vers ce PC portent
 `Authorization: Bearer <jeton>`, et seulement vers l'origine de son catalogue.
 Le HTTP simple n'est accepté que vers le réseau local.
 
