@@ -345,7 +345,7 @@ zone se renouvelle ; les moteurs des autres planificateurs, eux, continuent de
 l'ignorer.
 
 En dehors de la France, de l'Allemagne, de la Tchéquie, de la Suisse et de la
-Basse-Silésie, le calcul ne connaît que les chemins d'OpenStreetMap : un
+Pologne, le calcul ne connaît que les chemins d'OpenStreetMap : un
 sentier absent d'OSM n'existe pas pour lui, même si la carte nationale le
 dessine. En Allemagne, les chemins ATKIS intégrés n'ont
 pas de droit de passage piéton explicite : les portions empruntées restent

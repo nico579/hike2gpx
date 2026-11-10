@@ -96,11 +96,16 @@ class Source:
 class TuilesOfficielles:
     """Cache et parcours de tuiles communs aux nouveaux services officiels."""
 
-    def __init__(self, cle, lire):
+    def __init__(self, cle, lire, *, avec_dossier=False, version=1):
+        """avec_dossier : lire reçoit aussi le dossier des données, pour un
+        service dont les fichiers se gardent sur disque (BDOT10k par powiats).
+        version : à augmenter quand la source ou le format des tronçons
+        change, pour ne pas mêler d'anciennes tuiles en cache aux nouvelles."""
         self.cle, self.lire = cle, lire
+        self.avec_dossier, self.version = avec_dossier, version
 
     def _chemin(self, i, j, dossier):
-        return Path(dossier) / self.cle / f"v1_{i}_{j}.json"
+        return Path(dossier) / self.cle / f"v{self.version}_{i}_{j}.json"
 
     def lire_cache(self, i, j, dossier):
         cache = atomique.lire_json(self._chemin(i, j, dossier), None)
@@ -114,7 +119,8 @@ class TuilesOfficielles:
                 return cache["troncons"]
             if not en_ligne:
                 raise ErreurDonnees(f"Hors connexion : chemins {self.cle} de cette zone jamais chargés.")
-            troncons = self.lire(*bornes_tuile(i, j))
+            troncons = self.lire(*bornes_tuile(i, j), dossier) if self.avec_dossier \
+                else self.lire(*bornes_tuile(i, j))
             atomique.ecrire_json(self._chemin(i, j, dossier),
                                 {"fetched_at": maintenant(), "troncons": troncons}, indent=None)
             journal.info("%s : tuile %d_%d, %d tronçons", self.cle, i, j, len(troncons))

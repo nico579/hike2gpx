@@ -35,6 +35,36 @@ class _SansPlages(ErreurArchive):
     """Le serveur répond 200 à une demande de plage : il ne les sert pas."""
 
 
+# Débit plancher, à la manière de curl --speed-limit / --speed-time : une
+# connexion qui reste sous DEBIT_MIN octets par seconde pendant FENETRE_S
+# secondes est abandonnée, et l'essai suivant reprend là où elle s'est arrêtée.
+# Le serveur du GUGiK répartit ses connexions : le 2026-11-09 au soir, trois
+# tiraient 0,3 à 0,95 Mo/s, une quatrième 18 ko/s, qui aurait tenu tout un
+# powiat une demi-heure sans jamais déclencher le délai de 120 s, puisqu'elle
+# avançait.
+DEBIT_MIN = 50_000
+FENETRE_S = 30
+_LECTURE = 1 << 16
+
+
+class _TropLent(OSError):
+    pass
+
+
+def _copier(reponse, f, horloge=time.monotonic) -> None:
+    """Copie reponse dans f, et lève _TropLent (une coupure, donc reprise) si
+    le débit reste sous DEBIT_MIN pendant toute une fenêtre de FENETRE_S."""
+    debut, recus = horloge(), 0
+    while bloc := reponse.read(_LECTURE):
+        f.write(bloc)
+        recus += len(bloc)
+        ecoule = horloge() - debut
+        if ecoule >= FENETRE_S:
+            if recus / ecoule < DEBIT_MIN:
+                raise _TropLent(f"moins de {DEBIT_MIN // 1000} ko/s pendant {ecoule:.0f} s")
+            debut, recus = horloge(), 0
+
+
 def _morceau(url: str, partie: Path, debut: int, longueur: int, ouvrir, essais: int, pause) -> None:
     """Les octets [debut, debut + longueur) de url dans partie, repris là où
     ils se sont arrêtés ; même règle que telecharger : seuls « essais » échecs
@@ -52,7 +82,7 @@ def _morceau(url: str, partie: Path, debut: int, longueur: int, ouvrir, essais: 
                 if getattr(reponse, "status", 200) != 206:
                     raise _SansPlages(url)
                 with open(partie, "ab") as f:
-                    shutil.copyfileobj(reponse, f, BLOC)
+                    _copier(reponse, f)
         except (OSError, http.client.HTTPException) as exc:     # coupure : l'essai suivant reprend
             journal.info("%s coupé (%s), reprise", partie.name, exc)
         apres = partie.stat().st_size if partie.exists() else 0
@@ -118,7 +148,7 @@ def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essai
                 with ouvrir(urllib.request.Request(fichier["url"], headers=entetes), timeout=120) as reponse:
                     mode = "ab" if deja and getattr(reponse, "status", 200) == 206 else "wb"
                     with open(cible, mode) as f:
-                        shutil.copyfileobj(reponse, f, BLOC)
+                        _copier(reponse, f)
             except (OSError, http.client.HTTPException) as exc:     # coupure : l'essai suivant reprend
                 journal.info("%s coupé (%s), reprise", cible.name, exc)
             apres = cible.stat().st_size if cible.exists() else 0

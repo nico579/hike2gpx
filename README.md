@@ -50,8 +50,8 @@ base map you chose.
 - **In ten other countries**: maps of Spain, Switzerland, Germany (BKG
   TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway, the United
   States, Czechia and Poland (Geoportal topographic map). Germany has an ATKIS path layer in all sixteen
-  states; Czechia has ZABAGED, Switzerland swissTLM3D and Lower Silesia in
-  Poland BDOT10k. Spain and the United States have display-only trail layers.
+  states; Czechia has ZABAGED, Switzerland swissTLM3D and Poland BDOT10k.
+  Spain and the United States have display-only trail layers.
   The ⓘ link next to the base map selector opens the
   [country coverage table](COUNTRY_COVERAGE.md#supported-countries)
   on GitHub. Its base map, path layer and routing columns are generated from
@@ -81,7 +81,7 @@ the paths (see below). Three options tune it:
 
 - **Strict mode**: also avoid the passages "to check", not only the blocking
   ones;
-- **Official paths** (France, Germany, Czechia, Switzerland and Lower Silesia):
+- **Official paths** (France, Germany, Czechia, Switzerland and Poland):
   let BRouter use official paths missing from OpenStreetMap in the selected
   area. They show as dashes and join the points to check, since their presence
   and access must be verified on site. The Polish source is regional; outside
@@ -336,7 +336,7 @@ OpenStreetMap records only 18 fences, and IGN's BD TOPO none (see
 OpenStreetMap is respected by hike2gpx as soon as its cache of the area is
 renewed; the engines of the other planners keep ignoring it.
 
-Outside France, Germany, Czechia, Switzerland and Lower Silesia, routing
+Outside France, Germany, Czechia, Switzerland and Poland, routing
 only knows OpenStreetMap's paths: a trail missing from OSM does not exist for
 it, even if the national map draws it. The integrated ATKIS ways do not state explicit pedestrian
 rights, so any routed section must be checked on site.

@@ -11,8 +11,10 @@ SOURCES = {
     "atkis": Source("atkis", "de", "ATKIS", atkis, "atkis"),
     "zabaged": Source("zabaged", "cz", "ZABAGED", TuilesOfficielles("zabaged", zabaged.lire), "zabaged"),
     "swisstlm3d": Source("swisstlm3d", "ch", "swissTLM3D", TuilesOfficielles("swisstlm3d", swisstlm3d.lire), "swisstlm3d"),
-    "bdot10k_ds": Source("bdot10k_ds", "pl", "BDOT10k", TuilesOfficielles("bdot10k_ds", bdot10k.lire),
-                          "bdot10k_ds", (50.0, 14.7, 51.85, 17.85)),
+    # Toute la Pologne depuis le 2026-11-09 ; la clé garde son nom d'origine
+    # (« ds », Basse-Silésie) : les manifestes des lots et l'application la lisent.
+    "bdot10k_ds": Source("bdot10k_ds", "pl", "BDOT10k",
+                         TuilesOfficielles("bdot10k_ds", bdot10k.lire, avec_dossier=True, version=2), "bdot10k_ds"),
 }
 
 PAYS_CARTES = {"france": "fr", "spain": "es", "switzerland": "ch", "germany": "de",

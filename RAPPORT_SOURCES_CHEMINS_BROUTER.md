@@ -20,7 +20,7 @@ Ce tableau est généré depuis les fichiers `hike2gpx/assets/web/providers/*.js
 | Luxembourg | Carte topographique ACT | OSM | OSM |
 | Norvège | Carte topographique Kartverket | OSM | OSM |
 | Pays-Bas | Carte topographique PDOK | OSM | OSM |
-| Pologne | Carte topographique polonaise (Geoportal) | chemins BDOT10k (Basse Silésie) | OSM + BDOT10k (Basse-Silésie) |
+| Pologne | Carte topographique polonaise (Geoportal) | chemins BDOT10k (Pologne) | OSM + BDOT10k |
 | Suisse | Carte nationale swisstopo | chemins swissTLM3D (Suisse) · Sentiers de randonnée (swisstopo) | OSM + swissTLM3D |
 | Tchéquie | Carte ZTM (ČÚZK) | chemins ZABAGED (Tchéquie) | OSM + ZABAGED |
 
