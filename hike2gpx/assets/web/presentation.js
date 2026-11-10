@@ -155,6 +155,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     setPanelCollapsed(!open);
     panel.querySelector(".panel-scroll").scrollTop = 0;
     if (name === "reglages") chargerDonnees();
+    if (name === "itineraires") chargerLots();      // la liste des zones stockées localement
     document.body.classList.toggle("sheet-expanded", open && innerWidth <= 700 && name !== "trace");
     if (remember) {
       try { localStorage.setItem(pagePreference, open ? name : ""); } catch (error) {}
@@ -205,20 +206,19 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   // « Recherche » montre ou replie le champ, en haut de la carte.
   const search = document.getElementById("citySearch");
   const searchEntry = document.getElementById("menuRecherche");
-  const searchPreference = "hike2gpx.searchOpen";
-  function setSearchOpen(open, remember = false) {
+  // Comme sur le téléphone : fermé au chargement, ouvert par le menu, refermé
+  // dès que le lieu trouvé est sur la carte (app.js : hike2gpx:recherche-aboutie).
+  function setSearchOpen(open) {
     search.hidden = !open;
     searchEntry.setAttribute("aria-pressed", String(open));
-    if (!remember) return;
     if (open) document.getElementById("cityQuery").focus();
-    try { localStorage.setItem(searchPreference, String(open)); } catch (error) {}
   }
   searchEntry.addEventListener("click", () => {
     setMenuOpen(false);
-    setSearchOpen(search.hidden, true);
+    setSearchOpen(search.hidden);
   });
-  try { setSearchOpen(localStorage.getItem(searchPreference) === "true"); }
-  catch (error) { setSearchOpen(false); }
+  document.addEventListener("hike2gpx:recherche-aboutie", () => setSearchOpen(false));
+  setSearchOpen(false);
   let savedPage = "";
   try { savedPage = localStorage.getItem(pagePreference) || ""; } catch (error) {}
   selectPane(savedPage, false);

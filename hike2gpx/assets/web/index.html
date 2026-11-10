@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-12">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-49">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-50">
 </head>
 <body class="panel-collapsed">
 <div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
@@ -135,6 +135,7 @@
     <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte">Inclure les chemins officiels</span></label>
     <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
     <h2 class="section-title" data-i18n="itineraires.zonesTitre">Zones stockées localement</h2>
+    <ul id="zonesLocales" class="zones-locales"></ul>
     <p class="note" data-i18n="itineraires.zonesNote">Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.</p>
     <button type="button" class="page-action hl-ouvrir" data-hl-mode="routage" data-hl-texte="itineraires.zonesBouton" data-i18n="itineraires.zonesBouton" aria-expanded="false" aria-controls="horsLigne">Choisir les zones sur la carte</button>
     <section id="horsLigne" class="hors-ligne" hidden>
@@ -174,10 +175,10 @@
     <div class="partage-boutons"><button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button><button id="arreterPartageFenetre" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div>
   </div>
 </div>
-<script src="/app.js?v=desktop-80"></script>
+<script src="/app.js?v=desktop-81"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-28"></script>
+<script src="/presentation.js?v=desktop-29"></script>
 </body>
 </html>

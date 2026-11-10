@@ -171,6 +171,10 @@ const TEXTES = {
     "donnees.vider": "Vider",
     "donnees.actualiser": "Actualiser",
     "donnees.supprimer": "Supprimer",
+    "zones.aucune": "Aucun lot installé.",
+    "zones.enrichi": "enrichi {sources}",
+    "zones.confirmer": "Supprimer de ce PC la zone {nom} ({taille}) ? Celle du serveur se retéléchargera si un parcours y passe.",
+    "zones.supprimee": "Zone {nom} supprimée, {taille} libérés.",
     "donnees.nettoyer": "Nettoyer",
     "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
     "donnees.viderTout": "Vider le cache",
@@ -428,6 +432,10 @@ const TEXTES = {
     "donnees.vider": "Clear",
     "donnees.actualiser": "Refresh",
     "donnees.supprimer": "Delete",
+    "zones.aucune": "No bundle installed.",
+    "zones.enrichi": "enriched {sources}",
+    "zones.confirmer": "Delete the {nom} zone ({taille}) from this PC? The server's will download again if a route goes there.",
+    "zones.supprimee": "Zone {nom} deleted, {taille} freed.",
     "donnees.nettoyer": "Clean up",
     "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
     "donnees.viderTout": "Clear cache",
@@ -781,6 +789,11 @@ $("cityQuery").addEventListener("input", () => {
 $("cityQuery").addEventListener("keydown", (e) => {
   if (e.key === "Escape") resultatsVilles.hidden = true;
 });
+// Comme sur le téléphone, le champ de recherche se referme dès que le lieu
+// est sur la carte : presentation.js, qui l'ouvre depuis le menu, l'écoute.
+function rechercheAboutie() {
+  if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:recherche-aboutie"));
+}
 $("citySearch").addEventListener("submit", async (e) => {
   e.preventDefault();
   const recherche = $("cityQuery").value.trim();
@@ -792,6 +805,7 @@ $("citySearch").addEventListener("submit", async (e) => {
     carte.setView([lat, lon], 14);
     memoriserVue(lat, lon, 14);
     resultatsVilles.hidden = true;
+    rechercheAboutie();
     return;
   }
   const numero = ++sequenceRecherche;
@@ -816,6 +830,7 @@ $("citySearch").addEventListener("submit", async (e) => {
         memoriserVue(ville.lat, ville.lon, 13);
         $("cityQuery").value = ville.nom;
         resultatsVilles.hidden = true;
+        rechercheAboutie();
       });
       resultatsVilles.append(bouton);
       premier ||= bouton;
@@ -1607,7 +1622,7 @@ function etatCarre(carre) {
 
 // Sur un fond chargé (SCAN 25, relief), un voile de 5 à 8 % ne se voyait
 // pas : traits pleins et épais, fonds francs ; seule la tuile vide reste
-// discrète. Les mêmes couleurs que la légende de le volet.
+// discrète. Les mêmes couleurs que la légende du volet.
 const STYLES_CASE = {
   prete: { color: "#1b7a3e", weight: 3, fillColor: "#23a04f", fillOpacity: 0.3 },
   encours: { color: "#e07b00", weight: 3, dashArray: "8 5", fillColor: "#e07b00", fillOpacity: 0.25 },
@@ -1834,22 +1849,77 @@ function activerHorsLigne(actif) {
 }
 
 async function chargerLots() {
-  // Volet fermé : rien à lire, la grille n'est pas affichée.
-  if (horsLigne.actif) {
+  // Rien à lire tant que ni la grille ni la page « Gestion des itinéraires »
+  // (sa liste des zones stockées localement) ne sont affichées.
+  if (horsLigne.actif || !$("pane-itineraires").hidden) {
     try {
       lotsInstalles = (await api("hors_ligne")).lots || [];
     } catch (_) { /* serveur injoignable : la grille reste vide */ }
     // Le catalogue du dépôt vient de GitHub, parfois en quelques secondes : la
     // grille n'attend pas, elle se redessine à son arrivée.
-    api("catalogue_lots").then((r) => { lotsServeur = r.lots || []; dessinerCases(); })
+    api("catalogue_lots").then((r) => { lotsServeur = r.lots || []; dessinerCases(); afficherZonesLocales(); })
       .catch(() => { lotsServeur = []; });
   }
   dessinerCases();
+  afficherZonesLocales();
 }
 
-// La langue a changé : les textes de le volet suivent.
+// « Zones stockées localement », comme la page du téléphone : une ligne par
+// lot installé, sa source et sa taille, « Mettre à jour » quand le serveur en
+// publie un plus récent, et « Supprimer » après confirmation.
+function afficherZonesLocales() {
+  const liste = $("zonesLocales");
+  const lignes = [...lotsInstalles].sort((a, b) => a.case.localeCompare(b.case)).map((l) => {
+    const li = document.createElement("li");
+    const texte = document.createElement("span");
+    // Les sources du manifeste : OSM et le relief sont dans tous les lots ; les
+    // chemins nationaux, nommés par leur calque (bdtopo) ou leur source (ign),
+    // prennent le nom court du pays, comme sur le téléphone (« enrichi IGN »).
+    const sources = Object.keys(l.sources || {}).filter((cle) => !["osm", "relief"].includes(cle))
+      .map((cle) => Object.values(FOURNISSEURS_CARTES)
+        .find((p) => p.paths?.source === cle || p.paths?.overlay === cle)?.paths.label || cle);
+    const origine = l.type === "osm" || !sources.length ? "OSM" : t("zones.enrichi", { sources: sources.join(" + ") });
+    texte.textContent = `${l.case} · ${origine} · ${tailleTexte(l.octets)}`;
+    li.append(texte);
+    if (lotsServeur.find((s) => s.case === l.case)?.etat === "ancien") {
+      const maj = document.createElement("button");
+      maj.type = "button";
+      maj.textContent = t("horsLigne.mettreAJour");
+      maj.addEventListener("click", () => {
+        horsLigne.file.push({ genre: "lot", nom: l.case, action: "telecharger" });
+        if (!lotEnCours.actif) lancerSuivant(); else afficherFile();
+      });
+      li.append(maj);
+    }
+    const supprimer = document.createElement("button");
+    supprimer.type = "button";
+    supprimer.textContent = t("donnees.supprimer");
+    supprimer.addEventListener("click", () => supprimerZone(l));
+    li.append(supprimer);
+    return li;
+  });
+  if (!lignes.length) {
+    const vide = document.createElement("li");
+    vide.className = "note";
+    vide.textContent = t("zones.aucune");
+    lignes.push(vide);
+  }
+  liste.replaceChildren(...lignes);
+}
+
+async function supprimerZone(l) {
+  if (!confirm(t("zones.confirmer", { nom: l.case, taille: tailleTexte(l.octets) }))) return;
+  let r;
+  try { r = await api("supprimer_case", { case: l.case, fonds: false }); } catch (e) { r = { erreur: e.message }; }
+  if (r.erreur) afficherLot({ case: l.case, erreur: r.erreur });
+  else afficherFile(t("zones.supprimee", { nom: l.case, taille: tailleTexte(r.octets || 0) }));
+  await chargerLots();
+}
+
+// La langue a changé : les textes du volet suivent.
 function afficherEntreeHorsLigne() {
   afficherSelection();
+  afficherZonesLocales();
 }
 
 $("hlRoutage").addEventListener("change", () => changerMode("routage"));
@@ -1966,7 +2036,7 @@ async function suivreLot() {
   } else {
     await chargerLots();
     chargerFonds();         // sans l'attendre : la grille est déjà à jour
-    if (horsLigne.file.length) lancerSuivant();     // la tuile suivante de le volet « Hors ligne »
+    if (horsLigne.file.length) lancerSuivant();     // la tuile suivante du volet « Hors ligne »
     if (lotSuivi) {
       // Le lot est arrivé (ou a échoué) : les calques et le calcul qui
       // l'attendaient repartent, sur lui ou à la volée.

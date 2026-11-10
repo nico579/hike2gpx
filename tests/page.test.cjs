@@ -44,6 +44,7 @@ function charger(preferences = {}, documentGpx = null) {
   const requetes = [];
   const pressePapiers = [];
   const confirmations = Object.assign([], { reponse: false });
+  const evenements = [];
   const corps = element();
   for (const [id, cle] of [["entree-trace", "menu.trace"], ["entree-reglages", "menu.reglages"]]) {
     const tab = element();
@@ -54,12 +55,17 @@ function charger(preferences = {}, documentGpx = null) {
   const strict = element();
   strict.checked = true;
   elements.set("strict", strict);
+  // Les pages du menu démarrent masquées, comme dans index.html.
+  const itineraires = element();
+  itineraires.hidden = true;
+  elements.set("pane-itineraires", itineraires);
   const contexte = vm.createContext({
     console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance,
+    CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail; } },
     DOMParser: class { parseFromString() { return documentGpx; } },
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
-       addEventListener() {}, querySelectorAll(selector) {
+       addEventListener() {}, dispatchEvent(e) { evenements.push(e.type); }, querySelectorAll(selector) {
          if (selector === "[data-i18n]") return [...elements.values()].filter((el) => el.dataset.i18n);
          if (selector === "[data-map-overlay]")
            return elements.get("legendRows")?.enfants.filter((ligne) => ligne.dataset.mapOverlay) || [];
@@ -126,7 +132,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
-    confirmations, stockage, minuteurs, pressePapiers };
+    confirmations, stockage, minuteurs, pressePapiers, evenements };
 }
 
 function resultat(lonArrivee) {
@@ -915,6 +921,43 @@ test("une réponse arrivée après une modification est ignorée", async () => {
   await calcul;
   assert.equal(page.etat.dernier, null);
   assert.equal(elements.get("exporter").disabled, true);
+});
+
+test("« Zones stockées localement » liste les lots installés, comme le téléphone", async () => {
+  const { page, elements, requetes, confirmations } = charger();
+  elements.get("pane-itineraires").hidden = false;          // la page ouverte
+  page.chargerLots();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"),
+    { lots: [{ case: "E5_N40", type: "enrichi", sources: { osm: {}, bdtopo: {}, relief: {} }, octets: 248e6 }],
+      fonds: [] });
+  await tic();
+  repondre(requetes.findLast((r) => r.url === "/api/catalogue_lots"), { lots: [{ case: "E5_N40", etat: "ancien" }] });
+  await tic();
+  const [ligne] = elements.get("zonesLocales").enfants;
+  const [texte, maj, supprimer] = ligne.enfants;
+  assert.equal(texte.textContent, "E5_N40 · enrichi IGN · 248 Mo");
+  assert.equal(maj.textContent, "Mettre à jour", "le serveur en publie un plus récent");
+  assert.equal(supprimer.textContent, "Supprimer");
+  // Supprimer : après confirmation, le routage seul, pas les fonds du carré.
+  confirmations.reponse = true;
+  supprimer.click();
+  await tic();
+  assert.match(confirmations.at(-1), /^Supprimer de ce PC la zone E5_N40 \(248 Mo\)/);
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_case").options.body),
+    { case: "E5_N40", fonds: false });
+  // Sans lot installé, la page le dit.
+  repondre(requetes.findLast((r) => r.url === "/api/supprimer_case"), { octets: 248e6 });
+  await tic();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [] });
+  await tic();
+  assert.equal(elements.get("zonesLocales").enfants[0].textContent, "Aucun lot installé.");
+});
+
+test("une recherche aboutie referme le champ, comme sur le téléphone", () => {
+  const { elements, evenements } = charger();
+  elements.get("cityQuery").value = "43.3, 6.04";
+  elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  assert.ok(evenements.includes("hike2gpx:recherche-aboutie"), "presentation.js referme le champ");
 });
 
 test("un clic sur la carte ne pose un point qu'en planification, comme sur le téléphone", () => {

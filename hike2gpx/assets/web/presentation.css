@@ -283,6 +283,13 @@ body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran 
 .cartes-calques .leaflet-control-layers-separator{display:none}
 /* En planification, le curseur en croix dit qu'un clic posera un point. */
 body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
+/* « Zones stockées localement » : une ligne par zone, ses boutons à droite. */
+.zones-locales{list-style:none;margin:0 0 12px;padding:0}
+.zones-locales li{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:12px;color:#42566d}
+.zones-locales li>span{flex:1;min-width:0}
+.zones-locales li.note{border:0;color:#65768a}
+.zones-locales button{padding:5px 9px;border:1px solid #d7e3f0;border-radius:7px;background:#fff;color:#315b88;font-size:11px;cursor:pointer}
+.zones-locales button:hover{background:#f2f7ff}
 .cartes-calques .cartes-calques-titre{margin:18px 0 6px;font-size:14px;color:#3d5e80}
 /* Le « i » d'un titre est au bord droit du panneau : sa bulle s'ouvre vers la gauche. */
 .pane>.section-title .info-tooltip [role=tooltip]{left:auto;right:-8px;width:250px;font-size:11px;font-weight:400;line-height:1.4}
