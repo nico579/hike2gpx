@@ -127,20 +127,20 @@ jamais un « 0 Mo » trompeur.
 
 La page « Gestion des cartes », dans le menu, réunit tout ce qui touche au fond
 et aux chemins, sorti des réglages. On y choisit le fond dans « En ligne » : les
-mêmes cartes que la page du PC, et les cartes nationales suivent le pays du
-centre de la carte, comme sur le PC. En France, le Plan IGN par défaut, le
-SCAN 25 (IGN), les photos aériennes (IGN) et le relief LiDAR HD (IGN) ; en
-Suisse la carte swisstopo, en Allemagne la carte du BKG, en Autriche
-basemap.at, en Tchéquie ČÚZK, en Espagne l'IGN, au Luxembourg l'ACT, aux
-Pays-Bas PDOK, en Norvège Kartverket, aux États-Unis l'USGS et en Pologne le
-Geoportal. OpenTopoMap, OpenStreetMap et le satellite (Esri) servent partout ;
-ailleurs que dans ces pays, la carte reste sur OpenStreetMap. Le choix du fond
-est gardé par pays : en y revenant, la carte le reprend ; sans choix, c'est la
-carte nationale du pays. Un fond hors ligne affiché n'est pas remplacé par un
-déplacement. Le SCAN 25 n'est pas une donnée libre : il n'apparaît qu'une fois
-la clé IGN renseignée dans les réglages, et sans elle la carte reste sur le
-Plan IGN. Dans « Hors ligne », un fond reçu d'un PC (le SCAN 25 ou le Plan IGN
-qu'il a fabriqués). Les fonds qu'un PC partage et qui
+mêmes cartes que la page du PC. Les cartes nationales proposées suivent le pays
+du centre de la carte : en France le Plan IGN par défaut, le SCAN 25 (IGN), les
+photos aériennes (IGN) et le relief LiDAR HD (IGN) ; en Suisse la carte
+swisstopo, en Allemagne la carte du BKG, en Autriche basemap.at, en Tchéquie
+ČÚZK, en Espagne l'IGN, au Luxembourg l'ACT, aux Pays-Bas PDOK, en Norvège
+Kartverket, aux États-Unis l'USGS et en Pologne le Geoportal. OpenTopoMap,
+OpenStreetMap et le satellite (Esri) servent partout. Une carte nationale suit
+le pays : en passant en Suisse, le Plan IGN laisse la place à swisstopo, et
+hors des pays couverts la carte revient à OpenStreetMap. Un fond du monde
+(OpenStreetMap, OpenTopoMap, satellite) ou un fond hors ligne reste en place
+quand on change de pays. Le SCAN 25 n'est pas une donnée libre : il
+n'apparaît qu'une fois la clé IGN renseignée dans les réglages, et sans elle la
+carte reste sur le Plan IGN. Dans « Hors ligne », un fond reçu d'un PC (le
+SCAN 25 ou le Plan IGN qu'il a fabriqués). Les fonds qu'un PC partage et qui
 manquent au téléphone y sont proposés, avec leur taille et un bouton de
 téléchargement ; le QR code du PC (« Partager au téléphone » dans ses réglages)
 l'ajoute, sur le même Wi-Fi. Chaque fond installé s'affiche avec sa taille et

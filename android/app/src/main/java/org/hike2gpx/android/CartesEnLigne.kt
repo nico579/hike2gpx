@@ -7,8 +7,8 @@ import java.net.URLEncoder
 /**
  * Une carte en ligne, la même que sur la page du PC : le gabarit de tuile et
  * l'attribution de providers/<pays>.js. Une carte nationale ne s'affiche que
- * dans son pays, comme la page, dont le fond suit le centre de la carte ; les
- * cartes du monde (OpenTopoMap, OpenStreetMap, satellite) servent partout.
+ * dans son pays, et la page « Gestion des cartes » propose celles du pays du
+ * centre de la carte : une carte nationale suit le pays, un fond du monde reste.
  * Le SCAN 25 est le seul à demander la clé IGN de l'utilisateur.
  */
 data class CarteEnLigne(

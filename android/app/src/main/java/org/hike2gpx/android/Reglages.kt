@@ -28,23 +28,6 @@ class Reglages(context: Context) {
         set(v) = preferences.edit().putString(FOND, v).apply()
 
     /**
-     * Le fond choisi pour un pays, comme la page (localStorage « fond.<pays> ») :
-     * en revenant dans ce pays, la carte le reprend. Sans choix, c'est le fond
-     * national par défaut ; l'ancien réglage unique vaut pour la France.
-     */
-    fun fondDe(pays: String): String? {
-        val choix = JSONObject(preferences.getString(FONDS, "{}"))
-        if (choix.has(pays)) return choix.getString(pays)
-        return if (pays == "fr") preferences.getString(FOND, null) else null
-    }
-
-    fun retenirFond(pays: String, cle: String) {
-        val choix = JSONObject(preferences.getString(FONDS, "{}"))
-        choix.put(pays, cle)
-        preferences.edit().putString(FONDS, choix.toString()).apply()
-    }
-
-    /**
      * La clé IGN de l'utilisateur, pour le SCAN 25, comme le réglage du PC
      * (prefs « cle_ign »). Vide : la page propose le Plan IGN à sa place.
      */
@@ -133,7 +116,6 @@ class Reglages(context: Context) {
     companion object {
         private const val PCS = "pcs"
         private const val FOND = "fond"
-        private const val FONDS = "fonds"
         private const val CLE_IGN = "cle_ign"
         private const val STRICT = "strict"
         private const val OFFICIELS = "officiels"
