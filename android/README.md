@@ -35,9 +35,10 @@ pendant l'enregistrement, seul l'état de la trace s'affiche.
 Les calques du lot s'affichent sur la carte, comme ceux de la page : les
 chemins OSM (sentiers en tirets violets, pistes et routes) avec les barrières
 qui gênent un piéton et les franchissements bloquants (rouge) ou à vérifier
-(orange), et les chemins de chaque fournisseur national retenu par le lot
-(BD TOPO en France, turquoise), chacun avec sa coche dans la page « Gestion des
-cartes » (« Chemin IGN BD TOPO », « Chemin ATKIS »…). Ils n'apparaissent qu'à
+(orange), et les chemins du fournisseur national retenu par le lot du secteur
+(BD TOPO en France, turquoise), avec sa coche dans la page « Gestion des
+cartes » (« IGN », « ATKIS »…), proposée seulement quand ce lot est là. Ils
+n'apparaissent qu'à
 partir du zoom 14, celui des tuiles vectorielles du lot : en dessous, mieux
 vaut ne rien montrer qu'un réseau tronqué. La page rappelle le zoom
 courant ; une coche sous ce zoom, ou une vue sans chemin de calque, le dit
@@ -145,8 +146,10 @@ manquent au téléphone y sont proposés, avec leur taille et un bouton de
 téléchargement ; le QR code du PC (« Partager au téléphone » dans ses réglages)
 l'ajoute, sur le même Wi-Fi. Chaque fond installé s'affiche avec sa taille et
 « Supprimer », après confirmation ; s'il était affiché, la carte revient en
-ligne. « Superposition des chemins » y coche les chemins OSM et ceux de chaque
-fournisseur national (IGN, ATKIS…). Un fond est un MBTiles rangé sous
+ligne. « Superposition des chemins » y coche les chemins OSM, toujours
+proposés, et ceux du fournisseur national du lot qui couvre la vue (IGN,
+ATKIS…) : la coche du pays n'apparaît que si ce lot est installé, et elle
+disparaît dès que la carte sort de sa zone. Un fond est un MBTiles rangé sous
 `hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une même source s'affichent
 ensemble, et la carte agrandit au-delà de leur zoom le plus fin. Le bandeau de
 planification ne garde que « Retirer », « Effacer » et « Revenir ».

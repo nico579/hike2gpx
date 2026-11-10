@@ -1067,8 +1067,9 @@ class MainActivity : Activity() {
             }
         }
 
-        // Les calques du lot, comme dans la page du PC. Un lot ancien sans
-        // fournisseur national ne montre que la coche OSM.
+        // Les calques du lot, comme dans la page du PC : la coche OSM reste
+        // toujours, celle d'un fournisseur national n'apparaît que si le lot
+        // de la zone est installé (sinon il n'y a rien à dessiner).
         titre(colonne, R.string.titre_calques)
         colonne.addView(CheckBox(this).apply {
             setText(R.string.calque_osm); isChecked = reglages.calqueOsm
@@ -1078,7 +1079,7 @@ class MainActivity : Activity() {
                 planifierCalques()
             }
         })
-        for (fournisseur in fournisseursDisponibles()) {
+        for (fournisseur in fournisseursVisibles()) {
             colonne.addView(CheckBox(this).apply {
                 text = fournisseur.court
                 isChecked = reglages.calqueOfficiel(fournisseur.cle)
@@ -1880,6 +1881,13 @@ class MainActivity : Activity() {
     private fun fournisseursDisponibles(): List<Fournisseur> =
         horsLigne.lots().flatMap { Fournisseurs.duLot(it) }
             .distinctBy { it.cle }.sortedBy { it.nom }
+
+    /** Ceux du lot qui couvre la vue : les seules coches de superposition proposées. */
+    private fun fournisseursVisibles(): List<Fournisseur> {
+        val boite = carte.boundingBox
+        return calques.fournisseursVisibles(
+            Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast))
+    }
 
     private fun description(lot: Lot): String =
         if (lot.osm) "OSM" else getString(R.string.lot_enrichi,

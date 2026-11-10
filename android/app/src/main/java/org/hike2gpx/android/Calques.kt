@@ -129,6 +129,15 @@ class Calques(private val horsLigne: HorsLigne) {
         else -> null
     }
 
+    /**
+     * Les fournisseurs nationaux du lot qui couvre la vue : seuls ceux-là ont
+     * leur coche de superposition, comme la page, qui ne la montre que si les
+     * chemins du pays sont là. Sans lot de la zone, seule la coche OSM reste.
+     */
+    fun fournisseursVisibles(zone: Zone): List<Fournisseur> =
+        lotVisible(zone)?.let { Fournisseurs.duLot(it) }.orEmpty()
+            .distinctBy { it.cle }.sortedBy { it.nom }
+
     /** Le lot qui couvre le centre de la vue, l'enrichi d'abord à égalité (comme lot_couvrant). */
     private fun lotVisible(zone: Zone): Lot? {
         val lat = (zone.sud + zone.nord) / 2
