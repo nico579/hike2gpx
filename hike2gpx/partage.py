@@ -64,16 +64,24 @@ def ip_locale() -> str:
     return adresse
 
 
-def dresser(hors_ligne, empreintes: dict | None = None) -> tuple:
+def dresser(hors_ligne, empreintes: dict | None = None, selection: dict | None = None) -> tuple:
     """(catalogue, fichiers) des lots installés et des fonds : le catalogue au
     format du dépôt, les adresses en sous-dossiers (E5_N40/E5_N40.rd5,
     fonds/E5_N40-scan25.mbtiles), et la table adresse -> chemin, la seule que
     le serveur consulte. empreintes : un cache {(chemin, taille, date): sha256},
-    pour ne pas relire un fond de plusieurs centaines de Mo à chaque ouverture."""
+    pour ne pas relire un fond de plusieurs centaines de Mo à chaque ouverture.
+    selection : {"lots": ["E5_N40"…], "carres": ["N43E006"…]}, ce qu'on a choisi
+    sur la carte ; le catalogue ne porte alors que ces zones et les fonds de ces
+    carrés, que le téléphone récupère d'un coup. Sans elle, tout ce qui est là."""
+    garder_lot = (lambda case: True) if selection is None else set(selection.get("lots") or []).__contains__
+    carres = None if selection is None else set(selection.get("carres") or [])
+    garder_fond = (lambda nom: True) if carres is None else (lambda nom: nom.split("-", 1)[0] in carres)
     empreintes = {} if empreintes is None else empreintes
     fichiers, lots = {}, []
     for m in hors_ligne.lots():
         case = m["case"]
+        if not garder_lot(case):
+            continue
         dossier = hors_ligne.racine / case
         segments = hors_ligne.segments_osm if m.get("type") == "osm" else hors_ligne.segments
         entree = depot.entree_lot(m, dossier / "manifest.json", lambda nom, case=case: f"{case}/{nom}")
@@ -86,6 +94,8 @@ def dresser(hors_ligne, empreintes: dict | None = None) -> tuple:
     # que les MBTiles ne prenne pas une carte qu'il ne saurait pas afficher.
     fonds, cartes = [], []
     for f in hors_ligne.fonds():
+        if not garder_fond(f["nom"]):
+            continue
         suffixe = mapsforge.SUFFIXE if f.get("format") == "map" else ".mbtiles"
         chemin = hors_ligne.dossier_fonds / f"{f['nom']}{suffixe}"
         etat = chemin.stat()
@@ -258,11 +268,12 @@ class Partage:
                 "lots": [l["case"] for l in catalogue["lots"]], "fonds": [f["nom"] for f in fonds],
                 "octets": sum(l["octets"] for l in catalogue["lots"]) + sum(f["octets"] for f in fonds)}
 
-    def ouvrir(self) -> dict:
+    def ouvrir(self, selection: dict | None = None) -> dict:
+        """Ouvre le partage de la sélection (dresser), ou de tout sans elle."""
         with self.verrou:
             self._fermer()
             ip = self.adresse()
-            catalogue, self.fichiers = dresser(self.hors_ligne, self._empreintes)
+            catalogue, self.fichiers = dresser(self.hors_ligne, self._empreintes, selection)
             self.catalogue_json = json.dumps(catalogue, ensure_ascii=False).encode("utf-8")
             self.jeton = secrets.token_urlsafe(32)        # 32 octets aléatoires, renouvelés à chaque ouverture
             handler = type("HandlerPartage", (Handler,), {"partage": self})

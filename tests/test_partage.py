@@ -183,3 +183,30 @@ def test_l_adresse_locale_est_privee_ou_refusee():
         return
     import ipaddress
     assert ipaddress.ip_address(adresse).is_private
+
+
+def test_le_partage_ne_sert_que_la_selection_choisie_sur_la_carte(tmp_path):
+    # Le PC a la zone E5_N40 et le fond E5_N40-scan25 ; on ne partage que ce
+    # qu'on a sélectionné, que le téléphone récupère ensuite d'un coup.
+    h = preparer(tmp_path)
+    catalogue, fichiers = partage.dresser(h, selection={"lots": ["E5_N40"], "carres": []})
+    assert [entree["case"] for entree in catalogue["lots"]] == ["E5_N40"] and catalogue["fonds"] == []
+    assert not any(url.startswith("fonds/") for url in fichiers), "rien d'autre ne se sert"
+    catalogue, fichiers = partage.dresser(h, selection={"lots": [], "carres": ["E5_N40"]})
+    assert catalogue["lots"] == [] and [f["nom"] for f in catalogue["fonds"]] == ["E5_N40-scan25"]
+    catalogue, _ = partage.dresser(h, selection={"lots": ["W5_N40"], "carres": ["N50E010"]})
+    assert catalogue["lots"] == [] and catalogue["fonds"] == []
+    # Sans sélection (l'entrée du menu), tout ce qui est là.
+    catalogue, _ = partage.dresser(h)
+    assert len(catalogue["lots"]) == 1 and len(catalogue["fonds"]) == 1
+
+
+def test_une_selection_invalide_est_refusee_avant_le_pare_feu(tmp_path):
+    a = Application(tmp_path)
+    demandes = []
+    a.autoriser_pare_feu = lambda: demandes.append(1) or "ok"
+    _, post = a.routes()
+    assert post["partage"]({"ouvrir": True, "lots": ["../etc"]}) == \
+        {"ouvert": False, "erreur": "Sélection de partage invalide."}
+    assert post["partage"]({"ouvrir": True, "carres": ["N99"]})["erreur"] == "Sélection de partage invalide."
+    assert demandes == [], "pas de fenêtre d'autorisation de Windows pour une demande refusée"

@@ -314,7 +314,8 @@ test("le partage au téléphone s'ouvre à la demande, montre son QR code et se 
   assert.equal(elements.get("partageQr").innerHTML, "<svg>qr</svg>");
   assert.equal(elements.get("partageOuvert").hidden, false);
   assert.equal(elements.get("partagerTelephone").hidden, true);
-  assert.match(elements.get("partageTexte").textContent, /Scanner le QR code d’un PC.*1 fond\(s\) de carte/);
+  assert.match(elements.get("partageTexte").textContent,
+    /^Partagés : 1 zone\(s\) de routage et 1 fond\(s\) de carte, 412 Mo\..*Scanner le QR code d’un PC/);
   // Le QR code s'ouvre dans sa fenêtre, comme lidar2map ; Fermer la cache, « Afficher le QR code » la rouvre.
   assert.equal(elements.get("partageFenetre").hidden, false);
   elements.get("fermerFenetrePartage").click();
@@ -330,6 +331,18 @@ test("le partage au téléphone s'ouvre à la demande, montre son QR code et se 
   assert.equal(elements.get("partageOuvert").hidden, true);
   assert.equal(elements.get("partageTexte").hidden, true);
   assert.equal(elements.get("partageFenetre").hidden, true, "partage fermé : plus de fenêtre");
+});
+
+test("le volet de la grille partage sa sélection seule au téléphone", async () => {
+  const { page, elements, requetes } = charger();
+  await ouvrirHorsLigne(page, requetes, [{ case: "E5_N40", octets: 135e6 }], [{ case: "E5_N40", octets: 247e6, etat: "a_jour" }]);
+  assert.equal(elements.get("hlPartager").hidden, true, "rien de sélectionné");
+  page.grilleCases.layers[0].handlers.click();
+  assert.equal(elements.get("hlPartager").hidden, false);
+  assert.equal(elements.get("hlPartager").textContent, "Partager les 1 au téléphone");
+  elements.get("hlPartager").click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/partage").options.body),
+    { ouvrir: true, lots: ["E5_N40"], carres: [] }, "la zone choisie, pas tout le PC");
 });
 
 test("la note suit la préparation hors ligne, puis la case est prête", async () => {
