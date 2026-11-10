@@ -119,8 +119,10 @@ confirmation. « Vider le cache » ne touche pas à cet historique.
 Les lots du serveur se téléchargent d'eux-mêmes : l'application lit les
 catalogues à son lancement, et quand un parcours touche une case dont le lot
 manque, ou dont le dépôt a une édition plus récente, ce lot part aussitôt.
-Afficher un calque du lot au zoom 14 compte aussi comme un usage de la région : le lot de la case du
-centre se télécharge de lui-même. Sur le Wi-Fi, sans rien demander ; sur un
+S'arrêter sur une région compte aussi comme un usage : une recherche de ville,
+un recentrage sur la position GPS, ou l'affichage d'un calque du lot au zoom
+14 proposent aussitôt le lot de la case du centre, sans attendre un geste sur
+la carte. Sur le Wi-Fi, sans rien demander ; sur un
 réseau facturé (données mobiles), après confirmation. Un échec ou un refus
 n'est pas repris avant une heure, et un lot supprimé à la main ne revient pas
 de la séance. Les lots et les fonds installés affichent leur taille réelle,

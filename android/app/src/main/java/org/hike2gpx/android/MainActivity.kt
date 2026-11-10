@@ -157,6 +157,8 @@ class MainActivity : Activity() {
     private var aReprendre = false
     /** Case dont le téléchargement automatique est proposé ou en cours. */
     private var autoLotDemande: String? = null
+    /** Un recentrage a demandé le lot de sa zone avant que le catalogue soit lu. */
+    private var lotDeZoneEnAttente = false
     private var fenetreReglages: LinearLayout? = null
     /** La page « Cartes » du menu, refaite après chaque téléchargement ou suppression. */
     private var fenetreCartes: LinearLayout? = null
@@ -777,18 +779,30 @@ class MainActivity : Activity() {
             carte.invalidate()
             return
         }
-        proposerLotCalques()
+        proposerLotZone()
         planificateur.postDelayed({ rafraichirCalques() }, 350)
     }
 
     /**
-     * Comme la page, afficher un calque est un usage réel de la région : le
-     * lot de la case du centre se télécharge de lui-même s'il manque, ou si
-     * le catalogue en a un plus récent. Un survol sous le zoom 14 ne suffit
-     * pas, et une case refusée ou en échec attend une heure.
+     * Comme la page, s'arrêter sur une région est un usage réel : le lot de la
+     * case du centre se télécharge de lui-même s'il manque, ou si le catalogue
+     * en a un plus récent. Un survol sous le zoom 14 ne suffit pas, mais un
+     * recentrage (recherche, position GPS) le propose aussitôt, sans attendre
+     * un geste sur la carte. Une case refusée ou en échec attend une heure.
      */
-    private fun proposerLotCalques() {
-        if (enCours.get() || autoLotDemande != null) return
+    private fun proposerLotZone(attendreCatalogue: Boolean = false) {
+        if (enCours.get() || autoLotDemande != null) {
+            // Une tâche occupe le téléchargement : la demande attend son tour.
+            if (attendreCatalogue) lotDeZoneEnAttente = true
+            return
+        }
+        if (offres.isEmpty()) {
+            // Une recherche peut aboutir avant la lecture du catalogue : le lot
+            // de sa zone se proposera dès qu'il sera là.
+            if (attendreCatalogue) lotDeZoneEnAttente = true
+            return
+        }
+        lotDeZoneEnAttente = false
         val boite = carte.boundingBox ?: return
         val maintenant = SystemClock.elapsedRealtime()
         val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
@@ -852,7 +866,11 @@ class MainActivity : Activity() {
      */
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
         val choix = choisir(listOf(Source.GITHUB to Depot().lireCatalogue(Source.GITHUB)))
-        runOnUiThread { offres = choix; remplirReglages(); remplirItineraires(); planifierCalques() }
+        runOnUiThread {
+            offres = choix; remplirReglages(); remplirItineraires(); planifierCalques()
+            // Une recherche faite avant la lecture du catalogue n'a pas perdu sa demande.
+            if (lotDeZoneEnAttente) proposerLotZone()
+        }
         // Le conseil de pose ne vaut qu'en planification ; au repos, le bilan
         // se contente du catalogue lu.
         if (points.isEmpty() && modePlan) getString(R.string.etat_pret)
@@ -1745,7 +1763,11 @@ class MainActivity : Activity() {
         carte.invalidate()
         // Le point est situé : le bandeau de recherche se referme aussitôt.
         fermerRecherche()
+        // Le pays et le lot de la nouvelle zone n'attendent pas un geste sur la
+        // carte : la recherche a amené l'utilisateur ici, le lot y part.
+        planifierPays()
         planifierCalques()
+        proposerLotZone(attendreCatalogue = true)
     }
 
     private fun cacherClavier() {
@@ -2071,6 +2093,11 @@ class MainActivity : Activity() {
         if (carte.zoomLevelDouble < 14.0) carte.controller.setZoom(15.0)
         carte.controller.setCenter(point)
         carte.invalidate()
+        // Un recentrage sur la position est un usage réel de la zone : le lot
+        // qui la couvre se propose sans attendre un geste sur la carte.
+        planifierPays()
+        planifierCalques()
+        proposerLotZone(attendreCatalogue = true)
     }
 
     private fun basculerEnregistrement() {
@@ -2425,6 +2452,9 @@ class MainActivity : Activity() {
                 val reprendre = aReprendre
                 ensuite?.invoke(reussie)
                 if (reprendre && !enCours.get()) avancer()
+                // Un recentrage demandé pendant la tâche n'a pas perdu sa demande.
+                if (lotDeZoneEnAttente && !enCours.get() && autoLotDemande == null)
+                    proposerLotZone()
             }
         }
     }
