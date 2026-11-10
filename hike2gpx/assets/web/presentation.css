@@ -174,7 +174,15 @@ body.profile-collapsed .map-activity{bottom:81px}
 .hl-pastille.serveur{border-color:#1565c0;background:transparent}
 /* Les boutons du volet : un par ligne, chacun avec son icône. */
 .hl-actions{display:grid;justify-items:start;gap:8px;margin:8px 0}
-.hl-actions button{display:inline-flex;align-items:center;gap:7px}
+.hl-actions button{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1.5px solid #6f9bd6;border-radius:8px;background:#fff;color:#1d4f96;font-size:12px;font-weight:600;box-shadow:0 1px 3px #1b354526;cursor:pointer}
+.hl-actions button:hover:not(:disabled){background:#eef5ff}
+/* « Télécharger », l'action principale, en bleu plein comme « Exporter le GPX » ;
+   « Supprimer » en rouge, pour qu'on ne le prenne pas pour un autre. */
+#hlTelecharger{background:var(--accent);border-color:var(--accent);color:#fff}
+#hlTelecharger:hover:not(:disabled){background:#1854b1}
+#hlTelecharger:disabled{background:#fff;border-color:#b9c9dc;color:#7b8ca0;box-shadow:none}
+#hlSupprimer{border-color:#d9827a;color:#b3261e}
+#hlSupprimer:hover:not(:disabled){background:#fdf0ef}
 .hl-actions button svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .hl-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .hl-file[hidden]{display:none}
