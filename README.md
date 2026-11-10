@@ -317,7 +317,7 @@ published.
 
 The phone takes the server's bundles from GitHub. What only your computer
 has, bundles prepared outside the server's countries and base maps, it gets
-from the computer, over Wi-Fi. In the settings, "Share with the phone" shows
+from the computer, over Wi-Fi. In the menu, "Share with the phone" shows
 a QR code: scan it with hike2gpx on the phone, on the same network. The
 computer then serves its bundles and base maps, each file checked against
 its hash on arrival and resumed after a cut. Sharing stays closed until you

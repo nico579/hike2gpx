@@ -27,6 +27,7 @@ const TEXTES = {
     "menu.cartes": "Gestion des cartes",
     "menu.itineraires": "Gestion des itinéraires",
     "menu.trace": "Planifier un itinéraire",
+    "menu.partage": "Partager au téléphone",
     "menu.reglages": "Réglages",
     "menu.aide": "Aide",
     "menu.fermer": "Fermer",
@@ -248,7 +249,7 @@ const TEXTES = {
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
     "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
-    "partage.ouvert": "Dans hike2gpx sur le téléphone, sur le même Wi-Fi : Réglages, puis « Scanner le QR code d’un PC ». {fonds} fond(s) de carte à prendre. Le code change à chaque partage.",
+    "partage.ouvert": "Dans hike2gpx sur le téléphone, sur le même Wi-Fi : « Gestion des cartes », puis « Scanner le QR code d’un PC ». {fonds} fond(s) de carte à prendre. Le code change à chaque partage.",
     "partage.titre": "Partager au téléphone",
     "partage.pareFeu": "Attention : le pare-feu de Windows n’autorise pas encore hike2gpx, le téléphone ne pourra pas joindre le PC. Rouvrez le partage et acceptez la demande d’autorisation de Windows.",
     "partage.revoir": "Afficher le QR code",
@@ -283,6 +284,7 @@ const TEXTES = {
     "menu.cartes": "Map management",
     "menu.itineraires": "Route management",
     "menu.trace": "Plan a route",
+    "menu.partage": "Share with the phone",
     "menu.reglages": "Settings",
     "menu.aide": "Help",
     "menu.fermer": "Close",
@@ -504,7 +506,7 @@ const TEXTES = {
     "horsLigne.fondFini": "Base map {nom} ready offline.",
     "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
-    "partage.ouvert": "In hike2gpx on the phone, on the same Wi-Fi: Settings, then “Scan a PC’s QR code”. {fonds} base map(s) to take. The code changes with every share.",
+    "partage.ouvert": "In hike2gpx on the phone, on the same Wi-Fi: “Map management”, then “Scan a PC’s QR code”. {fonds} base map(s) to take. The code changes with every share.",
     "partage.titre": "Share with the phone",
     "partage.pareFeu": "Warning: the Windows firewall does not allow hike2gpx yet, so the phone cannot reach the PC. Share again and accept the Windows authorisation request.",
     "partage.revoir": "Show the QR code",
@@ -1896,6 +1898,7 @@ $("partagerTelephone").addEventListener("click", () => basculerPartage(true));
 $("fermerPartage").addEventListener("click", () => basculerPartage(false));
 $("revoirQr").addEventListener("click", () => { if (etat.partage?.ouvert) $("partageFenetre").hidden = false; });
 $("fermerFenetrePartage").addEventListener("click", () => { $("partageFenetre").hidden = true; });
+$("arreterPartageFenetre").addEventListener("click", () => basculerPartage(false));
 $("partageFenetre").addEventListener("click", (e) => { if (e.target === $("partageFenetre")) $("partageFenetre").hidden = true; });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("partageFenetre").hidden = true; });
 

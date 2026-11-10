@@ -177,6 +177,13 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   menuButton.addEventListener("click", () => setMenuOpen(menu.hidden));
   menuBackdrop.addEventListener("click", () => setMenuOpen(false));
   document.getElementById("aide").addEventListener("click", () => setMenuOpen(false));
+  // « Partager au téléphone » : ouvre le partage et montre son QR code, ou le
+  // remontre s'il est déjà ouvert. Les mêmes boutons que dans les réglages.
+  document.getElementById("menuPartage").addEventListener("click", () => {
+    setMenuOpen(false);
+    const open = !document.getElementById("partageOuvert").hidden;
+    document.getElementById(open ? "revoirQr" : "partagerTelephone").click();
+  });
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !menu.hidden) {
       setMenuOpen(false);

@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-12">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-47">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-48">
 </head>
 <body class="panel-collapsed">
 <div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
@@ -22,6 +22,7 @@
     <button type="button" class="menu-entry" data-pane="cartes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2V6Zm6-2v14m6-12v14"/></svg><span id="entree-cartes" data-i18n="menu.cartes">Gestion des cartes</span></button>
     <button type="button" class="menu-entry" data-pane="itineraires"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/></svg><span id="entree-itineraires" data-i18n="menu.itineraires">Gestion des itinéraires</span></button>
     <button type="button" class="menu-entry" data-pane="trace"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1Zm11-14 3 3"/></svg><span id="entree-trace" data-i18n="menu.trace">Planifier un itinéraire</span></button>
+    <button type="button" class="menu-entry" id="menuPartage"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><span id="entree-partage" data-i18n="menu.partage">Partager au téléphone</span></button>
     <button type="button" class="menu-entry" data-pane="reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span id="entree-reglages" data-i18n="menu.reglages">Réglages</span></button>
     <a id="aide" class="menu-entry" href="https://github.com/nico579/hike2gpx/blob/main/README.fr.md" target="_blank" rel="noopener" title="Aide : le mode d'emploi (README)" aria-label="Aide : le mode d'emploi (README)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7m0 3h.01"/></svg><span data-i18n="menu.aide">Aide</span></a>
   </nav>
@@ -170,13 +171,13 @@
     <h2 id="partageFenetreTitre" data-i18n="partage.titre">Partager au téléphone</h2>
     <div id="partageQr" class="partage-qr"></div>
     <p id="partageFenetreTexte" class="note"></p>
-    <button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button>
+    <div class="partage-boutons"><button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button><button id="arreterPartageFenetre" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div>
   </div>
 </div>
-<script src="/app.js?v=desktop-77"></script>
+<script src="/app.js?v=desktop-78"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-26"></script>
+<script src="/presentation.js?v=desktop-27"></script>
 </body>
 </html>

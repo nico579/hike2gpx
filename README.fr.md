@@ -324,7 +324,7 @@ libre, un fond reste sur votre PC : il n'est jamais publié.
 
 Le téléphone prend les lots du serveur sur GitHub. Ce que seul votre PC
 possède, les lots préparés hors des pays du serveur et les fonds de carte, il
-le reçoit de lui, par le Wi-Fi. Dans les réglages, « Partager au téléphone »
+le reçoit de lui, par le Wi-Fi. Dans le menu, « Partager au téléphone »
 affiche un QR code : scannez-le avec hike2gpx sur le téléphone, connecté au
 même réseau. Le PC sert alors ses lots et ses fonds, chaque fichier vérifié
 par son empreinte à l'arrivée, repris après une coupure. Le partage est fermé
