@@ -293,6 +293,8 @@ body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
 .cartes-calques .cartes-calques-titre{margin:18px 0 6px;font-size:14px;color:#3d5e80}
 /* Le « i » d'un titre est au bord droit du panneau : sa bulle s'ouvre vers la gauche. */
 .pane>.section-title .info-tooltip [role=tooltip]{left:auto;right:-8px;width:250px;font-size:11px;font-weight:400;line-height:1.4}
+/* Celui de « En ligne », près du bord gauche : sa bulle s'ouvre vers la droite. */
+#pane-cartes>.section-title:first-child .info-tooltip [role=tooltip]{left:-10px;right:auto}
 /* La légende, en bandeau sur la carte sous l'aide des tuiles hors ligne. */
 .map-widget-toolbar .legende{max-width:270px;margin:0;padding:9px 12px;border:1px solid #d9e5f18c;border-radius:8px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 2px 8px #243b5310;color:#344860}
 @media(max-height:780px) and (min-width:701px){.pane{padding-top:13px}.aide{padding:9px 12px;margin-bottom:11px}.boutons{gap:6px;margin-bottom:13px}.option{padding:8px 0}.panel-footer{padding:8px 20px}}
