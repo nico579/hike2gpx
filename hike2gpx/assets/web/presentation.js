@@ -149,6 +149,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     panel.querySelector(".panel-scroll").scrollTop = 0;
     if (name === "reglages") chargerDonnees();
     if (name === "itineraires") chargerLots();      // la liste des zones stockées localement
+    if (name === "cartes") chargerFonds();          // la même, pour les cartes
     document.body.classList.toggle("sheet-expanded", open && innerWidth <= 700 && name !== "trace");
     if (remember) {
       try { localStorage.setItem(pagePreference, open ? name : ""); } catch (error) {}

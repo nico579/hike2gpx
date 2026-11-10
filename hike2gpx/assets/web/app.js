@@ -174,6 +174,8 @@ const TEXTES = {
     "zones.enrichi": "enrichi {sources}",
     "zones.confirmer": "Supprimer de ce PC la zone {nom} ({taille}) ? Celle du serveur se retéléchargera si un parcours y passe.",
     "zones.supprimee": "Zone {nom} supprimée, {taille} libérés.",
+    "zones.aucuneCarte": "Aucune zone de carte sur ce PC.",
+    "zones.confirmerCarte": "Supprimer de ce PC la zone {nom} de la carte {carte} ({taille}) ? Elle serait à retélécharger pour la partager au téléphone.",
     "donnees.nettoyer": "Nettoyer",
     "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
     "donnees.viderTout": "Vider le cache",
@@ -433,6 +435,8 @@ const TEXTES = {
     "zones.enrichi": "enriched {sources}",
     "zones.confirmer": "Delete the {nom} zone ({taille}) from this PC? The server's will download again if a route goes there.",
     "zones.supprimee": "Zone {nom} deleted, {taille} freed.",
+    "zones.aucuneCarte": "No map zone on this PC.",
+    "zones.confirmerCarte": "Delete the {nom} zone of the {carte} map ({taille}) from this PC? It would have to be downloaded again to share it with the phone.",
     "donnees.nettoyer": "Clean up",
     "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
     "donnees.viderTout": "Clear cache",
@@ -1512,6 +1516,49 @@ async function chargerFonds() {
     fondsInstalles = (await api("hors_ligne")).fonds || [];
     if (JSON.stringify(fondsInstalles.map((f) => f.nom)) !== avant) { construireFonds(); dessinerCases(); }
   } catch (_) { /* serveur injoignable : pas de fond hors ligne */ }
+  afficherZonesCartes();
+}
+
+// « Zones stockées localement » de « Gestion des cartes » : une carte (le
+// SCAN 25, OpenStreetMap…) est globale, ce que le PC en garde n'en est qu'un
+// morceau, une zone de 1°. Toutes les cartes y sont, pas seulement celle
+// qu'affiche la grille : une ligne par zone, sa carte et sa taille, et
+// « Supprimer » après confirmation, pour cette carte seule.
+function afficherZonesCartes() {
+  const titres = etat.fondsHorsLigne || {};
+  const lignes = [...fondsInstalles].sort((a, b) => a.nom.localeCompare(b.nom)).map((f) => {
+    const [carre, source] = [f.nom.split("-", 1)[0], f.nom.slice(f.nom.indexOf("-") + 1)];
+    const li = document.createElement("li");
+    const texte = document.createElement("span");
+    texte.textContent = `${carre} · ${titres[source] || source} · ${tailleTexte(f.octets)}`;
+    li.append(texte);
+    // Un ancien fond nommé par sa case de 5° ne se supprime pas d'ici.
+    if (/^[NS]\d{2}[EW]\d{3}$/.test(carre)) {
+      const supprimer = document.createElement("button");
+      supprimer.type = "button";
+      supprimer.textContent = t("donnees.supprimer");
+      supprimer.addEventListener("click", () => supprimerZoneCarte(carre, source, f.octets));
+      li.append(supprimer);
+    }
+    return li;
+  });
+  if (!lignes.length) {
+    const vide = document.createElement("li");
+    vide.className = "note";
+    vide.textContent = t("zones.aucuneCarte");
+    lignes.push(vide);
+  }
+  $("zonesCartes").replaceChildren(...lignes);
+}
+
+async function supprimerZoneCarte(carre, source, octets) {
+  const carte = (etat.fondsHorsLigne || {})[source] || source;
+  if (!confirm(t("zones.confirmerCarte", { nom: carre, carte, taille: tailleTexte(octets) }))) return;
+  let r;
+  try { r = await api("supprimer_fond", { carre, source }); } catch (e) { r = { erreur: e.message }; }
+  if (r.erreur) afficherLot({ case: carre, erreur: r.erreur });
+  else afficherFile(t("zones.supprimee", { nom: carre, taille: tailleTexte(r.octets || 0) }));
+  await chargerFonds();
 }
 
 function nomCase(lat, lon) {
@@ -1887,6 +1934,7 @@ async function supprimerZone(l) {
 function afficherEntreeHorsLigne() {
   afficherSelection();
   afficherZonesLocales();
+  afficherZonesCartes();
 }
 
 $("hlRoutage").addEventListener("change", () => changerMode("routage"));

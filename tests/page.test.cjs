@@ -949,6 +949,31 @@ test("une réponse arrivée après une modification est ignorée", async () => {
   assert.equal(elements.get("exporter").disabled, true);
 });
 
+test("« Gestion des cartes » liste ses zones stockées localement, toutes cartes confondues", async () => {
+  const { page, elements, requetes, confirmations } = charger();
+  page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN", osm: "OpenStreetMap" };
+  const charge = page.chargerFonds();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [
+    { nom: "N43E006-scan25", zone: [43, 6, 44, 7], zoom: [13, 16], source: "scan25", octets: 830e6 },
+    { nom: "N43E006-osm", zone: [43, 6, 44, 7], zoom: [0, 21], source: "osm", format: "map", octets: 48e6 }] });
+  await charge;
+  const lignes = elements.get("zonesCartes").enfants;
+  assert.deepEqual(lignes.map((l) => l.enfants[0].textContent),
+    ["N43E006 · OpenStreetMap · 48 Mo", "N43E006 · SCAN 25 (IGN) · 830 Mo"], "la zone, sa carte et sa taille");
+  // Supprimer : la zone de cette carte seule, après une confirmation qui nomme les deux.
+  confirmations.reponse = true;
+  lignes[1].enfants[1].click();
+  await tic();
+  assert.match(confirmations.at(-1), /^Supprimer de ce PC la zone N43E006 de la carte SCAN 25 \(IGN\) \(830 Mo\)/);
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body),
+    { carre: "N43E006", source: "scan25" });
+  repondre(requetes.findLast((r) => r.url === "/api/supprimer_fond"), { octets: 830e6 });
+  await tic();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [] });
+  await tic();
+  assert.equal(elements.get("zonesCartes").enfants[0].textContent, "Aucune zone de carte sur ce PC.");
+});
+
 test("« Zones stockées localement » liste les lots installés, comme le téléphone", async () => {
   const { page, elements, requetes, confirmations } = charger();
   elements.get("pane-itineraires").hidden = false;          // la page ouverte
