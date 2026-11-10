@@ -68,12 +68,9 @@ const TEXTES = {
     "horsLigne.supprimerSelection": "Supprimer",
     "horsLigne.supprimerN": "Supprimer les {n} déjà là",
     "horsLigne.partagerN": "Partager les {n} au téléphone",
-    "horsLigne.selectionnerVue": "Sélectionner la vue",
-    "horsLigne.viderSelection": "Tout désélectionner",
     "horsLigne.enAttente": "({n} en attente)",
     "horsLigne.confirmerSuppressionN": "Retirer de ce PC {n} tuile(s), {taille} en tout ?",
     "horsLigne.supprimees": "{n} tuile(s) retirée(s), {taille} libérés.",
-    "horsLigne.tropDeCarres": "La vue touche {n} carrés de 1° : rapprochez-vous ({max} au plus d’un geste).",
     "aide": "Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.",
     "bouton.retirerDernier": "Retirer",
     "bouton.retirerDernierInfo": "Retire le dernier point ajouté au parcours.",
@@ -329,12 +326,9 @@ const TEXTES = {
     "horsLigne.supprimerSelection": "Delete",
     "horsLigne.supprimerN": "Delete the {n} already here",
     "horsLigne.partagerN": "Share the {n} with the phone",
-    "horsLigne.selectionnerVue": "Select the view",
-    "horsLigne.viderSelection": "Deselect all",
     "horsLigne.enAttente": "({n} waiting)",
     "horsLigne.confirmerSuppressionN": "Remove {n} tile(s) from this PC, {taille} in all?",
     "horsLigne.supprimees": "{n} tile(s) removed, {taille} freed.",
-    "horsLigne.tropDeCarres": "The view touches {n} 1° squares: zoom in ({max} at most at once).",
     "aide": "Click the map to place the start, then the waypoints and the finish. Drag a point to move it; “Back to start” closes a loop.",
     "bouton.retirerDernier": "Remove",
     "bouton.retirerDernierInfo": "Removes the last point added to the route.",
@@ -1478,7 +1472,6 @@ const CASE_DEG = 5;
 const ZOOM_CARRES = 7;      // en deçà, trop de carrés à l'écran pour être lisibles
 const ZOOM_CASES = 6;       // la grille des cases dézoome jusque-là (demande de Nico du 2026-10-28)
 const CARRES_MAX_ECRAN = 400;
-const CARRES_MAX_VUE = 9;   // « Sélectionner la vue » : au-delà, se rapprocher
 // Mesures du 2026-11-05 (fonds.py) : un carré de fond, environ 1 Go et 35 min ;
 // un lot fabriqué sur ce PC, environ une heure.
 const FOND_CARRE_OCTETS = 1e9;
@@ -1714,7 +1707,6 @@ function afficherSelection() {
   $("hlFondChoisi").hidden = routage || Boolean(source);
   $("hlFondChoisi").textContent = routage || source ? "" : t("horsLigne.fondAucun", { liste: Object.entries(titres)
       .filter(([cle]) => couchesFonds[cle] && (cle !== "scan25" || etat.cleIgn)).map(([, titre]) => titre).join(", ") });
-  $("hlVue").hidden = routage;
   $("hlLegendeServeur").hidden = !routage;
   const b = bilanSelection();
   const parties = [];
@@ -1732,7 +1724,6 @@ function afficherSelection() {
   $("hlPartager").textContent = t("horsLigne.partagerN", { n: b.installees.length });
   $("hlSupprimer").hidden = !b.installees.length;
   $("hlSupprimer").textContent = t("horsLigne.supprimerN", { n: b.installees.length });
-  $("hlVider").disabled = !b.noms.length;
 }
 
 // Télécharger : la sélection rejoint la file, qui part tout de suite si rien ne se prépare.
@@ -1794,18 +1785,6 @@ async function supprimerSelection() {
   afficherFile(t("horsLigne.supprimees", { n: b.installees.length, taille: tailleTexte(octets) }));
   await chargerLots();
   chargerFonds();
-}
-
-// En mode fond : les carrés que touche la vue, d'un geste.
-function selectionnerVue() {
-  const b = carte.getBounds();
-  const carres = carresZone([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]);
-  if (carres.length > CARRES_MAX_VUE) {
-    $("hlSelection").textContent = t("horsLigne.tropDeCarres", { n: carres.length, max: CARRES_MAX_VUE });
-    return;
-  }
-  for (const carre of carres) if (!enFile(carre)) horsLigne.selection.add(carre);
-  dessinerCases();
 }
 
 function changerMode(mode) {
@@ -1907,8 +1886,6 @@ $("hlRoutage").addEventListener("change", () => changerMode("routage"));
 $("hlFond").addEventListener("change", () => changerMode("fond"));
 $("hlTelecharger").addEventListener("click", telechargerSelection);
 $("hlSupprimer").addEventListener("click", supprimerSelection);
-$("hlVider").addEventListener("click", () => { horsLigne.selection.clear(); dessinerCases(); });
-$("hlVue").addEventListener("click", selectionnerVue);
 $("hlArreter").addEventListener("click", () => { horsLigne.file = []; arreterLot(); });
 carte.on("moveend", dessinerCases);
 // La grille suit le volet des tuiles, que presentation.js ouvre depuis
