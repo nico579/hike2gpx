@@ -97,8 +97,9 @@
     <string name="oublier">Forget</string>
     <string name="scanner_qr">Scan the computer’s QR code</string>
     <string name="scan_invite">Aim at the QR code shown by hike2gpx on the PC</string>
-    <string name="ajouter_pc">Add this PC as a source?</string>
-    <string name="confirmer_pc">Catalogue: %1$s</string>
+    <string name="recuperer_titre">Get from the PC</string>
+    <string name="recuperer_message">The %1$s shares %2$d routing zone(s) and %3$d base map(s) the phone lacks, %4$s in all. Download them now? Wi-Fi is better.</string>
+    <string name="recuperer_rien">The %1$s shares nothing the phone lacks. Add it as a source anyway?</string>
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="aucun_lot">No bundle installed.</string>
