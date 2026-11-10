@@ -112,29 +112,22 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   }
   refreshActivity();
   // Le volet des tuiles hors ligne : un seul bloc, que « Gestion des cartes »
-  // ouvre pour les fonds (carrés de 1°) et « Gestion des itinéraires » pour le
-  // routage (cases de 5°). Ouvert, app.js affiche la grille sur la carte.
+  // montre pour les fonds (carrés de 1°) et « Gestion des itinéraires » pour le
+  // routage (cases de 5°), dès que la page est ouverte : la grille est ce qu'on
+  // y vient chercher. Ouvert, app.js affiche la grille sur la carte.
   const offline = document.getElementById("horsLigne");
-  const offlineButtons = [...document.querySelectorAll(".hl-ouvrir")];
+  const offlineAnchors = [...document.querySelectorAll(".hl-ancre")];
   function setOffline(mode) {
-    for (const button of offlineButtons) {
-      const open = button.dataset.hlMode === mode;
-      button.setAttribute("aria-expanded", String(open));
-      button.dataset.i18n = open ? "horsLigne.terminer" : button.dataset.hlTexte;
-      button.textContent = t(button.dataset.i18n);
-      if (!open) continue;
-      button.after(offline);
+    const anchor = offlineAnchors.find(a => a.dataset.hlMode === mode);
+    if (anchor) {
+      anchor.after(offline);
       // Le mode qui compte est celui d'app.js (horsLigne.mode), pas la case :
       // au rechargement, le navigateur restaure la case sans prévenir personne.
       const radio = document.getElementById(mode === "fond" ? "hlFond" : "hlRoutage");
       radio.checked = true;
       if (horsLigne.mode !== mode) radio.dispatchEvent(new Event("change"));
     }
-    offline.hidden = !mode;
-  }
-  for (const button of offlineButtons) {
-    button.addEventListener("click", () =>
-      setOffline(button.getAttribute("aria-expanded") === "true" ? "" : button.dataset.hlMode));
+    offline.hidden = !anchor;
   }
   // Une page du menu, ou aucune ("") : la carte seule.
   function selectPane(name, remember = true) {
@@ -145,7 +138,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       else tab.removeAttribute("aria-current");
       document.getElementById(`pane-${tab.dataset.pane}`).hidden = !selected;
     }
-    setOffline("");
+    setOffline({ cartes: "fond", itineraires: "routage" }[name] || "");
     // La planification, comme le mode du téléphone : seulement sur sa page.
     planifier(name === "trace");
     if (open) {

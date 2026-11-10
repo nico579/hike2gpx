@@ -166,7 +166,7 @@ test("l'onglet « Hors ligne » : la grille du routage, la sélection, le bilan 
   assert.equal(page.grilleCases.layers.length, 0, "onglet fermé : pas de grille");
   await ouvrirHorsLigne(page, requetes, [{ case: "E5_N40", octets: 135e6 }],
     [{ case: "E5_N40", octets: 247e6, etat: "ancien" }]);
-  assert.equal(carte.zoom, 6, "la grille des cases dézoome pour en montrer plusieurs");
+  assert.equal(carte.zoom, 14, "la grille paraît sans toucher au zoom");
   let [cadre] = page.grilleCases.layers;
   assert.deepEqual(json(cadre.bounds), [[40, 5], [45, 10]]);
   assert.equal(cadre.options.color, "#1b7a3e", "vert : sur ce PC");
@@ -220,6 +220,9 @@ test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et 
   await ouvrirHorsLigne(page, requetes);
   elements.get("hlFond").checked = true;
   changer(elements.get("hlFond"));
+  // La page ne touche plus au zoom ; de loin, trop de carrés : il faut se rapprocher.
+  carte.zoom = 6;
+  page.dessinerCases();
   assert.equal(page.grilleCases.layers.length, 0, "au zoom 6, trop de carrés : il faut se rapprocher");
   assert.match(elements.get("hlAide").textContent, /^Rapprochez-vous/);
   assert.equal(elements.get("hlLegendeServeur").hidden, true, "pas de serveur pour les fonds");

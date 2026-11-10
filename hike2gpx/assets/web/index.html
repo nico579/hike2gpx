@@ -125,7 +125,7 @@
     <h2 class="section-title"><span data-i18n="cartes.fondTitre">En ligne</span><span class="info-tooltip" tabindex="0" aria-label="Cartes en ligne">i<span role="tooltip" data-i18n="cartes.fondNote">Les cartes servies par Internet : celles du pays affiché, puis celles du monde. La carte nationale suit le pays du centre de la carte. Le SCAN 25 demande la clé IGN des réglages.</span></span></h2>
     <div id="cartesCalques" class="cartes-calques"></div>
     <h2 class="section-title"><span data-i18n="cartes.horsLigneTitre">Téléchargement pour usage hors ligne</span><span class="info-tooltip" tabindex="0" aria-label="Fonds hors ligne">i<span role="tooltip" data-i18n="cartes.horsLigneNote">Ce PC fabrique les fonds de carte par carrés de 1° pour les partager au téléphone, qui s'en sert sans réseau. Ils ne s'affichent pas sur le PC, qui reste en ligne.</span></span></h2>
-    <button type="button" class="page-action hl-ouvrir" data-hl-mode="fond" data-hl-texte="cartes.horsLigneBouton" data-i18n="cartes.horsLigneBouton" aria-expanded="false" aria-controls="horsLigne">Choisir les carrés sur la carte</button>
+    <div class="hl-ancre" data-hl-mode="fond"></div>
   </section>
   <!-- Gestion des itinéraires : les options du calcul, puis les zones de routage (cases de 5°)
        à télécharger du serveur ou à fabriquer sur ce PC. -->
@@ -137,7 +137,7 @@
     <h2 class="section-title"><span data-i18n="itineraires.zonesTitre">Zones stockées localement</span><a class="info-tooltip map-providers-info-button" id="providersInfoButton" href="/documentation/pays" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le rapport des pays pris en charge sur GitHub" title="Pays pris en charge sur GitHub">i</a></h2>
     <ul id="zonesLocales" class="zones-locales"></ul>
     <p class="note" data-i18n="itineraires.zonesNote">Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.</p>
-    <button type="button" class="page-action hl-ouvrir" data-hl-mode="routage" data-hl-texte="itineraires.zonesBouton" data-i18n="itineraires.zonesBouton" aria-expanded="false" aria-controls="horsLigne">Choisir les zones sur la carte</button>
+    <div class="hl-ancre" data-hl-mode="routage"></div>
     <section id="horsLigne" class="hors-ligne" hidden>
       <fieldset class="hl-mode"><legend data-i18n="horsLigne.quoi">À télécharger</legend>
         <label class="option"><input type="radio" name="hlMode" id="hlRoutage" value="routage" checked> <span data-i18n="horsLigne.modeRoutage">Données de routage (cases de 5°)</span></label>
@@ -174,10 +174,10 @@
     <div class="partage-boutons"><button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button><button id="arreterPartageFenetre" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div>
   </div>
 </div>
-<script src="/app.js?v=desktop-87"></script>
+<script src="/app.js?v=desktop-88"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-30"></script>
+<script src="/presentation.js?v=desktop-32"></script>
 </body>
 </html>

@@ -266,8 +266,8 @@ hike2gpx travaille avec des lots : tout ce dont une case BRouter de 5° a besoin
 (données de routage, chemins officiels, franchissements, calques), chaque
 fichier vérifié contre l'empreinte SHA-256 d'un manifeste.
 
-Dans « Gestion des itinéraires », « Choisir les zones sur la carte » montre la
-grille des cases de 5° : on clique celles qu'on veut, puis « Télécharger ».
+« Gestion des itinéraires » montre sur la carte la grille des cases de 5°,
+tant que la page est ouverte : on clique celles qu'on veut, puis « Télécharger ».
 Un lot s'obtient de deux façons :
 
 - **le télécharger depuis le serveur.** Les cases de la France sont fabriquées

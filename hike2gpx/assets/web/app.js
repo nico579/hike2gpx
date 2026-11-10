@@ -36,12 +36,9 @@ const TEXTES = {
     "cartes.calquesTitre": "Superposition des chemins",
     "cartes.horsLigneTitre": "Téléchargement pour usage hors ligne",
     "cartes.horsLigneNote": "Ce PC fabrique les fonds de carte par carrés de 1° pour les partager au téléphone, qui s'en sert sans réseau. Ils ne s'affichent pas sur le PC, qui reste en ligne.",
-    "cartes.horsLigneBouton": "Choisir les carrés sur la carte",
     "itineraires.calculTitre": "Mode de calcul",
     "itineraires.zonesTitre": "Zones stockées localement",
     "itineraires.zonesNote": "Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.",
-    "itineraires.zonesBouton": "Choisir les zones sur la carte",
-    "horsLigne.terminer": "Terminer",
     "partage.note": "Le téléphone reçoit de ce PC ses fonds de carte et les zones de routage qu'il a fabriquées, sur le même Wi-Fi.",
     "horsLigne.quoi": "À télécharger",
     "horsLigne.modeRoutage": "Données de routage (cases de 5°)",
@@ -295,12 +292,9 @@ const TEXTES = {
     "cartes.calquesTitre": "Path overlays",
     "cartes.horsLigneTitre": "Download for offline use",
     "cartes.horsLigneNote": "This PC builds base maps in 1° squares to share them with the phone, which uses them without a network. They are not shown on the PC, which stays online.",
-    "cartes.horsLigneBouton": "Choose the squares on the map",
     "itineraires.calculTitre": "Calculation mode",
     "itineraires.zonesTitre": "Zones stored locally",
     "itineraires.zonesNote": "Routing areas, in 5° cells, are downloaded from the server; those it does not publish are built on this PC.",
-    "itineraires.zonesBouton": "Choose the areas on the map",
-    "horsLigne.terminer": "Done",
     "partage.note": "The phone gets this PC's base maps and the routing areas it built, on the same Wi-Fi.",
     "horsLigne.quoi": "To download",
     "horsLigne.modeRoutage": "Routing data (5° areas)",
@@ -1472,7 +1466,6 @@ function construireFonds() {
 // préparation à la fois), suivies dans le volet. Le partage au téléphone suit.
 const CASE_DEG = 5;
 const ZOOM_CARRES = 7;      // en deçà, trop de carrés à l'écran pour être lisibles
-const ZOOM_CASES = 6;       // la grille des cases dézoome jusque-là (demande de Nico du 2026-10-28)
 const CARRES_MAX_ECRAN = 400;
 // Mesures du 2026-11-05 (fonds.py) : un carré de fond, environ 1 Go et 35 min ;
 // un lot fabriqué sur ce PC, environ une heure.
@@ -1793,17 +1786,16 @@ async function supprimerSelection() {
 function changerMode(mode) {
   horsLigne.mode = mode;
   horsLigne.selection.clear();
-  if (mode === "routage" && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
   dessinerCases();
 }
 
-// Le volet ouvert, la grille paraît ; quitté, la carte revient au tracé.
+// Le volet ouvert, la grille paraît, sans toucher au zoom : ouvrir la page pour
+// cocher une option ne fait pas perdre la vue ; quitté, la carte revient au tracé.
 function activerHorsLigne(actif) {
   if (horsLigne.actif === actif) return;
   horsLigne.actif = actif;
   if (actif) {
     grilleCases.addTo(carte);
-    if (horsLigne.mode === "routage" && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
     chargerLots();
   } else {
     grilleCases.remove();

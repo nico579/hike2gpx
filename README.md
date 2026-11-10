@@ -263,8 +263,8 @@ hike2gpx works with bundles: everything one 5° BRouter cell needs (routing
 data, official paths, crossings, map layers), each file checked against the
 SHA-256 of a manifest.
 
-In "Route management", "Choose the areas on the map" shows the grid of 5°
-cells: click the ones you want, then "Download". A bundle comes in two ways:
+"Route management" shows the grid of 5° cells on the map while the page is
+open: click the ones you want, then "Download". A bundle comes in two ways:
 
 - **download it from the server.** The French cells are built every week and
   published on [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles);
