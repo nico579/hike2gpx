@@ -43,7 +43,9 @@ const TEXTES = {
     "horsLigne.quoi": "À télécharger",
     "horsLigne.modeRoutage": "Données de routage (cases de 5°)",
     "horsLigne.modeFond": "Fond de carte (carrés de 1°)",
-    "horsLigne.source": "Fond de carte",
+    "horsLigne.fondChoisi": "Fond téléchargé : {nom}, celui choisi dans la liste du haut.",
+    "horsLigne.fondAucun": "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : {liste}.",
+    "reglages.afficherLegende": "Afficher la légende",
     "horsLigne.legendeInstalle": "sur ce PC",
     "horsLigne.legendeSelection": "sélectionné",
     "horsLigne.legendeEnCours": "en cours",
@@ -295,7 +297,9 @@ const TEXTES = {
     "horsLigne.quoi": "To download",
     "horsLigne.modeRoutage": "Routing data (5° areas)",
     "horsLigne.modeFond": "Base map (1° squares)",
-    "horsLigne.source": "Base map",
+    "horsLigne.fondChoisi": "Base map downloaded: {nom}, the one chosen in the list above.",
+    "horsLigne.fondAucun": "The base map shown cannot be kept offline. Choose in the list above: {liste}.",
+    "reglages.afficherLegende": "Show the legend",
     "horsLigne.legendeInstalle": "on this PC",
     "horsLigne.legendeSelection": "selected",
     "horsLigne.legendeEnCours": "in progress",
@@ -937,6 +941,8 @@ carte.on("baselayerchange", (e) => {
   const cle = Object.keys(couchesFonds).find((nom) => couchesFonds[nom] === e.layer);
   if (cle) {
     cleFondActif = cle;
+    // Le volet des fonds hors ligne suit le fond choisi : ses carrés et son bilan en dépendent.
+    if (horsLigne.actif) dessinerCases();
     try { localStorage.setItem(`${CLE_FOND}.${paysCarte}`, cle); } catch (erreur) { /* stockage indisponible */ }
   }
 });
@@ -1416,10 +1422,6 @@ function construireFonds() {
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
   if (fondsInstalles.length) couchesFonds.horsLigne = coucheHorsLigne();
-  // presentation.js place la légende dans le contrôle Leaflet. La récupérer
-  // avant de le retirer, sinon elle disparaît du DOM au changement de pays.
-  const legende = $("mapLegend");
-  if (legende && controleFonds) document.body.append(legende);
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
   const defaut = FOURNISSEURS_CARTES[paysCarte].defaultBase;
@@ -1469,7 +1471,7 @@ let lotSuivi = false;       // un lot suivi était en cours : à sa fin, calques
 // servi tuile par tuile par /fonds/<nom>/{z}/{x}/{y}, sans réseau.
 let fondsInstalles = [];
 // Le volet : ouvert ou non, le mode, la source du fond, la sélection, la file.
-const horsLigne = { actif: false, mode: "routage", source: null, selection: new Set(), file: [], message: "" };
+const horsLigne = { actif: false, mode: "routage", selection: new Set(), file: [], message: "" };
 
 // Un seul fond « Carte hors ligne » : une couche par fichier, bornée à sa
 // zone, la moins fine dessous, chacune agrandie au-delà de son zoom le plus fin.
@@ -1539,18 +1541,17 @@ function carresZone([s, o, n, e]) {
   return noms;
 }
 
-// La source du fond proposée d'abord : celui qu'affiche la page s'il se garde
-// hors ligne ; sinon le fond français par défaut, le SCAN 25 avec la clé IGN,
-// le Plan IGN sans (fonds.source_pour). null si le serveur n'en annonce aucun.
+// Le fond à garder hors ligne est celui qu'affiche la page, choisi dans la
+// liste de « Gestion des cartes » : pas de second choix à tenir d'accord
+// avec le premier. null s'il ne se garde pas hors ligne (OSM, satellite…),
+// ou pour le SCAN 25 sans clé IGN.
 function sourceAGarder() {
   const titres = etat.fondsHorsLigne || {};
-  if (titres[cleFondActif] && (cleFondActif !== "scan25" || etat.cleIgn)) return cleFondActif;
-  const defaut = etat.cleIgn ? "scan25" : "plan";
-  return titres[defaut] ? defaut : null;
+  return titres[cleFondActif] && (cleFondActif !== "scan25" || etat.cleIgn) ? cleFondActif : null;
 }
 
 function sourceFond() {
-  return horsLigne.source || sourceAGarder();
+  return sourceAGarder();
 }
 
 function fondDuCarre(carre, source = sourceFond()) {
@@ -1683,7 +1684,14 @@ function afficherSelection() {
   $("hlAide").textContent = aide;
   $("offlineHint").textContent = aide;
   $("offlineHint").hidden = !aide;
-  $("hlSourceLigne").hidden = routage;
+  // En mode fond, le volet nomme le fond qui sera téléchargé : celui de la
+  // liste du haut ; s'il ne se garde pas hors ligne, il dit lesquels choisir.
+  const titres = etat.fondsHorsLigne || {};
+  const source = sourceFond();
+  $("hlFondChoisi").hidden = routage;
+  $("hlFondChoisi").textContent = routage ? "" : source ? t("horsLigne.fondChoisi", { nom: titres[source] })
+    : t("horsLigne.fondAucun", { liste: Object.entries(titres)
+      .filter(([cle]) => couchesFonds[cle] && (cle !== "scan25" || etat.cleIgn)).map(([, titre]) => titre).join(", ") });
   $("hlVue").hidden = routage;
   $("hlLegendeServeur").hidden = !routage;
   const b = bilanSelection();
@@ -1775,22 +1783,6 @@ function selectionnerVue() {
   dessinerCases();
 }
 
-// Les fonds proposés : ceux que le serveur sait garder hors ligne ; le SCAN 25 seulement avec la clé IGN.
-function remplirSources() {
-  const titres = etat.fondsHorsLigne || {};
-  const liste = $("hlSource");
-  const choix = sourceFond();
-  liste.innerHTML = "";
-  for (const [cle, titre] of Object.entries(titres)) {
-    if (cle === "scan25" && !etat.cleIgn) continue;
-    const option = document.createElement("option");
-    option.value = cle;
-    option.textContent = titre;
-    option.selected = cle === choix;
-    liste.append(option);
-  }
-}
-
 function changerMode(mode) {
   horsLigne.mode = mode;
   horsLigne.selection.clear();
@@ -1804,7 +1796,6 @@ function activerHorsLigne(actif) {
   horsLigne.actif = actif;
   if (actif) {
     grilleCases.addTo(carte);
-    remplirSources();
     if (horsLigne.mode === "routage" && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
     chargerLots();
   } else {
@@ -1829,13 +1820,11 @@ async function chargerLots() {
 
 // La langue a changé : les textes de le volet suivent.
 function afficherEntreeHorsLigne() {
-  remplirSources();
   afficherSelection();
 }
 
 $("hlRoutage").addEventListener("change", () => changerMode("routage"));
 $("hlFond").addEventListener("change", () => changerMode("fond"));
-$("hlSource").addEventListener("change", () => { horsLigne.source = $("hlSource").value; dessinerCases(); });
 $("hlTelecharger").addEventListener("click", telechargerSelection);
 $("hlSupprimer").addEventListener("click", supprimerSelection);
 $("hlVider").addEventListener("click", () => { horsLigne.selection.clear(); dessinerCases(); });

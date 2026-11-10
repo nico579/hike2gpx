@@ -419,15 +419,23 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       || layersHost.querySelector(".leaflet-control-layers");
     if (!control) return;
     if (control.parentElement !== layersHost) layersHost.replaceChildren(control);
-    const list = control.querySelector(".leaflet-control-layers-list");
-    if (list) {
-      if (legend.parentElement !== list) list.append(legend);
-      legend.hidden = false;
-    }
   }
   syncLayers();
   new MutationObserver(syncLayers).observe(leafletControls, { childList: true });
-  // L'aide des tuiles hors ligne reste posée sur la carte.
+  // La légende est un bandeau de la carte, comme sur le téléphone ; « Afficher
+  // la légende », dans les réglages, la montre ou la cache.
+  const showLegend = document.getElementById("showLegend");
+  const legendPreference = "hike2gpx.showLegend";
+  try { showLegend.checked = localStorage.getItem(legendPreference) !== "false"; } catch (error) {}
+  function syncLegend() {
+    legend.hidden = !showLegend.checked;
+  }
+  showLegend.addEventListener("change", () => {
+    try { localStorage.setItem(legendPreference, String(showLegend.checked)); } catch (error) {}
+    syncLegend();
+  });
+  syncLegend();
+  // L'aide des tuiles hors ligne et la légende restent posées sur la carte.
   toolbar.addEventListener("mousedown", event => event.stopPropagation());
   toolbar.addEventListener("dblclick", event => event.stopPropagation());
   toolbar.addEventListener("click", event => event.stopPropagation());
