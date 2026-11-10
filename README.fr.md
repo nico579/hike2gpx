@@ -312,8 +312,9 @@ carte vectorielle au format Mapsforge (celui de Locus Map et d'OpenAndroMaps),
 que le téléphone dessine lui-même ; sur le PC, OpenStreetMap reste en ligne.
 La première fois, hike2gpx télécharge pour cela Osmosis et son greffon
 Mapsforge (20 Mo). OSM rando et la vue satellite restent en ligne : leurs
-serveurs interdisent la recopie et leurs données ne sont pas libres. Il
-apparaît ensuite parmi les fonds sous le nom « Carte hors ligne ». Une vue
+serveurs interdisent la recopie et leurs données ne sont pas libres. Un fond
+téléchargé ne s'affiche pas sur le PC, qui reste en ligne : il sert au
+téléphone, à qui le PC le partage. Une vue
 d'écran se prend jusqu'au zoom 16, celui des sentiers : autour de Garéoult,
 631 tuiles, 12 Mo en SCAN 25 (27 Mo en Plan IGN), un peu plus d'une minute.
 Une case entière s'arrête au zoom 13, pour la vue d'ensemble : la case

@@ -257,22 +257,19 @@ test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et 
     { carres: ["N43E005"], source: "plan" }, "un carré à la fois, dans l'ordre");
 });
 
-test("un fond de carte installé devient la « Carte hors ligne », et se retire depuis l'onglet", async () => {
+test("un fond de carte installé ne s'ajoute pas aux fonds en ligne, et se retire depuis le volet", async () => {
   const { page, elements, requetes, carte, confirmations } = charger();
   page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN" };
-  assert.equal(page.fonds().horsLigne, undefined, "aucun fond : pas de carte hors ligne");
   const fonds = [
     { nom: "N43E006-plan", zone: [43, 6, 44, 7], zoom: [13, 16], source: "plan", octets: 6e8 },
     { nom: "E5_N40-scan25", zone: [40, 5, 45, 10], zoom: [6, 13], source: "scan25", octets: 4e8 }];
   const charge = page.chargerFonds();
   repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds });
   await charge;
-  const groupe = page.fonds().horsLigne;
-  assert.ok(groupe, "le fond hors ligne parmi les fonds");
-  assert.ok(page.controle().fonds["Carte hors ligne"]);
-  // Le moins fin d'abord, le plus fin par-dessus ; chacun borné à sa zone.
-  assert.deepEqual(groupe.layers.map((c) => c.url), ["/fonds/E5_N40-scan25/{z}/{x}/{y}", "/fonds/N43E006-plan/{z}/{x}/{y}"]);
-  assert.equal(groupe.layers[1].options.maxNativeZoom, 16);
+  // « En ligne » ne liste que les cartes en ligne : les fonds téléchargés
+  // servent au téléphone, à qui le PC les partage.
+  assert.equal(page.fonds().horsLigne, undefined);
+  assert.equal(Object.keys(page.controle().fonds).includes("Carte hors ligne"), false);
   // Dans l'onglet, en mode fond, le carré installé est vert ; sélectionné, il se retire.
   await ouvrirHorsLigne(page, requetes, [], [], fonds);
   elements.get("hlFond").checked = true;

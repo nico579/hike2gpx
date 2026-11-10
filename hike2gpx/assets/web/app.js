@@ -223,7 +223,6 @@ const TEXTES = {
     "fond.osmRando": "OSM rando",
     "fond.osm": "OSM",
     "fond.satellite": "Satellite",
-    "fond.horsLigne": "Carte hors ligne",
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
@@ -485,7 +484,6 @@ const TEXTES = {
     "fond.osmRando": "OSM hiking",
     "fond.osm": "OSM",
     "fond.satellite": "Satellite",
-    "fond.horsLigne": "Offline map",
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
@@ -1451,7 +1449,6 @@ function construireFonds() {
   couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
-  if (fondsAffichables().length) couchesFonds.horsLigne = coucheHorsLigne();
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
   const defaut = FOURNISSEURS_CARTES[paysCarte].defaultBase;
@@ -1512,27 +1509,6 @@ let lotSuivi = false;       // un lot suivi était en cours : à sa fin, calques
 let fondsInstalles = [];
 // Le volet : ouvert ou non, le mode, la source du fond, la sélection, la file.
 const horsLigne = { actif: false, mode: "routage", selection: new Set(), file: [], message: "" };
-
-// Un seul fond « Carte hors ligne » : une couche par fichier, bornée à sa
-// zone, la moins fine dessous, chacune agrandie au-delà de son zoom le plus fin.
-// Les fonds en images, que la page sait afficher. Une carte vectorielle
-// (format « map ») est faite pour le téléphone, qui la dessine lui-même :
-// sur le PC, OpenStreetMap reste en ligne.
-function fondsAffichables() {
-  return fondsInstalles.filter((f) => f.format !== "map");
-}
-
-function coucheHorsLigne() {
-  const groupe = L.layerGroup();
-  const ordre = fondsAffichables().sort((a, b) => a.zoom[1] - b.zoom[1]);
-  for (const f of ordre) {
-    const [s, o, n, e] = f.zone;
-    L.tileLayer(`/fonds/${encodeURIComponent(f.nom)}/{z}/{x}/{y}`, { bounds: [[s, o], [n, e]],
-      minNativeZoom: f.zoom[0], maxNativeZoom: f.zoom[1], maxZoom: 19,
-      attribution: echapper(f.attribution || "© IGN") }).addTo(groupe);
-  }
-  return groupe;
-}
 
 // Relus au démarrage et après chaque préparation : un fond de plus ou de
 // moins refait le contrôle des fonds et la grille.

@@ -306,8 +306,8 @@ from the region's Geofabrik extract, a vector map in the Mapsforge format
 the PC, OpenStreetMap stays online. The first time, hike2gpx downloads
 Osmosis and its Mapsforge plugin for this (20 MB). OSM hiking and the
 satellite view stay online: their servers forbid copying and their data is
-not free. It then
-appears among the base maps as "Offline map". A screen view goes down to
+not free. A downloaded base map is not shown on the PC, which stays online:
+it is for the phone, with which the PC shares it. A screen view goes down to
 zoom 16, where trails show: around Garéoult, 631 tiles, 12 MB of SCAN 25
 (27 MB of Plan IGN), a little over a minute. A whole cell stops at zoom 13,
 for the overview: cell E5_N40 weighs 151 MB of SCAN 25 and takes about three
