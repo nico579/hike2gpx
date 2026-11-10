@@ -146,6 +146,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       document.getElementById(`pane-${tab.dataset.pane}`).hidden = !selected;
     }
     setOffline("");
+    // La planification, comme le mode du téléphone : seulement sur sa page.
+    planifier(name === "trace");
     if (open) {
       pageTitle.dataset.i18n = `menu.${name}`;
       pageTitle.textContent = t(`menu.${name}`);
@@ -220,12 +222,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   let savedPage = "";
   try { savedPage = localStorage.getItem(pagePreference) || ""; } catch (error) {}
   selectPane(savedPage, false);
-  // Un premier point posé sur la carte seule ouvre « Planifier un itinéraire » :
-  // ses boutons et l'état du calcul sont là.
-  const removeLast = document.getElementById("retirerDernier");
-  new MutationObserver(() => {
-    if (!removeLast.disabled && document.body.classList.contains("panel-collapsed")) selectPane("trace");
-  }).observe(removeLast, { attributes: true, attributeFilter: ["disabled"] });
   const routeSummary = document.getElementById("routeSummary");
   const result = document.getElementById("resultat");
   const elevationPanel = document.getElementById("elevationPanel");

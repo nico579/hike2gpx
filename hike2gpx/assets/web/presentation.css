@@ -281,6 +281,8 @@ body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran 
 .cartes-calques .leaflet-control-layers-toggle{display:none!important}
 .cartes-calques .leaflet-control-layers label{padding:5px 0;font-size:12px;line-height:1.35;cursor:pointer}
 .cartes-calques .leaflet-control-layers-separator{display:none}
+/* En planification, le curseur en croix dit qu'un clic posera un point. */
+body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
 .cartes-calques .cartes-calques-titre{margin:18px 0 6px;font-size:14px;color:#3d5e80}
 /* Le « i » d'un titre est au bord droit du panneau : sa bulle s'ouvre vers la gauche. */
 .pane>.section-title .info-tooltip [role=tooltip]{left:auto;right:-8px;width:250px;font-size:11px;font-weight:400;line-height:1.4}

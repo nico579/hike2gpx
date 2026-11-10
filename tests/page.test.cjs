@@ -115,7 +115,7 @@ function charger(preferences = {}, documentGpx = null) {
     + '{ defaultBase: "osm", overlays: [], bases: () => ({}) };', contexte);
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
-    + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
+    + "\nglobalThis.page = { etat, calculer, planifierCalcul, planifier, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, ts, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " afficherDisponibilite,"
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
@@ -915,6 +915,20 @@ test("une réponse arrivée après une modification est ignorée", async () => {
   await calcul;
   assert.equal(page.etat.dernier, null);
   assert.equal(elements.get("exporter").disabled, true);
+});
+
+test("un clic sur la carte ne pose un point qu'en planification, comme sur le téléphone", () => {
+  const { page, carte, corps } = charger();
+  carte.handlers.click({ latlng: { lat: 43.3, lng: 6 } });
+  assert.equal(page.etat.points.length, 0, "carte consultée : le clic ne pose rien");
+  page.planifier(true);
+  assert.equal(corps.classList.contains("planification"), true, "le curseur en croix");
+  carte.handlers.click({ latlng: { lat: 43.3, lng: 6 } });
+  assert.equal(page.etat.points.length, 1);
+  // La page refermée : le point reste, un nouveau clic ne pose plus rien.
+  page.planifier(false);
+  carte.handlers.click({ latlng: { lat: 43.31, lng: 6.01 } });
+  assert.equal(page.etat.points.length, 1);
 });
 
 test("revenir au départ ferme la boucle, une seule fois", () => {

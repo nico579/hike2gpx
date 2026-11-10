@@ -2592,7 +2592,16 @@ function supprimerGpx() {
 
 // ------------------------------------------------------------ démarrage
 
-carte.on("click", (e) => ajouterPoint(e.latlng));
+// Comme sur le téléphone, un clic sur la carte ne pose un point qu'en
+// planification : la page « Planifier un itinéraire » ouverte, que
+// presentation.js annonce par planifier(). Ailleurs, la carte se consulte
+// sans rien y poser ; les points déjà posés et le tracé restent.
+let planification = false;
+function planifier(actif) {
+  planification = actif;
+  document.body.classList.toggle("planification", actif);
+}
+carte.on("click", (e) => { if (planification) ajouterPoint(e.latlng); });
 $("retirerDernier").addEventListener("click", () => { const p = etat.points.at(-1); if (p) retirerPoint(p); });
 $("boucler").addEventListener("click", boucler);
 $("toutEffacer").addEventListener("click", () => {

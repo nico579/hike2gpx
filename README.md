@@ -79,9 +79,11 @@ whether the next route has BRouter and its tiles plus OSM data for the area
 Overpass and the local and regional OSM extracts.
 Right-click the map to show and copy the clicked point's GPS coordinates.
 
-**The route.** A click sets the start, then the waypoints and the finish; a
-point moves by dragging it and is removed from its popup. The first point
-placed opens the "Plan a route" page: "Return" closes the loop on the start,
+**The route.** As on the phone, routes are planned in "Plan a route": while
+that page is open, the cursor is a cross and a click sets the start, then the
+waypoints and the finish; elsewhere, a click places nothing. A point moves by
+dragging it and is removed from its popup. Closing the page keeps the points
+and the route. "Return" closes the loop on the start,
 "Remove" takes off the last point, "Clear" starts over. The routing is
 BRouter's, run locally, with OpenStreetMap's barriers laid across the paths
 (see below). Three options, in "Route management", tune it:

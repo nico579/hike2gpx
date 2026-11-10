@@ -81,9 +81,11 @@ et la PACA.
 Un clic droit sur la carte affiche les coordonnées GPS du point choisi et
 permet de les copier.
 
-**Le tracé.** Un clic pose le départ, puis les étapes et l'arrivée ; un point
-se déplace en le faisant glisser et se retire depuis sa bulle. Le premier
-point posé ouvre la page « Planifier un itinéraire » : « Revenir » referme la
+**Le tracé.** Comme sur le téléphone, on trace dans « Planifier un
+itinéraire » : tant que cette page est ouverte, le curseur est une croix et un
+clic pose le départ, puis les étapes et l'arrivée ; ailleurs, un clic ne pose
+rien. Un point se déplace en le faisant glisser et se retire depuis sa bulle.
+Fermer la page laisse les points et le tracé en place. « Revenir » referme la
 boucle sur le départ, « Retirer » ôte le dernier point, « Effacer » repart de
 zéro. Le calcul est celui de BRouter, en local, avec les barrières
 d'OpenStreetMap mises en travers des chemins (voir plus bas). Trois options,
