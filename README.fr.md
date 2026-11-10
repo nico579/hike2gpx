@@ -91,9 +91,9 @@ zéro. Le calcul est celui de BRouter, en local, avec les barrières
 d'OpenStreetMap mises en travers des chemins (voir plus bas). Trois options,
 dans « Gestion des itinéraires », le règlent :
 
-- **Mode strict** : éviter aussi les passages « à vérifier », pas seulement
+- **Inclure les blocages à vérifier** : éviter aussi les passages « à vérifier », pas seulement
   les bloquants ;
-- **Chemins officiels** (France et Allemagne) : laisser BRouter
+- **Inclure les chemins IGN** (ATKIS en Allemagne…) : laisser BRouter
   emprunter aussi les chemins BD TOPO ou ATKIS absents d'OpenStreetMap. Ils
   s'affichent en tirets orange et rejoignent les points à vérifier, car rien
   ne garantit qu'ils existent encore ni qu'on y passe. En Espagne, en Suisse

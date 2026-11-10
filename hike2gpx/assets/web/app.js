@@ -36,8 +36,8 @@ const TEXTES = {
     "cartes.horsLigneTitre": "Téléchargement pour usage hors ligne",
     "cartes.horsLigneNote": "Ce PC fabrique les tuiles d'un fond de carte, par carrés de 1°, pour s'en servir sans réseau et les partager au téléphone.",
     "cartes.horsLigneBouton": "Choisir les carrés sur la carte",
-    "itineraires.calculTitre": "Calcul des itinéraires",
-    "itineraires.zonesTitre": "Zones de routage sur ce PC",
+    "itineraires.calculTitre": "Mode de calcul",
+    "itineraires.zonesTitre": "Zones stockées localement",
     "itineraires.zonesNote": "Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.",
     "itineraires.zonesBouton": "Choisir les zones sur la carte",
     "horsLigne.terminer": "Terminer",
@@ -86,8 +86,8 @@ const TEXTES = {
     "gpx.erreur": "Impossible de charger ce GPX : {message}",
     "gpx.invalide": "fichier GPX invalide ou sans tracé.",
     "gpx.tropGrand": "fichier trop volumineux (20 Mo maximum).",
-    "option.strict": "Mode strict : éviter aussi les passages à vérifier",
-    "option.cheminsRoutables": "Emprunter aussi les {nom} absents d’OSM (à vérifier sur place)",
+    "option.strict": "Inclure les blocages à vérifier",
+    "option.cheminsRoutables": "Inclure les chemins {nom}",
     "option.cheminsAffichage": "{nom} : affichage seul, calcul sur les chemins OSM",
     "option.comparer": "Montrer le tracé qui ignore les barrières",
     "resultat.distance": "Distance",
@@ -293,8 +293,8 @@ const TEXTES = {
     "cartes.horsLigneTitre": "Download for offline use",
     "cartes.horsLigneNote": "This PC builds the tiles of a base map, in 1° squares, to use them without a network and share them with the phone.",
     "cartes.horsLigneBouton": "Choose the squares on the map",
-    "itineraires.calculTitre": "Route calculation",
-    "itineraires.zonesTitre": "Routing areas on this PC",
+    "itineraires.calculTitre": "Calculation mode",
+    "itineraires.zonesTitre": "Zones stored locally",
     "itineraires.zonesNote": "Routing areas, in 5° cells, are downloaded from the server; those it does not publish are built on this PC.",
     "itineraires.zonesBouton": "Choose the areas on the map",
     "horsLigne.terminer": "Done",
@@ -343,8 +343,8 @@ const TEXTES = {
     "gpx.erreur": "Unable to load this GPX: {message}",
     "gpx.invalide": "invalid GPX file or no track found.",
     "gpx.tropGrand": "file too large (20 MB maximum).",
-    "option.strict": "Strict mode: also avoid crossings to check",
-    "option.cheminsRoutables": "Also use {nom} missing from OSM (check on site)",
+    "option.strict": "Include crossings to check",
+    "option.cheminsRoutables": "Include {nom} paths",
     "option.cheminsAffichage": "{nom}: map display only; routing uses OSM paths",
     "option.comparer": "Show the route that ignores barriers",
     "resultat.distance": "Distance",
@@ -1300,7 +1300,7 @@ function afficherOptionChemins() {
   $("ign").disabled = !routable;
   $("ign").checked = routable && choixIgn;
   if (couche) $("ignOptionTexte").textContent = t(routable ? "option.cheminsRoutables" : "option.cheminsAffichage",
-    { nom: routable ? (fournisseur.paths.routeName || fournisseur.paths.name)[langue] : nomCalque(couche) });
+    { nom: routable ? fournisseur.paths.label : nomCalque(couche) });
 }
 
 // ------------------------------------------------------------ données OSM hors ligne

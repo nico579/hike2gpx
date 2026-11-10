@@ -88,9 +88,10 @@ and the route. "Return" closes the loop on the start,
 BRouter's, run locally, with OpenStreetMap's barriers laid across the paths
 (see below). Three options, in "Route management", tune it:
 
-- **Strict mode**: also avoid the passages "to check", not only the blocking
+- **Include crossings to check**: also avoid the passages "to check", not only the blocking
   ones;
-- **Official paths** (France, Germany, Czechia, Switzerland and Poland):
+- **Include IGN paths** (ATKIS in Germany, and so on; France, Germany, Czechia,
+  Switzerland and Poland):
   let BRouter use official paths missing from OpenStreetMap in the selected
   area. They show as dashes and join the points to check, since their presence
   and access must be verified on site. The Polish source is regional; outside

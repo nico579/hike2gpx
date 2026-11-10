@@ -130,11 +130,11 @@
   <!-- Gestion des itinéraires : les options du calcul, puis les zones de routage (cases de 5°)
        à télécharger du serveur ou à fabriquer sur ce PC. -->
   <section id="pane-itineraires" class="pane" aria-labelledby="pageTitre" hidden>
-    <h2 class="section-title" data-i18n="itineraires.calculTitre">Calcul des itinéraires</h2>
-    <label class="option"><input type="checkbox" id="strict" checked> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
-    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte">Emprunter aussi les chemins officiels absents d'OSM (à vérifier sur place)</span></label>
+    <h2 class="section-title" data-i18n="itineraires.calculTitre">Mode de calcul</h2>
+    <label class="option"><input type="checkbox" id="strict" checked> <span data-i18n="option.strict">Inclure les blocages à vérifier</span></label>
+    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte">Inclure les chemins officiels</span></label>
     <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
-    <h2 class="section-title" data-i18n="itineraires.zonesTitre">Zones de routage sur ce PC</h2>
+    <h2 class="section-title" data-i18n="itineraires.zonesTitre">Zones stockées localement</h2>
     <p class="note" data-i18n="itineraires.zonesNote">Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.</p>
     <button type="button" class="page-action hl-ouvrir" data-hl-mode="routage" data-hl-texte="itineraires.zonesBouton" data-i18n="itineraires.zonesBouton" aria-expanded="false" aria-controls="horsLigne">Choisir les zones sur la carte</button>
     <section id="horsLigne" class="hors-ligne" hidden>
@@ -174,7 +174,7 @@
     <div class="partage-boutons"><button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button><button id="arreterPartageFenetre" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div>
   </div>
 </div>
-<script src="/app.js?v=desktop-79"></script>
+<script src="/app.js?v=desktop-80"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>

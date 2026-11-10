@@ -664,7 +664,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.equal(page.fond(), page.fonds().reliefLidar);
   assert.equal(elements.get("ignOption").hidden, false);
   assert.equal(elements.get("ign").disabled, false);
-  assert.match(elements.get("ignOptionTexte").textContent, /chemins BD TOPO \(IGN\)/);
+  assert.equal(elements.get("ignOptionTexte").textContent, "Inclure les chemins IGN", "le texte d'Android");
   assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, false);
   const rechargeFrance = charger(Object.fromEntries(stockage));
   rechargeFrance.page.construireFonds();
