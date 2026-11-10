@@ -95,8 +95,9 @@
     <string name="oublier">Oublier</string>
     <string name="scanner_qr">Scanner le QR code de l’ordinateur</string>
     <string name="scan_invite">Visez le QR code affiché par hike2gpx sur le PC</string>
-    <string name="ajouter_pc">Ajouter ce PC comme source ?</string>
-    <string name="confirmer_pc">Catalogue : %1$s</string>
+    <string name="recuperer_titre">Récupérer depuis le PC</string>
+    <string name="recuperer_message">Le %1$s partage %2$d zone(s) de routage et %3$d fond(s) de carte qui manquent au téléphone, %4$s en tout. Les télécharger maintenant ? Préférez le Wi-Fi.</string>
+    <string name="recuperer_rien">Le %1$s ne partage rien qui manque au téléphone. L’ajouter quand même comme source ?</string>
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="aucun_lot">Aucun lot installé.</string>

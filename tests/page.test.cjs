@@ -44,6 +44,7 @@ function charger(preferences = {}, documentGpx = null) {
   const requetes = [];
   const pressePapiers = [];
   const confirmations = Object.assign([], { reponse: false });
+  const evenements = [];
   const corps = element();
   for (const [id, cle] of [["entree-trace", "menu.trace"], ["entree-reglages", "menu.reglages"]]) {
     const tab = element();
@@ -54,12 +55,17 @@ function charger(preferences = {}, documentGpx = null) {
   const strict = element();
   strict.checked = true;
   elements.set("strict", strict);
+  // Les pages du menu démarrent masquées, comme dans index.html.
+  const itineraires = element();
+  itineraires.hidden = true;
+  elements.set("pane-itineraires", itineraires);
   const contexte = vm.createContext({
     console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance,
+    CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail; } },
     DOMParser: class { parseFromString() { return documentGpx; } },
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
       createElement: element, createTextNode: String, body: corps, documentElement: element(),
-       addEventListener() {}, querySelectorAll(selector) {
+       addEventListener() {}, dispatchEvent(e) { evenements.push(e.type); }, querySelectorAll(selector) {
          if (selector === "[data-i18n]") return [...elements.values()].filter((el) => el.dataset.i18n);
          if (selector === "[data-map-overlay]")
            return elements.get("legendRows")?.enfants.filter((ligne) => ligne.dataset.mapOverlay) || [];
@@ -115,7 +121,7 @@ function charger(preferences = {}, documentGpx = null) {
     + '{ defaultBase: "osm", overlays: [], bases: () => ({}) };', contexte);
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
-    + "\nglobalThis.page = { etat, calculer, planifierCalcul, ajouterPoint, boucler, basculerPleinEcran,"
+    + "\nglobalThis.page = { etat, calculer, planifierCalcul, planifier, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, ts, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " afficherDisponibilite,"
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
@@ -126,7 +132,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
-    confirmations, stockage, minuteurs, pressePapiers };
+    confirmations, stockage, minuteurs, pressePapiers, evenements };
 }
 
 function resultat(lonArrivee) {
@@ -160,7 +166,7 @@ test("l'onglet « Hors ligne » : la grille du routage, la sélection, le bilan 
   assert.equal(page.grilleCases.layers.length, 0, "onglet fermé : pas de grille");
   await ouvrirHorsLigne(page, requetes, [{ case: "E5_N40", octets: 135e6 }],
     [{ case: "E5_N40", octets: 247e6, etat: "ancien" }]);
-  assert.equal(carte.zoom, 6, "la grille des cases dézoome pour en montrer plusieurs");
+  assert.equal(carte.zoom, 14, "la grille paraît sans toucher au zoom");
   let [cadre] = page.grilleCases.layers;
   assert.deepEqual(json(cadre.bounds), [[40, 5], [45, 10]]);
   assert.equal(cadre.options.color, "#1b7a3e", "vert : sur ce PC");
@@ -214,6 +220,9 @@ test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et 
   await ouvrirHorsLigne(page, requetes);
   elements.get("hlFond").checked = true;
   changer(elements.get("hlFond"));
+  // La page ne touche plus au zoom ; de loin, trop de carrés : il faut se rapprocher.
+  carte.zoom = 6;
+  page.dessinerCases();
   assert.equal(page.grilleCases.layers.length, 0, "au zoom 6, trop de carrés : il faut se rapprocher");
   assert.match(elements.get("hlAide").textContent, /^Rapprochez-vous/);
   assert.equal(elements.get("hlLegendeServeur").hidden, true, "pas de serveur pour les fonds");
@@ -221,8 +230,7 @@ test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et 
   page.construireFonds();
   page.dessinerCases();
   assert.equal(page.sourceAGarder(), "plan");
-  assert.equal(elements.get("hlFondChoisi").hidden, false);
-  assert.equal(elements.get("hlFondChoisi").textContent, "Fond téléchargé : Plan IGN, celui choisi dans la liste du haut.");
+  assert.equal(elements.get("hlFondChoisi").hidden, true, "le fond choisi se garde : rien à dire");
   // Un fond qui ne se garde pas hors ligne : le volet dit lequel choisir (pas le SCAN 25, sans clé IGN).
   carte.handlers.baselayerchange({ layer: page.fonds().osm });
   assert.equal(page.sourceAGarder(), null);
@@ -237,37 +245,25 @@ test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et 
   assert.equal(carre.options.dashArray, "5 5", "pointillés : pas encore de fond");
   carre.handlers.click();
   assert.equal(elements.get("hlSelection").textContent, "1 carré(s) : environ 1 Go et 35 min.");
-  // « Sélectionner la vue » : les carrés que touche la vue, neuf au plus.
-  elements.get("hlVider").click();
-  carte.vue = { s: 43.3, w: 5.6, n: 43.6, e: 6.3 };
-  elements.get("hlVue").click();
-  assert.equal(elements.get("hlSelection").textContent, "2 carré(s) : environ 2 Go et 1 h 10.");
-  carte.vue = { s: 42.5, w: 4.5, n: 45.5, e: 8.5 };
-  elements.get("hlVue").click();
-  assert.match(elements.get("hlSelection").textContent, /^La vue touche 20 carrés de 1° : rapprochez-vous \(9 au plus/);
-  carte.vue = { s: 43.31, w: 6.01, n: 43.33, e: 6.04 };
   elements.get("hlTelecharger").click();
   await tic();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
-    { carres: ["N43E005"], source: "plan" }, "un carré à la fois, dans l'ordre");
+    { carres: ["N43E006"], source: "plan" }, "le carré choisi");
 });
 
-test("un fond de carte installé devient la « Carte hors ligne », et se retire depuis l'onglet", async () => {
+test("un fond de carte installé ne s'ajoute pas aux fonds en ligne, et se retire depuis le volet", async () => {
   const { page, elements, requetes, carte, confirmations } = charger();
   page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN" };
-  assert.equal(page.fonds().horsLigne, undefined, "aucun fond : pas de carte hors ligne");
   const fonds = [
     { nom: "N43E006-plan", zone: [43, 6, 44, 7], zoom: [13, 16], source: "plan", octets: 6e8 },
     { nom: "E5_N40-scan25", zone: [40, 5, 45, 10], zoom: [6, 13], source: "scan25", octets: 4e8 }];
   const charge = page.chargerFonds();
   repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds });
   await charge;
-  const groupe = page.fonds().horsLigne;
-  assert.ok(groupe, "le fond hors ligne parmi les fonds");
-  assert.ok(page.controle().fonds["Carte hors ligne"]);
-  // Le moins fin d'abord, le plus fin par-dessus ; chacun borné à sa zone.
-  assert.deepEqual(groupe.layers.map((c) => c.url), ["/fonds/E5_N40-scan25/{z}/{x}/{y}", "/fonds/N43E006-plan/{z}/{x}/{y}"]);
-  assert.equal(groupe.layers[1].options.maxNativeZoom, 16);
+  // « En ligne » ne liste que les cartes en ligne : les fonds téléchargés
+  // servent au téléphone, à qui le PC les partage.
+  assert.equal(page.fonds().horsLigne, undefined);
+  assert.equal(Object.keys(page.controle().fonds).includes("Carte hors ligne"), false);
   // Dans l'onglet, en mode fond, le carré installé est vert ; sélectionné, il se retire.
   await ouvrirHorsLigne(page, requetes, [], [], fonds);
   elements.get("hlFond").checked = true;
@@ -278,12 +274,34 @@ test("un fond de carte installé devient la « Carte hors ligne », et se retire
   page.grilleCases.layers[0].handlers.click();
   assert.equal(elements.get("hlSelection").textContent, "1 déjà sur ce PC (600 Mo).");
   assert.equal(elements.get("hlTelecharger").disabled, true, "rien à télécharger : le Plan IGN est déjà là");
-  assert.equal(elements.get("hlSupprimer").textContent, "Supprimer les 1 déjà là");
+  assert.equal(elements.get("hlSupprimer").hidden, false, "« Supprimer », libellé fixe");
   confirmations.reponse = true;
   elements.get("hlSupprimer").click();
   await tic();
-  assert.match(confirmations.at(-1), /^Retirer de ce PC 1 tuile\(s\), 600 Mo en tout/);
-  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body), { carre: "N43E006" });
+  assert.match(confirmations.at(-1), /^Supprimer de ce PC :\n• N43E006 · Plan IGN · 600 Mo\n\n600 Mo en tout/,
+    "la confirmation nomme le carré, le fond et la taille");
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body),
+    { carre: "N43E006", source: "plan" }, "le fond choisi seul, pas les autres du carré");
+});
+
+test("un carré qui n'a qu'un autre fond n'est pas « déjà là » pour le fond choisi", async () => {
+  const { page, elements, requetes, carte } = charger();
+  page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN" };
+  // Le carré de Garéoult a un SCAN 25 ; la carte affiche le Plan IGN.
+  const fonds = [{ nom: "N43E006-scan25", zone: [43, 6, 44, 7], zoom: [13, 16], source: "scan25", octets: 6e8 }];
+  const charge = page.chargerFonds();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds });
+  await charge;
+  await ouvrirHorsLigne(page, requetes, [], [], fonds);
+  elements.get("hlFond").checked = true;
+  changer(elements.get("hlFond"));
+  carte.zoom = 12;
+  page.dessinerCases();
+  page.grilleCases.layers[0].handlers.click();
+  assert.equal(elements.get("hlSelection").textContent, "1 carré(s) : environ 1 Go et 35 min.");
+  assert.equal(elements.get("hlTelecharger").disabled, false, "le Plan IGN est à télécharger");
+  assert.equal(elements.get("hlSupprimer").hidden, true, "rien à supprimer en Plan IGN");
+  assert.equal(elements.get("hlPartager").hidden, true, "rien à partager en Plan IGN");
 });
 
 test("supprimer une case depuis l'onglet retire le routage seul, pas les fonds", async () => {
@@ -309,7 +327,8 @@ test("le partage au téléphone s'ouvre à la demande, montre son QR code et se 
   assert.equal(elements.get("partageQr").innerHTML, "<svg>qr</svg>");
   assert.equal(elements.get("partageOuvert").hidden, false);
   assert.equal(elements.get("partagerTelephone").hidden, true);
-  assert.match(elements.get("partageTexte").textContent, /Scanner le QR code d’un PC.*1 fond\(s\) de carte/);
+  assert.match(elements.get("partageTexte").textContent,
+    /^Partagés : 1 zone\(s\) de routage et 1 fond\(s\) de carte, 412 Mo\..*Scanner le QR code d’un PC/);
   // Le QR code s'ouvre dans sa fenêtre, comme lidar2map ; Fermer la cache, « Afficher le QR code » la rouvre.
   assert.equal(elements.get("partageFenetre").hidden, false);
   elements.get("fermerFenetrePartage").click();
@@ -325,6 +344,18 @@ test("le partage au téléphone s'ouvre à la demande, montre son QR code et se 
   assert.equal(elements.get("partageOuvert").hidden, true);
   assert.equal(elements.get("partageTexte").hidden, true);
   assert.equal(elements.get("partageFenetre").hidden, true, "partage fermé : plus de fenêtre");
+});
+
+test("le volet de la grille partage sa sélection seule au téléphone", async () => {
+  const { page, elements, requetes } = charger();
+  await ouvrirHorsLigne(page, requetes, [{ case: "E5_N40", octets: 135e6 }], [{ case: "E5_N40", octets: 247e6, etat: "a_jour" }]);
+  assert.equal(elements.get("hlPartager").hidden, true, "rien de sélectionné");
+  page.grilleCases.layers[0].handlers.click();
+  assert.equal(elements.get("hlPartager").hidden, false);
+  assert.equal(elements.get("hlPartager").hidden, false, "« Partager au téléphone », libellé fixe");
+  elements.get("hlPartager").click();
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/partage").options.body),
+    { ouvrir: true, lots: ["E5_N40"], carres: [] }, "la zone choisie, pas tout le PC");
 });
 
 test("la note suit la préparation hors ligne, puis la case est prête", async () => {
@@ -376,7 +407,7 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   assert.equal(page.traceGpxImporte.layers[1].options.color, "#ffe14a");
   assert.equal(JSON.stringify(carte.fit.bounds), "[[43.3,6],[43.31,6.02]]");
   assert.deepEqual(Object.keys(page.controle().calques),
-    ["Chemins OSM", "Chemins BD TOPO (IGN)", "2026-09-20_09-03"]);
+    ["OSM", "IGN", "2026-09-20_09-03"]);
   assert.equal(elements.get("legendGpx").hidden, false);
   page.traceGpxImporte.remove();
   carte.handlers["overlayadd overlayremove"]({ layer: page.traceGpxImporte, type: "overlayremove" });
@@ -631,7 +662,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.deepEqual(Object.keys(page.controle().fonds), ["Carte topographique (IGN Espagne)", "OSM rando", "OSM", "Satellite"]);
   assert.match(page.fonds().osmRando.url, /tile\.opentopomap\.org/);
   assert.match(page.fonds().satellite.url, /World_Imagery/);
-  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM", "Sentiers balisés GR/PR/SL (IGN Espagne)"]);
+  assert.deepEqual(Object.keys(page.controle().calques), ["OSM", "Sentiers balisés GR/PR/SL (IGN Espagne)"]);
   assert.equal(page.fonds().reliefLidar, undefined);
   assert.match(page.fond().url, /ign\.es\/wmts\/mapa-raster/);
   assert.equal(page.CALQUES.bdtopo.groupe.removed, true);
@@ -665,7 +696,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.equal(page.fond(), page.fonds().reliefLidar);
   assert.equal(elements.get("ignOption").hidden, false);
   assert.equal(elements.get("ign").disabled, false);
-  assert.match(elements.get("ignOptionTexte").textContent, /chemins BD TOPO \(IGN\)/);
+  assert.equal(elements.get("ignOptionTexte").textContent, "Inclure les chemins IGN", "le texte d'Android");
   assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, false);
   const rechargeFrance = charger(Object.fromEntries(stockage));
   rechargeFrance.page.construireFonds();
@@ -721,11 +752,11 @@ test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins
   const { page, elements } = charger();
   page.choisirPays("at");
   assert.match(page.fond().url, /mapsneu\.wien\.gv\.at\/basemap/);
-  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.deepEqual(Object.keys(page.controle().calques), ["OSM"]);
   assert.equal(elements.get("ignOption").hidden, true);
   page.choisirPays("nl");
   assert.match(page.fond().url, /service\.pdok\.nl\/kadaster\/brt-achtergrondkaart/);
-  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.deepEqual(Object.keys(page.controle().calques), ["OSM"]);
   assert.equal(elements.get("ignOption").hidden, true);
 });
 
@@ -735,7 +766,7 @@ test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => 
   assert.match(page.fond().url, /sgx\.geodatenzentrum\.de\/wmts_topplus_open\/tile\/1\.0\.0\/web\/default\/WEBMERCATOR\/\{z\}\/\{y\}\/\{x\}\.png/);
   assert.match(page.fond().options.attribution, /BKG.*dl-de\/by-2-0.*Datenquellen/);
   assert.deepEqual(Object.keys(page.controle().calques),
-    ["Chemins OSM", "Chemins ATKIS (Allemagne)"]);
+    ["OSM", "ATKIS"]);
   assert.match(page.CALQUES.atkis.groupe.getAttribution(), /GeoBasis-DE.*GDI-Th.*BVV.*CC BY 4\.0/);
   assert.equal(elements.get("legendRows").enfants.find((ligne) => ligne.dataset.mapOverlay === "atkis").hidden, false);
   assert.equal(elements.get("ignOption").hidden, false);
@@ -766,7 +797,7 @@ test("les nouveaux providers transmettent leur source au calcul, la BDOT10k dans
       assert.equal(page.fond().options.layers, "Raster");
       assert.equal(page.fond().options.crs.code, "EPSG:4326");
     }
-    assert.ok(page.controle().calques[page.providers[pays].paths.name.fr]);
+    assert.ok(page.controle().calques[page.providers[pays].paths.label], "la coche porte le nom court");
     assert.equal(elements.get("ign").disabled, false);
     page.etat.points = [{ lat: centre[0], lon: centre[1] },
       { lat: centre[0] + 0.001, lon: centre[1] + 0.001 }];
@@ -916,6 +947,82 @@ test("une réponse arrivée après une modification est ignorée", async () => {
   await calcul;
   assert.equal(page.etat.dernier, null);
   assert.equal(elements.get("exporter").disabled, true);
+});
+
+test("« Gestion des cartes » liste ses zones stockées localement, toutes cartes confondues", async () => {
+  const { page, elements, requetes, confirmations } = charger();
+  page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN", osm: "OpenStreetMap" };
+  const charge = page.chargerFonds();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [
+    { nom: "N43E006-scan25", zone: [43, 6, 44, 7], zoom: [13, 16], source: "scan25", octets: 830e6 },
+    { nom: "N43E006-osm", zone: [43, 6, 44, 7], zoom: [0, 21], source: "osm", format: "map", octets: 48e6 }] });
+  await charge;
+  const lignes = elements.get("zonesCartes").enfants;
+  assert.deepEqual(lignes.map((l) => l.enfants[0].textContent),
+    ["N43E006 · OpenStreetMap · 48 Mo", "N43E006 · SCAN 25 (IGN) · 830 Mo"], "la zone, sa carte et sa taille");
+  // Supprimer : la zone de cette carte seule, après une confirmation qui nomme les deux.
+  confirmations.reponse = true;
+  lignes[1].enfants[1].click();
+  await tic();
+  assert.match(confirmations.at(-1), /^Supprimer de ce PC la zone N43E006 de la carte SCAN 25 \(IGN\) \(830 Mo\)/);
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body),
+    { carre: "N43E006", source: "scan25" });
+  repondre(requetes.findLast((r) => r.url === "/api/supprimer_fond"), { octets: 830e6 });
+  await tic();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [] });
+  await tic();
+  assert.equal(elements.get("zonesCartes").enfants[0].textContent, "Aucune zone de carte sur ce PC.");
+});
+
+test("« Zones stockées localement » liste les lots installés, comme le téléphone", async () => {
+  const { page, elements, requetes, confirmations } = charger();
+  elements.get("pane-itineraires").hidden = false;          // la page ouverte
+  page.chargerLots();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"),
+    { lots: [{ case: "E5_N40", type: "enrichi", sources: { osm: {}, bdtopo: {}, relief: {} }, octets: 248e6 }],
+      fonds: [] });
+  await tic();
+  repondre(requetes.findLast((r) => r.url === "/api/catalogue_lots"), { lots: [{ case: "E5_N40", etat: "ancien" }] });
+  await tic();
+  const [ligne] = elements.get("zonesLocales").enfants;
+  const [texte, maj, supprimer] = ligne.enfants;
+  assert.equal(texte.textContent, "E5_N40 · enrichi IGN · 248 Mo");
+  assert.equal(maj.textContent, "Mettre à jour", "le serveur en publie un plus récent");
+  assert.equal(supprimer.textContent, "Supprimer");
+  // Supprimer : après confirmation, le routage seul, pas les fonds du carré.
+  confirmations.reponse = true;
+  supprimer.click();
+  await tic();
+  assert.match(confirmations.at(-1), /^Supprimer de ce PC la zone E5_N40 \(248 Mo\)/);
+  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_case").options.body),
+    { case: "E5_N40", fonds: false });
+  // Sans lot installé, la page le dit.
+  repondre(requetes.findLast((r) => r.url === "/api/supprimer_case"), { octets: 248e6 });
+  await tic();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [] });
+  await tic();
+  assert.equal(elements.get("zonesLocales").enfants[0].textContent, "Aucun lot installé.");
+});
+
+test("une recherche aboutie referme le champ, comme sur le téléphone", () => {
+  const { elements, evenements } = charger();
+  elements.get("cityQuery").value = "43.3, 6.04";
+  elements.get("citySearch").ecouteurs.submit[0]({ preventDefault() {} });
+  assert.ok(evenements.includes("hike2gpx:recherche-aboutie"), "presentation.js referme le champ");
+});
+
+test("un clic sur la carte ne pose un point qu'en planification, comme sur le téléphone", () => {
+  const { page, carte, corps } = charger();
+  carte.handlers.click({ latlng: { lat: 43.3, lng: 6 } });
+  assert.equal(page.etat.points.length, 0, "carte consultée : le clic ne pose rien");
+  page.planifier(true);
+  assert.equal(corps.classList.contains("planification"), true, "le curseur en croix");
+  carte.handlers.click({ latlng: { lat: 43.3, lng: 6 } });
+  assert.equal(page.etat.points.length, 1);
+  // La page refermée : le point reste, un nouveau clic ne pose plus rien.
+  page.planifier(false);
+  carte.handlers.click({ latlng: { lat: 43.31, lng: 6.01 } });
+  assert.equal(page.etat.points.length, 1);
 });
 
 test("revenir au départ ferme la boucle, une seule fois", () => {

@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-12">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-45">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-55">
 </head>
 <body class="panel-collapsed">
 <div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
@@ -22,6 +22,7 @@
     <button type="button" class="menu-entry" data-pane="cartes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2V6Zm6-2v14m6-12v14"/></svg><span id="entree-cartes" data-i18n="menu.cartes">Gestion des cartes</span></button>
     <button type="button" class="menu-entry" data-pane="itineraires"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/></svg><span id="entree-itineraires" data-i18n="menu.itineraires">Gestion des itinéraires</span></button>
     <button type="button" class="menu-entry" data-pane="trace"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1Zm11-14 3 3"/></svg><span id="entree-trace" data-i18n="menu.trace">Planifier un itinéraire</span></button>
+    <button type="button" class="menu-entry" id="menuPartage"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><span id="entree-partage" data-i18n="menu.partage">Partager au téléphone</span></button>
     <button type="button" class="menu-entry" data-pane="reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span id="entree-reglages" data-i18n="menu.reglages">Réglages</span></button>
     <a id="aide" class="menu-entry" href="https://github.com/nico579/hike2gpx/blob/main/README.fr.md" target="_blank" rel="noopener" title="Aide : le mode d'emploi (README)" aria-label="Aide : le mode d'emploi (README)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7m0 3h.01"/></svg><span data-i18n="menu.aide">Aide</span></a>
   </nav>
@@ -121,22 +122,24 @@
   <!-- Gestion des cartes : le fond et les calques affichés, puis les fonds que ce PC
        fabrique par carrés de 1° pour s'en servir hors ligne. -->
   <section id="pane-cartes" class="pane" aria-labelledby="pageTitre" hidden>
-    <h2 class="section-title"><span data-i18n="cartes.fondTitre">Fond de carte et calques</span><a class="info-tooltip map-providers-info-button" id="providersInfoButton" href="/documentation/pays" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le rapport des pays pris en charge sur GitHub" title="Pays pris en charge sur GitHub">i</a></h2>
+    <h2 class="section-title"><span data-i18n="cartes.fondTitre">En ligne</span><span class="info-tooltip" tabindex="0" aria-label="Cartes en ligne">i<span role="tooltip" data-i18n="cartes.fondNote">Les cartes servies par Internet : celles du pays affiché, puis celles du monde. La carte nationale suit le pays du centre de la carte. Le SCAN 25 demande la clé IGN des réglages.</span></span></h2>
     <div id="cartesCalques" class="cartes-calques"></div>
-    <h2 class="section-title" data-i18n="cartes.horsLigneTitre">Fonds hors ligne</h2>
-    <p class="note" data-i18n="cartes.horsLigneNote">Ce PC fabrique les tuiles d'un fond de carte, par carrés de 1°, pour s'en servir sans réseau et les partager au téléphone.</p>
-    <button type="button" class="page-action hl-ouvrir" data-hl-mode="fond" data-hl-texte="cartes.horsLigneBouton" data-i18n="cartes.horsLigneBouton" aria-expanded="false" aria-controls="horsLigne">Choisir les carrés sur la carte</button>
+    <h2 class="section-title"><span data-i18n="itineraires.zonesTitre">Zones stockées localement</span></h2>
+    <ul id="zonesCartes" class="zones-locales"></ul>
+    <h2 class="section-title"><span data-i18n="cartes.horsLigneTitre">Téléchargement pour usage hors ligne</span><span class="info-tooltip" tabindex="0" aria-label="Fonds hors ligne">i<span role="tooltip" data-i18n="cartes.horsLigneNote">Ce PC fabrique les fonds de carte par carrés de 1° pour les partager au téléphone, qui s'en sert sans réseau. Ils ne s'affichent pas sur le PC, qui reste en ligne.</span></span></h2>
+    <div class="hl-ancre" data-hl-mode="fond"></div>
   </section>
   <!-- Gestion des itinéraires : les options du calcul, puis les zones de routage (cases de 5°)
        à télécharger du serveur ou à fabriquer sur ce PC. -->
   <section id="pane-itineraires" class="pane" aria-labelledby="pageTitre" hidden>
-    <h2 class="section-title" data-i18n="itineraires.calculTitre">Calcul des itinéraires</h2>
-    <label class="option"><input type="checkbox" id="strict" checked> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
-    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte">Emprunter aussi les chemins officiels absents d'OSM (à vérifier sur place)</span></label>
+    <h2 class="section-title" data-i18n="itineraires.calculTitre">Mode de calcul</h2>
+    <label class="option"><input type="checkbox" id="strict" checked> <span data-i18n="option.strict">Inclure les blocages à vérifier</span></label>
+    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte">Inclure les chemins officiels</span></label>
     <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
-    <h2 class="section-title" data-i18n="itineraires.zonesTitre">Zones de routage sur ce PC</h2>
+    <h2 class="section-title"><span data-i18n="itineraires.zonesTitre">Zones stockées localement</span><a class="info-tooltip map-providers-info-button" id="providersInfoButton" href="/documentation/pays" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le rapport des pays pris en charge sur GitHub" title="Pays pris en charge sur GitHub">i</a></h2>
+    <ul id="zonesLocales" class="zones-locales"></ul>
     <p class="note" data-i18n="itineraires.zonesNote">Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.</p>
-    <button type="button" class="page-action hl-ouvrir" data-hl-mode="routage" data-hl-texte="itineraires.zonesBouton" data-i18n="itineraires.zonesBouton" aria-expanded="false" aria-controls="horsLigne">Choisir les zones sur la carte</button>
+    <div class="hl-ancre" data-hl-mode="routage"></div>
     <section id="horsLigne" class="hors-ligne" hidden>
       <fieldset class="hl-mode"><legend data-i18n="horsLigne.quoi">À télécharger</legend>
         <label class="option"><input type="radio" name="hlMode" id="hlRoutage" value="routage" checked> <span data-i18n="horsLigne.modeRoutage">Données de routage (cases de 5°)</span></label>
@@ -152,10 +155,9 @@
       </ul>
       <p id="hlSelection" class="note" role="status"></p>
       <div class="hl-actions">
-        <button id="hlTelecharger" type="button" data-i18n="horsLigne.telecharger" disabled>Télécharger</button>
-        <button id="hlSupprimer" type="button" data-i18n="horsLigne.supprimerSelection" hidden>Supprimer</button>
-        <button id="hlVue" type="button" data-i18n="horsLigne.selectionnerVue" hidden>Sélectionner la vue</button>
-        <button id="hlVider" type="button" data-i18n="horsLigne.viderSelection" disabled>Tout désélectionner</button>
+        <span class="action-control"><button id="hlTelecharger" type="button" aria-describedby="hlTelechargerInfo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg><span data-i18n="horsLigne.telecharger">Télécharger</span></button><span id="hlTelechargerInfo" class="action-tooltip" role="tooltip">Télécharge sur ce PC le fond choisi en haut, pour les carrés sélectionnés, afin de le partager au téléphone.</span></span>
+        <span class="action-control"><button id="hlPartager" type="button" aria-describedby="hlPartagerInfo" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><span data-i18n="horsLigne.partager">Partager</span></button><span id="hlPartagerInfo" class="action-tooltip" role="tooltip" data-i18n="horsLigne.infoPartager">Partage au téléphone ce que la sélection a sur ce PC : un QR code s'affiche, à scanner avec hike2gpx sur le téléphone, qui récupère tout d'un coup.</span></span>
+        <span class="action-control"><button id="hlSupprimer" type="button" aria-describedby="hlSupprimerInfo" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7M10 11v6m4-6v6"/></svg><span data-i18n="horsLigne.supprimerSelection">Supprimer</span></button><span id="hlSupprimerInfo" class="action-tooltip" role="tooltip" data-i18n="horsLigne.infoSupprimer">Supprime de ce PC ce que la sélection y a, après une confirmation qui le détaille.</span></span>
       </div>
       <div id="hlFile" class="hl-file" role="status" hidden><p id="hlEnCours" class="note"></p><button id="hlArreter" type="button" data-i18n="horsLigne.arreter">Arrêter</button></div>
     </section>
@@ -171,13 +173,13 @@
     <h2 id="partageFenetreTitre" data-i18n="partage.titre">Partager au téléphone</h2>
     <div id="partageQr" class="partage-qr"></div>
     <p id="partageFenetreTexte" class="note"></p>
-    <button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button>
+    <div class="partage-boutons"><button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button><button id="arreterPartageFenetre" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div>
   </div>
 </div>
-<script src="/app.js?v=desktop-76"></script>
+<script src="/app.js?v=desktop-91"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-25"></script>
+<script src="/presentation.js?v=desktop-33"></script>
 </body>
 </html>

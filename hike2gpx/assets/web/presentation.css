@@ -172,7 +172,22 @@ body.profile-collapsed .map-activity{bottom:81px}
 .hl-pastille.selectionne{border-color:#1565c0;background:#1e88e5aa}
 .hl-pastille.encours{border-color:#e07b00;background:#e07b0055}
 .hl-pastille.serveur{border-color:#1565c0;background:transparent}
-.hl-actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+/* Les boutons du volet : un par ligne, chacun avec son icône. */
+/* Les boutons du volet sur une ligne ; leur bulle au survol, comme ceux du tracé.
+   Un bouton masqué emporte sa bulle. */
+.hl-actions{display:flex;flex-wrap:nowrap;gap:6px;margin:8px 0}
+.hl-actions .action-control{display:inline-block}
+.hl-actions .action-control:has(>button[hidden]){display:none}
+.hl-actions button{display:inline-flex;align-items:center;gap:5px;padding:7px 9px;white-space:nowrap;border:1.5px solid #6f9bd6;border-radius:8px;background:#fff;color:#1d4f96;font-size:12px;font-weight:600;box-shadow:0 1px 3px #1b354526;cursor:pointer}
+.hl-actions button:hover:not(:disabled){background:#eef5ff}
+/* « Télécharger », l'action principale, en bleu plein comme « Exporter le GPX » ;
+   « Supprimer » en rouge, pour qu'on ne le prenne pas pour un autre. */
+#hlTelecharger{background:var(--accent);border-color:var(--accent);color:#fff}
+#hlTelecharger:hover:not(:disabled){background:#1854b1}
+#hlTelecharger:disabled{background:#fff;border-color:#b9c9dc;color:#7b8ca0;box-shadow:none}
+#hlSupprimer{border-color:#d9827a;color:#b3261e}
+#hlSupprimer:hover:not(:disabled){background:#fdf0ef}
+.hl-actions button svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .hl-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .hl-file[hidden]{display:none}
 /* Le QR code du partage, dans sa fenêtre comme lidar2map : à sa taille (8 px par
@@ -185,6 +200,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 .partage-qr svg{display:block;width:min(456px,80vw,70vh);height:auto}
 .partage-carte .note{max-width:420px;margin:12px auto 0;font-size:13px;line-height:1.5;color:#546a80}
 .partage-carte button{margin-top:14px}
+.partage-boutons{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 #reglages .display-settings .option{display:flex;align-items:flex-start;gap:9px;margin:0;padding:9px 0}
 .transparency-setting{display:block;margin-top:12px;font-size:12px;color:#42566d}
 .transparency-setting>div{display:flex;align-items:center;gap:12px;margin-top:5px}
@@ -279,7 +295,21 @@ body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran 
 .cartes-calques .leaflet-control-layers-list{display:block!important;height:auto!important;overflow:visible!important;padding:0!important}
 .cartes-calques .leaflet-control-layers-toggle{display:none!important}
 .cartes-calques .leaflet-control-layers label{padding:5px 0;font-size:12px;line-height:1.35;cursor:pointer}
-.cartes-calques .leaflet-control-layers-separator{margin:9px 0}
+.cartes-calques .leaflet-control-layers-separator{display:none}
+/* En planification, le curseur en croix dit qu'un clic posera un point. */
+body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
+/* « Zones stockées localement » : une ligne par zone, ses boutons à droite. */
+.zones-locales{list-style:none;margin:0 0 12px;padding:0}
+.zones-locales li{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:12px;color:#42566d}
+.zones-locales li>span{flex:1;min-width:0}
+.zones-locales li.note{border:0;color:#65768a}
+.zones-locales button{padding:5px 9px;border:1px solid #d7e3f0;border-radius:7px;background:#fff;color:#315b88;font-size:11px;cursor:pointer}
+.zones-locales button:hover{background:#f2f7ff}
+.cartes-calques .cartes-calques-titre{margin:18px 0 6px;font-size:14px;color:#3d5e80}
+/* Le « i » d'un titre est au bord droit du panneau : sa bulle s'ouvre vers la gauche. */
+.pane>.section-title .info-tooltip [role=tooltip]{left:auto;right:-8px;width:250px;font-size:11px;font-weight:400;line-height:1.4}
+/* Celui de « En ligne », près du bord gauche : sa bulle s'ouvre vers la droite. */
+#pane-cartes>.section-title:first-child .info-tooltip [role=tooltip]{left:-10px;right:auto}
 /* La légende, en bandeau sur la carte sous l'aide des tuiles hors ligne. */
 .map-widget-toolbar .legende{max-width:270px;margin:0;padding:9px 12px;border:1px solid #d9e5f18c;border-radius:8px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 2px 8px #243b5310;color:#344860}
 @media(max-height:780px) and (min-width:701px){.pane{padding-top:13px}.aide{padding:9px 12px;margin-bottom:11px}.boutons{gap:6px;margin-bottom:13px}.option{padding:8px 0}.panel-footer{padding:8px 20px}}

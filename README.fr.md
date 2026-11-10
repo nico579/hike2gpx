@@ -81,17 +81,19 @@ et la PACA.
 Un clic droit sur la carte affiche les coordonnées GPS du point choisi et
 permet de les copier.
 
-**Le tracé.** Un clic pose le départ, puis les étapes et l'arrivée ; un point
-se déplace en le faisant glisser et se retire depuis sa bulle. Le premier
-point posé ouvre la page « Planifier un itinéraire » : « Revenir » referme la
+**Le tracé.** Comme sur le téléphone, on trace dans « Planifier un
+itinéraire » : tant que cette page est ouverte, le curseur est une croix et un
+clic pose le départ, puis les étapes et l'arrivée ; ailleurs, un clic ne pose
+rien. Un point se déplace en le faisant glisser et se retire depuis sa bulle.
+Fermer la page laisse les points et le tracé en place. « Revenir » referme la
 boucle sur le départ, « Retirer » ôte le dernier point, « Effacer » repart de
 zéro. Le calcul est celui de BRouter, en local, avec les barrières
 d'OpenStreetMap mises en travers des chemins (voir plus bas). Trois options,
 dans « Gestion des itinéraires », le règlent :
 
-- **Mode strict** : éviter aussi les passages « à vérifier », pas seulement
+- **Inclure les blocages à vérifier** : éviter aussi les passages « à vérifier », pas seulement
   les bloquants ;
-- **Chemins officiels** (France et Allemagne) : laisser BRouter
+- **Inclure les chemins IGN** (ATKIS en Allemagne…) : laisser BRouter
   emprunter aussi les chemins BD TOPO ou ATKIS absents d'OpenStreetMap. Ils
   s'affichent en tirets orange et rejoignent les points à vérifier, car rien
   ne garantit qu'ils existent encore ni qu'on y passe. En Espagne, en Suisse
@@ -264,8 +266,8 @@ hike2gpx travaille avec des lots : tout ce dont une case BRouter de 5° a besoin
 (données de routage, chemins officiels, franchissements, calques), chaque
 fichier vérifié contre l'empreinte SHA-256 d'un manifeste.
 
-Dans « Gestion des itinéraires », « Choisir les zones sur la carte » montre la
-grille des cases de 5° : on clique celles qu'on veut, puis « Télécharger ».
+« Gestion des itinéraires » montre sur la carte la grille des cases de 5°,
+tant que la page est ouverte : on clique celles qu'on veut, puis « Télécharger ».
 Un lot s'obtient de deux façons :
 
 - **le télécharger depuis le serveur.** Les cases de la France sont fabriquées
@@ -310,8 +312,9 @@ carte vectorielle au format Mapsforge (celui de Locus Map et d'OpenAndroMaps),
 que le téléphone dessine lui-même ; sur le PC, OpenStreetMap reste en ligne.
 La première fois, hike2gpx télécharge pour cela Osmosis et son greffon
 Mapsforge (20 Mo). OSM rando et la vue satellite restent en ligne : leurs
-serveurs interdisent la recopie et leurs données ne sont pas libres. Il
-apparaît ensuite parmi les fonds sous le nom « Carte hors ligne ». Une vue
+serveurs interdisent la recopie et leurs données ne sont pas libres. Un fond
+téléchargé ne s'affiche pas sur le PC, qui reste en ligne : il sert au
+téléphone, à qui le PC le partage. Une vue
 d'écran se prend jusqu'au zoom 16, celui des sentiers : autour de Garéoult,
 631 tuiles, 12 Mo en SCAN 25 (27 Mo en Plan IGN), un peu plus d'une minute.
 Une case entière s'arrête au zoom 13, pour la vue d'ensemble : la case
@@ -324,7 +327,7 @@ libre, un fond reste sur votre PC : il n'est jamais publié.
 
 Le téléphone prend les lots du serveur sur GitHub. Ce que seul votre PC
 possède, les lots préparés hors des pays du serveur et les fonds de carte, il
-le reçoit de lui, par le Wi-Fi. Dans les réglages, « Partager au téléphone »
+le reçoit de lui, par le Wi-Fi. Dans le menu, « Partager au téléphone »
 affiche un QR code : scannez-le avec hike2gpx sur le téléphone, connecté au
 même réseau. Le PC sert alors ses lots et ses fonds, chaque fichier vérifié
 par son empreinte à l'arrivée, repris après une coupure. Le partage est fermé

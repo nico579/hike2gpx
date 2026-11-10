@@ -112,29 +112,22 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   }
   refreshActivity();
   // Le volet des tuiles hors ligne : un seul bloc, que « Gestion des cartes »
-  // ouvre pour les fonds (carrés de 1°) et « Gestion des itinéraires » pour le
-  // routage (cases de 5°). Ouvert, app.js affiche la grille sur la carte.
+  // montre pour les fonds (carrés de 1°) et « Gestion des itinéraires » pour le
+  // routage (cases de 5°), dès que la page est ouverte : la grille est ce qu'on
+  // y vient chercher. Ouvert, app.js affiche la grille sur la carte.
   const offline = document.getElementById("horsLigne");
-  const offlineButtons = [...document.querySelectorAll(".hl-ouvrir")];
+  const offlineAnchors = [...document.querySelectorAll(".hl-ancre")];
   function setOffline(mode) {
-    for (const button of offlineButtons) {
-      const open = button.dataset.hlMode === mode;
-      button.setAttribute("aria-expanded", String(open));
-      button.dataset.i18n = open ? "horsLigne.terminer" : button.dataset.hlTexte;
-      button.textContent = t(button.dataset.i18n);
-      if (!open) continue;
-      button.after(offline);
+    const anchor = offlineAnchors.find(a => a.dataset.hlMode === mode);
+    if (anchor) {
+      anchor.after(offline);
       // Le mode qui compte est celui d'app.js (horsLigne.mode), pas la case :
       // au rechargement, le navigateur restaure la case sans prévenir personne.
       const radio = document.getElementById(mode === "fond" ? "hlFond" : "hlRoutage");
       radio.checked = true;
       if (horsLigne.mode !== mode) radio.dispatchEvent(new Event("change"));
     }
-    offline.hidden = !mode;
-  }
-  for (const button of offlineButtons) {
-    button.addEventListener("click", () =>
-      setOffline(button.getAttribute("aria-expanded") === "true" ? "" : button.dataset.hlMode));
+    offline.hidden = !anchor;
   }
   // Une page du menu, ou aucune ("") : la carte seule.
   function selectPane(name, remember = true) {
@@ -145,7 +138,9 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       else tab.removeAttribute("aria-current");
       document.getElementById(`pane-${tab.dataset.pane}`).hidden = !selected;
     }
-    setOffline("");
+    setOffline({ cartes: "fond", itineraires: "routage" }[name] || "");
+    // La planification, comme le mode du téléphone : seulement sur sa page.
+    planifier(name === "trace");
     if (open) {
       pageTitle.dataset.i18n = `menu.${name}`;
       pageTitle.textContent = t(`menu.${name}`);
@@ -153,6 +148,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     setPanelCollapsed(!open);
     panel.querySelector(".panel-scroll").scrollTop = 0;
     if (name === "reglages") chargerDonnees();
+    if (name === "itineraires") chargerLots();      // la liste des zones stockées localement
+    if (name === "cartes") chargerFonds();          // la même, pour les cartes
     document.body.classList.toggle("sheet-expanded", open && innerWidth <= 700 && name !== "trace");
     if (remember) {
       try { localStorage.setItem(pagePreference, open ? name : ""); } catch (error) {}
@@ -177,6 +174,13 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   menuButton.addEventListener("click", () => setMenuOpen(menu.hidden));
   menuBackdrop.addEventListener("click", () => setMenuOpen(false));
   document.getElementById("aide").addEventListener("click", () => setMenuOpen(false));
+  // « Partager au téléphone » : ouvre le partage et montre son QR code, ou le
+  // remontre s'il est déjà ouvert. Les mêmes boutons que dans les réglages.
+  document.getElementById("menuPartage").addEventListener("click", () => {
+    setMenuOpen(false);
+    const open = !document.getElementById("partageOuvert").hidden;
+    document.getElementById(open ? "revoirQr" : "partagerTelephone").click();
+  });
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !menu.hidden) {
       setMenuOpen(false);
@@ -196,29 +200,22 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   // « Recherche » montre ou replie le champ, en haut de la carte.
   const search = document.getElementById("citySearch");
   const searchEntry = document.getElementById("menuRecherche");
-  const searchPreference = "hike2gpx.searchOpen";
-  function setSearchOpen(open, remember = false) {
+  // Comme sur le téléphone : fermé au chargement, ouvert par le menu, refermé
+  // dès que le lieu trouvé est sur la carte (app.js : hike2gpx:recherche-aboutie).
+  function setSearchOpen(open) {
     search.hidden = !open;
     searchEntry.setAttribute("aria-pressed", String(open));
-    if (!remember) return;
     if (open) document.getElementById("cityQuery").focus();
-    try { localStorage.setItem(searchPreference, String(open)); } catch (error) {}
   }
   searchEntry.addEventListener("click", () => {
     setMenuOpen(false);
-    setSearchOpen(search.hidden, true);
+    setSearchOpen(search.hidden);
   });
-  try { setSearchOpen(localStorage.getItem(searchPreference) === "true"); }
-  catch (error) { setSearchOpen(false); }
+  document.addEventListener("hike2gpx:recherche-aboutie", () => setSearchOpen(false));
+  setSearchOpen(false);
   let savedPage = "";
   try { savedPage = localStorage.getItem(pagePreference) || ""; } catch (error) {}
   selectPane(savedPage, false);
-  // Un premier point posé sur la carte seule ouvre « Planifier un itinéraire » :
-  // ses boutons et l'état du calcul sont là.
-  const removeLast = document.getElementById("retirerDernier");
-  new MutationObserver(() => {
-    if (!removeLast.disabled && document.body.classList.contains("panel-collapsed")) selectPane("trace");
-  }).observe(removeLast, { attributes: true, attributeFilter: ["disabled"] });
   const routeSummary = document.getElementById("routeSummary");
   const result = document.getElementById("resultat");
   const elevationPanel = document.getElementById("elevationPanel");
@@ -419,6 +416,16 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       || layersHost.querySelector(".leaflet-control-layers");
     if (!control) return;
     if (control.parentElement !== layersHost) layersHost.replaceChildren(control);
+    // Le titre de la superposition, au-dessus des coches ; un contrôle recréé
+    // (langue, pays) le perd : il se repose à chaque passage.
+    const overlays = control.querySelector(".leaflet-control-layers-overlays");
+    if (overlays && !control.querySelector(".cartes-calques-titre")) {
+      const title = document.createElement("h3");
+      title.className = "cartes-calques-titre";
+      title.dataset.i18n = "cartes.calquesTitre";
+      title.textContent = t("cartes.calquesTitre");
+      overlays.before(title);
+    }
   }
   syncLayers();
   new MutationObserver(syncLayers).observe(leafletControls, { childList: true });

@@ -27,23 +27,22 @@ const TEXTES = {
     "menu.cartes": "Gestion des cartes",
     "menu.itineraires": "Gestion des itinéraires",
     "menu.trace": "Planifier un itinéraire",
+    "menu.partage": "Partager au téléphone",
     "menu.reglages": "Réglages",
     "menu.aide": "Aide",
     "menu.fermer": "Fermer",
-    "cartes.fondTitre": "Fond de carte et calques",
-    "cartes.horsLigneTitre": "Fonds hors ligne",
-    "cartes.horsLigneNote": "Ce PC fabrique les tuiles d'un fond de carte, par carrés de 1°, pour s'en servir sans réseau et les partager au téléphone.",
-    "cartes.horsLigneBouton": "Choisir les carrés sur la carte",
-    "itineraires.calculTitre": "Calcul des itinéraires",
-    "itineraires.zonesTitre": "Zones de routage sur ce PC",
+    "cartes.fondTitre": "En ligne",
+    "cartes.fondNote": "Les cartes servies par Internet : celles du pays affiché, puis celles du monde. La carte nationale suit le pays du centre de la carte. Le SCAN 25 demande la clé IGN des réglages.",
+    "cartes.calquesTitre": "Superposition des chemins",
+    "cartes.horsLigneTitre": "Téléchargement pour usage hors ligne",
+    "cartes.horsLigneNote": "Ce PC fabrique les fonds de carte par carrés de 1° pour les partager au téléphone, qui s'en sert sans réseau. Ils ne s'affichent pas sur le PC, qui reste en ligne.",
+    "itineraires.calculTitre": "Mode de calcul",
+    "itineraires.zonesTitre": "Zones stockées localement",
     "itineraires.zonesNote": "Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.",
-    "itineraires.zonesBouton": "Choisir les zones sur la carte",
-    "horsLigne.terminer": "Terminer",
     "partage.note": "Le téléphone reçoit de ce PC ses fonds de carte et les zones de routage qu'il a fabriquées, sur le même Wi-Fi.",
     "horsLigne.quoi": "À télécharger",
     "horsLigne.modeRoutage": "Données de routage (cases de 5°)",
     "horsLigne.modeFond": "Fond de carte (carrés de 1°)",
-    "horsLigne.fondChoisi": "Fond téléchargé : {nom}, celui choisi dans la liste du haut.",
     "horsLigne.fondAucun": "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : {liste}.",
     "reglages.afficherLegende": "Afficher la légende",
     "horsLigne.legendeInstalle": "sur ce PC",
@@ -65,13 +64,14 @@ const TEXTES = {
     "horsLigne.selInstallees": "{n} déjà sur ce PC ({taille}).",
     "horsLigne.telecharger": "Télécharger",
     "horsLigne.supprimerSelection": "Supprimer",
-    "horsLigne.supprimerN": "Supprimer les {n} déjà là",
-    "horsLigne.selectionnerVue": "Sélectionner la vue",
-    "horsLigne.viderSelection": "Tout désélectionner",
+    "horsLigne.partager": "Partager",
+    "horsLigne.infoTelechargerFond": "Télécharge sur ce PC le fond choisi en haut, pour les carrés sélectionnés, afin de le partager au téléphone.",
+    "horsLigne.infoTelechargerRoutage": "Télécharge du serveur les zones sélectionnées, ou les fabrique sur ce PC quand le serveur ne les publie pas.",
+    "horsLigne.infoPartager": "Partage au téléphone ce que la sélection a sur ce PC : un QR code s'affiche, à scanner avec hike2gpx sur le téléphone, qui récupère tout d'un coup.",
+    "horsLigne.infoSupprimer": "Supprime de ce PC ce que la sélection y a, après une confirmation qui le détaille.",
     "horsLigne.enAttente": "({n} en attente)",
-    "horsLigne.confirmerSuppressionN": "Retirer de ce PC {n} tuile(s), {taille} en tout ?",
+    "horsLigne.confirmerSuppressionN": "Supprimer de ce PC :\n{liste}\n\n{taille} en tout. Ce qui vient du serveur se retéléchargera si besoin ; un fond ou une zone fabriqué ici serait à refaire.",
     "horsLigne.supprimees": "{n} tuile(s) retirée(s), {taille} libérés.",
-    "horsLigne.tropDeCarres": "La vue touche {n} carrés de 1° : rapprochez-vous ({max} au plus d’un geste).",
     "aide": "Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.",
     "bouton.retirerDernier": "Retirer",
     "bouton.retirerDernierInfo": "Retire le dernier point ajouté au parcours.",
@@ -85,8 +85,8 @@ const TEXTES = {
     "gpx.erreur": "Impossible de charger ce GPX : {message}",
     "gpx.invalide": "fichier GPX invalide ou sans tracé.",
     "gpx.tropGrand": "fichier trop volumineux (20 Mo maximum).",
-    "option.strict": "Mode strict : éviter aussi les passages à vérifier",
-    "option.cheminsRoutables": "Emprunter aussi les {nom} absents d’OSM (à vérifier sur place)",
+    "option.strict": "Inclure les blocages à vérifier",
+    "option.cheminsRoutables": "Inclure les chemins {nom}",
     "option.cheminsAffichage": "{nom} : affichage seul, calcul sur les chemins OSM",
     "option.comparer": "Montrer le tracé qui ignore les barrières",
     "resultat.distance": "Distance",
@@ -170,6 +170,12 @@ const TEXTES = {
     "donnees.vider": "Vider",
     "donnees.actualiser": "Actualiser",
     "donnees.supprimer": "Supprimer",
+    "zones.aucune": "Aucun lot installé.",
+    "zones.enrichi": "enrichi {sources}",
+    "zones.confirmer": "Supprimer de ce PC la zone {nom} ({taille}) ? Celle du serveur se retéléchargera si un parcours y passe.",
+    "zones.supprimee": "Zone {nom} supprimée, {taille} libérés.",
+    "zones.aucuneCarte": "Aucune zone de carte sur ce PC.",
+    "zones.confirmerCarte": "Supprimer de ce PC la zone {nom} de la carte {carte} ({taille}) ? Elle serait à retélécharger pour la partager au téléphone.",
     "donnees.nettoyer": "Nettoyer",
     "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
     "donnees.viderTout": "Vider le cache",
@@ -217,7 +223,6 @@ const TEXTES = {
     "fond.osmRando": "OSM rando",
     "fond.osm": "OSM",
     "fond.satellite": "Satellite",
-    "fond.horsLigne": "Carte hors ligne",
     "attribution.osm": "contributeurs OpenStreetMap",
     "cle.enregistree": "Clé enregistrée : SCAN 25 disponible.",
     "cle.retiree": "Clé retirée : Plan IGN par défaut.",
@@ -248,7 +253,7 @@ const TEXTES = {
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
     "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
-    "partage.ouvert": "Dans hike2gpx sur le téléphone, sur le même Wi-Fi : Réglages, puis « Scanner le QR code d’un PC ». {fonds} fond(s) de carte à prendre. Le code change à chaque partage.",
+    "partage.ouvert": "Partagés : {lots} zone(s) de routage et {fonds} fond(s) de carte, {taille}. Dans hike2gpx sur le téléphone, sur le même Wi-Fi : « Gestion des cartes », puis « Scanner le QR code d’un PC » ; le téléphone demande une confirmation et récupère tout. Le code change à chaque partage.",
     "partage.titre": "Partager au téléphone",
     "partage.pareFeu": "Attention : le pare-feu de Windows n’autorise pas encore hike2gpx, le téléphone ne pourra pas joindre le PC. Rouvrez le partage et acceptez la demande d’autorisation de Windows.",
     "partage.revoir": "Afficher le QR code",
@@ -283,23 +288,22 @@ const TEXTES = {
     "menu.cartes": "Map management",
     "menu.itineraires": "Route management",
     "menu.trace": "Plan a route",
+    "menu.partage": "Share with the phone",
     "menu.reglages": "Settings",
     "menu.aide": "Help",
     "menu.fermer": "Close",
-    "cartes.fondTitre": "Base map and layers",
-    "cartes.horsLigneTitre": "Offline base maps",
-    "cartes.horsLigneNote": "This PC builds the tiles of a base map, in 1° squares, to use them without a network and share them with the phone.",
-    "cartes.horsLigneBouton": "Choose the squares on the map",
-    "itineraires.calculTitre": "Route calculation",
-    "itineraires.zonesTitre": "Routing areas on this PC",
+    "cartes.fondTitre": "Online",
+    "cartes.fondNote": "Maps served over the Internet: those of the country shown, then those of the world. The national map follows the country at the map centre. SCAN 25 needs the IGN key from the settings.",
+    "cartes.calquesTitre": "Path overlays",
+    "cartes.horsLigneTitre": "Download for offline use",
+    "cartes.horsLigneNote": "This PC builds base maps in 1° squares to share them with the phone, which uses them without a network. They are not shown on the PC, which stays online.",
+    "itineraires.calculTitre": "Calculation mode",
+    "itineraires.zonesTitre": "Zones stored locally",
     "itineraires.zonesNote": "Routing areas, in 5° cells, are downloaded from the server; those it does not publish are built on this PC.",
-    "itineraires.zonesBouton": "Choose the areas on the map",
-    "horsLigne.terminer": "Done",
     "partage.note": "The phone gets this PC's base maps and the routing areas it built, on the same Wi-Fi.",
     "horsLigne.quoi": "To download",
     "horsLigne.modeRoutage": "Routing data (5° areas)",
     "horsLigne.modeFond": "Base map (1° squares)",
-    "horsLigne.fondChoisi": "Base map downloaded: {nom}, the one chosen in the list above.",
     "horsLigne.fondAucun": "The base map shown cannot be kept offline. Choose in the list above: {liste}.",
     "reglages.afficherLegende": "Show the legend",
     "horsLigne.legendeInstalle": "on this PC",
@@ -321,13 +325,14 @@ const TEXTES = {
     "horsLigne.selInstallees": "{n} already on this PC ({taille}).",
     "horsLigne.telecharger": "Download",
     "horsLigne.supprimerSelection": "Delete",
-    "horsLigne.supprimerN": "Delete the {n} already here",
-    "horsLigne.selectionnerVue": "Select the view",
-    "horsLigne.viderSelection": "Deselect all",
+    "horsLigne.partager": "Share",
+    "horsLigne.infoTelechargerFond": "Downloads to this PC the base map chosen above, for the selected squares, to share it with the phone.",
+    "horsLigne.infoTelechargerRoutage": "Downloads the selected zones from the server, or builds them on this PC when the server does not publish them.",
+    "horsLigne.infoPartager": "Shares with the phone what the selection has on this PC: a QR code shows, to scan with hike2gpx on the phone, which gets everything at once.",
+    "horsLigne.infoSupprimer": "Deletes from this PC what the selection has there, after a confirmation that lists it.",
     "horsLigne.enAttente": "({n} waiting)",
-    "horsLigne.confirmerSuppressionN": "Remove {n} tile(s) from this PC, {taille} in all?",
+    "horsLigne.confirmerSuppressionN": "Delete from this PC:\n{liste}\n\n{taille} in all. What comes from the server will download again if needed; a base map or zone built here would have to be built again.",
     "horsLigne.supprimees": "{n} tile(s) removed, {taille} freed.",
-    "horsLigne.tropDeCarres": "The view touches {n} 1° squares: zoom in ({max} at most at once).",
     "aide": "Click the map to place the start, then the waypoints and the finish. Drag a point to move it; “Back to start” closes a loop.",
     "bouton.retirerDernier": "Remove",
     "bouton.retirerDernierInfo": "Removes the last point added to the route.",
@@ -341,8 +346,8 @@ const TEXTES = {
     "gpx.erreur": "Unable to load this GPX: {message}",
     "gpx.invalide": "invalid GPX file or no track found.",
     "gpx.tropGrand": "file too large (20 MB maximum).",
-    "option.strict": "Strict mode: also avoid crossings to check",
-    "option.cheminsRoutables": "Also use {nom} missing from OSM (check on site)",
+    "option.strict": "Include crossings to check",
+    "option.cheminsRoutables": "Include {nom} paths",
     "option.cheminsAffichage": "{nom}: map display only; routing uses OSM paths",
     "option.comparer": "Show the route that ignores barriers",
     "resultat.distance": "Distance",
@@ -426,6 +431,12 @@ const TEXTES = {
     "donnees.vider": "Clear",
     "donnees.actualiser": "Refresh",
     "donnees.supprimer": "Delete",
+    "zones.aucune": "No bundle installed.",
+    "zones.enrichi": "enriched {sources}",
+    "zones.confirmer": "Delete the {nom} zone ({taille}) from this PC? The server's will download again if a route goes there.",
+    "zones.supprimee": "Zone {nom} deleted, {taille} freed.",
+    "zones.aucuneCarte": "No map zone on this PC.",
+    "zones.confirmerCarte": "Delete the {nom} zone of the {carte} map ({taille}) from this PC? It would have to be downloaded again to share it with the phone.",
     "donnees.nettoyer": "Clean up",
     "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
     "donnees.viderTout": "Clear cache",
@@ -473,7 +484,6 @@ const TEXTES = {
     "fond.osmRando": "OSM hiking",
     "fond.osm": "OSM",
     "fond.satellite": "Satellite",
-    "fond.horsLigne": "Offline map",
     "attribution.osm": "OpenStreetMap contributors",
     "cle.enregistree": "Key saved: SCAN 25 available.",
     "cle.retiree": "Key removed: Plan IGN by default.",
@@ -504,7 +514,7 @@ const TEXTES = {
     "horsLigne.fondFini": "Base map {nom} ready offline.",
     "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
-    "partage.ouvert": "In hike2gpx on the phone, on the same Wi-Fi: Settings, then “Scan a PC’s QR code”. {fonds} base map(s) to take. The code changes with every share.",
+    "partage.ouvert": "Shared: {lots} routing zone(s) and {fonds} base map(s), {taille}. In hike2gpx on the phone, on the same Wi-Fi: “Map management”, then “Scan a PC’s QR code”; the phone asks for one confirmation and gets everything. The code changes with every share.",
     "partage.titre": "Share with the phone",
     "partage.pareFeu": "Warning: the Windows firewall does not allow hike2gpx yet, so the phone cannot reach the PC. Share again and accept the Windows authorisation request.",
     "partage.revoir": "Show the QR code",
@@ -779,6 +789,11 @@ $("cityQuery").addEventListener("input", () => {
 $("cityQuery").addEventListener("keydown", (e) => {
   if (e.key === "Escape") resultatsVilles.hidden = true;
 });
+// Comme sur le téléphone, le champ de recherche se referme dès que le lieu
+// est sur la carte : presentation.js, qui l'ouvre depuis le menu, l'écoute.
+function rechercheAboutie() {
+  if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:recherche-aboutie"));
+}
 $("citySearch").addEventListener("submit", async (e) => {
   e.preventDefault();
   const recherche = $("cityQuery").value.trim();
@@ -790,6 +805,7 @@ $("citySearch").addEventListener("submit", async (e) => {
     carte.setView([lat, lon], 14);
     memoriserVue(lat, lon, 14);
     resultatsVilles.hidden = true;
+    rechercheAboutie();
     return;
   }
   const numero = ++sequenceRecherche;
@@ -814,6 +830,7 @@ $("citySearch").addEventListener("submit", async (e) => {
         memoriserVue(ville.lat, ville.lon, 13);
         $("cityQuery").value = ville.nom;
         resultatsVilles.hidden = true;
+        rechercheAboutie();
       });
       resultatsVilles.append(bouton);
       premier ||= bouton;
@@ -896,6 +913,13 @@ const NOMS_CALQUES = Object.assign({}, ...Object.values(FOURNISSEURS_CARTES)
     ...(fournisseur.paths?.overlay ? { [fournisseur.paths.overlay]: fournisseur.paths.name } : {}) })));
 function nomCalque(cle) {
   return NOMS_CALQUES[cle]?.[langue] || t(`calque.${cle}`);
+}
+// Le nom d'une coche de « Superposition des chemins » : la source seule
+// (« OSM », « IGN », « ATKIS »…), le titre de la section disant le reste.
+// Les autres calques (sentiers balisés d'un pays) gardent leur nom.
+function nomCoche(cle) {
+  if (cle === "osm") return "OSM";
+  return CHEMINS_OFFICIELS[cle]?.label || nomCalque(cle);
 }
 function nomFond(cle) {
   return FOURNISSEURS_CARTES[paysCarte]?.baseNames?.[cle]?.[langue] || t(`fond.${cle}`);
@@ -1291,7 +1315,7 @@ function afficherOptionChemins() {
   $("ign").disabled = !routable;
   $("ign").checked = routable && choixIgn;
   if (couche) $("ignOptionTexte").textContent = t(routable ? "option.cheminsRoutables" : "option.cheminsAffichage",
-    { nom: routable ? (fournisseur.paths.routeName || fournisseur.paths.name)[langue] : nomCalque(couche) });
+    { nom: routable ? fournisseur.paths.label : nomCalque(couche) });
 }
 
 // ------------------------------------------------------------ données OSM hors ligne
@@ -1425,7 +1449,6 @@ function construireFonds() {
   couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
-  if (fondsAffichables().length) couchesFonds.horsLigne = coucheHorsLigne();
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
   const defaut = FOURNISSEURS_CARTES[paysCarte].defaultBase;
@@ -1436,9 +1459,9 @@ function construireFonds() {
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [nomFond(cle), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES)
     .filter(([cle]) => cle === "osm" || calquesDuPays().includes(cle))
-    .map(([cle, c]) => [nomCalque(cle), c.groupe]));
+    .map(([cle, c]) => [nomCoche(cle), c.groupe]));
   for (const cle of calquesDuPays()) {
-    if (CALQUES_PAYS[cle]) calques[nomCalque(cle)] = CALQUES_PAYS[cle];
+    if (CALQUES_PAYS[cle]) calques[nomCoche(cle)] = CALQUES_PAYS[cle];
   }
   if (nomGpxImporte) calques[echapper(nomGpxImporte)] = traceGpxImporte;
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
@@ -1453,9 +1476,7 @@ function construireFonds() {
 // préparation à la fois), suivies dans le volet. Le partage au téléphone suit.
 const CASE_DEG = 5;
 const ZOOM_CARRES = 7;      // en deçà, trop de carrés à l'écran pour être lisibles
-const ZOOM_CASES = 6;       // la grille des cases dézoome jusque-là (demande de Nico du 2026-10-28)
 const CARRES_MAX_ECRAN = 400;
-const CARRES_MAX_VUE = 9;   // « Sélectionner la vue » : au-delà, se rapprocher
 // Mesures du 2026-11-05 (fonds.py) : un carré de fond, environ 1 Go et 35 min ;
 // un lot fabriqué sur ce PC, environ une heure.
 const FOND_CARRE_OCTETS = 1e9;
@@ -1487,27 +1508,6 @@ let fondsInstalles = [];
 // Le volet : ouvert ou non, le mode, la source du fond, la sélection, la file.
 const horsLigne = { actif: false, mode: "routage", selection: new Set(), file: [], message: "" };
 
-// Un seul fond « Carte hors ligne » : une couche par fichier, bornée à sa
-// zone, la moins fine dessous, chacune agrandie au-delà de son zoom le plus fin.
-// Les fonds en images, que la page sait afficher. Une carte vectorielle
-// (format « map ») est faite pour le téléphone, qui la dessine lui-même :
-// sur le PC, OpenStreetMap reste en ligne.
-function fondsAffichables() {
-  return fondsInstalles.filter((f) => f.format !== "map");
-}
-
-function coucheHorsLigne() {
-  const groupe = L.layerGroup();
-  const ordre = fondsAffichables().sort((a, b) => a.zoom[1] - b.zoom[1]);
-  for (const f of ordre) {
-    const [s, o, n, e] = f.zone;
-    L.tileLayer(`/fonds/${encodeURIComponent(f.nom)}/{z}/{x}/{y}`, { bounds: [[s, o], [n, e]],
-      minNativeZoom: f.zoom[0], maxNativeZoom: f.zoom[1], maxZoom: 19,
-      attribution: echapper(f.attribution || "© IGN") }).addTo(groupe);
-  }
-  return groupe;
-}
-
 // Relus au démarrage et après chaque préparation : un fond de plus ou de
 // moins refait le contrôle des fonds et la grille.
 async function chargerFonds() {
@@ -1516,6 +1516,49 @@ async function chargerFonds() {
     fondsInstalles = (await api("hors_ligne")).fonds || [];
     if (JSON.stringify(fondsInstalles.map((f) => f.nom)) !== avant) { construireFonds(); dessinerCases(); }
   } catch (_) { /* serveur injoignable : pas de fond hors ligne */ }
+  afficherZonesCartes();
+}
+
+// « Zones stockées localement » de « Gestion des cartes » : une carte (le
+// SCAN 25, OpenStreetMap…) est globale, ce que le PC en garde n'en est qu'un
+// morceau, une zone de 1°. Toutes les cartes y sont, pas seulement celle
+// qu'affiche la grille : une ligne par zone, sa carte et sa taille, et
+// « Supprimer » après confirmation, pour cette carte seule.
+function afficherZonesCartes() {
+  const titres = etat.fondsHorsLigne || {};
+  const lignes = [...fondsInstalles].sort((a, b) => a.nom.localeCompare(b.nom)).map((f) => {
+    const [carre, source] = [f.nom.split("-", 1)[0], f.nom.slice(f.nom.indexOf("-") + 1)];
+    const li = document.createElement("li");
+    const texte = document.createElement("span");
+    texte.textContent = `${carre} · ${titres[source] || source} · ${tailleTexte(f.octets)}`;
+    li.append(texte);
+    // Un ancien fond nommé par sa case de 5° ne se supprime pas d'ici.
+    if (/^[NS]\d{2}[EW]\d{3}$/.test(carre)) {
+      const supprimer = document.createElement("button");
+      supprimer.type = "button";
+      supprimer.textContent = t("donnees.supprimer");
+      supprimer.addEventListener("click", () => supprimerZoneCarte(carre, source, f.octets));
+      li.append(supprimer);
+    }
+    return li;
+  });
+  if (!lignes.length) {
+    const vide = document.createElement("li");
+    vide.className = "note";
+    vide.textContent = t("zones.aucuneCarte");
+    lignes.push(vide);
+  }
+  $("zonesCartes").replaceChildren(...lignes);
+}
+
+async function supprimerZoneCarte(carre, source, octets) {
+  const carte = (etat.fondsHorsLigne || {})[source] || source;
+  if (!confirm(t("zones.confirmerCarte", { nom: carre, carte, taille: tailleTexte(octets) }))) return;
+  let r;
+  try { r = await api("supprimer_fond", { carre, source }); } catch (e) { r = { erreur: e.message }; }
+  if (r.erreur) afficherLot({ case: carre, erreur: r.erreur });
+  else afficherFile(t("zones.supprimee", { nom: carre, taille: tailleTexte(r.octets || 0) }));
+  await chargerFonds();
 }
 
 function nomCase(lat, lon) {
@@ -1598,7 +1641,7 @@ function etatCarre(carre) {
 
 // Sur un fond chargé (SCAN 25, relief), un voile de 5 à 8 % ne se voyait
 // pas : traits pleins et épais, fonds francs ; seule la tuile vide reste
-// discrète. Les mêmes couleurs que la légende de le volet.
+// discrète. Les mêmes couleurs que la légende du volet.
 const STYLES_CASE = {
   prete: { color: "#1b7a3e", weight: 3, fillColor: "#23a04f", fillOpacity: 0.3 },
   encours: { color: "#e07b00", weight: 3, dashArray: "8 5", fillColor: "#e07b00", fillOpacity: 0.25 },
@@ -1691,11 +1734,12 @@ function bilanSelection() {
       octets: aTelecharger.reduce((somme, nom) => somme + (serveur(nom).octets || 0), 0),
       octetsInstalles: installees.reduce((somme, nom) => somme + (installee(nom).octets || 0), 0) };
   }
+  // Seul compte le fond choisi dans la liste : un carré qui a un SCAN 25 mais
+  // pas de Plan IGN est à télécharger en Plan IGN, pas « déjà là ».
   const aFaire = noms.filter((carre) => !fondDuCarre(carre));
-  const installees = noms.filter((carre) => fondsInstalles.some((f) => f.nom.startsWith(`${carre}-`)));
+  const installees = noms.filter((carre) => fondDuCarre(carre));
   return { noms, aFaire, installees, octets: aFaire.length * coutCarre(sourceFond())[0],
-    octetsInstalles: installees.reduce((somme, carre) => somme + fondsInstalles
-      .filter((f) => f.nom.startsWith(`${carre}-`)).reduce((s, f) => s + (f.octets || 0), 0), 0) };
+    octetsInstalles: installees.reduce((somme, carre) => somme + (fondDuCarre(carre).octets || 0), 0) };
 }
 
 function afficherSelection() {
@@ -1709,11 +1753,9 @@ function afficherSelection() {
   // liste du haut ; s'il ne se garde pas hors ligne, il dit lesquels choisir.
   const titres = etat.fondsHorsLigne || {};
   const source = sourceFond();
-  $("hlFondChoisi").hidden = routage;
-  $("hlFondChoisi").textContent = routage ? "" : source ? t("horsLigne.fondChoisi", { nom: titres[source] })
-    : t("horsLigne.fondAucun", { liste: Object.entries(titres)
+  $("hlFondChoisi").hidden = routage || Boolean(source);
+  $("hlFondChoisi").textContent = routage || source ? "" : t("horsLigne.fondAucun", { liste: Object.entries(titres)
       .filter(([cle]) => couchesFonds[cle] && (cle !== "scan25" || etat.cleIgn)).map(([, titre]) => titre).join(", ") });
-  $("hlVue").hidden = routage;
   $("hlLegendeServeur").hidden = !routage;
   const b = bilanSelection();
   const parties = [];
@@ -1726,9 +1768,11 @@ function afficherSelection() {
   if (b.installees.length) parties.push(t("horsLigne.selInstallees", { n: b.installees.length, taille: tailleTexte(b.octetsInstalles) }));
   $("hlSelection").textContent = b.noms.length ? parties.join(" ") || t("horsLigne.selRien") : t("horsLigne.selVide");
   $("hlTelecharger").disabled = !b.aFaire.length || (!routage && !sourceFond());
+  // La bulle de « Télécharger » dit ce qu'il fait ici : un fond, ou des zones.
+  $("hlTelechargerInfo").textContent = t(routage ? "horsLigne.infoTelechargerRoutage" : "horsLigne.infoTelechargerFond");
+  // Ce qui est sur ce PC dans la sélection se partage au téléphone, seul.
+  $("hlPartager").hidden = !b.installees.length;
   $("hlSupprimer").hidden = !b.installees.length;
-  $("hlSupprimer").textContent = t("horsLigne.supprimerN", { n: b.installees.length });
-  $("hlVider").disabled = !b.noms.length;
 }
 
 // Télécharger : la sélection rejoint la file, qui part tout de suite si rien ne se prépare.
@@ -1778,11 +1822,17 @@ function afficherFile(message) {
 async function supprimerSelection() {
   const b = bilanSelection();
   if (!b.installees.length) return;
-  if (!confirm(t("horsLigne.confirmerSuppressionN", { n: b.installees.length, taille: tailleTexte(b.octetsInstalles) }))) return;
+  // La confirmation nomme ce qui part : chaque zone ou carré, le fond et la taille.
+  const routage = horsLigne.mode === "routage";
+  const titre = (etat.fondsHorsLigne || {})[sourceFond()] || sourceFond();
+  const liste = b.installees.map((nom) => routage
+    ? `• ${nom} · ${tailleTexte(lotsInstalles.find((l) => l.case === nom)?.octets || 0)}`
+    : `• ${nom} · ${titre} · ${tailleTexte(fondDuCarre(nom)?.octets || 0)}`).join("\n");
+  if (!confirm(t("horsLigne.confirmerSuppressionN", { liste, taille: tailleTexte(b.octetsInstalles) }))) return;
   let octets = 0;
   for (const nom of b.installees) {
     const r = horsLigne.mode === "routage" ? await api("supprimer_case", { case: nom, fonds: false })
-      : await api("supprimer_fond", { carre: nom });
+      : await api("supprimer_fond", { carre: nom, source: sourceFond() });
     if (r.erreur) afficherLot({ case: nom, erreur: r.erreur });
     else octets += r.octets || 0;
   }
@@ -1792,32 +1842,19 @@ async function supprimerSelection() {
   chargerFonds();
 }
 
-// En mode fond : les carrés que touche la vue, d'un geste.
-function selectionnerVue() {
-  const b = carte.getBounds();
-  const carres = carresZone([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]);
-  if (carres.length > CARRES_MAX_VUE) {
-    $("hlSelection").textContent = t("horsLigne.tropDeCarres", { n: carres.length, max: CARRES_MAX_VUE });
-    return;
-  }
-  for (const carre of carres) if (!enFile(carre)) horsLigne.selection.add(carre);
-  dessinerCases();
-}
-
 function changerMode(mode) {
   horsLigne.mode = mode;
   horsLigne.selection.clear();
-  if (mode === "routage" && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
   dessinerCases();
 }
 
-// Le volet ouvert, la grille paraît ; quitté, la carte revient au tracé.
+// Le volet ouvert, la grille paraît, sans toucher au zoom : ouvrir la page pour
+// cocher une option ne fait pas perdre la vue ; quitté, la carte revient au tracé.
 function activerHorsLigne(actif) {
   if (horsLigne.actif === actif) return;
   horsLigne.actif = actif;
   if (actif) {
     grilleCases.addTo(carte);
-    if (horsLigne.mode === "routage" && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
     chargerLots();
   } else {
     grilleCases.remove();
@@ -1826,30 +1863,84 @@ function activerHorsLigne(actif) {
 }
 
 async function chargerLots() {
-  // Volet fermé : rien à lire, la grille n'est pas affichée.
-  if (horsLigne.actif) {
+  // Rien à lire tant que ni la grille ni la page « Gestion des itinéraires »
+  // (sa liste des zones stockées localement) ne sont affichées.
+  if (horsLigne.actif || !$("pane-itineraires").hidden) {
     try {
       lotsInstalles = (await api("hors_ligne")).lots || [];
     } catch (_) { /* serveur injoignable : la grille reste vide */ }
     // Le catalogue du dépôt vient de GitHub, parfois en quelques secondes : la
     // grille n'attend pas, elle se redessine à son arrivée.
-    api("catalogue_lots").then((r) => { lotsServeur = r.lots || []; dessinerCases(); })
+    api("catalogue_lots").then((r) => { lotsServeur = r.lots || []; dessinerCases(); afficherZonesLocales(); })
       .catch(() => { lotsServeur = []; });
   }
   dessinerCases();
+  afficherZonesLocales();
 }
 
-// La langue a changé : les textes de le volet suivent.
+// « Zones stockées localement », comme la page du téléphone : une ligne par
+// lot installé, sa source et sa taille, « Mettre à jour » quand le serveur en
+// publie un plus récent, et « Supprimer » après confirmation.
+function afficherZonesLocales() {
+  const liste = $("zonesLocales");
+  const lignes = [...lotsInstalles].sort((a, b) => a.case.localeCompare(b.case)).map((l) => {
+    const li = document.createElement("li");
+    const texte = document.createElement("span");
+    // Les sources du manifeste : OSM et le relief sont dans tous les lots ; les
+    // chemins nationaux, nommés par leur calque (bdtopo) ou leur source (ign),
+    // prennent le nom court du pays, comme sur le téléphone (« enrichi IGN »).
+    const sources = Object.keys(l.sources || {}).filter((cle) => !["osm", "relief"].includes(cle))
+      .map((cle) => Object.values(FOURNISSEURS_CARTES)
+        .find((p) => p.paths?.source === cle || p.paths?.overlay === cle)?.paths.label || cle);
+    const origine = l.type === "osm" || !sources.length ? "OSM" : t("zones.enrichi", { sources: sources.join(" + ") });
+    texte.textContent = `${l.case} · ${origine} · ${tailleTexte(l.octets)}`;
+    li.append(texte);
+    if (lotsServeur.find((s) => s.case === l.case)?.etat === "ancien") {
+      const maj = document.createElement("button");
+      maj.type = "button";
+      maj.textContent = t("horsLigne.mettreAJour");
+      maj.addEventListener("click", () => {
+        horsLigne.file.push({ genre: "lot", nom: l.case, action: "telecharger" });
+        if (!lotEnCours.actif) lancerSuivant(); else afficherFile();
+      });
+      li.append(maj);
+    }
+    const supprimer = document.createElement("button");
+    supprimer.type = "button";
+    supprimer.textContent = t("donnees.supprimer");
+    supprimer.addEventListener("click", () => supprimerZone(l));
+    li.append(supprimer);
+    return li;
+  });
+  if (!lignes.length) {
+    const vide = document.createElement("li");
+    vide.className = "note";
+    vide.textContent = t("zones.aucune");
+    lignes.push(vide);
+  }
+  liste.replaceChildren(...lignes);
+}
+
+async function supprimerZone(l) {
+  if (!confirm(t("zones.confirmer", { nom: l.case, taille: tailleTexte(l.octets) }))) return;
+  let r;
+  try { r = await api("supprimer_case", { case: l.case, fonds: false }); } catch (e) { r = { erreur: e.message }; }
+  if (r.erreur) afficherLot({ case: l.case, erreur: r.erreur });
+  else afficherFile(t("zones.supprimee", { nom: l.case, taille: tailleTexte(r.octets || 0) }));
+  await chargerLots();
+}
+
+// La langue a changé : les textes du volet suivent.
 function afficherEntreeHorsLigne() {
   afficherSelection();
+  afficherZonesLocales();
+  afficherZonesCartes();
 }
 
 $("hlRoutage").addEventListener("change", () => changerMode("routage"));
 $("hlFond").addEventListener("change", () => changerMode("fond"));
 $("hlTelecharger").addEventListener("click", telechargerSelection);
 $("hlSupprimer").addEventListener("click", supprimerSelection);
-$("hlVider").addEventListener("click", () => { horsLigne.selection.clear(); dessinerCases(); });
-$("hlVue").addEventListener("click", selectionnerVue);
 $("hlArreter").addEventListener("click", () => { horsLigne.file = []; arreterLot(); });
 carte.on("moveend", dessinerCases);
 // La grille suit le volet des tuiles, que presentation.js ouvre depuis
@@ -1879,17 +1970,25 @@ function afficherPartage(r, montrer = false) {
   $("partageFenetre").hidden = !(r.ouvert && montrer);
 }
 
-async function basculerPartage(ouvrir) {
+// selection : {lots, carres}, ce que le volet de la grille a choisi ; sans
+// elle (l'entrée du menu), tout ce qui est sur ce PC.
+async function basculerPartage(ouvrir, selection = null) {
   try {
-    afficherPartage(await api("partage", { ouvrir }), ouvrir);
+    afficherPartage(await api("partage", { ouvrir, ...(selection || {}) }), ouvrir);
   } catch (e) {
     afficherPartage({ ouvert: false, erreur: e.message });
   }
 }
 $("partagerTelephone").addEventListener("click", () => basculerPartage(true));
+$("hlPartager").addEventListener("click", () => {
+  const b = bilanSelection();
+  basculerPartage(true, horsLigne.mode === "routage" ? { lots: b.installees, carres: [] }
+    : { lots: [], carres: b.installees, source: sourceFond() });
+});
 $("fermerPartage").addEventListener("click", () => basculerPartage(false));
 $("revoirQr").addEventListener("click", () => { if (etat.partage?.ouvert) $("partageFenetre").hidden = false; });
 $("fermerFenetrePartage").addEventListener("click", () => { $("partageFenetre").hidden = true; });
+$("arreterPartageFenetre").addEventListener("click", () => basculerPartage(false));
 $("partageFenetre").addEventListener("click", (e) => { if (e.target === $("partageFenetre")) $("partageFenetre").hidden = true; });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("partageFenetre").hidden = true; });
 
@@ -1957,7 +2056,7 @@ async function suivreLot() {
   } else {
     await chargerLots();
     chargerFonds();         // sans l'attendre : la grille est déjà à jour
-    if (horsLigne.file.length) lancerSuivant();     // la tuile suivante de le volet « Hors ligne »
+    if (horsLigne.file.length) lancerSuivant();     // la tuile suivante du volet « Hors ligne »
     if (lotSuivi) {
       // Le lot est arrivé (ou a échoué) : les calques et le calcul qui
       // l'attendaient repartent, sur lui ou à la volée.
@@ -2583,7 +2682,16 @@ function supprimerGpx() {
 
 // ------------------------------------------------------------ démarrage
 
-carte.on("click", (e) => ajouterPoint(e.latlng));
+// Comme sur le téléphone, un clic sur la carte ne pose un point qu'en
+// planification : la page « Planifier un itinéraire » ouverte, que
+// presentation.js annonce par planifier(). Ailleurs, la carte se consulte
+// sans rien y poser ; les points déjà posés et le tracé restent.
+let planification = false;
+function planifier(actif) {
+  planification = actif;
+  document.body.classList.toggle("planification", actif);
+}
+carte.on("click", (e) => { if (planification) ajouterPoint(e.latlng); });
 $("retirerDernier").addEventListener("click", () => { const p = etat.points.at(-1); if (p) retirerPoint(p); });
 $("boucler").addEventListener("click", boucler);
 $("toutEffacer").addEventListener("click", () => {
