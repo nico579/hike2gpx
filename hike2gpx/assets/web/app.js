@@ -64,7 +64,11 @@ const TEXTES = {
     "horsLigne.selInstallees": "{n} déjà sur ce PC ({taille}).",
     "horsLigne.telecharger": "Télécharger",
     "horsLigne.supprimerSelection": "Supprimer",
-    "horsLigne.partager": "Partager au téléphone",
+    "horsLigne.partager": "Partager",
+    "horsLigne.infoTelechargerFond": "Télécharge sur ce PC le fond choisi en haut, pour les carrés sélectionnés, afin de le partager au téléphone.",
+    "horsLigne.infoTelechargerRoutage": "Télécharge du serveur les zones sélectionnées, ou les fabrique sur ce PC quand le serveur ne les publie pas.",
+    "horsLigne.infoPartager": "Partage au téléphone ce que la sélection a sur ce PC : un QR code s'affiche, à scanner avec hike2gpx sur le téléphone, qui récupère tout d'un coup.",
+    "horsLigne.infoSupprimer": "Supprime de ce PC ce que la sélection y a, après une confirmation qui le détaille.",
     "horsLigne.enAttente": "({n} en attente)",
     "horsLigne.confirmerSuppressionN": "Supprimer de ce PC :\n{liste}\n\n{taille} en tout. Ce qui vient du serveur se retéléchargera si besoin ; un fond ou une zone fabriqué ici serait à refaire.",
     "horsLigne.supprimees": "{n} tuile(s) retirée(s), {taille} libérés.",
@@ -319,7 +323,11 @@ const TEXTES = {
     "horsLigne.selInstallees": "{n} already on this PC ({taille}).",
     "horsLigne.telecharger": "Download",
     "horsLigne.supprimerSelection": "Delete",
-    "horsLigne.partager": "Share with the phone",
+    "horsLigne.partager": "Share",
+    "horsLigne.infoTelechargerFond": "Downloads to this PC the base map chosen above, for the selected squares, to share it with the phone.",
+    "horsLigne.infoTelechargerRoutage": "Downloads the selected zones from the server, or builds them on this PC when the server does not publish them.",
+    "horsLigne.infoPartager": "Shares with the phone what the selection has on this PC: a QR code shows, to scan with hike2gpx on the phone, which gets everything at once.",
+    "horsLigne.infoSupprimer": "Deletes from this PC what the selection has there, after a confirmation that lists it.",
     "horsLigne.enAttente": "({n} waiting)",
     "horsLigne.confirmerSuppressionN": "Delete from this PC:\n{liste}\n\n{taille} in all. What comes from the server will download again if needed; a base map or zone built here would have to be built again.",
     "horsLigne.supprimees": "{n} tile(s) removed, {taille} freed.",
@@ -1713,6 +1721,8 @@ function afficherSelection() {
   if (b.installees.length) parties.push(t("horsLigne.selInstallees", { n: b.installees.length, taille: tailleTexte(b.octetsInstalles) }));
   $("hlSelection").textContent = b.noms.length ? parties.join(" ") || t("horsLigne.selRien") : t("horsLigne.selVide");
   $("hlTelecharger").disabled = !b.aFaire.length || (!routage && !sourceFond());
+  // La bulle de « Télécharger » dit ce qu'il fait ici : un fond, ou des zones.
+  $("hlTelechargerInfo").textContent = t(routage ? "horsLigne.infoTelechargerRoutage" : "horsLigne.infoTelechargerFond");
   // Ce qui est sur ce PC dans la sélection se partage au téléphone, seul.
   $("hlPartager").hidden = !b.installees.length;
   $("hlSupprimer").hidden = !b.installees.length;

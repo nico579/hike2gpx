@@ -173,8 +173,12 @@ body.profile-collapsed .map-activity{bottom:81px}
 .hl-pastille.encours{border-color:#e07b00;background:#e07b0055}
 .hl-pastille.serveur{border-color:#1565c0;background:transparent}
 /* Les boutons du volet : un par ligne, chacun avec son icône. */
-.hl-actions{display:grid;justify-items:start;gap:8px;margin:8px 0}
-.hl-actions button{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1.5px solid #6f9bd6;border-radius:8px;background:#fff;color:#1d4f96;font-size:12px;font-weight:600;box-shadow:0 1px 3px #1b354526;cursor:pointer}
+/* Les boutons du volet sur une ligne ; leur bulle au survol, comme ceux du tracé.
+   Un bouton masqué emporte sa bulle. */
+.hl-actions{display:flex;flex-wrap:nowrap;gap:6px;margin:8px 0}
+.hl-actions .action-control{display:inline-block}
+.hl-actions .action-control:has(>button[hidden]){display:none}
+.hl-actions button{display:inline-flex;align-items:center;gap:5px;padding:7px 9px;white-space:nowrap;border:1.5px solid #6f9bd6;border-radius:8px;background:#fff;color:#1d4f96;font-size:12px;font-weight:600;box-shadow:0 1px 3px #1b354526;cursor:pointer}
 .hl-actions button:hover:not(:disabled){background:#eef5ff}
 /* « Télécharger », l'action principale, en bleu plein comme « Exporter le GPX » ;
    « Supprimer » en rouge, pour qu'on ne le prenne pas pour un autre. */
