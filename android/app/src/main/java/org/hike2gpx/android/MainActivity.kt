@@ -1024,7 +1024,6 @@ class MainActivity : Activity() {
 
         // Les fonds d'un PC : son QR code l'ajoute, puis ses fonds manquants se téléchargent.
         titre(colonne, R.string.cartes_a_telecharger)
-        colonne.addView(TextView(this).apply { setText(R.string.aide_qr); textSize = 12f })
         val proposes = fondsProposes(cataloguesPc ?: emptyList(), installes.map { it.nameWithoutExtension }.toSet())
         for ((source, fond) in proposes) {
             colonne.addView(Button(this).apply {
@@ -1041,7 +1040,6 @@ class MainActivity : Activity() {
                 setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirCartes() } }
             })
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
-        colonne.addView(Button(this).apply { setText(R.string.coller_lien); setOnClickListener { collerLien() } })
 
         // Les PC déjà ajoutés se retirent ici, comme la source GitHub reste fixe.
         if (reglages.pcs().isNotEmpty()) {
@@ -1074,7 +1072,7 @@ class MainActivity : Activity() {
         })
         for (fournisseur in fournisseursDisponibles()) {
             colonne.addView(CheckBox(this).apply {
-                text = getString(R.string.calque_fournisseur, fournisseur.nom)
+                text = fournisseur.court
                 isChecked = reglages.calqueOfficiel(fournisseur.cle)
                 setOnCheckedChangeListener { _, v ->
                     reglages.changerCalqueOfficiel(fournisseur.cle, v)
@@ -1083,10 +1081,6 @@ class MainActivity : Activity() {
                 }
             })
         }
-        colonne.addView(TextView(this).apply {
-            text = getString(R.string.calque_aide, String.format(Locale.getDefault(), "%.1f", carte.zoomLevelDouble))
-            textSize = 12f
-        })
     }
 
     /** Un fond effacé après confirmation ; s'il était affiché et que sa source disparaît, la carte revient en ligne. */
@@ -1841,23 +1835,6 @@ class MainActivity : Activity() {
         } catch (e: ErreurDepot) {
             etat.text = texte(e)
         }
-    }
-
-    private fun collerLien() {
-        val champ = EditText(this).apply { hint = "hike2gpx://depot?url=…&jeton=…"; setSingleLine(true) }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.coller_lien)
-            .setMessage(R.string.aide_qr)
-            .setView(champ)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                try {
-                    ajouterPc(LienDepot.lire(champ.text.toString()))
-                } catch (e: ErreurDepot) {
-                    etat.text = texte(e)
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
     }
 
     /** Toujours confirmé : une page web pourrait ouvrir un tel lien à l'insu de l'utilisateur. */
