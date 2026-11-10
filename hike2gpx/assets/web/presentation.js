@@ -419,6 +419,16 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       || layersHost.querySelector(".leaflet-control-layers");
     if (!control) return;
     if (control.parentElement !== layersHost) layersHost.replaceChildren(control);
+    // Le titre de la superposition, au-dessus des coches ; un contrôle recréé
+    // (langue, pays) le perd : il se repose à chaque passage.
+    const overlays = control.querySelector(".leaflet-control-layers-overlays");
+    if (overlays && !control.querySelector(".cartes-calques-titre")) {
+      const title = document.createElement("h3");
+      title.className = "cartes-calques-titre";
+      title.dataset.i18n = "cartes.calquesTitre";
+      title.textContent = t("cartes.calquesTitre");
+      overlays.before(title);
+    }
   }
   syncLayers();
   new MutationObserver(syncLayers).observe(leafletControls, { childList: true });

@@ -221,8 +221,7 @@ test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et 
   page.construireFonds();
   page.dessinerCases();
   assert.equal(page.sourceAGarder(), "plan");
-  assert.equal(elements.get("hlFondChoisi").hidden, false);
-  assert.equal(elements.get("hlFondChoisi").textContent, "Fond téléchargé : Plan IGN, celui choisi dans la liste du haut.");
+  assert.equal(elements.get("hlFondChoisi").hidden, true, "le fond choisi se garde : rien à dire");
   // Un fond qui ne se garde pas hors ligne : le volet dit lequel choisir (pas le SCAN 25, sans clé IGN).
   carte.handlers.baselayerchange({ layer: page.fonds().osm });
   assert.equal(page.sourceAGarder(), null);
@@ -376,7 +375,7 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   assert.equal(page.traceGpxImporte.layers[1].options.color, "#ffe14a");
   assert.equal(JSON.stringify(carte.fit.bounds), "[[43.3,6],[43.31,6.02]]");
   assert.deepEqual(Object.keys(page.controle().calques),
-    ["Chemins OSM", "Chemins BD TOPO (IGN)", "2026-09-20_09-03"]);
+    ["OSM", "IGN", "2026-09-20_09-03"]);
   assert.equal(elements.get("legendGpx").hidden, false);
   page.traceGpxImporte.remove();
   carte.handlers["overlayadd overlayremove"]({ layer: page.traceGpxImporte, type: "overlayremove" });
@@ -631,7 +630,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.deepEqual(Object.keys(page.controle().fonds), ["Carte topographique (IGN Espagne)", "OSM rando", "OSM", "Satellite"]);
   assert.match(page.fonds().osmRando.url, /tile\.opentopomap\.org/);
   assert.match(page.fonds().satellite.url, /World_Imagery/);
-  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM", "Sentiers balisés GR/PR/SL (IGN Espagne)"]);
+  assert.deepEqual(Object.keys(page.controle().calques), ["OSM", "Sentiers balisés GR/PR/SL (IGN Espagne)"]);
   assert.equal(page.fonds().reliefLidar, undefined);
   assert.match(page.fond().url, /ign\.es\/wmts\/mapa-raster/);
   assert.equal(page.CALQUES.bdtopo.groupe.removed, true);
@@ -721,11 +720,11 @@ test("Autriche et Pays-Bas affichent leur fond officiel et seulement les chemins
   const { page, elements } = charger();
   page.choisirPays("at");
   assert.match(page.fond().url, /mapsneu\.wien\.gv\.at\/basemap/);
-  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.deepEqual(Object.keys(page.controle().calques), ["OSM"]);
   assert.equal(elements.get("ignOption").hidden, true);
   page.choisirPays("nl");
   assert.match(page.fond().url, /service\.pdok\.nl\/kadaster\/brt-achtergrondkaart/);
-  assert.deepEqual(Object.keys(page.controle().calques), ["Chemins OSM"]);
+  assert.deepEqual(Object.keys(page.controle().calques), ["OSM"]);
   assert.equal(elements.get("ignOption").hidden, true);
 });
 
@@ -735,7 +734,7 @@ test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => 
   assert.match(page.fond().url, /sgx\.geodatenzentrum\.de\/wmts_topplus_open\/tile\/1\.0\.0\/web\/default\/WEBMERCATOR\/\{z\}\/\{y\}\/\{x\}\.png/);
   assert.match(page.fond().options.attribution, /BKG.*dl-de\/by-2-0.*Datenquellen/);
   assert.deepEqual(Object.keys(page.controle().calques),
-    ["Chemins OSM", "Chemins ATKIS (Allemagne)"]);
+    ["OSM", "ATKIS"]);
   assert.match(page.CALQUES.atkis.groupe.getAttribution(), /GeoBasis-DE.*GDI-Th.*BVV.*CC BY 4\.0/);
   assert.equal(elements.get("legendRows").enfants.find((ligne) => ligne.dataset.mapOverlay === "atkis").hidden, false);
   assert.equal(elements.get("ignOption").hidden, false);
@@ -766,7 +765,7 @@ test("les nouveaux providers transmettent leur source au calcul, la BDOT10k dans
       assert.equal(page.fond().options.layers, "Raster");
       assert.equal(page.fond().options.crs.code, "EPSG:4326");
     }
-    assert.ok(page.controle().calques[page.providers[pays].paths.name.fr]);
+    assert.ok(page.controle().calques[page.providers[pays].paths.label], "la coche porte le nom court");
     assert.equal(elements.get("ign").disabled, false);
     page.etat.points = [{ lat: centre[0], lon: centre[1] },
       { lat: centre[0] + 0.001, lon: centre[1] + 0.001 }];

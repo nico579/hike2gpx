@@ -30,8 +30,9 @@ const TEXTES = {
     "menu.reglages": "Réglages",
     "menu.aide": "Aide",
     "menu.fermer": "Fermer",
-    "cartes.fondTitre": "Fond de carte et calques",
-    "cartes.horsLigneTitre": "Fonds hors ligne",
+    "cartes.fondTitre": "En ligne",
+    "cartes.calquesTitre": "Superposition des chemins",
+    "cartes.horsLigneTitre": "Téléchargement pour usage hors ligne",
     "cartes.horsLigneNote": "Ce PC fabrique les tuiles d'un fond de carte, par carrés de 1°, pour s'en servir sans réseau et les partager au téléphone.",
     "cartes.horsLigneBouton": "Choisir les carrés sur la carte",
     "itineraires.calculTitre": "Calcul des itinéraires",
@@ -43,7 +44,6 @@ const TEXTES = {
     "horsLigne.quoi": "À télécharger",
     "horsLigne.modeRoutage": "Données de routage (cases de 5°)",
     "horsLigne.modeFond": "Fond de carte (carrés de 1°)",
-    "horsLigne.fondChoisi": "Fond téléchargé : {nom}, celui choisi dans la liste du haut.",
     "horsLigne.fondAucun": "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : {liste}.",
     "reglages.afficherLegende": "Afficher la légende",
     "horsLigne.legendeInstalle": "sur ce PC",
@@ -286,8 +286,9 @@ const TEXTES = {
     "menu.reglages": "Settings",
     "menu.aide": "Help",
     "menu.fermer": "Close",
-    "cartes.fondTitre": "Base map and layers",
-    "cartes.horsLigneTitre": "Offline base maps",
+    "cartes.fondTitre": "Online",
+    "cartes.calquesTitre": "Path overlays",
+    "cartes.horsLigneTitre": "Download for offline use",
     "cartes.horsLigneNote": "This PC builds the tiles of a base map, in 1° squares, to use them without a network and share them with the phone.",
     "cartes.horsLigneBouton": "Choose the squares on the map",
     "itineraires.calculTitre": "Route calculation",
@@ -299,7 +300,6 @@ const TEXTES = {
     "horsLigne.quoi": "To download",
     "horsLigne.modeRoutage": "Routing data (5° areas)",
     "horsLigne.modeFond": "Base map (1° squares)",
-    "horsLigne.fondChoisi": "Base map downloaded: {nom}, the one chosen in the list above.",
     "horsLigne.fondAucun": "The base map shown cannot be kept offline. Choose in the list above: {liste}.",
     "reglages.afficherLegende": "Show the legend",
     "horsLigne.legendeInstalle": "on this PC",
@@ -897,6 +897,13 @@ const NOMS_CALQUES = Object.assign({}, ...Object.values(FOURNISSEURS_CARTES)
 function nomCalque(cle) {
   return NOMS_CALQUES[cle]?.[langue] || t(`calque.${cle}`);
 }
+// Le nom d'une coche de « Superposition des chemins » : la source seule
+// (« OSM », « IGN », « ATKIS »…), le titre de la section disant le reste.
+// Les autres calques (sentiers balisés d'un pays) gardent leur nom.
+function nomCoche(cle) {
+  if (cle === "osm") return "OSM";
+  return CHEMINS_OFFICIELS[cle]?.label || nomCalque(cle);
+}
 function nomFond(cle) {
   return FOURNISSEURS_CARTES[paysCarte]?.baseNames?.[cle]?.[langue] || t(`fond.${cle}`);
 }
@@ -1436,9 +1443,9 @@ function construireFonds() {
   const fonds = Object.fromEntries(Object.entries(couchesFonds).map(([cle, couche]) => [nomFond(cle), couche]));
   const calques = Object.fromEntries(Object.entries(CALQUES)
     .filter(([cle]) => cle === "osm" || calquesDuPays().includes(cle))
-    .map(([cle, c]) => [nomCalque(cle), c.groupe]));
+    .map(([cle, c]) => [nomCoche(cle), c.groupe]));
   for (const cle of calquesDuPays()) {
-    if (CALQUES_PAYS[cle]) calques[nomCalque(cle)] = CALQUES_PAYS[cle];
+    if (CALQUES_PAYS[cle]) calques[nomCoche(cle)] = CALQUES_PAYS[cle];
   }
   if (nomGpxImporte) calques[echapper(nomGpxImporte)] = traceGpxImporte;
   controleFonds = L.control.layers(fonds, calques, { collapsed: false, position: "topright" }).addTo(carte);
@@ -1709,9 +1716,8 @@ function afficherSelection() {
   // liste du haut ; s'il ne se garde pas hors ligne, il dit lesquels choisir.
   const titres = etat.fondsHorsLigne || {};
   const source = sourceFond();
-  $("hlFondChoisi").hidden = routage;
-  $("hlFondChoisi").textContent = routage ? "" : source ? t("horsLigne.fondChoisi", { nom: titres[source] })
-    : t("horsLigne.fondAucun", { liste: Object.entries(titres)
+  $("hlFondChoisi").hidden = routage || Boolean(source);
+  $("hlFondChoisi").textContent = routage || source ? "" : t("horsLigne.fondAucun", { liste: Object.entries(titres)
       .filter(([cle]) => couchesFonds[cle] && (cle !== "scan25" || etat.cleIgn)).map(([, titre]) => titre).join(", ") });
   $("hlVue").hidden = routage;
   $("hlLegendeServeur").hidden = !routage;

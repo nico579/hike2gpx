@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-12">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-45">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-47">
 </head>
 <body class="panel-collapsed">
 <div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
@@ -121,10 +121,9 @@
   <!-- Gestion des cartes : le fond et les calques affichés, puis les fonds que ce PC
        fabrique par carrés de 1° pour s'en servir hors ligne. -->
   <section id="pane-cartes" class="pane" aria-labelledby="pageTitre" hidden>
-    <h2 class="section-title"><span data-i18n="cartes.fondTitre">Fond de carte et calques</span><a class="info-tooltip map-providers-info-button" id="providersInfoButton" href="/documentation/pays" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le rapport des pays pris en charge sur GitHub" title="Pays pris en charge sur GitHub">i</a></h2>
+    <h2 class="section-title"><span data-i18n="cartes.fondTitre">En ligne</span><a class="info-tooltip map-providers-info-button" id="providersInfoButton" href="/documentation/pays" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le rapport des pays pris en charge sur GitHub" title="Pays pris en charge sur GitHub">i</a></h2>
     <div id="cartesCalques" class="cartes-calques"></div>
-    <h2 class="section-title" data-i18n="cartes.horsLigneTitre">Fonds hors ligne</h2>
-    <p class="note" data-i18n="cartes.horsLigneNote">Ce PC fabrique les tuiles d'un fond de carte, par carrés de 1°, pour s'en servir sans réseau et les partager au téléphone.</p>
+    <h2 class="section-title"><span data-i18n="cartes.horsLigneTitre">Téléchargement pour usage hors ligne</span><span class="info-tooltip" tabindex="0" aria-label="Fonds hors ligne">i<span role="tooltip" data-i18n="cartes.horsLigneNote">Ce PC fabrique les tuiles d'un fond de carte, par carrés de 1°, pour s'en servir sans réseau et les partager au téléphone.</span></span></h2>
     <button type="button" class="page-action hl-ouvrir" data-hl-mode="fond" data-hl-texte="cartes.horsLigneBouton" data-i18n="cartes.horsLigneBouton" aria-expanded="false" aria-controls="horsLigne">Choisir les carrés sur la carte</button>
   </section>
   <!-- Gestion des itinéraires : les options du calcul, puis les zones de routage (cases de 5°)
@@ -174,10 +173,10 @@
     <button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button>
   </div>
 </div>
-<script src="/app.js?v=desktop-76"></script>
+<script src="/app.js?v=desktop-77"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-25"></script>
+<script src="/presentation.js?v=desktop-26"></script>
 </body>
 </html>
