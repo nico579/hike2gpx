@@ -303,9 +303,14 @@ Reste la carte elle-même. En France, « Gestion des cartes » prépare aussi, p
 carrés de 1° choisis sur la carte, le **fond de carte hors ligne** : les tuiles du fond choisi dans la liste, rangées
 sur ce PC dans un fichier MBTiles. Se gardent ainsi les fonds dont la licence
 le permet : le SCAN 25 (avec une clé IGN), le Plan IGN, les photos aériennes
-et le relief LiDAR HD de l'IGN. Les tuiles d'OpenStreetMap, d'OSM rando et la
-vue satellite restent en ligne : leurs serveurs interdisent de les recopier
-en masse. Il
+et le relief LiDAR HD de l'IGN. OpenStreetMap se garde aussi, mais autrement :
+son serveur de tuiles interdit de les recopier en masse, alors que ses données
+sont libres. Le PC fabrique donc, depuis l'extrait Geofabrik de la région, une
+carte vectorielle au format Mapsforge (celui de Locus Map et d'OpenAndroMaps),
+que le téléphone dessine lui-même ; sur le PC, OpenStreetMap reste en ligne.
+La première fois, hike2gpx télécharge pour cela Osmosis et son greffon
+Mapsforge (20 Mo). OSM rando et la vue satellite restent en ligne : leurs
+serveurs interdisent la recopie et leurs données ne sont pas libres. Il
 apparaît ensuite parmi les fonds sous le nom « Carte hors ligne ». Une vue
 d'écran se prend jusqu'au zoom 16, celui des sentiers : autour de Garéoult,
 631 tuiles, 12 Mo en SCAN 25 (27 Mo en Plan IGN), un peu plus d'une minute.

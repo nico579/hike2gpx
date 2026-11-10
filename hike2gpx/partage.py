@@ -34,7 +34,7 @@ from pathlib import Path
 
 import segno
 
-from . import depot, lot
+from . import depot, lot, mapsforge
 
 journal = logging.getLogger(__name__)
 PORT = 8799
@@ -81,18 +81,23 @@ def dresser(hors_ligne, empreintes: dict | None = None) -> tuple:
             # La RD5 d'un lot installé est rangée avec les segments ; le reste, dans le dossier de la case.
             fichiers[f["url"]] = segments / f["nom"] if f["nom"] == f"{case}.rd5" else dossier / f["nom"]
         lots.append(entree)
-    fonds = []
+    # Les fonds en images (MBTiles) et les cartes vectorielles d'OpenStreetMap
+    # (Mapsforge) : deux clés du catalogue, pour qu'un téléphone qui ne connaît
+    # que les MBTiles ne prenne pas une carte qu'il ne saurait pas afficher.
+    fonds, cartes = [], []
     for f in hors_ligne.fonds():
-        chemin = hors_ligne.dossier_fonds / f"{f['nom']}.mbtiles"
+        suffixe = mapsforge.SUFFIXE if f.get("format") == "map" else ".mbtiles"
+        chemin = hors_ligne.dossier_fonds / f"{f['nom']}{suffixe}"
         etat = chemin.stat()
         cle = (str(chemin), etat.st_size, etat.st_mtime_ns)
         if cle not in empreintes:
             empreintes[cle] = lot.empreinte(chemin)
-        url = f"fonds/{f['nom']}.mbtiles"
-        fonds.append({"nom": f["nom"], "zone": f["zone"], "zoom": f["zoom"], "source": f["source"],
-                      "octets": etat.st_size, "sha256": empreintes[cle], "url": url})
+        url = f"fonds/{f['nom']}{suffixe}"
+        (cartes if suffixe == mapsforge.SUFFIXE else fonds).append(
+            {"nom": f["nom"], "zone": f["zone"], "zoom": f["zoom"], "source": f["source"],
+             "octets": etat.st_size, "sha256": empreintes[cle], "url": url})
         fichiers[url] = chemin
-    return depot.catalogue(lots, fonds), fichiers
+    return depot.catalogue(lots, fonds, cartes), fichiers
 
 
 def lien(url_catalogue: str, jeton: str) -> str:
@@ -247,10 +252,11 @@ class Partage:
         if self.serveur is None:
             return {"ouvert": False}
         catalogue = json.loads(self.catalogue_json)
+        fonds = catalogue["fonds"] + catalogue.get("cartes", [])      # images et cartes vectorielles
         lien_qr = lien(self.url, self.jeton)
         return {"ouvert": True, "url": self.url, "lien": lien_qr, "qr": qr_svg(lien_qr),
-                "lots": [l["case"] for l in catalogue["lots"]], "fonds": [f["nom"] for f in catalogue["fonds"]],
-                "octets": sum(l["octets"] for l in catalogue["lots"]) + sum(f["octets"] for f in catalogue["fonds"])}
+                "lots": [l["case"] for l in catalogue["lots"]], "fonds": [f["nom"] for f in fonds],
+                "octets": sum(l["octets"] for l in catalogue["lots"]) + sum(f["octets"] for f in fonds)}
 
     def ouvrir(self) -> dict:
         with self.verrou:

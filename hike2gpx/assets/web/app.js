@@ -56,7 +56,7 @@ const TEXTES = {
     "horsLigne.infoInstalle": "sur ce PC, {taille}",
     "horsLigne.infoServeur": "sur le serveur, {taille}",
     "horsLigne.infoFabriquer": "pas sur le serveur : à fabriquer sur ce PC, environ une heure",
-    "horsLigne.infoCarre": "pas de fond sur ce PC (environ 1 Go et 35 min)",
+    "horsLigne.infoCarre": "pas de fond sur ce PC",
     "horsLigne.selVide": "Aucune tuile sélectionnée.",
     "horsLigne.selRien": "Déjà à jour sur ce PC.",
     "horsLigne.selTelecharger": "{n} à télécharger : {taille}.",
@@ -243,6 +243,8 @@ const TEXTES = {
     "horsLigne.etape.relief": "relief",
     "horsLigne.etape.compilation": "itinéraires BRouter",
     "horsLigne.etape.fond": "fond de carte",
+    "horsLigne.etape.outils": "installation des outils de carte",
+    "horsLigne.etape.carte": "carte OpenStreetMap",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
     "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
@@ -310,7 +312,7 @@ const TEXTES = {
     "horsLigne.infoInstalle": "on this PC, {taille}",
     "horsLigne.infoServeur": "on the server, {taille}",
     "horsLigne.infoFabriquer": "not on the server: to build on this PC, about an hour",
-    "horsLigne.infoCarre": "no base map on this PC (about 1 GB and 35 min)",
+    "horsLigne.infoCarre": "no base map on this PC",
     "horsLigne.selVide": "No tile selected.",
     "horsLigne.selRien": "Already up to date on this PC.",
     "horsLigne.selTelecharger": "{n} to download: {taille}.",
@@ -497,6 +499,8 @@ const TEXTES = {
     "horsLigne.etape.relief": "elevation",
     "horsLigne.etape.compilation": "BRouter routing data",
     "horsLigne.etape.fond": "base map",
+    "horsLigne.etape.outils": "installing the map tools",
+    "horsLigne.etape.carte": "OpenStreetMap map",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
     "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
@@ -1421,7 +1425,7 @@ function construireFonds() {
   couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
-  if (fondsInstalles.length) couchesFonds.horsLigne = coucheHorsLigne();
+  if (fondsAffichables().length) couchesFonds.horsLigne = coucheHorsLigne();
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
   const defaut = FOURNISSEURS_CARTES[paysCarte].defaultBase;
@@ -1456,6 +1460,16 @@ const CARRES_MAX_VUE = 9;   // « Sélectionner la vue » : au-delà, se rapproc
 // un lot fabriqué sur ce PC, environ une heure.
 const FOND_CARRE_OCTETS = 1e9;
 const FOND_CARRE_S = 2100;
+// OpenStreetMap se garde en carte vectorielle Mapsforge (mapsforge.py), fabriquée
+// sur ce PC depuis l'extrait de la région : bien plus légère que des images.
+// Ordres de grandeur, pas encore mesurés jusqu'au bout : l'essai du 2026-11-10
+// sur N43E006 (Var) a été arrêté après 17 min, la carte en cours d'écriture.
+const CARTE_OSM_OCTETS = 60e6;
+const CARTE_OSM_S = 1800;
+// Ce qu'un carré de la source engage : le poids et la durée.
+function coutCarre(source) {
+  return source === "osm" ? [CARTE_OSM_OCTETS, CARTE_OSM_S] : [FOND_CARRE_OCTETS, FOND_CARRE_S];
+}
 const LOT_FABRIQUE_S = 3600;
 // Au-dessus des calques (400) et des panneaux du tracé et des franchissements
 // (449 à 452), dont les canevas couvrent la carte et prendraient les clics,
@@ -1475,9 +1489,16 @@ const horsLigne = { actif: false, mode: "routage", selection: new Set(), file: [
 
 // Un seul fond « Carte hors ligne » : une couche par fichier, bornée à sa
 // zone, la moins fine dessous, chacune agrandie au-delà de son zoom le plus fin.
+// Les fonds en images, que la page sait afficher. Une carte vectorielle
+// (format « map ») est faite pour le téléphone, qui la dessine lui-même :
+// sur le PC, OpenStreetMap reste en ligne.
+function fondsAffichables() {
+  return fondsInstalles.filter((f) => f.format !== "map");
+}
+
 function coucheHorsLigne() {
   const groupe = L.layerGroup();
-  const ordre = [...fondsInstalles].sort((a, b) => a.zoom[1] - b.zoom[1]);
+  const ordre = fondsAffichables().sort((a, b) => a.zoom[1] - b.zoom[1]);
   for (const f of ordre) {
     const [s, o, n, e] = f.zone;
     L.tileLayer(`/fonds/${encodeURIComponent(f.nom)}/{z}/{x}/{y}`, { bounds: [[s, o], [n, e]],
@@ -1672,7 +1693,7 @@ function bilanSelection() {
   }
   const aFaire = noms.filter((carre) => !fondDuCarre(carre));
   const installees = noms.filter((carre) => fondsInstalles.some((f) => f.nom.startsWith(`${carre}-`)));
-  return { noms, aFaire, installees, octets: aFaire.length * FOND_CARRE_OCTETS,
+  return { noms, aFaire, installees, octets: aFaire.length * coutCarre(sourceFond())[0],
     octetsInstalles: installees.reduce((somme, carre) => somme + fondsInstalles
       .filter((f) => f.nom.startsWith(`${carre}-`)).reduce((s, f) => s + (f.octets || 0), 0), 0) };
 }
@@ -1700,7 +1721,7 @@ function afficherSelection() {
     if (b.aTelecharger.length) parties.push(t("horsLigne.selTelecharger", { n: b.aTelecharger.length, taille: tailleTexte(b.octets) }));
     if (b.aFabriquer.length) parties.push(t("horsLigne.selFabriquer", { n: b.aFabriquer.length, duree: dureeLongue(b.aFabriquer.length * LOT_FABRIQUE_S) }));
   } else if (b.aFaire.length) {
-    parties.push(t("horsLigne.selFonds", { n: b.aFaire.length, taille: tailleTexte(b.octets), duree: dureeLongue(b.aFaire.length * FOND_CARRE_S) }));
+    parties.push(t("horsLigne.selFonds", { n: b.aFaire.length, taille: tailleTexte(b.octets), duree: dureeLongue(b.aFaire.length * coutCarre(sourceFond())[1]) }));
   }
   if (b.installees.length) parties.push(t("horsLigne.selInstallees", { n: b.installees.length, taille: tailleTexte(b.octetsInstalles) }));
   $("hlSelection").textContent = b.noms.length ? parties.join(" ") || t("horsLigne.selRien") : t("horsLigne.selVide");

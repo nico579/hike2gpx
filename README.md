@@ -296,8 +296,14 @@ That leaves the map itself. In France, "Map management" also prepares, in 1°
 squares chosen on the map, the **offline base map**: the tiles of the base map chosen in the list, stored
 on this computer in an MBTiles file. The base maps whose licence allows it can
 be kept this way: SCAN 25 (with an IGN key), Plan IGN, and IGN's aerial photos
-and LiDAR HD relief. OpenStreetMap tiles, OSM hiking and the satellite view
-stay online: their servers forbid copying them in bulk. It then
+and LiDAR HD relief. OpenStreetMap can be kept too, in another way: its tile
+server forbids bulk copying, while its data is free. The PC therefore builds,
+from the region's Geofabrik extract, a vector map in the Mapsforge format
+(that of Locus Map and OpenAndroMaps), which the phone draws by itself; on
+the PC, OpenStreetMap stays online. The first time, hike2gpx downloads
+Osmosis and its Mapsforge plugin for this (20 MB). OSM hiking and the
+satellite view stay online: their servers forbid copying and their data is
+not free. It then
 appears among the base maps as "Offline map". A screen view goes down to
 zoom 16, where trails show: around Garéoult, 631 tiles, 12 MB of SCAN 25
 (27 MB of Plan IGN), a little over a minute. A whole cell stops at zoom 13,
