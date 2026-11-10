@@ -23,7 +23,7 @@ from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
 from . import (__version__, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik, hors_ligne,
-               journaux, maison, osmfr, pare_feu, partage, providers)
+               journaux, maison, mapsforge, osmfr, pare_feu, partage, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -305,8 +305,10 @@ class Application:
         return {"app": "hike2gpx", "version": __version__, "dossier": str(self.dossier),
                 "moteur_installe": self.installation.installee(), "segments": segments,
                 "brouter": brouter.VERSION, "poids_a_verifier": brouter.POIDS_A_VERIFIER,
-                # Les fonds de la page qui se gardent hors ligne (fonds.SOURCES), et leur nom.
-                "fonds_hors_ligne": {cle: s.titre for cle, s in fonds.SOURCES.items()}}
+                # Les fonds de la page qui se gardent hors ligne, et leur nom : les fonds en
+                # images (fonds.SOURCES) et OpenStreetMap en carte vectorielle (mapsforge.py).
+                "fonds_hors_ligne": {**{cle: s.titre for cle, s in fonds.SOURCES.items()},
+                                     mapsforge.SOURCE: mapsforge.TITRE}}
 
     # ---------------------------------------------------------- moteur
 
@@ -1358,26 +1360,36 @@ class Application:
                               f"({fonds.CARRES_MAX} au plus d'une fois)."}
         cle = self.reglages()["cle_ign"]
         source = corps.get("source") or fonds.source_pour(cle)
-        if source not in fonds.SOURCES:
+        if source != mapsforge.SOURCE and source not in fonds.SOURCES:
             return {"erreur": "Ce fond de carte ne se garde pas hors ligne."}
-        if fonds.SOURCES[source].cle and not cle:
+        if source in fonds.SOURCES and fonds.SOURCES[source].cle and not cle:
             return {"erreur": "Le SCAN 25 demande la clé IGN des réglages."}
         carres = list(dict.fromkeys(carres))
         return self._lancer_tache(lambda c, z: self._fabriquer_fonds(carres, source), carres[0],
                                   list(fonds.boite_carre(carres[0])), "fond")
 
     def _fabriquer_fonds(self, carres, source) -> None:
-        """Les carrés l'un après l'autre ; la note de la page suit le carré en cours."""
+        """Les carrés l'un après l'autre ; la note de la page suit le carré en
+        cours. Un fond en images se télécharge tuile à tuile (fonds.py) ;
+        OpenStreetMap, dont le serveur de tuiles interdit la recopie, se
+        fabrique en carte vectorielle depuis ses données (mapsforge.py)."""
         cle = self.reglages()["cle_ign"]
+        continuer = lambda: not self._lot.get("arreter")      # noqa: E731
         for carre in carres:
             nom, zone, debut = fonds.nom_fond(carre, source), fonds.boite_carre(carre), time.monotonic()
             self._lot.update(case=carre, zone=list(zone), faites=0, total=0)
             try:
-                decrit = fonds.fabriquer(self.hors_ligne.dossier_fonds / f"{nom}.mbtiles", source, zone,
-                                         fonds.ZOOMS_CARRE, cle,
-                                         suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
-                                         continuer=lambda: not self._lot.get("arreter"))
-            except fonds.Abandon:
+                if source == mapsforge.SOURCE:
+                    decrit = mapsforge.fabriquer(
+                        self.dossier, self.hors_ligne.dossier_fonds / f"{nom}{mapsforge.SUFFIXE}", zone,
+                        suivi=lambda etape, faites, total: self._lot.update(etape=etape, faites=faites, total=total),
+                        continuer=continuer)
+                else:
+                    decrit = fonds.fabriquer(self.hors_ligne.dossier_fonds / f"{nom}.mbtiles", source, zone,
+                                             fonds.ZOOMS_CARRE, cle,
+                                             suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
+                                             continuer=continuer)
+            except (fonds.Abandon, mapsforge.Abandon):
                 # Le fichier .part reste : la même demande reprendra où elle s'est arrêtée.
                 journal.info("Fond %s : arrêté après %.0f s", nom, time.monotonic() - debut)
                 self._lot.update(actif=False, erreur="Fond de carte arrêté.")
@@ -1386,8 +1398,7 @@ class Application:
                 journal.exception("Fond %s : en erreur après %.0f s", nom, time.monotonic() - debut)
                 self._lot.update(actif=False, erreur=str(exc))
                 return
-            journal.info("Fond %s : %d Mo, zooms %d-%d, en %.0f s", nom, decrit["octets"] // 10 ** 6,
-                         *fonds.ZOOMS_CARRE, time.monotonic() - debut)
+            journal.info("Fond %s : %d Mo, en %.0f s", nom, decrit["octets"] // 10 ** 6, time.monotonic() - debut)
         self._lot.update(actif=False, etape="fini", fond=", ".join(fonds.nom_fond(c, source) for c in carres))
 
     def _fabriquer_lot(self, case, zone) -> None:

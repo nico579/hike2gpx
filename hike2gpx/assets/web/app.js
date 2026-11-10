@@ -22,14 +22,30 @@ const $ = (id) => document.getElementById(id);
 const TEXTES = {
   fr: {
     "page.titre": "hike2gpx — tracer un parcours",
-    "onglets.titre": "Outils de randonnée",
-    "onglets.parcours": "Parcours",
-    "onglets.reglages": "Réglages",
-    "onglets.horsLigne": "Hors ligne",
+    "menu.titre": "Menu",
+    "menu.recherche": "Recherche",
+    "menu.cartes": "Gestion des cartes",
+    "menu.itineraires": "Gestion des itinéraires",
+    "menu.trace": "Planifier un itinéraire",
+    "menu.reglages": "Réglages",
+    "menu.aide": "Aide",
+    "menu.fermer": "Fermer",
+    "cartes.fondTitre": "Fond de carte et calques",
+    "cartes.horsLigneTitre": "Fonds hors ligne",
+    "cartes.horsLigneNote": "Ce PC fabrique les tuiles d'un fond de carte, par carrés de 1°, pour s'en servir sans réseau et les partager au téléphone.",
+    "cartes.horsLigneBouton": "Choisir les carrés sur la carte",
+    "itineraires.calculTitre": "Calcul des itinéraires",
+    "itineraires.zonesTitre": "Zones de routage sur ce PC",
+    "itineraires.zonesNote": "Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.",
+    "itineraires.zonesBouton": "Choisir les zones sur la carte",
+    "horsLigne.terminer": "Terminer",
+    "partage.note": "Le téléphone reçoit de ce PC ses fonds de carte et les zones de routage qu'il a fabriquées, sur le même Wi-Fi.",
     "horsLigne.quoi": "À télécharger",
     "horsLigne.modeRoutage": "Données de routage (cases de 5°)",
     "horsLigne.modeFond": "Fond de carte (carrés de 1°)",
-    "horsLigne.source": "Fond de carte",
+    "horsLigne.fondChoisi": "Fond téléchargé : {nom}, celui choisi dans la liste du haut.",
+    "horsLigne.fondAucun": "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : {liste}.",
+    "reglages.afficherLegende": "Afficher la légende",
     "horsLigne.legendeInstalle": "sur ce PC",
     "horsLigne.legendeSelection": "sélectionné",
     "horsLigne.legendeEnCours": "en cours",
@@ -40,7 +56,7 @@ const TEXTES = {
     "horsLigne.infoInstalle": "sur ce PC, {taille}",
     "horsLigne.infoServeur": "sur le serveur, {taille}",
     "horsLigne.infoFabriquer": "pas sur le serveur : à fabriquer sur ce PC, environ une heure",
-    "horsLigne.infoCarre": "pas de fond sur ce PC (environ 1 Go et 35 min)",
+    "horsLigne.infoCarre": "pas de fond sur ce PC",
     "horsLigne.selVide": "Aucune tuile sélectionnée.",
     "horsLigne.selRien": "Déjà à jour sur ce PC.",
     "horsLigne.selTelecharger": "{n} à télécharger : {taille}.",
@@ -110,7 +126,6 @@ const TEXTES = {
     "reglages.note": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
     "reglages.renouvellement": "Renouveler les données locales après",
     "reglages.jours": "jours",
-    "reglages.masquerCartes": "Masquer le bandeau des cartes",
     "reglages.masquerDenivele": "Masquer le bandeau du dénivelé",
     "reglages.transparence": "Transparence des bandeaux",
     "reglages.ouvrirJournaux": "Ouvrir le dossier des journaux",
@@ -228,6 +243,8 @@ const TEXTES = {
     "horsLigne.etape.relief": "relief",
     "horsLigne.etape.compilation": "itinéraires BRouter",
     "horsLigne.etape.fond": "fond de carte",
+    "horsLigne.etape.outils": "installation des outils de carte",
+    "horsLigne.etape.carte": "carte OpenStreetMap",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
     "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
@@ -261,14 +278,30 @@ const TEXTES = {
   },
   en: {
     "page.titre": "hike2gpx — plan a route",
-    "onglets.titre": "Hiking tools",
-    "onglets.parcours": "Route",
-    "onglets.reglages": "Settings",
-    "onglets.horsLigne": "Offline",
+    "menu.titre": "Menu",
+    "menu.recherche": "Search",
+    "menu.cartes": "Map management",
+    "menu.itineraires": "Route management",
+    "menu.trace": "Plan a route",
+    "menu.reglages": "Settings",
+    "menu.aide": "Help",
+    "menu.fermer": "Close",
+    "cartes.fondTitre": "Base map and layers",
+    "cartes.horsLigneTitre": "Offline base maps",
+    "cartes.horsLigneNote": "This PC builds the tiles of a base map, in 1° squares, to use them without a network and share them with the phone.",
+    "cartes.horsLigneBouton": "Choose the squares on the map",
+    "itineraires.calculTitre": "Route calculation",
+    "itineraires.zonesTitre": "Routing areas on this PC",
+    "itineraires.zonesNote": "Routing areas, in 5° cells, are downloaded from the server; those it does not publish are built on this PC.",
+    "itineraires.zonesBouton": "Choose the areas on the map",
+    "horsLigne.terminer": "Done",
+    "partage.note": "The phone gets this PC's base maps and the routing areas it built, on the same Wi-Fi.",
     "horsLigne.quoi": "To download",
     "horsLigne.modeRoutage": "Routing data (5° areas)",
     "horsLigne.modeFond": "Base map (1° squares)",
-    "horsLigne.source": "Base map",
+    "horsLigne.fondChoisi": "Base map downloaded: {nom}, the one chosen in the list above.",
+    "horsLigne.fondAucun": "The base map shown cannot be kept offline. Choose in the list above: {liste}.",
+    "reglages.afficherLegende": "Show the legend",
     "horsLigne.legendeInstalle": "on this PC",
     "horsLigne.legendeSelection": "selected",
     "horsLigne.legendeEnCours": "in progress",
@@ -279,7 +312,7 @@ const TEXTES = {
     "horsLigne.infoInstalle": "on this PC, {taille}",
     "horsLigne.infoServeur": "on the server, {taille}",
     "horsLigne.infoFabriquer": "not on the server: to build on this PC, about an hour",
-    "horsLigne.infoCarre": "no base map on this PC (about 1 GB and 35 min)",
+    "horsLigne.infoCarre": "no base map on this PC",
     "horsLigne.selVide": "No tile selected.",
     "horsLigne.selRien": "Already up to date on this PC.",
     "horsLigne.selTelecharger": "{n} to download: {taille}.",
@@ -349,7 +382,6 @@ const TEXTES = {
     "reglages.note": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
     "reglages.renouvellement": "Refresh local data after",
     "reglages.jours": "days",
-    "reglages.masquerCartes": "Hide the map layers panel",
     "reglages.masquerDenivele": "Hide the elevation panel",
     "reglages.transparence": "Panel transparency",
     "reglages.ouvrirJournaux": "Open logs folder",
@@ -467,6 +499,8 @@ const TEXTES = {
     "horsLigne.etape.relief": "elevation",
     "horsLigne.etape.compilation": "BRouter routing data",
     "horsLigne.etape.fond": "base map",
+    "horsLigne.etape.outils": "installing the map tools",
+    "horsLigne.etape.carte": "OpenStreetMap map",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
     "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
@@ -606,7 +640,10 @@ function appliquerLangue(code) {
   langue = code === "en" ? "en" : "fr";
   document.documentElement.lang = langue;
   document.title = t("page.titre");
-  $("panelTabs").setAttribute("aria-label", t("onglets.titre"));
+  for (const id of ["menuPrincipal", "menuButton"]) $(id).setAttribute("aria-label", t("menu.titre"));
+  $("menuButton").title = t("menu.titre");
+  $("pageFermer").title = t("menu.fermer");
+  $("pageFermer").setAttribute("aria-label", t("menu.fermer"));
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
   lienAide();
   afficherOptionsIgn();
@@ -676,11 +713,12 @@ let paysCarte = Object.hasOwn(window.HIKE2GPX_MAP_PROVIDERS, vueInitiale.pays)
   ? vueInitiale.pays : (vueInitiale.hors_france === true ? "autre" : "fr");
 let horsFrance = paysCarte !== "fr";
 const carte = L.map("carte").setView([vueInitiale.lat, vueInitiale.lon], vueInitiale.zoom);
-// L'échelle de la carte, dans l'en-tête à droite de la recherche de ville
-// (demande de Nico du 2026-10-28) ; Leaflet la tient à jour où qu'elle soit.
+// L'échelle de la carte, en haut à droite de la recherche de ville (demande
+// de Nico du 2026-10-28) : elle reste là quand la recherche est repliée ;
+// Leaflet la tient à jour où qu'elle soit.
 const echelle = L.control.scale({ imperial: false, maxWidth: 120 }).addTo(carte).getContainer();
 echelle.classList.add("echelle-entete");
-$("citySubmit").after(echelle);
+$("citySearch").after(echelle);
 carte.on("contextmenu", (evenement) => {
   const { lat, lng } = evenement.latlng;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
@@ -907,6 +945,8 @@ carte.on("baselayerchange", (e) => {
   const cle = Object.keys(couchesFonds).find((nom) => couchesFonds[nom] === e.layer);
   if (cle) {
     cleFondActif = cle;
+    // Le volet des fonds hors ligne suit le fond choisi : ses carrés et son bilan en dépendent.
+    if (horsLigne.actif) dessinerCases();
     try { localStorage.setItem(`${CLE_FOND}.${paysCarte}`, cle); } catch (erreur) { /* stockage indisponible */ }
   }
 });
@@ -1385,11 +1425,7 @@ function construireFonds() {
   couchesFonds.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { maxNativeZoom: 19, maxZoom: 19,
       attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community' });
-  if (fondsInstalles.length) couchesFonds.horsLigne = coucheHorsLigne();
-  // presentation.js place la légende dans le contrôle Leaflet. La récupérer
-  // avant de le retirer, sinon elle disparaît du DOM au changement de pays.
-  const legende = $("mapLegend");
-  if (legende && controleFonds) document.body.append(legende);
+  if (fondsAffichables().length) couchesFonds.horsLigne = coucheHorsLigne();
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
   const defaut = FOURNISSEURS_CARTES[paysCarte].defaultBase;
@@ -1409,12 +1445,12 @@ function construireFonds() {
 }
 
 // ------------------------------------------------------------ hors ligne
-// L'onglet « Hors ligne » (proposition de Nico du 2026-11-05) : on choisit le
+// Le volet « Hors ligne » (proposition de Nico du 2026-11-05) : on choisit le
 // routage (cases BRouter de 5°, lots du serveur ou fabriqués ici) ou le fond
 // de carte (carrés de 1°, fonds.py) ; la grille change en fonction. On
 // sélectionne les tuiles sur la carte (elles changent de couleur), on
 // télécharge ; elles partent l'une après l'autre (le serveur ne mène qu'une
-// préparation à la fois), suivies dans l'onglet. Le partage au téléphone suit.
+// préparation à la fois), suivies dans le volet. Le partage au téléphone suit.
 const CASE_DEG = 5;
 const ZOOM_CARRES = 7;      // en deçà, trop de carrés à l'écran pour être lisibles
 const ZOOM_CASES = 6;       // la grille des cases dézoome jusque-là (demande de Nico du 2026-10-28)
@@ -1424,6 +1460,16 @@ const CARRES_MAX_VUE = 9;   // « Sélectionner la vue » : au-delà, se rapproc
 // un lot fabriqué sur ce PC, environ une heure.
 const FOND_CARRE_OCTETS = 1e9;
 const FOND_CARRE_S = 2100;
+// OpenStreetMap se garde en carte vectorielle Mapsforge (mapsforge.py), fabriquée
+// sur ce PC depuis l'extrait de la région : bien plus légère que des images.
+// Ordres de grandeur, pas encore mesurés jusqu'au bout : l'essai du 2026-11-10
+// sur N43E006 (Var) a été arrêté après 17 min, la carte en cours d'écriture.
+const CARTE_OSM_OCTETS = 60e6;
+const CARTE_OSM_S = 1800;
+// Ce qu'un carré de la source engage : le poids et la durée.
+function coutCarre(source) {
+  return source === "osm" ? [CARTE_OSM_OCTETS, CARTE_OSM_S] : [FOND_CARRE_OCTETS, FOND_CARRE_S];
+}
 const LOT_FABRIQUE_S = 3600;
 // Au-dessus des calques (400) et des panneaux du tracé et des franchissements
 // (449 à 452), dont les canevas couvrent la carte et prendraient les clics,
@@ -1438,14 +1484,21 @@ let lotSuivi = false;       // un lot suivi était en cours : à sa fin, calques
 // Les fonds de carte téléchargés sur ce PC (fonds.py) : un MBTiles chacun,
 // servi tuile par tuile par /fonds/<nom>/{z}/{x}/{y}, sans réseau.
 let fondsInstalles = [];
-// L'onglet : ouvert ou non, le mode, la source du fond, la sélection, la file.
-const horsLigne = { actif: false, mode: "routage", source: null, selection: new Set(), file: [], message: "" };
+// Le volet : ouvert ou non, le mode, la source du fond, la sélection, la file.
+const horsLigne = { actif: false, mode: "routage", selection: new Set(), file: [], message: "" };
 
 // Un seul fond « Carte hors ligne » : une couche par fichier, bornée à sa
 // zone, la moins fine dessous, chacune agrandie au-delà de son zoom le plus fin.
+// Les fonds en images, que la page sait afficher. Une carte vectorielle
+// (format « map ») est faite pour le téléphone, qui la dessine lui-même :
+// sur le PC, OpenStreetMap reste en ligne.
+function fondsAffichables() {
+  return fondsInstalles.filter((f) => f.format !== "map");
+}
+
 function coucheHorsLigne() {
   const groupe = L.layerGroup();
-  const ordre = [...fondsInstalles].sort((a, b) => a.zoom[1] - b.zoom[1]);
+  const ordre = fondsAffichables().sort((a, b) => a.zoom[1] - b.zoom[1]);
   for (const f of ordre) {
     const [s, o, n, e] = f.zone;
     L.tileLayer(`/fonds/${encodeURIComponent(f.nom)}/{z}/{x}/{y}`, { bounds: [[s, o], [n, e]],
@@ -1509,18 +1562,17 @@ function carresZone([s, o, n, e]) {
   return noms;
 }
 
-// La source du fond proposée d'abord : celui qu'affiche la page s'il se garde
-// hors ligne ; sinon le fond français par défaut, le SCAN 25 avec la clé IGN,
-// le Plan IGN sans (fonds.source_pour). null si le serveur n'en annonce aucun.
+// Le fond à garder hors ligne est celui qu'affiche la page, choisi dans la
+// liste de « Gestion des cartes » : pas de second choix à tenir d'accord
+// avec le premier. null s'il ne se garde pas hors ligne (OSM, satellite…),
+// ou pour le SCAN 25 sans clé IGN.
 function sourceAGarder() {
   const titres = etat.fondsHorsLigne || {};
-  if (titres[cleFondActif] && (cleFondActif !== "scan25" || etat.cleIgn)) return cleFondActif;
-  const defaut = etat.cleIgn ? "scan25" : "plan";
-  return titres[defaut] ? defaut : null;
+  return titres[cleFondActif] && (cleFondActif !== "scan25" || etat.cleIgn) ? cleFondActif : null;
 }
 
 function sourceFond() {
-  return horsLigne.source || sourceAGarder();
+  return sourceAGarder();
 }
 
 function fondDuCarre(carre, source = sourceFond()) {
@@ -1546,7 +1598,7 @@ function etatCarre(carre) {
 
 // Sur un fond chargé (SCAN 25, relief), un voile de 5 à 8 % ne se voyait
 // pas : traits pleins et épais, fonds francs ; seule la tuile vide reste
-// discrète. Les mêmes couleurs que la légende de l'onglet.
+// discrète. Les mêmes couleurs que la légende de le volet.
 const STYLES_CASE = {
   prete: { color: "#1b7a3e", weight: 3, fillColor: "#23a04f", fillOpacity: 0.3 },
   encours: { color: "#e07b00", weight: 3, dashArray: "8 5", fillColor: "#e07b00", fillOpacity: 0.25 },
@@ -1641,7 +1693,7 @@ function bilanSelection() {
   }
   const aFaire = noms.filter((carre) => !fondDuCarre(carre));
   const installees = noms.filter((carre) => fondsInstalles.some((f) => f.nom.startsWith(`${carre}-`)));
-  return { noms, aFaire, installees, octets: aFaire.length * FOND_CARRE_OCTETS,
+  return { noms, aFaire, installees, octets: aFaire.length * coutCarre(sourceFond())[0],
     octetsInstalles: installees.reduce((somme, carre) => somme + fondsInstalles
       .filter((f) => f.nom.startsWith(`${carre}-`)).reduce((s, f) => s + (f.octets || 0), 0), 0) };
 }
@@ -1653,7 +1705,14 @@ function afficherSelection() {
   $("hlAide").textContent = aide;
   $("offlineHint").textContent = aide;
   $("offlineHint").hidden = !aide;
-  $("hlSourceLigne").hidden = routage;
+  // En mode fond, le volet nomme le fond qui sera téléchargé : celui de la
+  // liste du haut ; s'il ne se garde pas hors ligne, il dit lesquels choisir.
+  const titres = etat.fondsHorsLigne || {};
+  const source = sourceFond();
+  $("hlFondChoisi").hidden = routage;
+  $("hlFondChoisi").textContent = routage ? "" : source ? t("horsLigne.fondChoisi", { nom: titres[source] })
+    : t("horsLigne.fondAucun", { liste: Object.entries(titres)
+      .filter(([cle]) => couchesFonds[cle] && (cle !== "scan25" || etat.cleIgn)).map(([, titre]) => titre).join(", ") });
   $("hlVue").hidden = routage;
   $("hlLegendeServeur").hidden = !routage;
   const b = bilanSelection();
@@ -1662,7 +1721,7 @@ function afficherSelection() {
     if (b.aTelecharger.length) parties.push(t("horsLigne.selTelecharger", { n: b.aTelecharger.length, taille: tailleTexte(b.octets) }));
     if (b.aFabriquer.length) parties.push(t("horsLigne.selFabriquer", { n: b.aFabriquer.length, duree: dureeLongue(b.aFabriquer.length * LOT_FABRIQUE_S) }));
   } else if (b.aFaire.length) {
-    parties.push(t("horsLigne.selFonds", { n: b.aFaire.length, taille: tailleTexte(b.octets), duree: dureeLongue(b.aFaire.length * FOND_CARRE_S) }));
+    parties.push(t("horsLigne.selFonds", { n: b.aFaire.length, taille: tailleTexte(b.octets), duree: dureeLongue(b.aFaire.length * coutCarre(sourceFond())[1]) }));
   }
   if (b.installees.length) parties.push(t("horsLigne.selInstallees", { n: b.installees.length, taille: tailleTexte(b.octetsInstalles) }));
   $("hlSelection").textContent = b.noms.length ? parties.join(" ") || t("horsLigne.selRien") : t("horsLigne.selVide");
@@ -1707,7 +1766,7 @@ async function lancerSuivant() {
   suivreLot();
 }
 
-// La file dans l'onglet : le dernier message de tâche (afficherLot) et ce qui attend.
+// La file dans le volet : le dernier message de tâche (afficherLot) et ce qui attend.
 function afficherFile(message) {
   if (message !== undefined) horsLigne.message = message;
   const attente = horsLigne.file.length ? t("horsLigne.enAttente", { n: horsLigne.file.length }) : "";
@@ -1745,22 +1804,6 @@ function selectionnerVue() {
   dessinerCases();
 }
 
-// Les fonds proposés : ceux que le serveur sait garder hors ligne ; le SCAN 25 seulement avec la clé IGN.
-function remplirSources() {
-  const titres = etat.fondsHorsLigne || {};
-  const liste = $("hlSource");
-  const choix = sourceFond();
-  liste.innerHTML = "";
-  for (const [cle, titre] of Object.entries(titres)) {
-    if (cle === "scan25" && !etat.cleIgn) continue;
-    const option = document.createElement("option");
-    option.value = cle;
-    option.textContent = titre;
-    option.selected = cle === choix;
-    liste.append(option);
-  }
-}
-
 function changerMode(mode) {
   horsLigne.mode = mode;
   horsLigne.selection.clear();
@@ -1768,13 +1811,12 @@ function changerMode(mode) {
   dessinerCases();
 }
 
-// L'onglet ouvert, la grille paraît ; quitté, la carte revient au tracé.
+// Le volet ouvert, la grille paraît ; quitté, la carte revient au tracé.
 function activerHorsLigne(actif) {
   if (horsLigne.actif === actif) return;
   horsLigne.actif = actif;
   if (actif) {
     grilleCases.addTo(carte);
-    remplirSources();
     if (horsLigne.mode === "routage" && carte.getZoom() > ZOOM_CASES) carte.setZoom(ZOOM_CASES);
     chargerLots();
   } else {
@@ -1784,7 +1826,7 @@ function activerHorsLigne(actif) {
 }
 
 async function chargerLots() {
-  // Onglet fermé : rien à lire, la grille n'est pas affichée.
+  // Volet fermé : rien à lire, la grille n'est pas affichée.
   if (horsLigne.actif) {
     try {
       lotsInstalles = (await api("hors_ligne")).lots || [];
@@ -1797,25 +1839,24 @@ async function chargerLots() {
   dessinerCases();
 }
 
-// La langue a changé : les textes de l'onglet suivent.
+// La langue a changé : les textes de le volet suivent.
 function afficherEntreeHorsLigne() {
-  remplirSources();
   afficherSelection();
 }
 
 $("hlRoutage").addEventListener("change", () => changerMode("routage"));
 $("hlFond").addEventListener("change", () => changerMode("fond"));
-$("hlSource").addEventListener("change", () => { horsLigne.source = $("hlSource").value; dessinerCases(); });
 $("hlTelecharger").addEventListener("click", telechargerSelection);
 $("hlSupprimer").addEventListener("click", supprimerSelection);
 $("hlVider").addEventListener("click", () => { horsLigne.selection.clear(); dessinerCases(); });
 $("hlVue").addEventListener("click", selectionnerVue);
 $("hlArreter").addEventListener("click", () => { horsLigne.file = []; arreterLot(); });
 carte.on("moveend", dessinerCases);
-// L'onglet suit le panneau affiché (presentation.js le montre ou le cache).
+// La grille suit le volet des tuiles, que presentation.js ouvre depuis
+// « Gestion des cartes » (fonds) ou « Gestion des itinéraires » (routage).
 if (typeof MutationObserver !== "undefined") {
-  new MutationObserver(() => activerHorsLigne(!$("pane-horsligne").hidden))
-    .observe($("pane-horsligne"), { attributes: true, attributeFilter: ["hidden"] });
+  new MutationObserver(() => activerHorsLigne(!$("horsLigne").hidden))
+    .observe($("horsLigne"), { attributes: true, attributeFilter: ["hidden"] });
 }
 
 // ------------------------------------------------------------ partage au téléphone
@@ -1869,7 +1910,7 @@ function afficherLot(r) {
   }
   $("lotHorsLigneTexte").textContent = message;
   $("lotHorsLigne").hidden = !message;
-  afficherFile(message);    // le même message dans l'onglet « Hors ligne », avec la file
+  afficherFile(message);    // le même message dans le volet « Hors ligne », avec la file
   $("arreterLot").hidden = !r.actif;
   $("majLot").hidden = $("plusTardLot").hidden = true;
   majPiste("lotHorsLigne", r.actif ? (r.total ? r.faites / r.total : null) : undefined);
@@ -1916,7 +1957,7 @@ async function suivreLot() {
   } else {
     await chargerLots();
     chargerFonds();         // sans l'attendre : la grille est déjà à jour
-    if (horsLigne.file.length) lancerSuivant();     // la tuile suivante de l'onglet « Hors ligne »
+    if (horsLigne.file.length) lancerSuivant();     // la tuile suivante de le volet « Hors ligne »
     if (lotSuivi) {
       // Le lot est arrivé (ou a échoué) : les calques et le calcul qui
       // l'attendaient repartent, sur lui ou à la volée.

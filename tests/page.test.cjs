@@ -45,7 +45,7 @@ function charger(preferences = {}, documentGpx = null) {
   const pressePapiers = [];
   const confirmations = Object.assign([], { reponse: false });
   const corps = element();
-  for (const [id, cle] of [["tab-trace", "onglets.parcours"], ["tab-reglages", "onglets.reglages"]]) {
+  for (const [id, cle] of [["entree-trace", "menu.trace"], ["entree-reglages", "menu.reglages"]]) {
     const tab = element();
     tab.dataset.i18n = cle;
     elements.set(id, tab);
@@ -139,7 +139,7 @@ const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () 
 
 const tic = () => new Promise((fin) => setImmediate(fin));
 
-// L'onglet « Hors ligne » ouvert : la page relit les lots du PC, puis le catalogue du serveur.
+// Le volet des tuiles hors ligne ouvert : la page relit les lots du PC, puis le catalogue du serveur.
 async function ouvrirHorsLigne(page, requetes, lots = [], catalogue = [], fonds = []) {
   page.activerHorsLigne(true);
   repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots, fonds });
@@ -216,11 +216,20 @@ test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et 
   changer(elements.get("hlFond"));
   assert.equal(page.grilleCases.layers.length, 0, "au zoom 6, trop de carrés : il faut se rapprocher");
   assert.match(elements.get("hlAide").textContent, /^Rapprochez-vous/);
-  assert.equal(elements.get("hlSourceLigne").hidden, false);
   assert.equal(elements.get("hlLegendeServeur").hidden, true, "pas de serveur pour les fonds");
-  // Sans clé IGN, le Plan IGN : le SCAN 25 n'est pas proposé.
+  // Le fond téléchargé est celui de la liste du haut : ici le Plan IGN affiché.
+  page.construireFonds();
+  page.dessinerCases();
   assert.equal(page.sourceAGarder(), "plan");
-  assert.deepEqual(elements.get("hlSource").enfants.map((o) => o.value), ["plan"]);
+  assert.equal(elements.get("hlFondChoisi").hidden, false);
+  assert.equal(elements.get("hlFondChoisi").textContent, "Fond téléchargé : Plan IGN, celui choisi dans la liste du haut.");
+  // Un fond qui ne se garde pas hors ligne : le volet dit lequel choisir (pas le SCAN 25, sans clé IGN).
+  carte.handlers.baselayerchange({ layer: page.fonds().osm });
+  assert.equal(page.sourceAGarder(), null);
+  assert.equal(elements.get("hlFondChoisi").textContent,
+    "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : Plan IGN.");
+  carte.handlers.baselayerchange({ layer: page.fonds().plan });
+  assert.equal(page.sourceAGarder(), "plan");
   carte.zoom = 12;
   page.dessinerCases();
   const [carre] = page.grilleCases.layers;
@@ -940,9 +949,9 @@ test("en anglais, la page traduit ses textes et les erreurs du serveur", async (
   const { page, elements, document, derniere } = charger();
   page.appliquerLangue("en");
   assert.equal(document.title, "hike2gpx — plan a route");
-  assert.equal(elements.get("tab-trace").textContent, "Route");
-  assert.equal(elements.get("tab-reglages").textContent, "Settings");
-  assert.equal(elements.get("panelTabs")["aria-label"], "Hiking tools");
+  assert.equal(elements.get("entree-trace").textContent, "Plan a route");
+  assert.equal(elements.get("entree-reglages").textContent, "Settings");
+  assert.equal(elements.get("menuPrincipal")["aria-label"], "Menu");
   assert.match(page.ts("Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier"), /ATKIS path missing/);
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   await page.calculer();
@@ -954,8 +963,8 @@ test("en anglais, la page traduit ses textes et les erreurs du serveur", async (
     "Calculation too long: bring the points closer.");
   page.appliquerLangue("fr");
   assert.equal(document.title, "hike2gpx — tracer un parcours");
-  assert.equal(elements.get("tab-trace").textContent, "Parcours");
-  assert.equal(elements.get("tab-reglages").textContent, "Réglages");
+  assert.equal(elements.get("entree-trace").textContent, "Planifier un itinéraire");
+  assert.equal(elements.get("entree-reglages").textContent, "Réglages");
   assert.equal(elements.get("statut").textContent, "Posez un deuxième point.");
 });
 

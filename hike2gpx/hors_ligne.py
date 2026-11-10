@@ -12,6 +12,7 @@ Les fonds de carte (fonds.py) se rangent à part, un MBTiles chacun, sans
 manifeste : ils ne sont pas des lots et n'entrent jamais dans une publication.
 
   hors-ligne/fonds/E5_N40-scan25.mbtiles, E5_N40-scan25-vue-3fa2c1.mbtiles
+  hors-ligne/fonds/N43E006-osm.map      la carte vectorielle d'OpenStreetMap (mapsforge.py)
 
 Règle unique : un parcours dont la zone tient dans un lot (l'emprise enrichie
 d'un lot enrichi, la zone d'un lot OSM) se calcule et s'affiche sur ce lot
@@ -26,7 +27,10 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from . import fonds, lot
+from . import fonds, lot, mapsforge
+
+# Un fond de carte est un MBTiles d'images ou une carte vectorielle Mapsforge.
+SUFFIXES_FONDS = (".mbtiles", mapsforge.SUFFIXE)
 
 # Note de provenance d'un lot venu du dépôt du serveur, à côté du manifeste
 # (que le lot publié ne change pas) : ce lot est un cache, renouvelé tout seul.
@@ -60,14 +64,17 @@ class HorsLigne:
         return [json.loads(m.read_text(encoding="utf-8")) for m in sorted(self.racine.glob("*/manifest.json"))]
 
     def fonds(self) -> list:
-        """Les fonds de carte installés, décrits par fonds.decrire ; un fichier
-        illisible (copie interrompue, autre format) est ignoré."""
+        """Les fonds de carte installés : les MBTiles d'images, décrits par
+        fonds.decrire, et les cartes vectorielles d'OpenStreetMap (mapsforge.py,
+        « format » : « map »). Un fichier illisible (copie interrompue, autre
+        format) est ignoré."""
         if not self.dossier_fonds.is_dir():
             return []
         decrits = []
-        for chemin in sorted(self.dossier_fonds.glob("*.mbtiles")):
+        for chemin in sorted(p for p in self.dossier_fonds.iterdir() if p.suffix in SUFFIXES_FONDS):
             try:
-                decrits.append(fonds.decrire(chemin))
+                decrits.append(mapsforge.decrire(chemin) if chemin.suffix == mapsforge.SUFFIXE
+                               else fonds.decrire(chemin))
             except (OSError, sqlite3.Error, KeyError, ValueError):
                 continue
         return decrits
@@ -93,7 +100,7 @@ class HorsLigne:
         """Retire les fonds d'un carré de 1° (N43E006-scan25, N43E006-plan…) ; rend les octets libérés."""
         if not fonds.carre_valide(carre):
             raise ValueError(f"Carré invalide : {carre}")
-        fichiers = [p for p in self.dossier_fonds.glob(f"{carre}-*.mbtiles") if p.is_file()] \
+        fichiers = [p for p in self.dossier_fonds.glob(f"{carre}-*") if p.is_file() and p.suffix in SUFFIXES_FONDS] \
             if self.dossier_fonds.is_dir() else []
         octets = sum(p.stat().st_size for p in fichiers)
         for p in fichiers:
@@ -104,9 +111,9 @@ class HorsLigne:
         """Les fonds des carrés de 1° (N43E006-scan25) qui tombent dans la case de 5°."""
         s, o, n, e = lot.boite_case(case)
         trouves = []
-        for chemin in self.dossier_fonds.glob("*-*.mbtiles") if self.dossier_fonds.is_dir() else []:
+        for chemin in self.dossier_fonds.glob("*-*") if self.dossier_fonds.is_dir() else []:
             carre = chemin.stem.split("-", 1)[0]
-            if fonds.carre_valide(carre):
+            if chemin.suffix in SUFFIXES_FONDS and fonds.carre_valide(carre):
                 cs, co, _, _ = fonds.boite_carre(carre)
                 if s <= cs < n and o <= co < e:
                     trouves.append(chemin)

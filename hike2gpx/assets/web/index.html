@@ -6,22 +6,39 @@
   <title>hike2gpx — tracer un parcours</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=desktop-11">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-43">
+  <link rel="stylesheet" href="/style.css?v=desktop-12">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-45">
 </head>
-<body>
-<div class="app-header"><div class="brand"><img class="brand-icon" src="/favicon.ico" alt=""><strong>hike<span>2</span>gpx</strong><span id="version"></span></div><form id="citySearch" class="city-search" role="search" autocomplete="off"><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form><div class="header-actions"><span class="readiness-group"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span id="readinessInfo" class="info-tooltip readiness-info" tabindex="0" aria-label="État des sources de calcul" aria-describedby="readinessInfoText">i<span id="readinessInfoText" role="tooltip"></span></span></span><a id="aide" class="bouton-langue bouton-aide" href="https://github.com/nico579/hike2gpx/blob/main/README.fr.md" target="_blank" rel="noopener" title="Aide : le mode d'emploi (README)" aria-label="Aide : le mode d'emploi (README)">?</a><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div></div>
+<body class="panel-collapsed">
+<div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
 <div id="carte" aria-label="Carte interactive">
+  <!-- Le menu de l'application Android : un bouton à trois traits, puis une entrée par page. -->
+  <button type="button" id="menuButton" class="menu-button" aria-haspopup="true" aria-expanded="false" aria-controls="menuPrincipal" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <div id="menuFond" class="menu-fond" hidden></div>
+  <nav id="menuPrincipal" class="menu-principal" aria-label="Menu" hidden>
+    <div class="menu-head"><div class="brand"><img class="brand-icon" src="/favicon.ico" alt=""><strong>hike<span>2</span>gpx</strong><span id="version"></span></div></div>
+    <div class="menu-etat"><span class="readiness-group"><span id="readiness" class="readiness unavailable" role="status" aria-live="polite"><span class="readiness-dot"></span><span id="readinessText">Tracé indisponible</span></span><span id="readinessInfo" class="info-tooltip readiness-info" tabindex="0" aria-label="État des sources de calcul" aria-describedby="readinessInfoText">i<span id="readinessInfoText" role="tooltip"></span></span></span><span class="langues" data-nico579-langue data-classe="bouton-langue"></span></div>
+    <button type="button" class="menu-entry" id="menuRecherche" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span id="entree-recherche" data-i18n="menu.recherche">Recherche</span></button>
+    <button type="button" class="menu-entry" data-pane="cartes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2V6Zm6-2v14m6-12v14"/></svg><span id="entree-cartes" data-i18n="menu.cartes">Gestion des cartes</span></button>
+    <button type="button" class="menu-entry" data-pane="itineraires"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/></svg><span id="entree-itineraires" data-i18n="menu.itineraires">Gestion des itinéraires</span></button>
+    <button type="button" class="menu-entry" data-pane="trace"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1Zm11-14 3 3"/></svg><span id="entree-trace" data-i18n="menu.trace">Planifier un itinéraire</span></button>
+    <button type="button" class="menu-entry" data-pane="reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span id="entree-reglages" data-i18n="menu.reglages">Réglages</span></button>
+    <a id="aide" class="menu-entry" href="https://github.com/nico579/hike2gpx/blob/main/README.fr.md" target="_blank" rel="noopener" title="Aide : le mode d'emploi (README)" aria-label="Aide : le mode d'emploi (README)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7m0 3h.01"/></svg><span data-i18n="menu.aide">Aide</span></a>
+  </nav>
   <div class="map-widget-toolbar">
-    <div class="map-widget-heading">
-    <button type="button" class="map-widget-button layers-trigger" id="layersButton" aria-label="Choisir le fond de carte, les chemins et la légende" aria-expanded="false" aria-controls="mapLayersMenu">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 6-10 6L2 9l10-6Zm-10 12 10 6 10-6M2 12l10 6 10-6"/></svg>
-      <span id="baseLabel">Plan IGN</span>
-      <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg>
-    </button>
-    <a class="info-tooltip map-providers-info-button" id="providersInfoButton" href="/documentation/pays" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le rapport des pays pris en charge sur GitHub" title="Pays pris en charge sur GitHub">i</a>
-    </div>
     <p id="offlineHint" class="map-offline-hint" role="status" hidden></p>
+    <section id="mapLegend" class="legende" aria-label="Légende de la carte">
+      <h3 data-i18n="legende.titre">Légende</h3><ul id="legendRows">
+        <li id="legendGpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">GPX chargé</span></li>
+        <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
+        <li id="legendIgn"><span class="trait ign"></span> <span id="legendOfficielTexte">portion sur un chemin officiel absent d'OSM, à vérifier</span></li>
+        <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
+        <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
+        <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
+        <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
+        <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
+      </ul>
+    </section>
   </div>
   <button type="button" class="map-widget-button map-expand-button leaflet-control" id="expandMapButton" aria-label="Mettre la carte en plein écran" aria-pressed="false" title="Mettre la carte en plein écran">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M3 3l6 6m12-6-6 6M3 21l6-6m12 6-6-6"/></svg>
@@ -50,6 +67,7 @@
 </div>
 <aside id="panneau" aria-label="Préparation du parcours">
   <div class="sheet-grip"><span></span></div>
+  <div class="page-head"><h2 id="pageTitre" data-i18n="menu.trace">Planifier un itinéraire</h2><button type="button" id="pageFermer" class="page-close" aria-label="Fermer" title="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
   <section id="routeSummary" class="route-summary" aria-label="Informations du parcours" hidden>
     <strong data-i18n="resume.parcours">Votre parcours</strong>
     <dl>
@@ -59,13 +77,8 @@
       <div class="summary-relief"><dt class="elevation-label"><span data-i18n="resultat.denivele">Dénivelé</span><span class="info-tooltip" tabindex="0" aria-label="Calcul du dénivelé">i<span role="tooltip" data-i18n="resume.deniveleInfo">gpx2elev relève l'altitude tous les 5 m. Il choisit le meilleur modèle couvrant tout le parcours : IGN LiDAR HD en priorité, puis Mapterhorn, FABDEM, Copernicus GLO-30 ou SRTM. Il lisse le profil sur 20 m et calcule D+/D− avec un seuil de 2 m. Le modèle utilisé est indiqué sur le profil. Sans modèle disponible, le dénivelé reste indisponible ; la valeur BRouter ne le remplace pas.</span></span></dt><dd id="denivele" class="summary-values"></dd></div>
     </dl>
   </section>
-  <nav id="panelTabs" class="panel-tabs" aria-label="Outils de randonnée" role="tablist">
-    <button type="button" role="tab" id="tab-trace" data-pane="trace" data-i18n="onglets.parcours" aria-controls="pane-trace" aria-selected="true">Parcours</button>
-    <button type="button" role="tab" id="tab-reglages" data-pane="reglages" data-i18n="onglets.reglages" aria-controls="pane-reglages" aria-selected="false" tabindex="-1">Réglages</button>
-    <button type="button" role="tab" id="tab-horsligne" data-pane="horsligne" data-i18n="onglets.horsLigne" aria-controls="pane-horsligne" aria-selected="false" tabindex="-1">Hors ligne</button>
-  </nav>
   <div class="panel-scroll">
-  <section id="pane-trace" class="pane" role="tabpanel" aria-labelledby="tab-trace">
+  <section id="pane-trace" class="pane" aria-labelledby="pageTitre">
     <p class="aide" data-i18n="aide">Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.</p>
     <div class="boutons">
       <div class="route-actions">
@@ -80,10 +93,6 @@
         <p id="erreurGpx" class="gpx-erreur" role="alert" hidden></p>
       </div>
     </div>
-    <h2 class="section-title">Votre façon de marcher</h2>
-    <label class="option"><input type="checkbox" id="strict" checked> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
-    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte">Emprunter aussi les chemins officiels absents d'OSM (à vérifier sur place)</span></label>
-    <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
     <p id="statut" role="status"></p>
     <p id="noteCalques" class="note" hidden><span id="noteCalquesTexte"></span><span id="noteCalquesPiste" class="piste" role="progressbar" hidden><span id="noteCalquesBarre" class="barre"></span></span></p>
     <p id="extraitOsm" class="note" hidden><span id="extraitTexte"></span><span id="extraitPiste" class="piste" role="progressbar" hidden><span id="extraitBarre" class="barre"></span></span></p>
@@ -97,26 +106,43 @@
       <ol id="aVerifier"></ol>
     </section>
   </section>
-  <section id="pane-reglages" class="pane" role="tabpanel" aria-labelledby="tab-reglages" hidden>
+  <section id="pane-reglages" class="pane" aria-labelledby="pageTitre" hidden>
     <section id="reglages">
       <div class="setting-row ign-key-row"><div class="ign-key-label"><label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé IGN">i<span role="tooltip" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</span></span></div><div class="ligne"><input id="cleIgn" type="password" autocomplete="off" spellcheck="false" aria-label="Clé IGN SCAN 25"><button id="afficherCle" type="button" aria-label="Afficher la clé IGN" aria-pressed="false" title="Afficher la clé IGN"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="eye-strike" d="M3 21 21 3"/></svg></button></div></div>
       <div class="setting-row renewal-row"><label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les données locales après</label><div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div></div>
       <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
-      <div class="display-settings"><label class="option"><input id="hideMapToolbar" type="checkbox"> <span data-i18n="reglages.masquerCartes">Masquer le bandeau des cartes</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
+      <div class="display-settings"><label class="option"><input id="showLegend" type="checkbox" checked> <span data-i18n="reglages.afficherLegende">Afficher la légende</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
+      <div class="display-settings partage-settings"><h3 data-i18n="partage.titre">Partager au téléphone</h3><p class="note" data-i18n="partage.note">Le téléphone reçoit de ce PC ses fonds de carte et les zones de routage qu'il a fabriquées, sur le même Wi-Fi.</p><button id="partagerTelephone" type="button" data-i18n="partage.ouvrir">Partager au téléphone</button><div id="partageOuvert" hidden><button id="revoirQr" type="button" data-i18n="partage.revoir">Afficher le QR code</button><button id="fermerPartage" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div><p id="partageTexte" class="note" role="status" hidden></p></div>
       <div class="journal-settings"><button id="ouvrirDossierJournaux" type="button" data-i18n="reglages.ouvrirJournaux">Ouvrir le dossier des journaux</button><p id="erreurDossierJournaux" class="note" role="alert" hidden></p></div>
       <div class="journal-settings"><p id="versionApplication" class="note" hidden></p><button id="verifierMaj" type="button" data-i18n="reglages.verifierMaj">Vérifier les mises à jour</button><p id="statutMaj" class="note" role="status" hidden></p></div>
       <div id="donnees"></div>
     </section>
   </section>
-  <!-- Hors ligne : choisir le routage (cases de 5°) ou le fond de carte (carrés de 1°),
-       sélectionner les tuiles sur la carte, télécharger ; puis partager au téléphone. -->
-  <section id="pane-horsligne" class="pane" role="tabpanel" aria-labelledby="tab-horsligne" hidden>
-    <section id="horsLigne" class="hors-ligne">
+  <!-- Gestion des cartes : le fond et les calques affichés, puis les fonds que ce PC
+       fabrique par carrés de 1° pour s'en servir hors ligne. -->
+  <section id="pane-cartes" class="pane" aria-labelledby="pageTitre" hidden>
+    <h2 class="section-title"><span data-i18n="cartes.fondTitre">Fond de carte et calques</span><a class="info-tooltip map-providers-info-button" id="providersInfoButton" href="/documentation/pays" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le rapport des pays pris en charge sur GitHub" title="Pays pris en charge sur GitHub">i</a></h2>
+    <div id="cartesCalques" class="cartes-calques"></div>
+    <h2 class="section-title" data-i18n="cartes.horsLigneTitre">Fonds hors ligne</h2>
+    <p class="note" data-i18n="cartes.horsLigneNote">Ce PC fabrique les tuiles d'un fond de carte, par carrés de 1°, pour s'en servir sans réseau et les partager au téléphone.</p>
+    <button type="button" class="page-action hl-ouvrir" data-hl-mode="fond" data-hl-texte="cartes.horsLigneBouton" data-i18n="cartes.horsLigneBouton" aria-expanded="false" aria-controls="horsLigne">Choisir les carrés sur la carte</button>
+  </section>
+  <!-- Gestion des itinéraires : les options du calcul, puis les zones de routage (cases de 5°)
+       à télécharger du serveur ou à fabriquer sur ce PC. -->
+  <section id="pane-itineraires" class="pane" aria-labelledby="pageTitre" hidden>
+    <h2 class="section-title" data-i18n="itineraires.calculTitre">Calcul des itinéraires</h2>
+    <label class="option"><input type="checkbox" id="strict" checked> <span data-i18n="option.strict">Mode strict : éviter aussi les passages à vérifier</span></label>
+    <label class="option" id="ignOption"><input type="checkbox" id="ign" checked> <span id="ignOptionTexte">Emprunter aussi les chemins officiels absents d'OSM (à vérifier sur place)</span></label>
+    <label class="option"><input type="checkbox" id="comparer" checked> <span data-i18n="option.comparer">Montrer le tracé qui ignore les barrières</span></label>
+    <h2 class="section-title" data-i18n="itineraires.zonesTitre">Zones de routage sur ce PC</h2>
+    <p class="note" data-i18n="itineraires.zonesNote">Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.</p>
+    <button type="button" class="page-action hl-ouvrir" data-hl-mode="routage" data-hl-texte="itineraires.zonesBouton" data-i18n="itineraires.zonesBouton" aria-expanded="false" aria-controls="horsLigne">Choisir les zones sur la carte</button>
+    <section id="horsLigne" class="hors-ligne" hidden>
       <fieldset class="hl-mode"><legend data-i18n="horsLigne.quoi">À télécharger</legend>
         <label class="option"><input type="radio" name="hlMode" id="hlRoutage" value="routage" checked> <span data-i18n="horsLigne.modeRoutage">Données de routage (cases de 5°)</span></label>
         <label class="option"><input type="radio" name="hlMode" id="hlFond" value="fond"> <span data-i18n="horsLigne.modeFond">Fond de carte (carrés de 1°)</span></label>
       </fieldset>
-      <div id="hlSourceLigne" class="setting-row" hidden><label class="setting-label" for="hlSource" data-i18n="horsLigne.source">Fond de carte</label><select id="hlSource"></select></div>
+      <p id="hlFondChoisi" class="note" role="status" hidden></p>
       <p id="hlAide" class="note"></p>
       <ul class="hl-legende" aria-label="Légende de la grille">
         <li><span class="hl-pastille installe"></span><span data-i18n="horsLigne.legendeInstalle">sur ce PC</span></li>
@@ -132,27 +158,10 @@
         <button id="hlVider" type="button" data-i18n="horsLigne.viderSelection" disabled>Tout désélectionner</button>
       </div>
       <div id="hlFile" class="hl-file" role="status" hidden><p id="hlEnCours" class="note"></p><button id="hlArreter" type="button" data-i18n="horsLigne.arreter">Arrêter</button></div>
-      <h3 data-i18n="partage.titre">Partager au téléphone</h3>
-      <div class="display-settings partage-settings"><button id="partagerTelephone" type="button" data-i18n="partage.ouvrir">Partager au téléphone</button><div id="partageOuvert" hidden><button id="revoirQr" type="button" data-i18n="partage.revoir">Afficher le QR code</button><button id="fermerPartage" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div><p id="partageTexte" class="note" role="status" hidden></p></div>
     </section>
   </section>
   </div>
 </aside>
-<button type="button" id="panelToggle" class="panel-toggle" aria-controls="panneau" aria-expanded="true" aria-label="Replier le panneau du parcours" title="Replier le panneau du parcours">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg>
-</button>
-<section id="mapLegend" class="legende" aria-label="Légende de la carte" hidden>
-  <h3 data-i18n="legende.titre">Légende</h3><ul id="legendRows">
-    <li id="legendGpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">GPX chargé</span></li>
-    <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
-    <li id="legendIgn"><span class="trait ign"></span> <span id="legendOfficielTexte">portion sur un chemin officiel absent d'OSM, à vérifier</span></li>
-    <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
-    <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
-    <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
-    <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
-    <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
-  </ul>
-</section>
 <script src="/leaflet/leaflet.js"></script>
 <script src="/leaflet/Leaflet.VectorGrid.bundled.js"></script>
 <script src="/map-providers.js?v=8"></script>
@@ -165,10 +174,10 @@
     <button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button>
   </div>
 </div>
-<script src="/app.js?v=desktop-72"></script>
+<script src="/app.js?v=desktop-76"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-22"></script>
+<script src="/presentation.js?v=desktop-25"></script>
 </body>
 </html>
