@@ -128,6 +128,11 @@ class MainActivity : Activity() {
     /** Une tâche de fond montre son état quelques secondes, même hors mode. */
     private var tacheAffichee = false
     private var sequenceTache = 0
+    /**
+     * Ce qu'un PC a partagé et qui reste à télécharger, après la confirmation :
+     * une tâche à la fois, la suivante à la fin de la précédente (tache).
+     */
+    private val recuperations = ArrayDeque<() -> Unit>()
     private var fenetreBibliotheque: LinearLayout? = null
     private var ecoutePosition: LocationListener? = null
     private var apresPermission: (() -> Unit)? = null
@@ -1131,23 +1136,26 @@ class MainActivity : Activity() {
             .setTitle(fond.nom)
             .setMessage(getString(R.string.confirmer_telechargement,
                 Formatter.formatShortFileSize(this, fond.octets), source.libelle))
-            .setPositiveButton(R.string.telecharger) { _, _ ->
-                tache(R.string.etat_telechargement, true, { continuer ->
-                    val travail = File(filesDir, "telechargements")
-                    val recu = Depot().telechargerFond(fond, source, travail, { faits, total ->
-                        runOnUiThread { progression.progress = (1000 * faits / maxOf(total, 1)).toInt() }
-                    }, continuer)
-                    fonds.installer(recu, fond)
-                    getString(R.string.etat_fond_installe, fond.nom)
-                }, ensuite = { reussi ->
-                    if (reussi) {
-                        appliquerFond(Fonds.source(fond.nom))
-                        remplirCartes()
-                    }
-                })
-            }
+            .setPositiveButton(R.string.telecharger) { _, _ -> installerFond(source, fond) }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /** Le fond téléchargé et installé, déjà confirmé (un bouton, ou la récupération d'un PC). */
+    private fun installerFond(source: Source, fond: Fond) {
+        tache(R.string.etat_telechargement, true, { continuer ->
+            val travail = File(filesDir, "telechargements")
+            val recu = Depot().telechargerFond(fond, source, travail, { faits, total ->
+                runOnUiThread { progression.progress = (1000 * faits / maxOf(total, 1)).toInt() }
+            }, continuer)
+            fonds.installer(recu, fond)
+            getString(R.string.etat_fond_installe, fond.nom)
+        }, ensuite = { reussi ->
+            if (reussi) {
+                appliquerFond(Fonds.source(fond.nom))
+                remplirCartes()
+            }
+        })
     }
 
     // ------------------------------------------------------------------ itinéraires
@@ -1948,16 +1956,40 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Toujours confirmé : une page web pourrait ouvrir un tel lien à l'insu de l'utilisateur. */
-    private fun ajouterPc(source: Source) {
+    /**
+     * Le QR code d'un PC lu : son catalogue dit ce qu'il partage, c'est-à-dire
+     * ce qu'on a sélectionné sur sa carte. Une seule confirmation nomme le PC
+     * et ce qui va venir ; elle ajoute le PC et récupère tout à la suite.
+     * Toujours confirmé : une page web pourrait ouvrir un tel lien à l'insu de
+     * l'utilisateur, et rien ne s'ajoute ni ne se télécharge sans ce « oui ».
+     */
+    private fun ajouterPc(source: Source) = tache(R.string.etat_pc, false, { _ ->
+        val catalogue = Depot().lireCatalogue(source)
+        runOnUiThread { proposerRecuperation(source, catalogue) }
+        getString(R.string.etat_pc_lus, catalogue.fonds.size, catalogue.lots.size)
+    })
+
+    private fun proposerRecuperation(source: Source, catalogue: Catalogue) {
+        // Ce qui manque au téléphone : une zone absente ou plus ancienne, un fond absent.
+        val presents = horsLigne.lots().associateBy { it.case }
+        val lots = catalogue.lots.filter { lot -> presents[lot.case]?.let { plusRecent(lot, it) } ?: true }
+        val fondsVenus = fondsProposes(listOf(source to catalogue),
+            fonds.installes().map { it.nameWithoutExtension }.toSet()).map { it.second }
+        val rien = lots.isEmpty() && fondsVenus.isEmpty()
+        val octets = lots.sumOf { it.octets } + fondsVenus.sumOf { it.octets }
         AlertDialog.Builder(this)
-            .setTitle(R.string.ajouter_pc)
-            .setMessage(getString(R.string.confirmer_pc, source.catalogue))
-            .setPositiveButton(android.R.string.ok) { _, _ ->
+            .setTitle(R.string.recuperer_titre)
+            .setMessage(if (rien) getString(R.string.recuperer_rien, source.libelle)
+                else getString(R.string.recuperer_message, source.libelle, lots.size, fondsVenus.size,
+                    Formatter.formatShortFileSize(this, octets)))
+            .setPositiveButton(if (rien) android.R.string.ok else R.string.telecharger) { _, _ ->
                 reglages.ajouterPc(source)
                 cataloguesPc = null
-                // Ce que le PC apporte au téléphone : ses fonds et ses lots, sur les pages Cartes et Itinéraires.
-                lireCataloguesPc { remplirCartes(); remplirItineraires() }
+                for (lot in lots) recuperations.addLast { telecharger(Offre(source, lot)) }
+                for (fond in fondsVenus) recuperations.addLast { installerFond(source, fond) }
+                // Les pages Cartes et Itinéraires relisent les PC, une fois tout arrivé.
+                recuperations.addLast { lireCataloguesPc { remplirCartes(); remplirItineraires() } }
+                if (!enCours.get()) recuperations.removeFirstOrNull()?.invoke()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -2426,9 +2458,11 @@ class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         EXECUTEUR.execute {
             var reussie = false
+            var interrompue = false
             val bilan = try {
                 travail { !arret.get() }.also { reussie = true }
             } catch (e: Abandon) {
+                interrompue = true
                 getString(R.string.etat_interrompu)
             } catch (e: Exception) {
                 texte(e)
@@ -2455,6 +2489,9 @@ class MainActivity : Activity() {
                 // Un recentrage demandé pendant la tâche n'a pas perdu sa demande.
                 if (lotDeZoneEnAttente && !enCours.get() && autoLotDemande == null)
                     proposerLotZone()
+                // « Arrêter » pendant une récupération l'arrête toute ; sinon la suivante part.
+                if (interrompue) recuperations.clear()
+                if (!enCours.get()) recuperations.removeFirstOrNull()?.invoke()
             }
         }
     }

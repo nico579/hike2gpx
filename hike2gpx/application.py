@@ -1430,15 +1430,27 @@ class Application:
 
     def partager(self, corps) -> dict:
         """Ouvre ({"ouvrir": true}) ou ferme le partage au téléphone. Chaque
-        ouverture tire un nouveau jeton : le QR code précédent ne vaut plus."""
-        if not (corps or {}).get("ouvrir"):
+        ouverture tire un nouveau jeton : le QR code précédent ne vaut plus.
+        {"lots": [...], "carres": [...]} ne partage que ces zones et les fonds
+        de ces carrés, choisis sur la carte ; sans eux, tout ce qui est là."""
+        corps = corps or {}
+        if not corps.get("ouvrir"):
             return self.partage.fermer()
+        # La sélection se vérifie d'abord : une demande refusée ne doit pas faire
+        # paraître la fenêtre d'autorisation du pare-feu pour rien.
+        selection = None
+        if "lots" in corps or "carres" in corps:
+            lots, carres = corps.get("lots") or [], corps.get("carres") or []
+            if not all(isinstance(c, str) and re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", c) for c in lots) \
+                    or not all(isinstance(c, str) and fonds.carre_valide(c) for c in carres):
+                return {"ouvert": False, "erreur": "Sélection de partage invalide."}
+            selection = {"lots": lots, "carres": carres}
         # Sous Windows, la règle du pare-feu (pare_feu.py), créée au besoin après
         # une demande UAC ; vérifiée une fois par séance quand elle est en place.
         if self._pare_feu not in ("ok", "creee", "inutile"):
             self._pare_feu = self.autoriser_pare_feu()
         try:
-            return {**self.partage.ouvrir(), "pare_feu": self._pare_feu}
+            return {**self.partage.ouvrir(selection), "pare_feu": self._pare_feu}
         except (partage.ErreurPartage, OSError) as exc:
             journal.warning("Partage : %s", exc)
             return {"ouvert": False, "erreur": str(exc)}

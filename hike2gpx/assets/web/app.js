@@ -67,6 +67,7 @@ const TEXTES = {
     "horsLigne.telecharger": "Télécharger",
     "horsLigne.supprimerSelection": "Supprimer",
     "horsLigne.supprimerN": "Supprimer les {n} déjà là",
+    "horsLigne.partagerN": "Partager les {n} au téléphone",
     "horsLigne.selectionnerVue": "Sélectionner la vue",
     "horsLigne.viderSelection": "Tout désélectionner",
     "horsLigne.enAttente": "({n} en attente)",
@@ -253,7 +254,7 @@ const TEXTES = {
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
     "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
-    "partage.ouvert": "Dans hike2gpx sur le téléphone, sur le même Wi-Fi : « Gestion des cartes », puis « Scanner le QR code d’un PC ». {fonds} fond(s) de carte à prendre. Le code change à chaque partage.",
+    "partage.ouvert": "Partagés : {lots} zone(s) de routage et {fonds} fond(s) de carte, {taille}. Dans hike2gpx sur le téléphone, sur le même Wi-Fi : « Gestion des cartes », puis « Scanner le QR code d’un PC » ; le téléphone demande une confirmation et récupère tout. Le code change à chaque partage.",
     "partage.titre": "Partager au téléphone",
     "partage.pareFeu": "Attention : le pare-feu de Windows n’autorise pas encore hike2gpx, le téléphone ne pourra pas joindre le PC. Rouvrez le partage et acceptez la demande d’autorisation de Windows.",
     "partage.revoir": "Afficher le QR code",
@@ -328,6 +329,7 @@ const TEXTES = {
     "horsLigne.telecharger": "Download",
     "horsLigne.supprimerSelection": "Delete",
     "horsLigne.supprimerN": "Delete the {n} already here",
+    "horsLigne.partagerN": "Share the {n} with the phone",
     "horsLigne.selectionnerVue": "Select the view",
     "horsLigne.viderSelection": "Deselect all",
     "horsLigne.enAttente": "({n} waiting)",
@@ -514,7 +516,7 @@ const TEXTES = {
     "horsLigne.fondFini": "Base map {nom} ready offline.",
     "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
-    "partage.ouvert": "In hike2gpx on the phone, on the same Wi-Fi: “Map management”, then “Scan a PC’s QR code”. {fonds} base map(s) to take. The code changes with every share.",
+    "partage.ouvert": "Shared: {lots} routing zone(s) and {fonds} base map(s), {taille}. In hike2gpx on the phone, on the same Wi-Fi: “Map management”, then “Scan a PC’s QR code”; the phone asks for one confirmation and gets everything. The code changes with every share.",
     "partage.titre": "Share with the phone",
     "partage.pareFeu": "Warning: the Windows firewall does not allow hike2gpx yet, so the phone cannot reach the PC. Share again and accept the Windows authorisation request.",
     "partage.revoir": "Show the QR code",
@@ -1749,6 +1751,9 @@ function afficherSelection() {
   if (b.installees.length) parties.push(t("horsLigne.selInstallees", { n: b.installees.length, taille: tailleTexte(b.octetsInstalles) }));
   $("hlSelection").textContent = b.noms.length ? parties.join(" ") || t("horsLigne.selRien") : t("horsLigne.selVide");
   $("hlTelecharger").disabled = !b.aFaire.length || (!routage && !sourceFond());
+  // Ce qui est sur ce PC dans la sélection se partage au téléphone, seul.
+  $("hlPartager").hidden = !b.installees.length;
+  $("hlPartager").textContent = t("horsLigne.partagerN", { n: b.installees.length });
   $("hlSupprimer").hidden = !b.installees.length;
   $("hlSupprimer").textContent = t("horsLigne.supprimerN", { n: b.installees.length });
   $("hlVider").disabled = !b.noms.length;
@@ -1957,14 +1962,21 @@ function afficherPartage(r, montrer = false) {
   $("partageFenetre").hidden = !(r.ouvert && montrer);
 }
 
-async function basculerPartage(ouvrir) {
+// selection : {lots, carres}, ce que le volet de la grille a choisi ; sans
+// elle (l'entrée du menu), tout ce qui est sur ce PC.
+async function basculerPartage(ouvrir, selection = null) {
   try {
-    afficherPartage(await api("partage", { ouvrir }), ouvrir);
+    afficherPartage(await api("partage", { ouvrir, ...(selection || {}) }), ouvrir);
   } catch (e) {
     afficherPartage({ ouvert: false, erreur: e.message });
   }
 }
 $("partagerTelephone").addEventListener("click", () => basculerPartage(true));
+$("hlPartager").addEventListener("click", () => {
+  const b = bilanSelection();
+  basculerPartage(true, horsLigne.mode === "routage" ? { lots: b.installees, carres: [] }
+    : { lots: [], carres: b.installees });
+});
 $("fermerPartage").addEventListener("click", () => basculerPartage(false));
 $("revoirQr").addEventListener("click", () => { if (etat.partage?.ouvert) $("partageFenetre").hidden = false; });
 $("fermerFenetrePartage").addEventListener("click", () => { $("partageFenetre").hidden = true; });
