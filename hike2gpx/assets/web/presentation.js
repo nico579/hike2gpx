@@ -124,11 +124,11 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       button.textContent = t(button.dataset.i18n);
       if (!open) continue;
       button.after(offline);
+      // Le mode qui compte est celui d'app.js (horsLigne.mode), pas la case :
+      // au rechargement, le navigateur restaure la case sans prévenir personne.
       const radio = document.getElementById(mode === "fond" ? "hlFond" : "hlRoutage");
-      if (!radio.checked) {
-        radio.checked = true;
-        radio.dispatchEvent(new Event("change"));
-      }
+      radio.checked = true;
+      if (horsLigne.mode !== mode) radio.dispatchEvent(new Event("change"));
     }
     offline.hidden = !mode;
   }
