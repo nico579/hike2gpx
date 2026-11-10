@@ -42,9 +42,9 @@
     <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
 
     <string name="titre_itineraire">Itinéraire</string>
-    <string name="strict">Prendre en compte les blocages à vérifier</string>
-    <string name="officiels">Utiliser les chemins %1$s</string>
-    <string name="officiels_aucun">Utiliser les chemins officiels</string>
+    <string name="strict">Inclure les blocages à vérifier</string>
+    <string name="officiels">Inclure les chemins %1$s</string>
+    <string name="officiels_aucun">Inclure les chemins officiels</string>
 
     <string name="titre_calques">Superposition des chemins</string>
     <string name="calque_osm">OSM</string>
@@ -72,7 +72,7 @@
     <string name="legende_bloque">franchissement bloquant</string>
     <string name="legende_verifier">franchissement à vérifier</string>
 
-    <string name="titre_lots">Zones de routage présentes sur le téléphone</string>
+    <string name="titre_lots">Zones stockées localement</string>
     <string name="titre_fonds">Hors ligne</string>
     <string name="oublier">Oublier</string>
     <string name="scanner_qr">Scanner le QR code d’un PC</string>
@@ -82,9 +82,9 @@
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="aucun_lot">Aucun lot installé.</string>
-    <string name="itineraires_modes">Calcul des itinéraires</string>
+    <string name="itineraires_modes">Mode de calcul</string>
     <string name="itineraires_relire">Relire les lots partagés par les PC</string>
-    <string name="itineraires_pc">Télécharger les zones de routage depuis le PC</string>
+    <string name="itineraires_pc">Télécharger des zones depuis l’ordinateur</string>
     <string name="itineraires_lot">Télécharger %1$s · %2$s · %3$s, depuis %4$s</string>
     <string name="itineraires_aucun_lot">Aucun lot de routage à télécharger depuis le PC.</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>

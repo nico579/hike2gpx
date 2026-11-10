@@ -140,19 +140,19 @@ ensemble, et la carte agrandit au-delà de leur zoom le plus fin. Le bandeau de
 planification ne garde que « Retirer », « Effacer » et « Revenir ».
 
 La page « Gestion des itinéraires », dans le menu, réunit le calcul et
-l'enregistrement, sortis des réglages. On y coche « Prendre en compte les
+l'enregistrement, sortis des réglages. « Mode de calcul » y coche « Inclure les
 blocages à vérifier » et les chemins officiels, nommés d'après les lots
-installés (« Utiliser les chemins IGN BD TOPO », « ATKIS »…). Les zones de
-routage présentes sur le téléphone s'y listent avec leur taille, « Mettre à
-jour » quand le serveur en a une plus récente et « Supprimer » après
-confirmation. « Télécharger les zones de routage depuis le PC » propose celles
-que seul un PC calcule, avec « Scanner le QR code d'un PC » ; un lot est pris au
-premier PC qui le sert, et un PC éteint ne bloque rien. Le volet « Enregistrement
-de trace GPS » y règle la distance minimale, la durée minimale et la déviation
-GPS maximale. Les réglages ne gardent que l'affichage, le cache et la mise à
-jour ; « Vider le cache » efface comme sur le PC les lots, les fonds, les
-téléchargements interrompus, les tuiles en ligne gardées et les tuiles de
-relief ; les lots du serveur reviennent d'eux-mêmes.
+installés (« Inclure les chemins IGN », « ATKIS »…). Les zones stockées
+localement s'y listent avec leur taille, « Mettre à jour » quand le serveur en a
+une plus récente et « Supprimer » après confirmation. « Télécharger des zones
+depuis l'ordinateur » propose celles que seul un ordinateur calcule, avec
+« Scanner le QR code d'un PC » ; un lot est pris au premier PC qui le sert, et
+un PC éteint ne bloque rien. Le volet « Enregistrement de trace GPS » y règle la
+distance minimale, la durée minimale et la déviation GPS maximale. Les réglages
+ne gardent que l'affichage, le cache et la mise à jour ; « Vider le cache »
+efface comme sur le PC les lots, les fonds, les téléchargements interrompus, les
+tuiles en ligne gardées et les tuiles de relief ; les lots du serveur reviennent
+d'eux-mêmes.
 
 L'application parle anglais ou français selon la langue du téléphone. Les deux
 versions portent les mêmes textes et les mêmes arguments.

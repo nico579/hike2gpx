@@ -44,9 +44,9 @@
     <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
 
     <string name="titre_itineraire">Route</string>
-    <string name="strict">Take crossings to check into account</string>
-    <string name="officiels">Use the %1$s paths</string>
-    <string name="officiels_aucun">Use the official paths</string>
+    <string name="strict">Include crossings to check</string>
+    <string name="officiels">Include %1$s paths</string>
+    <string name="officiels_aucun">Include the official paths</string>
 
     <string name="titre_calques">Path overlays</string>
     <string name="calque_osm">OSM</string>
@@ -74,7 +74,7 @@
     <string name="legende_bloque">blocking crossing</string>
     <string name="legende_verifier">crossing to check</string>
 
-    <string name="titre_lots">Routing areas on the phone</string>
+    <string name="titre_lots">Zones stored locally</string>
     <string name="titre_fonds">Offline</string>
     <string name="oublier">Forget</string>
     <string name="scanner_qr">Scan a PC’s QR code</string>
@@ -84,9 +84,9 @@
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="aucun_lot">No bundle installed.</string>
-    <string name="itineraires_modes">Route calculation</string>
+    <string name="itineraires_modes">Calculation mode</string>
     <string name="itineraires_relire">Reload the bundles shared by the PCs</string>
-    <string name="itineraires_pc">Download routing areas from the PC</string>
+    <string name="itineraires_pc">Download zones from the computer</string>
     <string name="itineraires_lot">Download %1$s · %2$s · %3$s, from %4$s</string>
     <string name="itineraires_aucun_lot">No routing bundle to download from the PC.</string>
     <string name="aucun_fond">No offline base map. They come from a PC that shares its own.</string>
