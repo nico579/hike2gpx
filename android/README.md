@@ -144,10 +144,10 @@ l'enregistrement, sortis des réglages. « Mode de calcul » y coche « Inclure 
 blocages à vérifier » et les chemins officiels, nommés d'après les lots
 installés (« Inclure les chemins IGN », « ATKIS »…). Les zones stockées
 localement s'y listent avec leur taille, « Mettre à jour » quand le serveur en a
-une plus récente et « Supprimer » après confirmation. « Télécharger des zones
-depuis l'ordinateur » propose celles que seul un ordinateur calcule, avec
-« Scanner le QR code d'un PC » ; un lot est pris au premier PC qui le sert, et
-un PC éteint ne bloque rien. Le volet « Enregistrement de trace GPS » y règle la
+une plus récente et « Supprimer » après confirmation. « Télécharger depuis
+l'ordinateur » propose celles que seul un ordinateur calcule, avec « Scanner le
+QR code de l'ordinateur » ; un lot est pris au premier PC qui le sert, et un PC
+éteint ne bloque rien. Le volet « Enregistrement de trace GPS » y règle la
 distance minimale, la durée minimale et la déviation GPS maximale. Les réglages
 ne gardent que l'affichage, le cache et la mise à jour ; « Vider le cache »
 efface comme sur le PC les lots, les fonds, les téléchargements interrompus, les

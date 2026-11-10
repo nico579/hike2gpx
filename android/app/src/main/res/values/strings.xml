@@ -38,7 +38,7 @@
     <string name="fond_relire">Reload the maps shared by the PC</string>
     <string name="etat_fond_installe">Base map %1$s installed.</string>
     <string name="cartes_partage">PC sharing</string>
-    <string name="cartes_a_telecharger">Download from the PC share</string>
+    <string name="cartes_a_telecharger">Download from the computer</string>
     <string name="cartes_aucun_fond">No base map to download yet. Add a PC with its QR code to receive its own.</string>
     <string name="cartes_supprimer_titre">Delete the base map</string>
     <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
@@ -77,7 +77,7 @@
     <string name="titre_lots">Zones stored locally</string>
     <string name="titre_fonds">Offline</string>
     <string name="oublier">Forget</string>
-    <string name="scanner_qr">Scan a PC’s QR code</string>
+    <string name="scanner_qr">Scan the computer’s QR code</string>
     <string name="scan_invite">Aim at the QR code shown by hike2gpx on the PC</string>
     <string name="ajouter_pc">Add this PC as a source?</string>
     <string name="confirmer_pc">Catalogue: %1$s</string>
@@ -86,7 +86,7 @@
     <string name="aucun_lot">No bundle installed.</string>
     <string name="itineraires_modes">Calculation mode</string>
     <string name="itineraires_relire">Reload the bundles shared by the PCs</string>
-    <string name="itineraires_pc">Download zones from the computer</string>
+    <string name="itineraires_pc">Download from the computer</string>
     <string name="itineraires_lot">Download %1$s · %2$s · %3$s, from %4$s</string>
     <string name="itineraires_aucun_lot">No routing bundle to download from the PC.</string>
     <string name="aucun_fond">No offline base map. They come from a PC that shares its own.</string>

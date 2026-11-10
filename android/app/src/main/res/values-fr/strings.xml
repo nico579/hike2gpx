@@ -36,7 +36,7 @@
     <string name="fond_relire">Relire les fonds partagés par le PC</string>
     <string name="etat_fond_installe">Fond %1$s installé.</string>
     <string name="cartes_partage">Partage du PC</string>
-    <string name="cartes_a_telecharger">Télécharger depuis le partage du PC</string>
+    <string name="cartes_a_telecharger">Télécharger depuis l’ordinateur</string>
     <string name="cartes_aucun_fond">Aucun fond à télécharger pour l’instant. Ajoutez un PC avec son QR code pour recevoir les siens.</string>
     <string name="cartes_supprimer_titre">Supprimer le fond</string>
     <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
@@ -75,7 +75,7 @@
     <string name="titre_lots">Zones stockées localement</string>
     <string name="titre_fonds">Hors ligne</string>
     <string name="oublier">Oublier</string>
-    <string name="scanner_qr">Scanner le QR code d’un PC</string>
+    <string name="scanner_qr">Scanner le QR code de l’ordinateur</string>
     <string name="scan_invite">Visez le QR code affiché par hike2gpx sur le PC</string>
     <string name="ajouter_pc">Ajouter ce PC comme source ?</string>
     <string name="confirmer_pc">Catalogue : %1$s</string>
@@ -84,7 +84,7 @@
     <string name="aucun_lot">Aucun lot installé.</string>
     <string name="itineraires_modes">Mode de calcul</string>
     <string name="itineraires_relire">Relire les lots partagés par les PC</string>
-    <string name="itineraires_pc">Télécharger des zones depuis l’ordinateur</string>
+    <string name="itineraires_pc">Télécharger depuis l’ordinateur</string>
     <string name="itineraires_lot">Télécharger %1$s · %2$s · %3$s, depuis %4$s</string>
     <string name="itineraires_aucun_lot">Aucun lot de routage à télécharger depuis le PC.</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>
