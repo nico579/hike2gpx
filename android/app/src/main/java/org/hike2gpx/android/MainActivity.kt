@@ -312,7 +312,7 @@ class MainActivity : Activity() {
             minWidth = 0; minimumWidth = 0
             setPadding(dp(12), paddingTop, dp(12), paddingBottom)
             setOnClickListener { chercherVille() }
-        }
+        }.avecIcone(R.drawable.ic_btn_chercher)
         recherche.addView(boutonVille)
         bandeauHaut.addView(recherche)
         bandeauHaut.addView(etat)
@@ -320,7 +320,7 @@ class MainActivity : Activity() {
             max = 1000; visibility = View.GONE
         }
         bandeauHaut.addView(progression)
-        arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }
+        arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }.avecIcone(R.drawable.ic_btn_arreter)
         bandeauHaut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
         legende = construireLegende()
         bandeauHaut.addView(legende)
@@ -337,16 +337,16 @@ class MainActivity : Activity() {
         val bas = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE); setPadding(marge / 2, marge / 2, marge / 2, marge / 2)
         }
-        for ((texte, action) in listOf<Pair<Int, () -> Unit>>(
-            R.string.retirer to ::retirerPoint,
-            R.string.effacer to ::effacer,
-            R.string.revenir to ::revenirAuDepart,
+        for ((texte, icone, action) in listOf<Triple<Int, Int, () -> Unit>>(
+            Triple(R.string.retirer, R.drawable.ic_btn_retirer, ::retirerPoint),
+            Triple(R.string.effacer, R.drawable.ic_btn_supprimer, ::effacer),
+            Triple(R.string.revenir, R.drawable.ic_btn_revenir, ::revenirAuDepart),
         )) {
             bas.addView(Button(this).apply {
                 setText(texte); textSize = 12f; isAllCaps = false; minWidth = 0; minimumWidth = 0
-                setPadding(0, paddingTop, 0, paddingBottom)
+                setPadding(dp(4), paddingTop, dp(4), paddingBottom)
                 setOnClickListener { action() }
-            }, LinearLayout.LayoutParams(0, -2, 1f))
+            }.avecIcone(icone), LinearLayout.LayoutParams(0, -2, 1f))
         }
         bandeauBas.addView(bas, LinearLayout.LayoutParams(-1, -2))
         racine.addView(bandeauBas, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
@@ -1054,9 +1054,10 @@ class MainActivity : Activity() {
                 text = getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom,
                     Formatter.formatShortFileSize(this@MainActivity, fond.octets), source.libelle)
                 setOnClickListener { telechargerFond(source, fond) }
-            })
+            }.avecIcone(R.drawable.ic_btn_telecharger))
         }
-        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
+        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } }
+            .avecIcone(R.drawable.ic_btn_qr))
 
         // Les calques du lot, comme dans la page du PC : la coche OSM reste
         // toujours, celle d'un fournisseur national n'apparaît que si le lot
@@ -1097,7 +1098,7 @@ class MainActivity : Activity() {
                     Formatter.formatShortFileSize(this@MainActivity, f.length()))
                 zoneCliquable { voirFond(f) }
             }, LinearLayout.LayoutParams(0, -2, 1f))
-            ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppressionFond(f) })
+            ligne.addView(boutonPetit(R.string.supprimer, R.drawable.ic_btn_supprimer, rouge = true) { confirmerSuppressionFond(f) })
             colonne.addView(ligne)
         }
     }
@@ -1234,9 +1235,10 @@ class MainActivity : Activity() {
                 text = getString(R.string.itineraires_lot, lot.case, description(lot),
                     Formatter.formatShortFileSize(this@MainActivity, lot.octets), source.libelle)
                 setOnClickListener { telecharger(Offre(source, lot)) }
-            })
+            }.avecIcone(R.drawable.ic_btn_telecharger))
         }
-        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
+        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } }
+            .avecIcone(R.drawable.ic_btn_qr))
 
         // L'enregistrement de trace de Locus Map, appliqué au prochain point
         // même quand un enregistrement est en cours.
@@ -1271,8 +1273,8 @@ class MainActivity : Activity() {
                 zoneCliquable { voirLot(lot) }
             }, LinearLayout.LayoutParams(0, -2, 1f))
             if (offre != null && plusRecent(offre.lot, lot))
-                ligne.addView(boutonPetit(R.string.mettre_a_jour) { telecharger(offre) })
-            ligne.addView(boutonPetit(R.string.supprimer) { supprimerLot(lot) })
+                ligne.addView(boutonPetit(R.string.mettre_a_jour, R.drawable.ic_btn_actualiser) { telecharger(offre) })
+            ligne.addView(boutonPetit(R.string.supprimer, R.drawable.ic_btn_supprimer, rouge = true) { supprimerLot(lot) })
             colonne.addView(ligne)
         }
     }
@@ -1624,8 +1626,8 @@ class MainActivity : Activity() {
                     Formatter.formatShortFileSize(this@MainActivity, f.length())
                 textSize = 13f
             }, LinearLayout.LayoutParams(0, -2, 1f))
-            ligne.addView(boutonPetit(R.string.exporter) { exporterTrace(f) })
-            ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppression(listOf(f)) })
+            ligne.addView(boutonPetit(R.string.exporter, R.drawable.ic_btn_telecharger) { exporterTrace(f) })
+            ligne.addView(boutonPetit(R.string.supprimer, R.drawable.ic_btn_supprimer, rouge = true) { confirmerSuppression(listOf(f)) })
             colonne.addView(ligne)
         }
         colonne.addView(Button(this).apply {
@@ -1637,7 +1639,7 @@ class MainActivity : Activity() {
                         Toast.LENGTH_SHORT).show()
                 else confirmerSuppression(choisies)
             }
-        })
+        }.avecIcone(R.drawable.ic_btn_supprimer, rouge = true))
     }
 
     // ------------------------------------------------------------------ réglages
@@ -1706,11 +1708,12 @@ class MainActivity : Activity() {
         colonne.addView(Button(this).apply {
             text = getString(R.string.vider_cache, Formatter.formatShortFileSize(this@MainActivity, octetsCaches()))
             setOnClickListener { viderCache() }
-        })
+        }.avecIcone(R.drawable.ic_btn_supprimer))
 
         titre(colonne, R.string.maj_titre)
         colonne.addView(TextView(this).apply { text = getString(R.string.maj_version, versionInstallee()) })
-        colonne.addView(Button(this).apply { setText(R.string.maj_verifier); setOnClickListener { verifierMaj() } })
+        colonne.addView(Button(this).apply { setText(R.string.maj_verifier); setOnClickListener { verifierMaj() } }
+            .avecIcone(R.drawable.ic_btn_actualiser))
     }
 
     // ------------------------------------------------------------------ recherche de ville
@@ -2664,12 +2667,23 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun boutonPetit(texte: Int, action: () -> Unit) = Button(this).apply {
+    /** Une icône de 18 dp avant le texte du bouton, comme sur la page du PC ; rouge pour ce qui supprime. */
+    private fun Button.avecIcone(icone: Int, rouge: Boolean = false): Button = apply {
+        getDrawable(icone)?.mutate()?.let { d ->
+            d.setBounds(0, 0, dp(18), dp(18))
+            if (rouge) d.setTint(0xffb3261e.toInt())
+            setCompoundDrawablesRelative(d, null, null, null)
+        }
+        compoundDrawablePadding = dp(6)
+        if (rouge) setTextColor(0xffb3261e.toInt())
+    }
+
+    private fun boutonPetit(texte: Int, icone: Int, rouge: Boolean = false, action: () -> Unit) = Button(this).apply {
         setText(texte); textSize = 12f; isAllCaps = false
         minWidth = 0; minimumWidth = 0
         setPadding(dp(8), paddingTop, dp(8), paddingBottom)
         setOnClickListener { action() }
-    }
+    }.avecIcone(icone, rouge)
 
     private fun confirmerSuppression(fichiers: List<File>) {
         if (fichiers.isEmpty()) return
