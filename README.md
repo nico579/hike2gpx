@@ -46,7 +46,12 @@ which is less precise, and SRTM remains the very last resort. The country by
 country detail is in the
 [provider catalog](https://github.com/nico579/lidar2map/blob/main/docs/providers.md)
 of lidar2map, the sister project, which queries these national LiDAR sources
-directly, and which Mapterhorn gathers too.
+directly, and which Mapterhorn gathers too. Compared with the native LiDAR,
+Mapterhorn differs by 1.6 to 3 cm (RMSE) from IGN's LiDAR HD terrain model on
+three French areas, and by 10 cm from the DGM1 on one Saxon site: negligible for
+an elevation gain, which the 20 m smoothing averages out anyway. These
+measurements, with their limits, are in
+[lidar2map's evaluation](https://github.com/nico579/lidar2map/blob/main/docs/mapterhorn-evaluation.fr.md).
 
 Both applications are downloaded from the releases: one archive per system for
 the computer (Windows, macOS, Linux), `hike2gpx-android.apk` for the phone.

@@ -49,7 +49,12 @@ mondial de 30 m de Copernicus, moins précis, et SRTM reste le tout dernier
 recours. Le détail pays par pays se lit dans le
 [catalogue des fournisseurs](https://github.com/nico579/lidar2map/blob/main/docs/providers.md)
 de lidar2map, le projet jumeau, qui interroge directement ces sources LiDAR
-nationales, que Mapterhorn rassemble aussi.
+nationales, que Mapterhorn rassemble aussi. Comparé au LiDAR natif, Mapterhorn
+s'en écarte de 1,6 à 3 cm (RMSE) face au MNT du LiDAR HD de l'IGN sur trois
+zones françaises, et de 10 cm face au DGM1 sur un site saxon : négligeable pour
+un dénivelé, que le lissage sur 20 m moyenne de toute façon. Ces mesures, avec
+leurs limites, sont dans
+[l'évaluation de lidar2map](https://github.com/nico579/lidar2map/blob/main/docs/mapterhorn-evaluation.fr.md).
 
 Les deux applications se téléchargent dans les releases : une archive par
 système pour l'ordinateur (Windows, macOS, Linux), `hike2gpx-android.apk` pour
