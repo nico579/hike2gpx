@@ -130,6 +130,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     offline.hidden = !anchor;
   }
   // Une page du menu, ou aucune ("") : la carte seule.
+  let profilPret = false;                          // vrai quand le bandeau d'altitude est initialisé
   const routeSummary = document.getElementById("routeSummary");
   const result = document.getElementById("resultat");
   function selectPane(name, remember = true) {
@@ -152,6 +153,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     }
     setPanelCollapsed(!open);
     routeSummary.hidden = result.hidden || name !== "trace";
+    document.body.classList.toggle("profil-hors-page", name !== "trace");
+    if (profilPret) syncProfileHeight();
     panel.querySelector(".panel-scroll").scrollTop = 0;
     if (name === "reglages") chargerDonnees();
     if (name === "itineraires") chargerLots();      // la liste des zones stockées localement
@@ -252,7 +255,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   }
   syncCollapsedMetrics();
   function syncProfileHeight() {
-    const visible = !elevationPanel.hidden && !hideElevation.checked;
+    // Le bandeau, comme le résumé, ne vit que dans « Planifier un itinéraire ».
+    const visible = !elevationPanel.hidden && !hideElevation.checked && !document.body.classList.contains("profil-hors-page");
     document.body.classList.toggle("profile-open", visible && !elevationContent.hidden);
     document.body.classList.toggle("profile-collapsed", visible && elevationContent.hidden);
   }
@@ -268,6 +272,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     syncElevationVisibility();
   });
   syncElevationVisibility();
+  profilPret = true;
   function syncRoute() {
     // L'export est désactivé dès qu'un point change, pendant que le nouveau
     // parcours se calcule. Garder le profil précédent en place jusque-là.

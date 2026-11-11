@@ -341,3 +341,4 @@ body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
   .page-head{padding:2px 12px 8px 20px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+body.profil-hors-page #elevationPanel{display:none}
