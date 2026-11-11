@@ -65,6 +65,7 @@ import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.MapEventsOverlay
@@ -229,6 +230,8 @@ class MainActivity : Activity() {
         overlayCalques = CalquesOverlay(this)
         carte = MapView(this).apply {
             setMultiTouchControls(true)
+            // Le zoom se fait aux doigts : pas de boutons + et −.
+            zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
             controller.setZoom(vue.third)
             controller.setCenter(GeoPoint(vue.first, vue.second))
             // Les calques du lot restent sous le tracé et sous les repères.
