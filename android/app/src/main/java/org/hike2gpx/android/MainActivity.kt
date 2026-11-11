@@ -1055,8 +1055,6 @@ class MainActivity : Activity() {
                 setOnClickListener { telechargerFond(source, fond) }
             })
         }
-        if (proposes.isEmpty() && cataloguesPc != null)
-            colonne.addView(TextView(this).apply { setText(R.string.cartes_aucun_fond) })
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
 
         // Les calques du lot, comme dans la page du PC : la coche OSM reste

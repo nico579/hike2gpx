@@ -51,7 +51,6 @@
     <string name="fond_a_telecharger">Download %1$s: %2$s, %3$s, from %4$s</string>
     <string name="etat_fond_installe">Base map %1$s installed.</string>
     <string name="cartes_a_telecharger">Download areas from the computer</string>
-    <string name="cartes_aucun_fond">No base map to download yet. Add a PC with its QR code to receive its own.</string>
     <string name="cartes_supprimer_titre">Delete the base map</string>
     <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
 
