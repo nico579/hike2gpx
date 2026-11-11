@@ -111,8 +111,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       { attributes: true, childList: true, characterData: true, subtree: true });
   }
   refreshActivity();
-  // Le volet des tuiles hors ligne : un seul bloc, que « Gestion des cartes »
-  // montre pour les fonds (carrés de 1°) et « Gestion des itinéraires » pour le
+  // Le volet « Hors ligne » : un seul bloc, que « Gestion des cartes »
+  // montre pour les fonds (cases de 1°) et « Gestion des itinéraires » pour le
   // routage (cases de 5°), dès que la page est ouverte : la grille est ce qu'on
   // y vient chercher. Ouvert, app.js affiche la grille sur la carte.
   const offline = document.getElementById("horsLigne");

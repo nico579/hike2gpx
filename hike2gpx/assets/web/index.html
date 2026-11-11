@@ -120,11 +120,11 @@
     </section>
   </section>
   <!-- Gestion des cartes : le fond et les calques affichés, puis les fonds que ce PC
-       fabrique par carrés de 1° pour s'en servir hors ligne. -->
+       fabrique par cases de 1° pour s'en servir hors ligne. -->
   <section id="pane-cartes" class="pane" aria-labelledby="pageTitre" hidden>
     <h2 class="section-title"><span data-i18n="cartes.fondTitre">En ligne</span><span class="info-tooltip" tabindex="0" aria-label="Cartes en ligne">i<span role="tooltip" data-i18n="cartes.fondNote">Les cartes servies par Internet : celles du pays affiché, puis celles du monde. La carte nationale suit le pays du centre de la carte. Le SCAN 25 demande la clé IGN des réglages.</span></span></h2>
     <div id="cartesCalques" class="cartes-calques"></div>
-    <h2 class="section-title"><span data-i18n="cartes.horsLigneTitre">Téléchargement pour usage hors ligne</span><span class="info-tooltip" tabindex="0" aria-label="Fonds hors ligne">i<span role="tooltip" data-i18n="cartes.horsLigneNote">Ce PC fabrique les fonds de carte par carrés de 1° pour les partager au téléphone, qui s'en sert sans réseau. Ils ne s'affichent pas sur le PC, qui reste en ligne.</span></span></h2>
+    <h2 class="section-title"><span data-i18n="cartes.horsLigneTitre">Téléchargement pour usage hors ligne</span><span class="info-tooltip" tabindex="0" aria-label="Fonds hors ligne">i<span role="tooltip" data-i18n="cartes.horsLigneNote">Ce PC fabrique les fonds de carte par cases de 1° pour les partager au téléphone, qui s'en sert sans réseau. Ils ne s'affichent pas sur le PC, qui reste en ligne.</span></span></h2>
     <div class="hl-ancre" data-hl-mode="fond"></div>
     <h2 class="section-title"><span data-i18n="itineraires.zonesTitre">Zones stockées localement</span></h2>
     <ul id="zonesCartes" class="zones-locales"></ul>
@@ -142,7 +142,7 @@
     <section id="horsLigne" class="hors-ligne" hidden>
       <fieldset class="hl-mode"><legend data-i18n="horsLigne.quoi">À télécharger</legend>
         <label class="option"><input type="radio" name="hlMode" id="hlRoutage" value="routage" checked> <span data-i18n="horsLigne.modeRoutage">Données de routage (cases de 5°)</span></label>
-        <label class="option"><input type="radio" name="hlMode" id="hlFond" value="fond"> <span data-i18n="horsLigne.modeFond">Fond de carte (carrés de 1°)</span></label>
+        <label class="option"><input type="radio" name="hlMode" id="hlFond" value="fond"> <span data-i18n="horsLigne.modeFond">Fond de carte (cases de 1°)</span></label>
       </fieldset>
       <p id="hlFondChoisi" class="note" role="status" hidden></p>
       <p id="hlAide" class="note"></p>
@@ -154,7 +154,7 @@
       </ul>
       <p id="hlSelection" class="note" role="status"></p>
       <div class="hl-actions">
-        <span class="action-control"><button id="hlTelecharger" type="button" aria-describedby="hlTelechargerInfo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg><span data-i18n="horsLigne.telecharger">Télécharger</span></button><span id="hlTelechargerInfo" class="action-tooltip" role="tooltip">Télécharge sur ce PC le fond choisi en haut, pour les carrés sélectionnés, afin de le partager au téléphone.</span></span>
+        <span class="action-control"><button id="hlTelecharger" type="button" aria-describedby="hlTelechargerInfo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg><span data-i18n="horsLigne.telecharger">Télécharger</span></button><span id="hlTelechargerInfo" class="action-tooltip" role="tooltip">Télécharge sur ce PC le fond choisi en haut, pour les cases sélectionnées, afin de le partager au téléphone.</span></span>
         <span class="action-control"><button id="hlPartager" type="button" aria-describedby="hlPartagerInfo" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><span data-i18n="horsLigne.partager">Partager</span></button><span id="hlPartagerInfo" class="action-tooltip" role="tooltip" data-i18n="horsLigne.infoPartager">Partage au téléphone ce que la sélection a sur ce PC : un QR code s'affiche, à scanner avec hike2gpx sur le téléphone, qui récupère tout d'un coup.</span></span>
         <span class="action-control"><button id="hlSupprimer" type="button" aria-describedby="hlSupprimerInfo" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7M10 11v6m4-6v6"/></svg><span data-i18n="horsLigne.supprimerSelection">Supprimer</span></button><span id="hlSupprimerInfo" class="action-tooltip" role="tooltip" data-i18n="horsLigne.infoSupprimer">Supprime de ce PC ce que la sélection y a, après une confirmation qui le détaille.</span></span>
       </div>

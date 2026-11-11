@@ -35,14 +35,14 @@ const TEXTES = {
     "cartes.fondNote": "Les cartes servies par Internet : celles du pays affiché, puis celles du monde. La carte nationale suit le pays du centre de la carte. Le SCAN 25 demande la clé IGN des réglages.",
     "cartes.calquesTitre": "Superposition des chemins",
     "cartes.horsLigneTitre": "Téléchargement pour usage hors ligne",
-    "cartes.horsLigneNote": "Ce PC fabrique les fonds de carte par carrés de 1° pour les partager au téléphone, qui s'en sert sans réseau. Ils ne s'affichent pas sur le PC, qui reste en ligne.",
+    "cartes.horsLigneNote": "Ce PC fabrique les fonds de carte par cases de 1° pour les partager au téléphone, qui s'en sert sans réseau. Ils ne s'affichent pas sur le PC, qui reste en ligne.",
     "itineraires.calculTitre": "Mode de calcul",
     "itineraires.zonesTitre": "Zones stockées localement",
     "itineraires.zonesNote": "Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.",
     "partage.note": "Le téléphone reçoit de ce PC ses fonds de carte et les zones de routage qu'il a fabriquées, sur le même Wi-Fi.",
     "horsLigne.quoi": "À télécharger",
     "horsLigne.modeRoutage": "Données de routage (cases de 5°)",
-    "horsLigne.modeFond": "Fond de carte (carrés de 1°)",
+    "horsLigne.modeFond": "Fond de carte (cases de 1°)",
     "horsLigne.fondAucun": "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : {liste}.",
     "reglages.afficherLegende": "Afficher la légende",
     "horsLigne.legendeInstalle": "sur ce PC",
@@ -50,28 +50,28 @@ const TEXTES = {
     "horsLigne.legendeEnCours": "en cours",
     "horsLigne.legendeServeur": "sur le serveur",
     "horsLigne.aideRoutage": "Cliquez les cases de 5° à télécharger ou à supprimer ; un second clic les désélectionne.",
-    "horsLigne.aideFond": "Cliquez les carrés de 1° à télécharger ou à supprimer ; un second clic les désélectionne.",
-    "horsLigne.aideZoom": "Rapprochez-vous pour voir les carrés de 1° du fond de carte.",
+    "horsLigne.aideFond": "Cliquez les cases de 1° à télécharger ou à supprimer ; un second clic les désélectionne.",
+    "horsLigne.aideZoom": "Rapprochez-vous pour voir les cases de 1° du fond de carte.",
     "horsLigne.infoInstalle": "sur ce PC, {taille}",
     "horsLigne.infoServeur": "sur le serveur, {taille}",
     "horsLigne.infoFabriquer": "pas sur le serveur : à fabriquer sur ce PC, environ une heure",
     "horsLigne.infoCarre": "pas de fond sur ce PC",
-    "horsLigne.selVide": "Aucune tuile sélectionnée.",
+    "horsLigne.selVide": "Aucune case sélectionnée.",
     "horsLigne.selRien": "Déjà à jour sur ce PC.",
     "horsLigne.selTelecharger": "{n} à télécharger : {taille}.",
     "horsLigne.selFabriquer": "{n} à fabriquer sur ce PC : environ {duree}.",
-    "horsLigne.selFonds": "{n} carré(s) : environ {taille} et {duree}.",
+    "horsLigne.selFonds": "{n} case(s) : environ {taille} et {duree}.",
     "horsLigne.selInstallees": "{n} déjà sur ce PC ({taille}).",
     "horsLigne.telecharger": "Télécharger",
     "horsLigne.supprimerSelection": "Supprimer",
     "horsLigne.partager": "Partager",
-    "horsLigne.infoTelechargerFond": "Télécharge sur ce PC le fond choisi en haut, pour les carrés sélectionnés, afin de le partager au téléphone.",
+    "horsLigne.infoTelechargerFond": "Télécharge sur ce PC le fond choisi en haut, pour les cases sélectionnées, afin de le partager au téléphone.",
     "horsLigne.infoTelechargerRoutage": "Télécharge du serveur les zones sélectionnées, ou les fabrique sur ce PC quand le serveur ne les publie pas.",
     "horsLigne.infoPartager": "Partage au téléphone ce que la sélection a sur ce PC : un QR code s'affiche, à scanner avec hike2gpx sur le téléphone, qui récupère tout d'un coup.",
     "horsLigne.infoSupprimer": "Supprime de ce PC ce que la sélection y a, après une confirmation qui le détaille.",
     "horsLigne.enAttente": "({n} en attente)",
     "horsLigne.confirmerSuppressionN": "Supprimer de ce PC :\n{liste}\n\n{taille} en tout. Ce qui vient du serveur se retéléchargera si besoin ; un fond ou une zone fabriqué ici serait à refaire.",
-    "horsLigne.supprimees": "{n} tuile(s) retirée(s), {taille} libérés.",
+    "horsLigne.supprimees": "{n} case(s) retirée(s), {taille} libérés.",
     "aide": "Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.",
     "bouton.retirerDernier": "Retirer",
     "bouton.retirerDernierInfo": "Retire le dernier point ajouté au parcours.",
@@ -138,7 +138,7 @@ const TEXTES = {
     "disponibilite.oui": "Tracé disponible",
     "disponibilite.non": "Tracé indisponible",
     "disponibilite.attente.moteur": "Installation de BRouter en cours",
-    "disponibilite.attente.segments": "Tuiles BRouter en cours de téléchargement",
+    "disponibilite.attente.segments": "Cases BRouter en cours de téléchargement",
     "disponibilite.attente.osm": "Données OSM ou Overpass en attente",
     "disponibilite.attente.source": "Chemins officiels indisponibles dans cette zone",
     "disponibilite.attente.zone": "Zone du parcours à préciser",
@@ -165,7 +165,7 @@ const TEXTES = {
     "donnees.osm": "Chemins OSM lus sur Overpass : {n} tuiles, {taille}",
     "donnees.extrait": "Extrait {nom} du {date}, {taille}",
     "donnees.extrait.provisoire": "Extrait {nom} du {date}, {taille}, en attendant sa région",
-    "donnees.brouter": "Tuiles BRouter {noms} : {taille}",
+    "donnees.brouter": "Cases BRouter {noms} : {taille}",
     "donnees.restes": "Fichiers inutiles : {taille}",
     "donnees.vider": "Vider",
     "donnees.actualiser": "Actualiser",
@@ -264,7 +264,7 @@ const TEXTES = {
     "etape.debut": "Préparation du calcul",
     "etape.donnees": "Lecture des données de la zone : {faites} / {total} tuiles",
     "etape.fusion": "Fusion avec les chemins officiels",
-    "etape.tuiles": "Fabrication de la tuile BRouter",
+    "etape.tuiles": "Fabrication de la case BRouter",
     "etape.analyse": "Analyse des franchissements",
     "etape.itineraire": "Calcul de l'itinéraire",
     "etape.comparaison": "Tracé standard, pour comparaison",
@@ -296,43 +296,43 @@ const TEXTES = {
     "cartes.fondNote": "Maps served over the Internet: those of the country shown, then those of the world. The national map follows the country at the map centre. SCAN 25 needs the IGN key from the settings.",
     "cartes.calquesTitre": "Path overlays",
     "cartes.horsLigneTitre": "Download for offline use",
-    "cartes.horsLigneNote": "This PC builds base maps in 1° squares to share them with the phone, which uses them without a network. They are not shown on the PC, which stays online.",
+    "cartes.horsLigneNote": "This PC builds base maps in 1° cells to share them with the phone, which uses them without a network. They are not shown on the PC, which stays online.",
     "itineraires.calculTitre": "Calculation mode",
     "itineraires.zonesTitre": "Zones stored locally",
     "itineraires.zonesNote": "Routing areas, in 5° cells, are downloaded from the server; those it does not publish are built on this PC.",
     "partage.note": "The phone gets this PC's base maps and the routing areas it built, on the same Wi-Fi.",
     "horsLigne.quoi": "To download",
-    "horsLigne.modeRoutage": "Routing data (5° areas)",
-    "horsLigne.modeFond": "Base map (1° squares)",
+    "horsLigne.modeRoutage": "Routing data (5° cells)",
+    "horsLigne.modeFond": "Base map (1° cells)",
     "horsLigne.fondAucun": "The base map shown cannot be kept offline. Choose in the list above: {liste}.",
     "reglages.afficherLegende": "Show the legend",
     "horsLigne.legendeInstalle": "on this PC",
     "horsLigne.legendeSelection": "selected",
     "horsLigne.legendeEnCours": "in progress",
     "horsLigne.legendeServeur": "on the server",
-    "horsLigne.aideRoutage": "Click the 5° areas to download or delete; a second click deselects them.",
-    "horsLigne.aideFond": "Click the 1° squares to download or delete; a second click deselects them.",
-    "horsLigne.aideZoom": "Zoom in to see the 1° squares of the base map.",
+    "horsLigne.aideRoutage": "Click the 5° cells to download or delete; a second click deselects them.",
+    "horsLigne.aideFond": "Click the 1° cells to download or delete; a second click deselects them.",
+    "horsLigne.aideZoom": "Zoom in to see the 1° cells of the base map.",
     "horsLigne.infoInstalle": "on this PC, {taille}",
     "horsLigne.infoServeur": "on the server, {taille}",
     "horsLigne.infoFabriquer": "not on the server: to build on this PC, about an hour",
     "horsLigne.infoCarre": "no base map on this PC",
-    "horsLigne.selVide": "No tile selected.",
+    "horsLigne.selVide": "No cell selected.",
     "horsLigne.selRien": "Already up to date on this PC.",
     "horsLigne.selTelecharger": "{n} to download: {taille}.",
     "horsLigne.selFabriquer": "{n} to build on this PC: about {duree}.",
-    "horsLigne.selFonds": "{n} square(s): about {taille} and {duree}.",
+    "horsLigne.selFonds": "{n} cell(s): about {taille} and {duree}.",
     "horsLigne.selInstallees": "{n} already on this PC ({taille}).",
     "horsLigne.telecharger": "Download",
     "horsLigne.supprimerSelection": "Delete",
     "horsLigne.partager": "Share",
-    "horsLigne.infoTelechargerFond": "Downloads to this PC the base map chosen above, for the selected squares, to share it with the phone.",
+    "horsLigne.infoTelechargerFond": "Downloads to this PC the base map chosen above, for the selected cells, to share it with the phone.",
     "horsLigne.infoTelechargerRoutage": "Downloads the selected zones from the server, or builds them on this PC when the server does not publish them.",
     "horsLigne.infoPartager": "Shares with the phone what the selection has on this PC: a QR code shows, to scan with hike2gpx on the phone, which gets everything at once.",
     "horsLigne.infoSupprimer": "Deletes from this PC what the selection has there, after a confirmation that lists it.",
     "horsLigne.enAttente": "({n} waiting)",
     "horsLigne.confirmerSuppressionN": "Delete from this PC:\n{liste}\n\n{taille} in all. What comes from the server will download again if needed; a base map or zone built here would have to be built again.",
-    "horsLigne.supprimees": "{n} tile(s) removed, {taille} freed.",
+    "horsLigne.supprimees": "{n} cell(s) removed, {taille} freed.",
     "aide": "Click the map to place the start, then the waypoints and the finish. Drag a point to move it; “Back to start” closes a loop.",
     "bouton.retirerDernier": "Remove",
     "bouton.retirerDernierInfo": "Removes the last point added to the route.",
@@ -399,7 +399,7 @@ const TEXTES = {
     "disponibilite.oui": "Routing available",
     "disponibilite.non": "Routing unavailable",
     "disponibilite.attente.moteur": "BRouter installation in progress",
-    "disponibilite.attente.segments": "BRouter tiles downloading",
+    "disponibilite.attente.segments": "BRouter cells downloading",
     "disponibilite.attente.osm": "Waiting for OSM data or Overpass",
     "disponibilite.attente.source": "Official paths unavailable in this area",
     "disponibilite.attente.zone": "Route area needs to be specified",
@@ -426,7 +426,7 @@ const TEXTES = {
     "donnees.osm": "OSM paths read from Overpass: {n} tiles, {taille}",
     "donnees.extrait": "{nom} extract of {date}, {taille}",
     "donnees.extrait.provisoire": "{nom} extract of {date}, {taille}, until its region arrives",
-    "donnees.brouter": "BRouter tiles {noms}: {taille}",
+    "donnees.brouter": "BRouter cells {noms}: {taille}",
     "donnees.restes": "Leftover files: {taille}",
     "donnees.vider": "Clear",
     "donnees.actualiser": "Refresh",
@@ -525,7 +525,7 @@ const TEXTES = {
     "etape.debut": "Preparing the calculation",
     "etape.donnees": "Reading the area's data: {faites} / {total} tiles",
     "etape.fusion": "Merging official paths",
-    "etape.tuiles": "Building the BRouter tile",
+    "etape.tuiles": "Building the BRouter cell",
     "etape.analyse": "Analysing the crossings",
     "etape.itineraire": "Calculating the route",
     "etape.comparaison": "Standard route, for comparison",
@@ -969,7 +969,7 @@ carte.on("baselayerchange", (e) => {
   const cle = Object.keys(couchesFonds).find((nom) => couchesFonds[nom] === e.layer);
   if (cle) {
     cleFondActif = cle;
-    // Le volet des fonds hors ligne suit le fond choisi : ses carrés et son bilan en dépendent.
+    // Le volet des fonds hors ligne suit le fond choisi : ses cases et son bilan en dépendent.
     if (horsLigne.actif) dessinerCases();
     try { localStorage.setItem(`${CLE_FOND}.${paysCarte}`, cle); } catch (erreur) { /* stockage indisponible */ }
   }
@@ -1470,14 +1470,14 @@ function construireFonds() {
 // ------------------------------------------------------------ hors ligne
 // Le volet « Hors ligne » (proposition de Nico du 2026-11-05) : on choisit le
 // routage (cases BRouter de 5°, lots du serveur ou fabriqués ici) ou le fond
-// de carte (carrés de 1°, fonds.py) ; la grille change en fonction. On
-// sélectionne les tuiles sur la carte (elles changent de couleur), on
+// de carte (cases de 1°, fonds.py) ; la grille change en fonction. On
+// sélectionne les cases sur la carte (elles changent de couleur), on
 // télécharge ; elles partent l'une après l'autre (le serveur ne mène qu'une
 // préparation à la fois), suivies dans le volet. Le partage au téléphone suit.
 const CASE_DEG = 5;
-const ZOOM_CARRES = 7;      // en deçà, trop de carrés à l'écran pour être lisibles
+const ZOOM_CARRES = 7;      // en deçà, trop de cases à l'écran pour être lisibles
 const CARRES_MAX_ECRAN = 400;
-// Mesures du 2026-11-05 (fonds.py) : un carré de fond, environ 1 Go et 35 min ;
+// Mesures du 2026-11-05 (fonds.py) : une case de fond, environ 1 Go et 35 min ;
 // un lot fabriqué sur ce PC, environ une heure.
 const FOND_CARRE_OCTETS = 1e9;
 const FOND_CARRE_S = 2100;
@@ -1487,7 +1487,7 @@ const FOND_CARRE_S = 2100;
 // sur N43E006 (Var) a été arrêté après 17 min, la carte en cours d'écriture.
 const CARTE_OSM_OCTETS = 60e6;
 const CARTE_OSM_S = 1800;
-// Ce qu'un carré de la source engage : le poids et la durée.
+// Ce qu'une case de la source engage : le poids et la durée.
 function coutCarre(source) {
   return source === "osm" ? [CARTE_OSM_OCTETS, CARTE_OSM_S] : [FOND_CARRE_OCTETS, FOND_CARRE_S];
 }
@@ -1583,7 +1583,7 @@ function casesVisibles() {
   return noms.slice(0, 60);       // au plus 60 cases : au-delà, la carte est trop dézoomée pour choisir
 }
 
-// Les fonds de carte se fabriquent par carrés de 1° (fonds.py), nommés comme
+// Les fonds de carte se fabriquent par cases de 1° (fonds.py), nommés comme
 // les tuiles SRTM : N43E006 va de 43° à 44° nord et de 6° à 7° est.
 function nomCarre(lat, lon) {
   const la = Math.floor(lat), lo = Math.floor(lon);
@@ -1596,7 +1596,7 @@ function boiteCarre(nom) {
   return [s, o, s + 1, o + 1];
 }
 
-// Les carrés que touche une zone [sud, ouest, nord, est].
+// Les cases que touche une zone [sud, ouest, nord, est].
 function carresZone([s, o, n, e]) {
   const noms = [];
   for (let la = Math.floor(s); la < Math.ceil(n); la++) {
@@ -1640,7 +1640,7 @@ function etatCarre(carre) {
 }
 
 // Sur un fond chargé (SCAN 25, relief), un voile de 5 à 8 % ne se voyait
-// pas : traits pleins et épais, fonds francs ; seule la tuile vide reste
+// pas : traits pleins et épais, fonds francs ; seule la case vide reste
 // discrète. Les mêmes couleurs que la légende du volet.
 const STYLES_CASE = {
   prete: { color: "#1b7a3e", weight: 3, fillColor: "#23a04f", fillOpacity: 0.3 },
@@ -1676,7 +1676,7 @@ function bouton(texteBouton, action) {
   return b;
 }
 
-// Ce que dit une tuile au survol : son nom et son état.
+// Ce que dit une case au survol : son nom et son état.
 function infoCase(nom) {
   const lot = lotsInstalles.find((l) => l.case === nom);
   const serveur = lotsServeur.find((l) => l.case === nom);
@@ -1699,7 +1699,7 @@ function tuileGrille(nom, [s, o, n, e], style, info) {
     .addTo(grilleCases);
 }
 
-// La grille du mode choisi : les cases de 5° du routage, ou les carrés de 1°
+// La grille du mode choisi : les cases de 5° du routage, ou les cases de 1°
 // du fond, ceux-ci à partir du zoom ZOOM_CARRES.
 function dessinerCases() {
   grilleCases.clearLayers();
@@ -1734,7 +1734,7 @@ function bilanSelection() {
       octets: aTelecharger.reduce((somme, nom) => somme + (serveur(nom).octets || 0), 0),
       octetsInstalles: installees.reduce((somme, nom) => somme + (installee(nom).octets || 0), 0) };
   }
-  // Seul compte le fond choisi dans la liste : un carré qui a un SCAN 25 mais
+  // Seul compte le fond choisi dans la liste : une case qui a un SCAN 25 mais
   // pas de Plan IGN est à télécharger en Plan IGN, pas « déjà là ».
   const aFaire = noms.filter((carre) => !fondDuCarre(carre));
   const installees = noms.filter((carre) => fondDuCarre(carre));
@@ -1822,7 +1822,7 @@ function afficherFile(message) {
 async function supprimerSelection() {
   const b = bilanSelection();
   if (!b.installees.length) return;
-  // La confirmation nomme ce qui part : chaque zone ou carré, le fond et la taille.
+  // La confirmation nomme ce qui part : chaque zone ou case, le fond et la taille.
   const routage = horsLigne.mode === "routage";
   const titre = (etat.fondsHorsLigne || {})[sourceFond()] || sourceFond();
   const liste = b.installees.map((nom) => routage
@@ -1943,7 +1943,7 @@ $("hlTelecharger").addEventListener("click", telechargerSelection);
 $("hlSupprimer").addEventListener("click", supprimerSelection);
 $("hlArreter").addEventListener("click", () => { horsLigne.file = []; arreterLot(); });
 carte.on("moveend", dessinerCases);
-// La grille suit le volet des tuiles, que presentation.js ouvre depuis
+// La grille suit le volet « Hors ligne », que presentation.js ouvre depuis
 // « Gestion des cartes » (fonds) ou « Gestion des itinéraires » (routage).
 if (typeof MutationObserver !== "undefined") {
   new MutationObserver(() => activerHorsLigne(!$("horsLigne").hidden))
