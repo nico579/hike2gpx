@@ -1828,7 +1828,8 @@ class MainActivity : Activity() {
 
     /** Depuis les réglages : le résultat, quel qu'il soit, s'affiche. */
     private fun verifierMaj() {
-        etat.setText(R.string.maj_verification)
+        // Un Toast, pas le bandeau d'état : au repos, il est caché derrière les réglages.
+        Toast.makeText(this, R.string.maj_verification, Toast.LENGTH_SHORT).show()
         Thread {
             val message = try {
                 val publication = ClientMaj().verifier(versionInstallee())
@@ -1838,7 +1839,9 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 texte(e)
             }
-            if (message != null) runOnUiThread { etat.text = message }
+            if (message != null) runOnUiThread {
+                if (!isDestroyed) Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
         }.start()
     }
 
