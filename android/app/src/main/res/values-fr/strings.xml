@@ -133,7 +133,7 @@
     <string name="etat_interrompu">Téléchargement interrompu : il reprendra là où il s’est arrêté.</string>
     <string name="etat_calcul">Calcul en cours…</string>
     <string name="etat_itineraire">Distance : %1$.1f km</string>
-    <string name="etat_denivele_calcul">Calcul du dénivelé par gpx2elev…</string>
+    <string name="etat_denivele_calcul">Calcul du dénivelé…</string>
     <string name="etat_denivele">"Dénivelé : +%1$d m, −%2$d m   Durée : %3$s"</string>
     <string name="etat_denivele_indisponible">Dénivelé indisponible : %1$s</string>
     <string name="etat_occupe">Une tâche est déjà en cours.</string>
@@ -231,13 +231,13 @@
     <string name="trace_resume">%1$s, %2$s, %3$s.</string>
     <string name="trace_fichier">Fichier : %1$s</string>
     <string name="trace_exporter">Exporter le GPX</string>
-    <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m (gpx2elev).</string>
+    <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m.</string>
     <string name="trace_etat_debut">Trace GPS : %1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
-    <string name="trace_etat_sans_denivele">Trace GPS : %1$s, %2$s, %3$s. Dénivelé indisponible : le cache gpx2elev ne couvre pas encore le parcours.</string>
+    <string name="trace_etat_sans_denivele">Trace GPS : %1$s, %2$s, %3$s. Dénivelé indisponible : les données d’altitude ne couvrent pas encore le parcours.</string>
     <string name="trace_resume_court">%1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
-    <string name="trace_resume_denivele">%1$s, %2$s, %3$s, D+ %4$d m / D- %5$d m (gpx2elev).</string>
-    <string name="trace_resume_sans_denivele">%1$s, %2$s, %3$s. Dénivelé non calculé : le cache gpx2elev est incomplet.</string>
-    <string name="trace_denivele_calcul">Calcul du dénivelé gpx2elev avant l’export…</string>
+    <string name="trace_resume_denivele">%1$s, %2$s, %3$s, D+ %4$d m / D- %5$d m.</string>
+    <string name="trace_resume_sans_denivele">%1$s, %2$s, %3$s. Dénivelé non calculé : les données d’altitude sont incomplètes.</string>
+    <string name="trace_denivele_calcul">Calcul du dénivelé avant l’export…</string>
     <string name="trace_gpx_desc">D+ %1$d m / D− %2$d m (gpx2elev)</string>
     <string name="trace_export_annule">Export annulé.</string>
     <string name="titre_traces">Traces enregistrées</string>
