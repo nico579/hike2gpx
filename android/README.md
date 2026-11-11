@@ -142,32 +142,34 @@ hors des pays couverts la carte revient à OpenStreetMap. Un fond du monde
 (OpenStreetMap, OpenTopoMap, satellite) ou un fond hors ligne reste en place
 quand on change de pays. Le SCAN 25 n'est pas une donnée libre : il
 n'apparaît qu'une fois la clé IGN renseignée dans les réglages, et sans elle la
-carte reste sur le Plan IGN. Dans « Hors ligne », un fond reçu d'un PC (le
-SCAN 25 ou le Plan IGN qu'il a fabriqués). Les fonds qu'un PC partage et qui
-manquent au téléphone y sont proposés, avec leur taille et un bouton de
-téléchargement ; le QR code du PC (« Partager au téléphone » dans ses réglages)
-l'ajoute, sur le même Wi-Fi. Chaque fond installé s'affiche avec sa taille et
-« Supprimer », après confirmation ; s'il était affiché, la carte revient en
-ligne. « Superposition des chemins » y coche les chemins OSM, toujours
-proposés, et ceux du fournisseur national du lot qui couvre la vue (IGN,
-ATKIS…) : la coche du pays n'apparaît que si ce lot est installé, et elle ne
-suit que le pays affiché, pas les autres fournisseurs d'un lot frontalier
-(à Genève, swissTLM3D, pas l'IGN) ; elle disparaît dès que la carte sort de sa
-zone. Un fond est un MBTiles rangé sous
-`hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une même source s'affichent
-ensemble, et la carte agrandit au-delà de leur zoom le plus fin. Le bandeau de
-planification ne garde que « Retirer », « Effacer » et « Revenir ».
+carte reste sur le Plan IGN. Les cartes reçues d'un PC (le SCAN 25 ou le Plan
+IGN qu'il a fabriqués) forment le chapitre « Hors ligne », après « En ligne ».
+Les fonds qu'un PC partage et qui manquent au téléphone y sont proposés, avec
+leur taille et un bouton de téléchargement ; le QR code du PC (« Partager au
+téléphone » dans ses réglages) l'ajoute, sur le même Wi-Fi. « Superposition des
+chemins » coche les chemins OSM, toujours proposés, et ceux du fournisseur
+national du lot qui couvre la vue (IGN, ATKIS…) : la coche du pays n'apparaît
+que si ce lot est installé, et elle ne suit que le pays affiché, pas les autres
+fournisseurs d'un lot frontalier (à Genève, swissTLM3D, pas l'IGN) ; elle
+disparaît dès que la carte sort de sa zone. En fin de page, « Zones stockées
+localement » liste les fonds installés avec leur taille et « Supprimer », après
+confirmation ; si le fond supprimé était affiché, la carte revient en ligne. Un
+fond est un MBTiles rangé sous `hors-ligne/fonds/`, comme sur le PC ; tous ceux
+d'une même source s'affichent ensemble, et la carte agrandit au-delà de leur
+zoom le plus fin. Le bandeau de planification ne garde que « Retirer »,
+« Effacer » et « Revenir ».
 
 La page « Gestion des itinéraires », dans le menu, réunit le calcul et
 l'enregistrement, sortis des réglages. « Mode de calcul » y coche « Inclure les
 blocages à vérifier » et les chemins officiels, nommés d'après les lots
-installés (« Inclure les chemins IGN », « ATKIS »…). Les zones stockées
-localement s'y listent avec leur taille, « Mettre à jour » quand le serveur en a
-une plus récente et « Supprimer » après confirmation. « Télécharger depuis
-l'ordinateur » propose celles que seul un ordinateur calcule, avec « Scanner le
-QR code de l'ordinateur » ; un lot est pris au premier PC qui le sert, et un PC
-éteint ne bloque rien. Le volet « Enregistrement de trace GPS » y règle la
-distance minimale, la durée minimale et la déviation GPS maximale. Les réglages
+installés (« Inclure les chemins IGN », « ATKIS »…). « Télécharger depuis
+l'ordinateur » propose les zones que seul un ordinateur calcule, avec « Scanner
+le QR code de l'ordinateur » ; un lot est pris au premier PC qui le sert, et un
+PC éteint ne bloque rien. Le volet « Enregistrement de trace GPS » y règle la
+distance minimale, la durée minimale et la déviation GPS maximale. En fin de
+page, « Zones stockées localement » liste les zones installées avec leur taille,
+« Mettre à jour » quand le serveur en a une plus récente et « Supprimer » après
+confirmation, sans décaler les réglages du dessus quand la liste s'allonge. Les réglages
 ne gardent que l'affichage, la clé IGN, le cache et la mise à jour ; « Vider le
 cache » efface comme sur le PC les lots, les fonds, les téléchargements
 interrompus, les

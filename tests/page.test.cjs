@@ -173,7 +173,7 @@ test("l'onglet « Hors ligne » : la grille du routage, la sélection, le bilan 
   assert.equal(cadre.options.color, "#1b7a3e", "vert : sur ce PC");
   assert.match(elements.get("hlAide").textContent, /^Cliquez les cases de 5°/);
   assert.equal(elements.get("offlineHint").hidden, false, "l'aide aussi sur la carte");
-  assert.equal(elements.get("hlSelection").textContent, "Aucune tuile sélectionnée.");
+  assert.equal(elements.get("hlSelection").textContent, "Aucune case sélectionnée.");
   assert.equal(elements.get("hlTelecharger").disabled, true);
   // Un clic sélectionne : la case vire au bleu, le bilan dit ce qu'elle engage.
   cadre.handlers.click();
@@ -215,16 +215,16 @@ test("l'onglet « Hors ligne » : la grille du routage, la sélection, le bilan 
   assert.equal(elements.get("offlineHint").hidden, true);
 });
 
-test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et la vue", async () => {
+test("l'onglet « Hors ligne » en mode fond : les cases de 1°, la source et la vue", async () => {
   const { page, elements, requetes, carte } = charger();
   page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN" };
   await ouvrirHorsLigne(page, requetes);
   elements.get("hlFond").checked = true;
   changer(elements.get("hlFond"));
-  // La page ne touche plus au zoom ; de loin, trop de carrés : il faut se rapprocher.
+  // La page ne touche plus au zoom ; de loin, trop de cases : il faut se rapprocher.
   carte.zoom = 6;
   page.dessinerCases();
-  assert.equal(page.grilleCases.layers.length, 0, "au zoom 6, trop de carrés : il faut se rapprocher");
+  assert.equal(page.grilleCases.layers.length, 0, "au zoom 6, trop de cases : il faut se rapprocher");
   assert.match(elements.get("hlAide").textContent, /^Rapprochez-vous/);
   assert.equal(elements.get("hlLegendeServeur").hidden, true, "pas de serveur pour les fonds");
   // Le fond téléchargé est celui de la liste du haut : ici le Plan IGN affiché.
@@ -242,14 +242,14 @@ test("l'onglet « Hors ligne » en mode fond : les carrés de 1°, la source et 
   carte.zoom = 12;
   page.dessinerCases();
   const [carre] = page.grilleCases.layers;
-  assert.equal(JSON.stringify(carre.bounds), "[[43,6],[44,7]]", "le carré de Garéoult, N43E006");
+  assert.equal(JSON.stringify(carre.bounds), "[[43,6],[44,7]]", "la case de Garéoult, N43E006");
   assert.equal(carre.options.dashArray, "5 5", "pointillés : pas encore de fond");
   carre.handlers.click();
-  assert.equal(elements.get("hlSelection").textContent, "1 carré(s) : environ 1 Go et 35 min.");
+  assert.equal(elements.get("hlSelection").textContent, "1 case(s) : environ 1 Go et 35 min.");
   elements.get("hlTelecharger").click();
   await tic();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/preparer_fond").options.body),
-    { carres: ["N43E006"], source: "plan" }, "le carré choisi");
+    { carres: ["N43E006"], source: "plan" }, "la case choisie");
 });
 
 test("un fond de carte installé ne s'ajoute pas aux fonds en ligne, et se retire depuis le volet", async () => {
@@ -265,7 +265,7 @@ test("un fond de carte installé ne s'ajoute pas aux fonds en ligne, et se retir
   // servent au téléphone, à qui le PC les partage.
   assert.equal(page.fonds().horsLigne, undefined);
   assert.equal(Object.keys(page.controle().fonds).includes("Carte hors ligne"), false);
-  // Dans l'onglet, en mode fond, le carré installé est vert ; sélectionné, il se retire.
+  // Dans l'onglet, en mode fond, la case installée est verte ; sélectionnée, elle se retire.
   await ouvrirHorsLigne(page, requetes, [], [], fonds);
   elements.get("hlFond").checked = true;
   changer(elements.get("hlFond"));
@@ -280,15 +280,15 @@ test("un fond de carte installé ne s'ajoute pas aux fonds en ligne, et se retir
   elements.get("hlSupprimer").click();
   await tic();
   assert.match(confirmations.at(-1), /^Supprimer de ce PC :\n• N43E006 · Plan IGN · 600 Mo\n\n600 Mo en tout/,
-    "la confirmation nomme le carré, le fond et la taille");
+    "la confirmation nomme la case, le fond et la taille");
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body),
-    { carre: "N43E006", source: "plan" }, "le fond choisi seul, pas les autres du carré");
+    { carre: "N43E006", source: "plan" }, "le fond choisi seul, pas les autres de la case");
 });
 
-test("un carré qui n'a qu'un autre fond n'est pas « déjà là » pour le fond choisi", async () => {
+test("une case qui n'a qu'un autre fond n'est pas « déjà là » pour le fond choisi", async () => {
   const { page, elements, requetes, carte } = charger();
   page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN" };
-  // Le carré de Garéoult a un SCAN 25 ; la carte affiche le Plan IGN.
+  // La case de Garéoult a un SCAN 25 ; la carte affiche le Plan IGN.
   const fonds = [{ nom: "N43E006-scan25", zone: [43, 6, 44, 7], zoom: [13, 16], source: "scan25", octets: 6e8 }];
   const charge = page.chargerFonds();
   repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds });
@@ -299,7 +299,7 @@ test("un carré qui n'a qu'un autre fond n'est pas « déjà là » pour le fond
   carte.zoom = 12;
   page.dessinerCases();
   page.grilleCases.layers[0].handlers.click();
-  assert.equal(elements.get("hlSelection").textContent, "1 carré(s) : environ 1 Go et 35 min.");
+  assert.equal(elements.get("hlSelection").textContent, "1 case(s) : environ 1 Go et 35 min.");
   assert.equal(elements.get("hlTelecharger").disabled, false, "le Plan IGN est à télécharger");
   assert.equal(elements.get("hlSupprimer").hidden, true, "rien à supprimer en Plan IGN");
   assert.equal(elements.get("hlPartager").hidden, true, "rien à partager en Plan IGN");
