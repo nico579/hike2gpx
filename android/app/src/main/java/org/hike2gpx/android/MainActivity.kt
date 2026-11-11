@@ -21,6 +21,7 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.text.format.DateUtils
 import android.text.format.Formatter
 import android.text.method.PasswordTransformationMethod
 import android.os.Build
@@ -947,9 +948,8 @@ class MainActivity : Activity() {
             runOnUiThread { etat.text = getString(R.string.etat_telechargement_lot, lot.case,
                 Formatter.formatShortFileSize(this, lot.octets)) }
             val travail = File(File(filesDir, "telechargements"), lot.case)
-            Depot().telecharger(lot, offre.source, travail, { faits, total ->
-                runOnUiThread { progression.progress = (1000 * faits / maxOf(total, 1)).toInt() }
-            }, continuer)
+            Depot().telecharger(lot, offre.source, travail,
+                suiviTelechargement(getString(R.string.etat_zone_routage, lot.case)), continuer)
             runOnUiThread { progression.isIndeterminate = true }
             val installe = horsLigne.installer(travail)
             travail.deleteRecursively()
@@ -1149,9 +1149,8 @@ class MainActivity : Activity() {
     private fun installerFond(source: Source, fond: Fond) {
         tache(R.string.etat_telechargement, true, { continuer ->
             val travail = File(filesDir, "telechargements")
-            val recu = Depot().telechargerFond(fond, source, travail, { faits, total ->
-                runOnUiThread { progression.progress = (1000 * faits / maxOf(total, 1)).toInt() }
-            }, continuer)
+            val recu = Depot().telechargerFond(fond, source, travail,
+                suiviTelechargement(getString(R.string.etat_zone_carte, fond.nom)), continuer)
             fonds.installer(recu, fond)
             getString(R.string.etat_fond_installe, fond.nom)
         }, ensuite = { reussi ->
@@ -1841,9 +1840,7 @@ class MainActivity : Activity() {
     /** L'APK téléchargé, contrôlé (taille, SHA-256, paquet, version, signature), puis confié à l'installateur. */
     private fun telechargerMaj(publication: Publication) {
         tache(R.string.maj_telechargement, true, { continuer ->
-            val apk = ClientMaj().telecharger(publication, MiseAJour.dossier(this), { faits, total ->
-                runOnUiThread { progression.progress = (1000 * faits / maxOf(total, 1)).toInt() }
-            }, continuer)
+            val apk = ClientMaj().telecharger(publication, MiseAJour.dossier(this), suiviTelechargement(null), continuer)
             MiseAJour.verifier(this, apk, publication)
             apkEnAttente = apk
             getString(R.string.maj_prete, publication.version)
@@ -2509,6 +2506,45 @@ class MainActivity : Activity() {
     }
 
     // ------------------------------------------------------------------ outils
+
+    /**
+     * Le suivi d'un téléchargement : la barre de progression et, avec un
+     * libellé, le bandeau « Zone de routage E5_N40 · 120 Mo sur 248 Mo ·
+     * 3,9 Mo/s · reste 00:33 ». Le réseau livre des paquets de quelques Ko :
+     * l'écran ne se rafraîchit que quatre fois par seconde au plus, et à la fin.
+     */
+    private fun suiviTelechargement(libelle: String?): (Long, Long) -> Unit {
+        var debut = 0L
+        var faitsDebut = 0L
+        var dernier = 0L
+        return { faits, total ->
+            val maintenant = SystemClock.elapsedRealtime()
+            if (debut == 0L) {
+                debut = maintenant
+                faitsDebut = faits
+            }
+            if (maintenant - dernier >= 250 || faits >= total) {
+                dernier = maintenant
+                val avancement = (1000 * faits / maxOf(total, 1)).toInt()
+                // Le débit sur ce qui est arrivé depuis le début, une fois la première seconde passée.
+                val secondes = (maintenant - debut) / 1000.0
+                val debit = if (secondes >= 1) (faits - faitsDebut) / secondes else 0.0
+                val texte = when {
+                    libelle == null -> null
+                    debit > 0 -> getString(R.string.etat_progression, libelle,
+                        Formatter.formatShortFileSize(this, faits), Formatter.formatShortFileSize(this, total),
+                        Formatter.formatShortFileSize(this, debit.toLong()),
+                        DateUtils.formatElapsedTime(((total - faits).coerceAtLeast(0) / debit).toLong()))
+                    else -> getString(R.string.etat_progression_debut, libelle,
+                        Formatter.formatShortFileSize(this, faits), Formatter.formatShortFileSize(this, total))
+                }
+                runOnUiThread {
+                    progression.progress = avancement
+                    if (texte != null) etat.text = texte
+                }
+            }
+        }
+    }
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 

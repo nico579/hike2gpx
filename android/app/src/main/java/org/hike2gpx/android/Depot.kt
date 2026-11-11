@@ -1,5 +1,6 @@
 package org.hike2gpx.android
 
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -13,6 +14,12 @@ class Abandon : Exception("abandon")
 /** Le SHA-256 d'un fichier, en hexadécimal (lot.empreinte). */
 fun empreinte(fichier: File): String {
     val h = MessageDigest.getInstance("SHA-256")
+    lireDans(fichier, h)
+    return hexadecimal(h.digest())
+}
+
+/** Le contenu d'un fichier versé dans une empreinte en cours. */
+fun lireDans(fichier: File, h: MessageDigest) {
     fichier.inputStream().use { entree ->
         val bloc = ByteArray(1 shl 20)
         while (true) {
@@ -21,8 +28,9 @@ fun empreinte(fichier: File): String {
             h.update(bloc, 0, n)
         }
     }
-    return h.digest().joinToString("") { "%02x".format(it) }
 }
+
+fun hexadecimal(octets: ByteArray): String = octets.joinToString("") { "%02x".format(it) }
 
 /**
  * La lecture d'un dépôt : son catalogue, puis les fichiers d'un lot, repris
@@ -107,9 +115,14 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
                         avancer: (Long) -> Unit, continuer: () -> Boolean) {
         repeat(ESSAIS) { essai ->
             val deja = if (cible.exists()) cible.length() else 0L
+            // L'empreinte se calcule pendant la réception, sans relire le fichier
+            // ensuite (un fond de carte pèse près d'un Go) ; seule la partie déjà
+            // là, pour une reprise, se relit une fois.
+            val h = MessageDigest.getInstance("SHA-256")
+            if (deja > 0) lireDans(cible, h)
             if (deja < f.octets) {
                 try {
-                    recevoir(url, source, cible, deja, avancer, continuer)
+                    recevoir(url, source, cible, deja, h, avancer, continuer)
                 } catch (e: IOException) {          // coupure : l'essai suivant reprend
                     pause(2_000L * (essai + 1))
                     return@repeat
@@ -119,14 +132,14 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
                     return@repeat
                 }
             }
-            if (cible.length() == f.octets && empreinte(cible) == f.sha256) return
+            if (cible.length() == f.octets && hexadecimal(h.digest()) == f.sha256) return
             avancer(-cible.length())
             cible.delete()                          // contenu faux : on repart de zéro
         }
         throw ErreurDepot(R.string.err_altere, listOf(cible.name))
     }
 
-    private fun recevoir(url: URL, source: Source, cible: File, deja: Long,
+    private fun recevoir(url: URL, source: Source, cible: File, deja: Long, h: MessageDigest,
                          avancer: (Long) -> Unit, continuer: () -> Boolean) {
         val connexion = ouvrir(url, source, deja)
         try {
@@ -140,15 +153,20 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
             // Une reprise n'est acceptée que si le serveur repart bien de là où l'on s'est arrêté.
             val reprise = deja > 0 && code == 206 &&
                 connexion.getHeaderField("Content-Range")?.startsWith("bytes $deja-") == true
-            if (!reprise) avancer(-deja)
+            if (!reprise) {
+                avancer(-deja)
+                h.reset()                       // le fichier repart de zéro, son empreinte aussi
+            }
             connexion.inputStream.use { entree ->
-                FileOutputStream(cible, reprise).use { sortie ->
+                // Des écritures par blocs de 1 Mo, pas une par paquet reçu du réseau.
+                BufferedOutputStream(FileOutputStream(cible, reprise), 1 shl 20).use { sortie ->
                     val bloc = ByteArray(BLOC)
                     while (true) {
                         val n = entree.read(bloc)
                         if (n < 0) break
                         if (!continuer()) throw Abandon()
                         sortie.write(bloc, 0, n)
+                        h.update(bloc, 0, n)
                         avancer(n.toLong())
                     }
                 }
