@@ -49,7 +49,6 @@
     <string name="fond_pologne">Topographic map (Polish Geoportal)</string>
     <string name="fond_satellite">Satellite (Esri)</string>
     <string name="fond_a_telecharger">Download %1$s: %2$s, %3$s, from %4$s</string>
-    <string name="fond_relire">Reload the maps shared by the PC</string>
     <string name="etat_fond_installe">Base map %1$s installed.</string>
     <string name="cartes_a_telecharger">Download from the computer</string>
     <string name="cartes_aucun_fond">No base map to download yet. Add a PC with its QR code to receive its own.</string>
@@ -102,7 +101,6 @@
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="aucun_lot">No bundle installed.</string>
     <string name="itineraires_modes">Calculation mode</string>
-    <string name="itineraires_relire">Reload the bundles shared by the PCs</string>
     <string name="itineraires_pc">Download from the computer</string>
     <string name="itineraires_lot">Download %1$s · %2$s · %3$s, from %4$s</string>
     <string name="itineraires_aucun_lot">No routing bundle to download from the PC.</string>

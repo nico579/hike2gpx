@@ -1,24 +1,22 @@
 package org.hike2gpx.android
 
 import android.content.Context
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 
 /**
- * Ce que l'application garde d'une session à l'autre : les PC ajoutés par QR
- * code. GitHub, source par défaut, n'y figure pas : il est toujours là.
+ * Ce que l'application garde d'une session à l'autre : la carte, la vue, les
+ * calques, les réglages de trace.
  */
 class Reglages(context: Context) {
     private val preferences = context.getSharedPreferences("hike2gpx", Context.MODE_PRIVATE)
 
-    fun pcs(): List<Source> {
-        val a = JSONArray(preferences.getString(PCS, "[]"))
-        return List(a.length()) { a.getJSONObject(it) }.map { Source(it.getString("catalogue"), it.getString("jeton")) }
-    }
-
-    /** Un PC déjà connu (même catalogue) reçoit son nouveau jeton. */
-    fun ajouterPc(source: Source) = enregistrer(pcs().filter { it.catalogue != source.catalogue } + source)
+    /**
+     * Les PC scannés n'étaient pas oubliés jusqu'en 0.9.13 : le téléphone les
+     * relisait seul, avec un jeton que le PC avait périmé en refermant son
+     * partage. Un PC ne se contacte plus qu'au scan de son QR code ; la
+     * liste laissée par une version antérieure s'efface.
+     */
+    fun oublierPcs() = preferences.edit().remove(PCS).apply()
 
     /** Le fond affiché : une carte en ligne (« plan », « scan25 »…) ou la source d'un fond hors ligne. */
     var fond: String
@@ -105,14 +103,8 @@ class Reglages(context: Context) {
             ?.takeIf { it.size == 3 }?.let { Triple(it[0], it[1], it[2]) } ?: Triple(43.458, 6.045, 13.0)
         set(v) = preferences.edit().putString(VUE, "${v.first},${v.second},${v.third}").apply()
 
-    private fun enregistrer(liste: List<Source>) {
-        val a = JSONArray()
-        liste.forEach { a.put(JSONObject().put("catalogue", it.catalogue).put("jeton", it.jeton)) }
-        preferences.edit().putString(PCS, a.toString()).apply()
-    }
-
     companion object {
-        private const val PCS = "pcs"
+        private const val PCS = "pcs"                               // ancienne liste des PC, effacée
         private const val FOND = "fond"
         private const val CLE_IGN = "cle_ign"
         private const val STRICT = "strict"

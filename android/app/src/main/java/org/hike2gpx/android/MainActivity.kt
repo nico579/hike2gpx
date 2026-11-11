@@ -195,6 +195,7 @@ class MainActivity : Activity() {
         Configuration.getInstance().osmdroidBasePath = File(cacheDir, "osmdroid")
         Configuration.getInstance().osmdroidTileCache = File(cacheDir, "osmdroid/tiles")
         reglages = Reglages(this)
+        reglages.oublierPcs()                   // un PC ne se contacte qu'au scan de son QR code
         horsLigne = HorsLigne(filesDir)
         fonds = Fonds(horsLigne.racine)
         pays = Pays(assets)
@@ -873,7 +874,7 @@ class MainActivity : Activity() {
     /**
      * Le catalogue des lots, lu sur GitHub seulement (décision de Nico du
      * 2026-11-04) : le serveur publie les lots, les PC ajoutent les leurs à la
-     * demande (lireCataloguesPc). Un PC éteint ne retarde donc jamais le
+     * demande, au scan de leur QR code. Un PC éteint ne retarde donc jamais le
      * lancement.
      */
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
@@ -889,26 +890,6 @@ class MainActivity : Activity() {
         else getString(R.string.etat_catalogue_lu, choix.size)
     }, ensuite = { avancer() }, discret = true)
 
-    /**
-     * Les catalogues des PC, lus à la demande (page Cartes ou Itinéraires, PC
-     * ajouté) ; un PC injoignable le dit sans rien bloquer. Ils portent les
-     * fonds de carte et les lots que le serveur ne publie pas.
-     */
-    private fun lireCataloguesPc(ensuite: () -> Unit) = tache(R.string.etat_pc, false, { _ ->
-        val lus = mutableListOf<Pair<Source, Catalogue>>()
-        val echecs = mutableListOf<String>()
-        for (pc in reglages.pcs()) {
-            try {
-                lus.add(pc to Depot().lireCatalogue(pc))
-            } catch (e: ErreurDepot) {
-                echecs.add(texte(e))
-            }
-        }
-        runOnUiThread { cataloguesPc = lus }
-        if (echecs.isEmpty()) getString(R.string.etat_pc_lus,
-            lus.sumOf { it.second.fonds.size }, lus.sumOf { it.second.lots.size })
-        else echecs.joinToString("\n")
-    }, ensuite = { ensuite() })
 
     /** Le lot qui manque : de lui-même sur le Wi-Fi, sur demande sur un réseau facturé. */
     private fun telechargerAuto(offre: Offre) {
@@ -1009,9 +990,6 @@ class MainActivity : Activity() {
             .setPositiveButton(R.string.fermer, null)
             .setOnDismissListener { fenetreCartes = null }
             .show()
-        // Les fonds d'un PC déjà ajouté se lisent en arrivant, comme le faisait
-        // le bouton Fond ; un PC injoignable le dit sans bloquer la page.
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) lireCataloguesPc { remplirCartes() }
     }
 
     /** Le contenu de la page « Cartes », refait après chaque téléchargement, suppression ou ajout de PC. */
@@ -1072,11 +1050,6 @@ class MainActivity : Activity() {
         }
         if (proposes.isEmpty() && cataloguesPc != null)
             colonne.addView(TextView(this).apply { setText(R.string.cartes_aucun_fond) })
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null)
-            colonne.addView(Button(this).apply {
-                setText(R.string.fond_relire)
-                setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirCartes() } }
-            })
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
 
         // Les calques du lot, comme dans la page du PC : la coche OSM reste
@@ -1184,9 +1157,6 @@ class MainActivity : Activity() {
             .setPositiveButton(R.string.fermer, null)
             .setOnDismissListener { fenetreItineraires = null }
             .show()
-        // Les catalogues d'un PC déjà ajouté portent ses lots de routage ; un
-        // PC injoignable le dit sans bloquer la page.
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) lireCataloguesPc { remplirItineraires() }
     }
 
     /** Le contenu de la page « Itinéraires », refait après chaque téléchargement ou suppression. */
@@ -1226,11 +1196,6 @@ class MainActivity : Activity() {
         }
         if (duPc.isEmpty() && cataloguesPc != null)
             colonne.addView(TextView(this).apply { setText(R.string.itineraires_aucun_lot) })
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null)
-            colonne.addView(Button(this).apply {
-                setText(R.string.itineraires_relire)
-                setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirItineraires() } }
-            })
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
 
         // L'enregistrement de trace de Locus Map, appliqué au prochain point
@@ -1992,12 +1957,12 @@ class MainActivity : Activity() {
                 else getString(R.string.recuperer_message, source.libelle, lots.size, fondsVenus.size,
                     Formatter.formatShortFileSize(this, octets)))
             .setPositiveButton(if (rien) android.R.string.ok else R.string.telecharger) { _, _ ->
-                reglages.ajouterPc(source)
-                cataloguesPc = null
+                // Le PC n'est pas retenu : son jeton meurt avec le partage. Les pages
+                // gardent son catalogue le temps de la session, puis se redessinent.
+                cataloguesPc = listOf(source to catalogue)
                 for (lot in lots) recuperations.addLast { telecharger(Offre(source, lot)) }
                 for (fond in fondsVenus) recuperations.addLast { installerFond(source, fond) }
-                // Les pages Cartes et Itinéraires relisent les PC, une fois tout arrivé.
-                recuperations.addLast { lireCataloguesPc { remplirCartes(); remplirItineraires() } }
+                recuperations.addLast { remplirCartes(); remplirItineraires() }
                 if (!enCours.get()) recuperations.removeFirstOrNull()?.invoke()
             }
             .setNegativeButton(android.R.string.cancel, null)
