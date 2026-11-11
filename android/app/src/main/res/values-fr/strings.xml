@@ -87,6 +87,7 @@
     <string name="legende_barriere">clôtures et murs OSM</string>
     <string name="legende_bloque">franchissement bloquant</string>
     <string name="legende_verifier">franchissement à vérifier</string>
+    <string name="legende_jonction">chemin non raccordé (à vérifier)</string>
 
     <string name="titre_lots">Zones stockées localement</string>
     <string name="titre_fonds">Hors ligne</string>

@@ -89,6 +89,7 @@
     <string name="legende_barriere">OSM fences and walls</string>
     <string name="legende_bloque">blocking crossing</string>
     <string name="legende_verifier">crossing to check</string>
+    <string name="legende_jonction">unconnected path (to check)</string>
 
     <string name="titre_lots">Zones stored locally</string>
     <string name="titre_fonds">Offline</string>

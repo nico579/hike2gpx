@@ -21,6 +21,12 @@ data class Barriere(val nature: String, val points: List<Point>)
 /** Un franchissement bloquant ou à vérifier, posé sur la carte. */
 data class PointFranchissement(val lat: Double, val lon: Double, val statut: String, val nature: String)
 
+/**
+ * Le bout d'un chemin qui s'arrête tout près d'un autre sans le toucher dans
+ * OSM : le calcul ne passe pas de l'un à l'autre (couche « jonctions » du lot).
+ */
+data class PointJonction(val lat: Double, val lon: Double, val distance: Double)
+
 /** Un tronçon d'un fournisseur national (BD TOPO, ATKIS…). */
 data class Troncon(val nature: String, val points: List<Point>, val fournisseur: String = "")
 
@@ -29,8 +35,10 @@ data class DonneesCalques(
     val barrieres: List<Barriere> = emptyList(),
     val franchissements: List<PointFranchissement> = emptyList(),
     val troncons: List<Troncon> = emptyList(),
+    val jonctions: List<PointJonction> = emptyList(),
 ) {
-    val vide: Boolean get() = voies.isEmpty() && barrieres.isEmpty() && franchissements.isEmpty() && troncons.isEmpty()
+    val vide: Boolean get() = voies.isEmpty() && barrieres.isEmpty() && franchissements.isEmpty() &&
+        troncons.isEmpty() && jonctions.isEmpty()
 }
 
 /**
@@ -54,6 +62,7 @@ class Calques(private val horsLigne: HorsLigne) {
         val barrieres = mutableListOf<Barriere>()
         val franchissements = mutableListOf<PointFranchissement>()
         val troncons = mutableListOf<Troncon>()
+        val jonctions = mutableListOf<PointJonction>()
         val vus = mutableSetOf<String>()
         val base = try {
             SQLiteDatabase.openDatabase(fichier.path, null, SQLiteDatabase.OPEN_READONLY)
@@ -94,6 +103,17 @@ class Calques(private val horsLigne: HorsLigne) {
                                 ))
                             }
                         }
+                        // Un lot fabriqué avant cette couche n'en a pas ; une application
+                        // plus ancienne l'ignore (branche suivante, sans fournisseur).
+                        osm && nom == "jonctions" -> for (objet in objets) {
+                            for (ligne in objet.lignes) {
+                                val point = points(ligne, x, y).firstOrNull() ?: continue
+                                val cle = objet.attributs["cle"]?.toString()
+                                if (cle != null && !vus.add(cle)) continue
+                                jonctions.add(PointJonction(point.lat, point.lon,
+                                    (objet.attributs["distance_m"] as? Number)?.toDouble() ?: 0.0))
+                            }
+                        }
                         else -> {
                             val fournisseur = fournisseurDe(nom, lot) ?: continue
                             if (fournisseur.cle !in officiels) continue
@@ -115,7 +135,7 @@ class Calques(private val horsLigne: HorsLigne) {
         } finally {
             base.close()
         }
-        return DonneesCalques(voies, barrieres, franchissements, troncons)
+        return DonneesCalques(voies, barrieres, franchissements, troncons, jonctions)
     }
 
     /**
