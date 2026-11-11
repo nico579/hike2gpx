@@ -202,7 +202,11 @@ class MainActivity : Activity() {
         relief = Mapterhorn(filesDir)
         reliefTrace = Mapterhorn(filesDir, reseau = false)
         construire()
-        paysAffiche = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
+        // Avant la première mise en page, la carte n'a pas encore son centre
+        // (0, 0) : le pays se lit sur la vue enregistrée, sinon une carte
+        // nationale serait prise pour une carte du monde et remplacée par OSM.
+        val vue = reglages.vue
+        paysAffiche = pays.de(vue.first, vue.second)
         appliquerFond(reglages.fond)
         lireLien(intent)
         actualiser()
@@ -880,7 +884,7 @@ class MainActivity : Activity() {
         // se contente du catalogue lu.
         if (points.isEmpty() && modePlan) getString(R.string.etat_pret)
         else getString(R.string.etat_catalogue_lu, choix.size)
-    }, ensuite = { avancer() })
+    }, ensuite = { avancer() }, discret = true)
 
     /**
      * Les catalogues des PC, lus à la demande (page Cartes ou Itinéraires, PC
@@ -1912,11 +1916,11 @@ class MainActivity : Activity() {
         horsLigne.lots().flatMap { Fournisseurs.duLot(it) }
             .distinctBy { it.cle }.sortedBy { it.nom }
 
-    /** Ceux du lot qui couvre la vue : les seules coches de superposition proposées. */
+    /** Ceux du lot qui couvre la vue, dans le pays affiché : les seules coches de superposition. */
     private fun fournisseursVisibles(): List<Fournisseur> {
         val boite = carte.boundingBox
         return calques.fournisseursVisibles(
-            Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast))
+            Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast), paysAffiche)
     }
 
     private fun description(lot: Lot): String =
@@ -2440,19 +2444,21 @@ class MainActivity : Activity() {
      * faux. ensuite(réussie) s'exécute à l'écran une fois la tâche finie.
      */
     private fun tache(message: Int, interruptible: Boolean, travail: (() -> Boolean) -> String,
-                      ensuite: ((Boolean) -> Unit)? = null) {
+                      ensuite: ((Boolean) -> Unit)? = null, discret: Boolean = false) {
         if (enCours.getAndSet(true)) {
             etat.setText(R.string.etat_occupe); return
         }
         val arret = AtomicBoolean(false)
         val sequence = ++sequenceTache
-        tacheAffichee = true
+        // Une tâche discrète (lecture du catalogue au lancement) ne montre ni
+        // bandeau ni progression : seule son erreur, s'il y en a une, s'affiche.
+        tacheAffichee = !discret
         etat.setText(message)
-        etat.visibility = View.VISIBLE
+        if (!discret) etat.visibility = View.VISIBLE
         progression.progress = 0
         progression.isIndeterminate = !interruptible
-        progression.visibility = View.VISIBLE
-        arreter.visibility = if (interruptible) View.VISIBLE else View.GONE
+        progression.visibility = if (discret) View.GONE else View.VISIBLE
+        arreter.visibility = if (interruptible && !discret) View.VISIBLE else View.GONE
         arreter.setOnClickListener { arret.set(true) }
         appliquerAffichage()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -2475,14 +2481,20 @@ class MainActivity : Activity() {
                 progression.visibility = View.GONE
                 arreter.visibility = View.GONE
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                // Le bilan d'une tâche de fond reste lisible quelques secondes,
-                // puis l'écran revient à son mode (carte seule, plan ou trace).
-                planificateur.postDelayed({
-                    if (sequence == sequenceTache) {
-                        tacheAffichee = false
-                        appliquerAffichage()
-                    }
-                }, 5000)
+                if (discret && reussie) {
+                    // Rien à dire : l'écran reste tel quel, sans bilan éphémère.
+                    appliquerAffichage()
+                } else {
+                    etat.visibility = View.VISIBLE
+                    // Le bilan d'une tâche de fond reste lisible quelques secondes,
+                    // puis l'écran revient à son mode (carte seule, plan ou trace).
+                    planificateur.postDelayed({
+                        if (sequence == sequenceTache) {
+                            tacheAffichee = false
+                            appliquerAffichage()
+                        }
+                    }, 5000)
+                }
                 val reprendre = aReprendre
                 ensuite?.invoke(reussie)
                 if (reprendre && !enCours.get()) avancer()

@@ -150,8 +150,10 @@ l'ajoute, sur le même Wi-Fi. Chaque fond installé s'affiche avec sa taille et
 « Supprimer », après confirmation ; s'il était affiché, la carte revient en
 ligne. « Superposition des chemins » y coche les chemins OSM, toujours
 proposés, et ceux du fournisseur national du lot qui couvre la vue (IGN,
-ATKIS…) : la coche du pays n'apparaît que si ce lot est installé, et elle
-disparaît dès que la carte sort de sa zone. Un fond est un MBTiles rangé sous
+ATKIS…) : la coche du pays n'apparaît que si ce lot est installé, et elle ne
+suit que le pays affiché, pas les autres fournisseurs d'un lot frontalier
+(à Genève, swissTLM3D, pas l'IGN) ; elle disparaît dès que la carte sort de sa
+zone. Un fond est un MBTiles rangé sous
 `hors-ligne/fonds/`, comme sur le PC ; tous ceux d'une même source s'affichent
 ensemble, et la carte agrandit au-delà de leur zoom le plus fin. Le bandeau de
 planification ne garde que « Retirer », « Effacer » et « Revenir ».
