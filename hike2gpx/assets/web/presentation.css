@@ -220,6 +220,9 @@ body.hide-elevation .elevation-panel{display:none!important}
 #donnees{margin-top:22px;border-top:1px solid var(--bordure);padding-top:16px}
 .cache-controls{display:flex;align-items:center;gap:8px}
 .cache-controls .info-tooltip [role=tooltip]{left:-135px;width:330px}
+.setting-row{position:relative}
+.setting-row .info-tooltip{position:static}
+.setting-row .info-tooltip [role=tooltip]{left:0;right:0;top:calc(100% + 4px);width:auto}
 #donnees .cache-controls>button{padding:9px 13px;border:1px solid #8fb0d8;border-radius:8px;background:#e3eefc;color:#1959b5;cursor:pointer;font-size:12px}
 #donnees .cache-controls>button:hover:not(:disabled){background:#d2e4fa}
 #donnees .cache-controls>button:disabled{opacity:.5;cursor:default}
