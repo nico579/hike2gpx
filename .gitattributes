@@ -5,3 +5,5 @@
 # tests/test_android.py, ils gardent des fins de ligne LF partout.
 android/app/src/main/assets/brouter/** text eol=lf
 android/gradlew text eol=lf
+# Les scripts shell, lus par bash sur les runners Linux : jamais de CRLF.
+*.sh text eol=lf
