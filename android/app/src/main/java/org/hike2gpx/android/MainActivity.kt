@@ -327,9 +327,14 @@ class MainActivity : Activity() {
         bandeauHaut.addView(progression)
         arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }.avecIcone(R.drawable.ic_btn_arreter)
         bandeauHaut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
-        legende = construireLegende()
-        bandeauHaut.addView(legende)
         racine.addView(bandeauHaut, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        // La légende est une surcouche de la carte, comme sur la page du PC : au bord droit,
+        // à mi-hauteur, loin du bandeau du haut, des boutons et de la courbe.
+        legende = construireLegende().apply {
+            setBackgroundColor(VOILE); setPadding(marge, marge, marge, marge)
+        }
+        racine.addView(legende, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL)
+            .apply { marginEnd = marge })
 
         bandeauBas = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         courbe = CourbeDenivele(this).apply {
@@ -512,9 +517,8 @@ class MainActivity : Activity() {
         rechercheVille?.visibility =
             if (!enregistre && modeRecherche) View.VISIBLE else View.GONE
         etat.visibility = if (modePlan || enregistre || tacheAffichee) View.VISIBLE else View.GONE
-        // Ni légende ni recherche dans les bandeaux de planification et
-        // d'enregistrement : la carte, l'état et les commandes suffisent.
-        legende?.visibility = View.GONE
+        // La légende suit la coche des réglages ; le double tap la cache avec les bandeaux.
+        legende?.visibility = if (!bandeauxMasques && reglages.legende) View.VISIBLE else View.GONE
         bandeauBas.visibility = if (!bandeauxMasques && modePlan) View.VISIBLE else View.GONE
         afficherCourbe()
         placerCommandes()
@@ -1585,8 +1589,18 @@ class MainActivity : Activity() {
             cacherClavier()
             effacerReperes()
             if (dernier != null) proposerGpx()
+            renduALaCarte()
         }
         appliquerAffichage()
+    }
+
+    /**
+     * En quittant la planification, le bilan qui s'attardait quelques secondes
+     * (« Touchez la carte… », la distance) disparaît aussitôt : la carte est
+     * seule. Une tâche qui tourne vraiment (un téléchargement) garde son bandeau.
+     */
+    private fun renduALaCarte() {
+        if (!enCours.get()) tacheAffichee = false
     }
 
     // ------------------------------------------------------------------ bibliothèque
@@ -1828,7 +1842,8 @@ class MainActivity : Activity() {
 
     /** Depuis les réglages : le résultat, quel qu'il soit, s'affiche. */
     private fun verifierMaj() {
-        etat.setText(R.string.maj_verification)
+        // Un Toast, pas le bandeau d'état : au repos, il est caché derrière les réglages.
+        Toast.makeText(this, R.string.maj_verification, Toast.LENGTH_SHORT).show()
         Thread {
             val message = try {
                 val publication = ClientMaj().verifier(versionInstallee())
@@ -1838,7 +1853,9 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 texte(e)
             }
-            if (message != null) runOnUiThread { etat.text = message }
+            if (message != null) runOnUiThread {
+                if (!isDestroyed) Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
         }.start()
     }
 
@@ -2760,6 +2777,7 @@ class MainActivity : Activity() {
             effacerReperes()
             majBoutonTrace()
             cacherClavier()
+            renduALaCarte()
             appliquerAffichage()
             return
         }
