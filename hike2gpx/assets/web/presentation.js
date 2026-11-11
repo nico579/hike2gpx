@@ -130,6 +130,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     offline.hidden = !anchor;
   }
   // Une page du menu, ou aucune ("") : la carte seule.
+  const routeSummary = document.getElementById("routeSummary");
+  const result = document.getElementById("resultat");
   function selectPane(name, remember = true) {
     const open = pageNames.includes(name);
     const previous = document.querySelector("[data-pane][aria-current=page]")?.dataset.pane;
@@ -149,6 +151,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       pageTitle.textContent = t(`menu.${name}`);
     }
     setPanelCollapsed(!open);
+    routeSummary.hidden = result.hidden || name !== "trace";
     panel.querySelector(".panel-scroll").scrollTop = 0;
     if (name === "reglages") chargerDonnees();
     if (name === "itineraires") chargerLots();      // la liste des zones stockées localement
@@ -213,8 +216,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   let savedPage = "";
   try { savedPage = localStorage.getItem(pagePreference) || ""; } catch (error) {}
   selectPane(savedPage, false);
-  const routeSummary = document.getElementById("routeSummary");
-  const result = document.getElementById("resultat");
   const elevationPanel = document.getElementById("elevationPanel");
   const elevationToggle = document.getElementById("elevationToggle");
   const elevationContent = document.getElementById("elevationContent");
@@ -272,7 +273,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     // parcours se calcule. Garder le profil précédent en place jusque-là.
     const ready = !result.hidden;
     const wasVisible = !elevationPanel.hidden;
-    routeSummary.hidden = !ready;
+    // Les chiffres du parcours ne vivent que dans « Planifier un itinéraire » ; le tracé reste sur la carte.
+    routeSummary.hidden = !ready || document.querySelector("[data-pane][aria-current=page]")?.dataset.pane !== "trace";
     elevationPanel.hidden = !ready;
     if (!ready) {
       profilePoints = [];
