@@ -2352,7 +2352,9 @@ class MainActivity : Activity() {
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/gpx+xml"
-            putExtra(Intent.EXTRA_TITLE, "hike2gpx.gpx")
+            // Horodaté comme la trace GPS (« trace-… »), avec son propre préfixe pour ne pas les confondre.
+            putExtra(Intent.EXTRA_TITLE,
+                "itineraire-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx")
         }, EXPORT)
     }
 
