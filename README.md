@@ -36,11 +36,11 @@ guaranteed gain: the method and its caveats are in
 surface model such as SRTM or Copernicus measures the top of the canopy, and
 distorts the slopes. hike2gpx takes the best terrain model that covers the
 whole route: in France, IGN's LiDAR HD, which describes the bare ground;
-elsewhere Mapterhorn, which assembles about two hundred national and regional
-models, most of them derived from LiDAR, at 0.25 m to 10 m resolution: almost
-all of Europe, the United States, Canada, Japan, Australia, New Zealand.
-Outside these areas it falls back on Copernicus' 30 m global model, which is
-less precise, and SRTM remains the very last resort.
+elsewhere Mapterhorn, which takes the national LiDAR whenever one exists:
+about two hundred national and regional models, at 0.25 m to 10 m resolution,
+for almost all of Europe, the United States, Canada, Japan, Australia and New
+Zealand. Outside these areas it falls back on Copernicus' 30 m global model,
+which is less precise, and SRTM remains the very last resort.
 
 Both applications are downloaded from the releases: one archive per system for
 the computer (Windows, macOS, Linux), `hike2gpx-android.apk` for the phone.

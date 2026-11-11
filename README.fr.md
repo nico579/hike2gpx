@@ -39,11 +39,12 @@ méthode et les réserves sont dans
 forêt, un modèle de surface comme SRTM ou Copernicus mesure le haut de la
 canopée, et fausse les pentes. hike2gpx prend le meilleur modèle de terrain qui
 couvre tout le parcours : en France le LiDAR HD de l'IGN, qui décrit le sol nu ;
-ailleurs Mapterhorn, qui assemble environ deux cents modèles nationaux et
-régionaux, pour la plupart tirés du LiDAR, de 0,25 m à 10 m de résolution :
-presque toute l'Europe, les États-Unis, le Canada, le Japon, l'Australie, la
-Nouvelle-Zélande. Hors de ces zones, il retombe sur le modèle mondial de 30 m
-de Copernicus, moins précis, et SRTM reste le tout dernier recours.
+ailleurs Mapterhorn, qui prend le LiDAR national dès qu'il en existe un :
+environ deux cents modèles nationaux et régionaux, de 0,25 m à 10 m de
+résolution, pour presque toute l'Europe, les États-Unis, le Canada, le Japon,
+l'Australie et la Nouvelle-Zélande. Hors de ces zones, il retombe sur le modèle
+mondial de 30 m de Copernicus, moins précis, et SRTM reste le tout dernier
+recours.
 
 Les deux applications se téléchargent dans les releases : une archive par
 système pour l'ordinateur (Windows, macOS, Linux), `hike2gpx-android.apk` pour
