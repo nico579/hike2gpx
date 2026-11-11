@@ -5,6 +5,7 @@ import android.app.ActivityManager
 import android.app.AlertDialog
 import android.app.Dialog
 import android.Manifest
+import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
@@ -17,6 +18,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
+import android.provider.MediaStore
 import android.provider.Settings
 import android.text.Editable
 import android.text.InputType
@@ -26,6 +28,7 @@ import android.text.format.Formatter
 import android.text.method.PasswordTransformationMethod
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -74,6 +77,7 @@ import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
 import java.io.File
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -2318,7 +2322,36 @@ class MainActivity : Activity() {
     private fun sourcesRelief(mapterhorn: Mapterhorn): List<SourceRelief> =
         if (reseauDisponible()) listOf(IgnLidar(), mapterhorn.source()) else listOf(mapterhorn.source())
 
+    /**
+     * Android 10 et plus : le GPX va directement dans Téléchargements (MediaStore,
+     * sans permission ni sélecteur), comme sur le PC. Avant, il faudrait une
+     * permission d'écriture : le sélecteur de fichiers reste.
+     */
+    private val telechargementsDirects get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+
+    private fun ecrireTelechargements(nom: String, octets: ByteArray) {
+        try {
+            val valeurs = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, nom)
+                put(MediaStore.Downloads.MIME_TYPE, "application/gpx+xml")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val adresse = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valeurs)
+                ?: throw IOException("MediaStore")
+            contentResolver.openOutputStream(adresse)?.use { it.write(octets) }
+            etat.text = getString(R.string.export_telechargements, nom)
+        } catch (e: Exception) {
+            etat.text = texte(e)
+        }
+    }
+
     private fun lancerExport(nom: String) {
+        if (telechargementsDirects) {
+            val octets = contenuExport ?: fichierTrace?.takeIf { it.isFile }?.readBytes()
+            contenuExport = null
+            if (octets != null) ecrireTelechargements(nom, octets)
+            return
+        }
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/gpx+xml"
@@ -2349,12 +2382,17 @@ class MainActivity : Activity() {
         if (dernier == null) {
             etat.setText(R.string.rien_a_exporter); return
         }
+        // Horodaté comme la trace GPS (« trace-… »), avec son propre préfixe pour ne pas les confondre.
+        val nom = "itineraire-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
+        val coordonnees = dernier?.coordonnees ?: return
+        if (telechargementsDirects) {
+            ecrireTelechargements(nom, Gpx.ecrire(coordonnees).toByteArray())
+            return
+        }
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/gpx+xml"
-            // Horodaté comme la trace GPS (« trace-… »), avec son propre préfixe pour ne pas les confondre.
-            putExtra(Intent.EXTRA_TITLE,
-                "itineraire-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx")
+            putExtra(Intent.EXTRA_TITLE, nom)
         }, EXPORT)
     }
 

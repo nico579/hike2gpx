@@ -139,6 +139,7 @@
     <string name="etat_occupe">Une tâche est déjà en cours.</string>
     <string name="rien_a_exporter">Aucun itinéraire à exporter.</string>
     <string name="export_fait">GPX enregistré.</string>
+    <string name="export_telechargements">GPX enregistré dans Téléchargements : %1$s</string>
     <string name="lot_enrichi">enrichi %1$s</string>
     <string name="duree_heures">%1$d h %2$02d</string>
     <string name="duree_minutes">%1$d min</string>
