@@ -48,11 +48,9 @@
     <string name="fond_etats_unis">Topographic map (USGS)</string>
     <string name="fond_pologne">Topographic map (Polish Geoportal)</string>
     <string name="fond_satellite">Satellite (Esri)</string>
-    <string name="fond_hors_ligne">%1$s, offline (%2$d map(s), %3$s)</string>
     <string name="fond_a_telecharger">Download %1$s: %2$s, %3$s, from %4$s</string>
     <string name="fond_relire">Reload the maps shared by the PC</string>
     <string name="etat_fond_installe">Base map %1$s installed.</string>
-    <string name="cartes_partage">PC sharing</string>
     <string name="cartes_a_telecharger">Download from the computer</string>
     <string name="cartes_aucun_fond">No base map to download yet. Add a PC with its QR code to receive its own.</string>
     <string name="cartes_supprimer_titre">Delete the base map</string>
@@ -94,7 +92,6 @@
 
     <string name="titre_lots">Zones stored locally</string>
     <string name="titre_fonds">Offline</string>
-    <string name="oublier">Forget</string>
     <string name="scanner_qr">Scan the computer’s QR code</string>
     <string name="scan_invite">Aim at the QR code shown by hike2gpx on the PC</string>
     <string name="recuperer_titre">Get from the PC</string>
