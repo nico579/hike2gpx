@@ -1585,8 +1585,18 @@ class MainActivity : Activity() {
             cacherClavier()
             effacerReperes()
             if (dernier != null) proposerGpx()
+            renduALaCarte()
         }
         appliquerAffichage()
+    }
+
+    /**
+     * En quittant la planification, le bilan qui s'attardait quelques secondes
+     * (« Touchez la carte… », la distance) disparaît aussitôt : la carte est
+     * seule. Une tâche qui tourne vraiment (un téléchargement) garde son bandeau.
+     */
+    private fun renduALaCarte() {
+        if (!enCours.get()) tacheAffichee = false
     }
 
     // ------------------------------------------------------------------ bibliothèque
@@ -2763,6 +2773,7 @@ class MainActivity : Activity() {
             effacerReperes()
             majBoutonTrace()
             cacherClavier()
+            renduALaCarte()
             appliquerAffichage()
             return
         }
