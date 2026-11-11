@@ -662,7 +662,8 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
                     jonctions_vues.add(x["cle"])
                     couches["jonctions"].append(
                         (shapely.Point(x["lon"], x["lat"]),
-                         {c: x[c] for c in ("cle", "voie", "vers", "distance_m", "osm")}))
+                         {**{c: x[c] for c in ("cle", "voie", "vers", "distance_m", "osm")},
+                          "isole": bool(x.get("isole"))}))
             for f in franchissements_tuile:
                 tous_bloc[f["cle"]] = f
                 if f["statut"] in ("blocked", "uncertain"):

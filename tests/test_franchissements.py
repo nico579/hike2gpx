@@ -292,34 +292,66 @@ def _chemins(*voies):
     return {ident: (tags, [n for n, _, _ in pts], [(la, lo) for _, la, lo in pts]) for ident, tags, pts in voies}
 
 
-def test_un_sentier_qui_s_arrete_a_cinq_metres_d_une_route_est_signale():
-    # Le cas de Nico au Québec : le sentier finit à 5 m de la route, sans nœud commun.
-    route = (1, {"highway": "tertiary"}, [(10, 48.3780, -77.1340), (11, 48.3780, -77.1300)])
+# La route est reliée au réseau, comme toute route : une bretelle part de son nœud 10.
+ROUTE = (1, {"highway": "tertiary"}, [(10, 48.3780, -77.1340), (11, 48.3780, -77.1300)])
+BRETELLE = (9, {"highway": "tertiary"}, [(10, 48.3780, -77.1340), (90, 48.3700, -77.1400)])
+ZONE = (48.37, -77.14, 48.39, -77.12)
+
+
+def test_un_sentier_relie_a_rien_qui_finit_a_cinq_metres_d_une_route_est_signale():
+    # Le cas de Nico au Québec : le sentier finit à 5 m de la route, et n'est relié
+    # à aucun autre chemin. Le calcul ne peut pas y entrer : c'est ce qui le gêne.
     sentier = (2, {"highway": "footway"}, [(20, 48.3790, -77.1320), (21, 48.378045, -77.1320)])
-    [j] = fr.jonctions_manquees(_chemins(route, sentier), 48.37, -77.14, 48.39, -77.12)
-    assert j["voie"] == 2 and j["vers"] == 1 and j["osm"] == "way/2" and j["cle"] == "jonction-2-21"
-    assert 4.5 < j["distance_m"] < 5.5 and (j["lat"], j["lon"]) == (48.378045, -77.132)
+    [j] = fr.jonctions_manquees(_chemins(ROUTE, BRETELLE, sentier), *ZONE)
+    assert j["voie"] == 2 and j["vers"] == 1 and j["osm"] == "way/2" and j["cle"] == "jonction-2-isole"
+    assert j["isole"] is True and 4.5 < j["distance_m"] < 5.5
+    assert (j["lat"], j["lon"]) == (48.378045, -77.132), "le point du sentier le plus proche de la route"
+
+
+def test_un_sentier_relie_a_rien_est_signale_la_ou_il_passe_le_plus_pres_pas_seulement_a_son_bout():
+    # Un sentier isolé qui longe la route à 4 m en son milieu, ses bouts plus loin.
+    sentier = (2, {"highway": "path"}, [(20, 48.3790, -77.1330), (21, 48.378036, -77.1320), (22, 48.3790, -77.1310)])
+    [j] = fr.jonctions_manquees(_chemins(ROUTE, BRETELLE, sentier), *ZONE)
+    assert j["isole"] and 3.5 < j["distance_m"] < 4.5 and abs(j["lon"] - (-77.1320)) < 1e-5
+    # Au-delà du seuil (6 m), un chemin isolé n'est qu'un chemin à part.
+    loin = (3, {"highway": "path"}, [(30, 48.3790, -77.1320), (31, 48.378072, -77.1320)])       # 8 m
+    assert fr.jonctions_manquees(_chemins(ROUTE, BRETELLE, loin), *ZONE) == []
+
+
+def test_une_impasse_reliee_qui_finit_pres_d_un_chemin_n_est_pas_signalee():
+    # L'allée part d'une rue (nœud commun 12) et s'arrête à 3 m d'une autre route :
+    # elle reste accessible, et ne gêne aucun itinéraire.
+    rue = (5, {"highway": "residential"}, [(12, 48.3800, -77.1320), (13, 48.3800, -77.1300)])
+    allee = (6, {"highway": "service"}, [(12, 48.3800, -77.1320), (60, 48.378027, -77.1320)])        # 3 m
+    assert fr.jonctions_manquees(_chemins(ROUTE, BRETELLE, rue, allee), *ZONE) == []
+    # Même presque contre l'autre route : un chemin relié n'est jamais signalé.
+    # Trier les vrais oublis parmi ces impasses demanderait la carte nationale,
+    # trop cher pour ce qu'on y gagne (les ronds jaunes couvraient la carte).
+    presque = (7, {"highway": "service"}, [(12, 48.3800, -77.1320), (70, 48.378007, -77.1320)])      # 0,8 m
+    assert fr.jonctions_manquees(_chemins(ROUTE, BRETELLE, rue, presque), *ZONE) == []
 
 
 def test_un_cul_de_sac_un_raccord_fait_un_pont_et_une_amorce_ne_sont_pas_signales():
     points_route = [(10, 48.3780, -77.1340), (11, 48.3780, -77.1320), (12, 48.3780, -77.1300)]
     route = (1, {"highway": "tertiary"}, points_route)
+    bretelle = BRETELLE
     zone = (48.37, -77.14, 48.39, -77.12)
     # Un cul-de-sac : le sentier finit à 100 m de tout ; il ne touche rien et ce n'est pas une erreur.
     loin = (2, {"highway": "path"}, [(20, 48.3800, -77.1320), (21, 48.3789, -77.1320)])
-    assert fr.jonctions_manquees(_chemins(route, loin), *zone) == []
+    assert fr.jonctions_manquees(_chemins(route, bretelle, loin), *zone) == []
     # Raccordé : le bout du sentier est un nœud de la route.
     raccorde = (3, {"highway": "path"}, [(30, 48.3790, -77.1320), (11, 48.3780, -77.1320)])
-    assert fr.jonctions_manquees(_chemins(route, raccorde), *zone) == []
+    assert fr.jonctions_manquees(_chemins(route, bretelle, raccorde), *zone) == []
     # Sous un pont : pas de raccord à attendre.
     pont = (1, {"highway": "tertiary", "bridge": "yes"}, points_route)
-    presque = (4, {"highway": "path"}, [(40, 48.3790, -77.1320), (41, 48.378045, -77.1320)])
-    assert fr.jonctions_manquees(_chemins(pont, presque), *zone) == []
+    presque = (4, {"highway": "path"}, [(40, 48.3790, -77.1320), (41, 48.378018, -77.1320)])       # à 2 m
+    assert len(fr.jonctions_manquees(_chemins(route, bretelle, presque), *zone)) == 1, "sans pont, il serait signalé"
+    assert fr.jonctions_manquees(_chemins(pont, bretelle, presque), *zone) == []
     # L'amorce d'une impasse reste près de la rue d'où elle part : elle la touche déjà.
     amorce = (5, {"highway": "service"}, [(11, 48.3780, -77.1320), (50, 48.37808, -77.1320)])
-    assert fr.jonctions_manquees(_chemins(route, amorce), *zone) == []
+    assert fr.jonctions_manquees(_chemins(route, bretelle, amorce), *zone) == []
     # Hors de la zone lue : la tuile voisine s'en charge.
-    assert fr.jonctions_manquees(_chemins(route, presque), 48.3785, -77.14, 48.39, -77.12) == []
+    assert fr.jonctions_manquees(_chemins(route, bretelle, presque), 48.3785, -77.14, 48.39, -77.12) == []
 
 
 def test_tuiles_et_requete():

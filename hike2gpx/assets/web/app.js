@@ -119,6 +119,7 @@ const TEXTES = {
     "legende.jonction": "chemin non raccordé (à vérifier)",
     "jonction.titre": "Chemin non raccordé",
     "jonction.detail": "Ce chemin s'arrête à {distance} m d'un autre sans le toucher dans OpenStreetMap : le calcul ne peut pas passer de l'un à l'autre. À vérifier sur place ou sur l'imagerie : il peut aussi s'agir d'un vrai cul-de-sac.",
+    "jonction.isole": "Ce chemin n'est relié à aucun autre dans OpenStreetMap, et passe à {distance} m de l'un d'eux : le calcul ne peut pas l'emprunter. À vérifier sur place ou sur l'imagerie : il manque sans doute un raccord.",
     "jonction.corriger": "Corriger dans OpenStreetMap",
     "legende.osm": "chemins OSM (tirets : sentiers)",
     "legende.barriere": "clôtures et murs connus d'OSM",
@@ -389,6 +390,7 @@ const TEXTES = {
     "legende.jonction": "unconnected path (to check)",
     "jonction.titre": "Unconnected path",
     "jonction.detail": "This path ends {distance} m from another one without touching it in OpenStreetMap: routing cannot go from one to the other. Check on site or on imagery: it may also be a real dead end.",
+    "jonction.isole": "This path is connected to no other in OpenStreetMap, and passes {distance} m from one of them: routing cannot use it. Check on site or on imagery: a junction is probably missing.",
     "jonction.corriger": "Fix in OpenStreetMap",
     "legende.osm": "OSM paths (dashed: footpaths)",
     "legende.barriere": "fences and walls known to OSM",
@@ -2565,8 +2567,11 @@ function bulleJonction(j) {
   lien.target = "_blank";
   lien.rel = "noopener";
   lien.textContent = t("jonction.corriger");
+  // Un chemin relié à rien est inaccessible au calcul ; un chemin relié qui
+  // s'arrête presque contre un autre coupe seulement ce passage-là.
   div.append(paragraphe(t("jonction.titre"), true),
-             paragraphe(t("jonction.detail", { distance: decimal(j.distance_m, 1) })), lien);
+             paragraphe(t(j.isole ? "jonction.isole" : "jonction.detail", { distance: decimal(j.distance_m, 1) })),
+             lien);
   return div;
 }
 
