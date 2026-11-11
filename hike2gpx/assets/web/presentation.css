@@ -206,8 +206,8 @@ body.profile-collapsed .map-activity{bottom:81px}
 .transparency-setting input{flex:1;min-width:0;accent-color:var(--accent);cursor:pointer}
 .transparency-setting output{min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
 .journal-settings{margin-top:18px;padding-top:16px;border-top:1px solid var(--bordure)}
-.journal-settings button{padding:9px 12px;border:1px solid #d5e5fa;border-radius:8px;background:#eef5ff;color:#1959b5;font-size:12px;cursor:pointer}
-.journal-settings button:hover:not(:disabled){background:#e1efff}
+.journal-settings button{padding:9px 12px;border:1px solid #8fb0d8;border-radius:8px;background:#e3eefc;color:#1959b5;font-size:12px;cursor:pointer}
+.journal-settings button:hover:not(:disabled){background:#d2e4fa}
 .journal-settings .note{margin:8px 0 0;color:#bc3944}
 body.hide-elevation .elevation-panel{display:none!important}
 #noteCalques,#extraitOsm,#brouterEnCours{display:none!important}
@@ -220,8 +220,8 @@ body.hide-elevation .elevation-panel{display:none!important}
 #donnees{margin-top:22px;border-top:1px solid var(--bordure);padding-top:16px}
 .cache-controls{display:flex;align-items:center;gap:8px}
 .cache-controls .info-tooltip [role=tooltip]{left:-135px;width:330px}
-#donnees .cache-controls>button{padding:9px 13px;border:1px solid #d7e3f0;border-radius:8px;background:#f5f9ff;color:#315b88;cursor:pointer;font-size:12px}
-#donnees .cache-controls>button:hover:not(:disabled){background:#e9f2ff}
+#donnees .cache-controls>button{padding:9px 13px;border:1px solid #8fb0d8;border-radius:8px;background:#e3eefc;color:#1959b5;cursor:pointer;font-size:12px}
+#donnees .cache-controls>button:hover:not(:disabled){background:#d2e4fa}
 #donnees .cache-controls>button:disabled{opacity:.5;cursor:default}
 #cacheStatus{min-height:1em;margin:8px 0 0;font-size:11px;color:#5d7186}
 #lignesJournal{max-height:none;min-height:170px;max-width:100%;margin-top:11px;padding:12px;font-size:11px;line-height:1.5;background:#f7f9fc;border-color:#e4ebf3}
