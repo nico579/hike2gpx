@@ -296,7 +296,7 @@ bundles and maps included. A server bundle downloads again in seconds; a
 bundle or map prepared on the computer has to be made again.
 
 That leaves the map itself. In France, "Map management" also prepares, in 1°
-squares chosen on the map, the **offline base map**: the tiles of the base map chosen in the list, stored
+cells chosen on the map, the **offline base map**: the tiles of the base map chosen in the list, stored
 on this computer in an MBTiles file. The base maps whose licence allows it can
 be kept this way: SCAN 25 (with an IGN key), Plan IGN, and IGN's aerial photos
 and LiDAR HD relief. OpenStreetMap can be kept too, in another way: its tile
