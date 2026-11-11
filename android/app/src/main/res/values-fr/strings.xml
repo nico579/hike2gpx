@@ -46,11 +46,9 @@
     <string name="fond_etats_unis">Carte topographique (USGS)</string>
     <string name="fond_pologne">Carte topographique (Geoportal Pologne)</string>
     <string name="fond_satellite">Satellite (Esri)</string>
-    <string name="fond_hors_ligne">%1$s, hors ligne (%2$d fond(s), %3$s)</string>
     <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$s, depuis %4$s</string>
     <string name="fond_relire">Relire les fonds partagés par le PC</string>
     <string name="etat_fond_installe">Fond %1$s installé.</string>
-    <string name="cartes_partage">Partage du PC</string>
     <string name="cartes_a_telecharger">Télécharger depuis l’ordinateur</string>
     <string name="cartes_aucun_fond">Aucun fond à télécharger pour l’instant. Ajoutez un PC avec son QR code pour recevoir les siens.</string>
     <string name="cartes_supprimer_titre">Supprimer le fond</string>
@@ -92,7 +90,6 @@
 
     <string name="titre_lots">Zones stockées localement</string>
     <string name="titre_fonds">Hors ligne</string>
-    <string name="oublier">Oublier</string>
     <string name="scanner_qr">Scanner le QR code de l’ordinateur</string>
     <string name="scan_invite">Visez le QR code affiché par hike2gpx sur le PC</string>
     <string name="recuperer_titre">Récupérer depuis le PC</string>
