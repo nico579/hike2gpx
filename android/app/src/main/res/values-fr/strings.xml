@@ -220,6 +220,8 @@
     <string name="trace_demarree">Trace GPS démarrée : le téléphone relève les points.</string>
     <string name="trace_sans_point">Aucun point retenu : la trace n’a pas été enregistrée.</string>
     <string name="trace_canal">Enregistrement de trace GPS</string>
+    <string name="export_canal">Exports GPX</string>
+    <string name="export_notification_texte">Enregistré dans Téléchargements. Touchez pour l’ouvrir.</string>
     <string name="trace_notification_titre">Trace GPS en cours</string>
     <string name="trace_notification_texte">Touchez pour ouvrir hike2gpx. Les points sont gardés même écran éteint.</string>
     <string name="trace_recuperee">Trace interrompue récupérée : %1$s</string>

@@ -3,6 +3,11 @@ package org.hike2gpx.android
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
+import android.app.DownloadManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Dialog
 import android.Manifest
 import android.content.ContentValues
@@ -2031,6 +2036,12 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requete: Int, permissions: Array<out String>,
                                             resultats: IntArray) {
         super.onRequestPermissionsResult(requete, permissions, resultats)
+        if (requete == PERMISSION_NOTIFICATIONS) {
+            val nom = exportANotifier
+            exportANotifier = null
+            if (nom != null && resultats.firstOrNull() == PackageManager.PERMISSION_GRANTED) posterNotificationExport(nom)
+            return
+        }
         if (requete != PERMISSION_POSITION) return
         val action = apresPermission
         apresPermission = null
@@ -2372,11 +2383,45 @@ class MainActivity : Activity() {
             val adresse = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valeurs)
                 ?: throw IOException("MediaStore")
             contentResolver.openOutputStream(adresse)?.use { it.write(octets) }
+            notifierExport(nom, adresse)
             true
         } catch (e: Exception) {
             etat.text = texte(e)
             false
         }
+    }
+
+    /**
+     * MediaStore n'annonce rien : la notification dit où est le fichier, et un
+     * toucher ouvre Téléchargements. Android 13 et plus demande l'autorisation
+     * de notifier au premier export ; la notification part dès qu'elle est
+     * accordée. Refusée, l'export reste silencieux.
+     */
+    private var exportANotifier: String? = null
+
+    private fun notifierExport(nom: String, adresse: Uri) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            exportANotifier = nom
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), PERMISSION_NOTIFICATIONS)
+            return
+        }
+        posterNotificationExport(nom)
+    }
+
+    private fun posterNotificationExport(nom: String) {
+        val gestionnaire = getSystemService(NotificationManager::class.java)
+        gestionnaire.createNotificationChannel(NotificationChannel(CANAL_EXPORT,
+            getString(R.string.export_canal), NotificationManager.IMPORTANCE_LOW))
+        val ouvrir = PendingIntent.getActivity(this, 0, Intent(DownloadManager.ACTION_VIEW_DOWNLOADS),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        gestionnaire.notify(nom.hashCode(), Notification.Builder(this, CANAL_EXPORT)
+            .setSmallIcon(R.drawable.ic_btn_telecharger)
+            .setContentTitle(nom)
+            .setContentText(getString(R.string.export_notification_texte))
+            .setContentIntent(ouvrir)
+            .setAutoCancel(true)
+            .build())
     }
 
     private fun lancerExport(nom: String) {
@@ -2763,6 +2808,7 @@ class MainActivity : Activity() {
         private const val EXPORT_TRACE = 2
         private const val PERMISSION_POSITION = 3
         private const val PERMISSION_NOTIFICATIONS = 4
+        private const val CANAL_EXPORT = "export"
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
         /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */
