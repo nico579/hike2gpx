@@ -35,6 +35,7 @@ on:
 
 permissions:
   contents: write                   # publier sur le dépôt appelant
+  actions: read                     # le compte rendu lit l'état des jobs du run (l'appelant doit l'accorder)
 
 jobs:
   liste:
@@ -592,7 +593,7 @@ jobs:
         # dans le résumé du run ; une case demandée absente du catalogue, ou un
         # lot de plus de 14 jours, fait échouer le run, et GitHub prévient.
         env:
-          CASES: ${{ join(fromJSON(needs.liste.outputs.cases), ' ') }}
+          CASES: ${{ needs.liste.outputs.cases != '' && join(fromJSON(needs.liste.outputs.cases), ' ') || '' }}
         run: |
           set +e
           python -m hike2gpx freshness "$RUNNER_TEMP/publication/catalog.json" --cells "$CASES" --max-age 14 \
@@ -600,3 +601,63 @@ jobs:
           statut=$?
           tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/fraicheur.md"
           exit "$statut"
+
+  rapport:
+    # Le compte rendu de chaque fabrication, horodaté, gardé dans le dépôt des
+    # lots (rapports/AAAA-MM-JJTHHMMZ-runN.md) : l'historique se lit sur GitHub,
+    # sans dépendre des journaux des runs, effacés au bout de 90 jours. Écrit
+    # quoi qu'il arrive, même si la publication a échoué.
+    needs: [liste, publier]
+    if: ${{ always() && github.repository != 'nico579/hike2gpx' }}
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout hike2gpx
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nico579/hike2gpx
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Installer hike2gpx
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements.txt
+          python -m pip install --quiet --no-deps -e .
+
+      - name: Dépôt des lots
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: depot-des-lots
+
+      - name: Écrire et garder le compte rendu
+        env:
+          CASES: ${{ needs.liste.outputs.cases != '' && join(fromJSON(needs.liste.outputs.cases), ' ') || '' }}
+          REF: ${{ inputs.ref }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" \
+            --jq '.jobs[]' | jq -s '.' > "$RUNNER_TEMP/jobs.json"
+          gh release download bundles --repo "$GITHUB_REPOSITORY" --pattern catalog.json --dir "$RUNNER_TEMP" \
+            || echo "pas de catalogue publié"
+          horodatage=$(date -u +%Y-%m-%dT%H%MZ)
+          fichier="rapports/$horodatage-run$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.md"
+          mkdir -p depot-des-lots/rapports
+          python -m hike2gpx report "$RUNNER_TEMP/jobs.json" --catalog "$RUNNER_TEMP/catalog.json" --cells "$CASES" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --ref "$REF" \
+            > "depot-des-lots/$fichier"
+          cat "depot-des-lots/$fichier" >> "$GITHUB_STEP_SUMMARY"
+          cd depot-des-lots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$fichier"
+          git commit --quiet -m "Compte rendu de la fabrication du $horodatage (run $GITHUB_RUN_ID)"
+          # Un autre run a pu pousser entre-temps : on se remet à jour, trois fois au plus.
+          for essai in 1 2 3; do
+            git pull --rebase --quiet && git push --quiet && exit 0
+            sleep 10
+          done
+          exit 1

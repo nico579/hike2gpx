@@ -85,6 +85,16 @@ def main(argv=None) -> int:
     frais.add_argument("catalog", type=Path, help="catalog.json")
     frais.add_argument("--cells", default="", help="expected cells, space separated")
     frais.add_argument("--max-age", type=int, default=14, help="maximum age of a bundle, in days (default 14)")
+    rapport = sous.add_parser("report", help="write the report of a bundle server run",
+                              description="Print, as Markdown, the report of a run of the bundles workflow: the "
+                                          "state of each stage of each cell, the failures, what was published, "
+                                          "and the age of the published bundles.")
+    rapport.add_argument("jobs", type=Path, help="the jobs of the run, as a JSON list (GitHub API)")
+    rapport.add_argument("--catalog", type=Path, help="the published catalog.json, after the run")
+    rapport.add_argument("--cells", default="", help="cells requested from the run, space separated")
+    rapport.add_argument("--run-url", default="", help="URL of the run")
+    rapport.add_argument("--ref", default="", help="hike2gpx version (branch or tag) that built the bundles")
+    rapport.add_argument("--max-age", type=int, default=14, help="maximum age of a bundle, in days (default 14)")
     cellules = sous.add_parser("cells", help="list the BRouter cells touched by the national providers' countries",
                                description="Print, space separated, the 5° BRouter cells that the country of each "
                                            "national paths provider touches: the cells a bundle server builds.")
@@ -159,6 +169,15 @@ def main(argv=None) -> int:
         lignes, problemes = depot.fraicheur(contenu, args.cells.split(), time.time(), args.max_age)
         print(depot.tableau_fraicheur(lignes, problemes, args.max_age), end="", flush=True)
         return 1 if problemes else 0
+    if args.commande == "report":
+        from . import rapport
+        jobs = json.loads(args.jobs.read_text(encoding="utf-8"))
+        contenu = (json.loads(args.catalog.read_text(encoding="utf-8"))
+                   if args.catalog and args.catalog.is_file() else {"lots": []})
+        print(rapport.compte_rendu(jobs, contenu, args.cells.split(), run=args.run_url, ref=args.ref,
+                                   version=__version__, maintenant=time.time(), jours_max=args.max_age),
+              end="", flush=True)
+        return 0
     if args.commande == "analyser":
         liste = franchissements.franchissements_zone(args.sud, args.ouest, args.nord, args.est, dossier)
         compte = collections.Counter((f["statut"], f["nature"], f["raison"]) for f in liste)
