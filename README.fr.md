@@ -44,7 +44,10 @@ environ deux cents modèles nationaux et régionaux, de 0,25 m à 10 m de
 résolution, pour presque toute l'Europe, les États-Unis, le Canada, le Japon,
 l'Australie et la Nouvelle-Zélande. Hors de ces zones, il retombe sur le modèle
 mondial de 30 m de Copernicus, moins précis, et SRTM reste le tout dernier
-recours.
+recours. Le détail pays par pays se lit dans le
+[catalogue des fournisseurs](https://github.com/nico579/lidar2map/blob/main/docs/providers.md)
+de lidar2map, le projet jumeau, qui interroge directement ces sources LiDAR
+nationales, que Mapterhorn rassemble aussi.
 
 Les deux applications se téléchargent dans les releases : une archive par
 système pour l'ordinateur (Windows, macOS, Linux), `hike2gpx-android.apk` pour

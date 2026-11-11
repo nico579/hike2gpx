@@ -40,7 +40,11 @@ elsewhere Mapterhorn, which takes the national LiDAR whenever one exists:
 about two hundred national and regional models, at 0.25 m to 10 m resolution,
 for almost all of Europe, the United States, Canada, Japan, Australia and New
 Zealand. Outside these areas it falls back on Copernicus' 30 m global model,
-which is less precise, and SRTM remains the very last resort.
+which is less precise, and SRTM remains the very last resort. The country by
+country detail is in the
+[provider catalog](https://github.com/nico579/lidar2map/blob/main/docs/providers.md)
+of lidar2map, the sister project, which queries these national LiDAR sources
+directly, and which Mapterhorn gathers too.
 
 Both applications are downloaded from the releases: one archive per system for
 the computer (Windows, macOS, Linux), `hike2gpx-android.apk` for the phone.
