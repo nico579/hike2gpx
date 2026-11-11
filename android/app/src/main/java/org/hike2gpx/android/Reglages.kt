@@ -20,8 +20,6 @@ class Reglages(context: Context) {
     /** Un PC déjà connu (même catalogue) reçoit son nouveau jeton. */
     fun ajouterPc(source: Source) = enregistrer(pcs().filter { it.catalogue != source.catalogue } + source)
 
-    fun oublierPc(source: Source) = enregistrer(pcs().filter { it.catalogue != source.catalogue })
-
     /** Le fond affiché : une carte en ligne (« plan », « scan25 »…) ou la source d'un fond hors ligne. */
     var fond: String
         get() = preferences.getString(FOND, "plan") ?: "plan"

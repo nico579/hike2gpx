@@ -1017,45 +1017,46 @@ class MainActivity : Activity() {
         val colonne = fenetreCartes ?: return
         colonne.removeAllViews()
 
-        titre(colonne, R.string.titre_fond)
-        val groupe = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
-        fun fondChoisi(cle: String, libelle: String, action: () -> Unit) {
+        // Deux chapitres, comme sur le PC : les cartes servies par Internet,
+        // puis celles qu'un PC a fabriquées pour le hors ligne. Un seul fond
+        // est choisi à la fois : cocher l'un décoche l'autre groupe.
+        val enLigne = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        val horsLigne = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        fun fondChoisi(groupe: RadioGroup, cle: String, libelle: String, action: () -> Unit) {
             groupe.addView(RadioButton(this).apply {
                 // Un identifiant est nécessaire pour que le groupe décoche
                 // l'ancien fond quand un autre est choisi.
                 id = View.generateViewId()
                 text = libelle
                 isChecked = reglages.fond == cle
-                setOnClickListener { action() }
+                setOnClickListener {
+                    (if (groupe === enLigne) horsLigne else enLigne).clearCheck()
+                    action()
+                }
             })
         }
-        for (carte in CartesEnLigne.disponibles(paysAffiche, reglages.cleIgn))
-            fondChoisi(carte.cle, getString(carte.libelle)) { appliquerFond(carte.cle) }
-        for ((source, fichiers) in fonds.parSource()) {
-            fondChoisi(source, getString(R.string.fond_hors_ligne, Fonds.titre(source), fichiers.size,
-                Formatter.formatShortFileSize(this, fichiers.sumOf { it.length() }))) {
-                appliquerFond(source)
-                cadrerSur(fichiers)
-            }
-        }
-        colonne.addView(groupe)
 
-        // Les fonds installés, supprimables un par un.
-        titre(colonne, R.string.titre_fonds)
-        val installes = fonds.installes()
-        if (installes.isEmpty()) colonne.addView(TextView(this).apply { setText(R.string.aucun_fond) })
-        for (f in installes) {
-            val ligne = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            ligne.addView(TextView(this).apply {
-                text = getString(R.string.ligne_fond, f.nameWithoutExtension,
-                    Formatter.formatShortFileSize(this@MainActivity, f.length()))
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-            ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppressionFond(f) })
-            colonne.addView(ligne)
+        titre(colonne, R.string.titre_fond)
+        for (carte in CartesEnLigne.disponibles(paysAffiche, reglages.cleIgn))
+            fondChoisi(enLigne, carte.cle, getString(carte.libelle)) { appliquerFond(carte.cle) }
+        colonne.addView(enLigne)
+
+        // Les cartes reçues d'un PC : le chapitre n'apparaît que s'il y en a.
+        // Son titre dit déjà « hors ligne », d'où le seul nom de la carte.
+        val recus = fonds.parSource()
+        if (recus.isNotEmpty()) {
+            titre(colonne, R.string.titre_fonds)
+            for (source in recus.keys)
+                fondChoisi(horsLigne, source, Fonds.titre(source)) {
+                    appliquerFond(source)
+                    cadrerSur(recus.getValue(source))
+                }
+            colonne.addView(horsLigne)
         }
+
+        // Les fonds installés, pour la liste des zones en fin de page et les
+        // propositions d'un PC.
+        val installes = fonds.installes()
 
         // Les fonds d'un PC : son QR code l'ajoute, puis ses fonds manquants se téléchargent.
         titre(colonne, R.string.cartes_a_telecharger)
@@ -1075,24 +1076,6 @@ class MainActivity : Activity() {
                 setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirCartes() } }
             })
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
-
-        // Les PC déjà ajoutés se retirent ici, comme la source GitHub reste fixe.
-        if (reglages.pcs().isNotEmpty()) {
-            titre(colonne, R.string.cartes_partage)
-            for (pc in reglages.pcs()) {
-                val ligne = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                }
-                ligne.addView(TextView(this).apply { text = pc.libelle }, LinearLayout.LayoutParams(0, -2, 1f))
-                ligne.addView(boutonPetit(R.string.oublier) {
-                    reglages.oublierPc(pc)
-                    cataloguesPc = null
-                    remplirCartes()
-                })
-                colonne.addView(ligne)
-            }
-        }
 
         // Les calques du lot, comme dans la page du PC : la coche OSM reste
         // toujours, celle d'un fournisseur national n'apparaît que si le lot
@@ -1116,6 +1099,24 @@ class MainActivity : Activity() {
                     planifierCalques()
                 }
             })
+        }
+
+        // Les zones de carte téléchargées, supprimables une par une. En fin de
+        // page, comme sur le PC : la liste peut s'allonger sans décaler les
+        // boutons du dessus.
+        titre(colonne, R.string.titre_lots)
+        if (installes.isEmpty()) colonne.addView(TextView(this).apply { setText(R.string.aucun_fond) })
+        for (f in installes) {
+            val ligne = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            ligne.addView(TextView(this).apply {
+                text = getString(R.string.ligne_fond, f.nameWithoutExtension,
+                    Formatter.formatShortFileSize(this@MainActivity, f.length()))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppressionFond(f) })
+            colonne.addView(ligne)
         }
     }
 
@@ -1208,25 +1209,9 @@ class MainActivity : Activity() {
             setOnCheckedChangeListener { _, v -> reglages.officiels = v }
         })
 
-        // Les lots de routage installés, supprimables un par un.
-        titre(colonne, R.string.titre_lots)
+        // Les lots installés, pour la liste des zones en fin de page et pour
+        // savoir ce qu'un PC apporte en plus.
         val installes = horsLigne.lots()
-        if (installes.isEmpty()) colonne.addView(TextView(this).apply { setText(R.string.aucun_lot) })
-        for (lot in installes) {
-            val offre = offres.firstOrNull { it.lot.case == lot.case }
-            val ligne = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            ligne.addView(TextView(this).apply {
-                text = getString(R.string.ligne_installe, lot.case, description(lot),
-                    Formatter.formatShortFileSize(this@MainActivity, lot.octets))
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-            if (offre != null && plusRecent(offre.lot, lot))
-                ligne.addView(boutonPetit(R.string.mettre_a_jour) { telecharger(offre) })
-            ligne.addView(boutonPetit(R.string.supprimer) { supprimerLot(lot) })
-            colonne.addView(ligne)
-        }
 
         // Ce que seul un PC calcule : ses lots absents du serveur et du téléphone.
         titre(colonne, R.string.itineraires_pc)
@@ -1261,6 +1246,27 @@ class MainActivity : Activity() {
         champNombre(colonne, R.string.trace_precision, reglages.precisionMax, entier = false) {
             reglages.precisionMax = it
             appliquerReglagesTrace()
+        }
+
+        // Les zones de routage installées, supprimables une par une. En fin de
+        // page, comme sur le PC : la liste peut s'allonger sans décaler les
+        // réglages du dessus.
+        titre(colonne, R.string.titre_lots)
+        if (installes.isEmpty()) colonne.addView(TextView(this).apply { setText(R.string.aucun_lot) })
+        for (lot in installes) {
+            val offre = offres.firstOrNull { it.lot.case == lot.case }
+            val ligne = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            ligne.addView(TextView(this).apply {
+                text = getString(R.string.ligne_installe, lot.case, description(lot),
+                    Formatter.formatShortFileSize(this@MainActivity, lot.octets))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            if (offre != null && plusRecent(offre.lot, lot))
+                ligne.addView(boutonPetit(R.string.mettre_a_jour) { telecharger(offre) })
+            ligne.addView(boutonPetit(R.string.supprimer) { supprimerLot(lot) })
+            colonne.addView(ligne)
         }
     }
 
