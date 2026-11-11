@@ -175,6 +175,7 @@ const TEXTES = {
     "zones.confirmer": "Supprimer de ce PC la zone {nom} ({taille}) ? Celle du serveur se retéléchargera si un parcours y passe.",
     "zones.supprimee": "Zone {nom} supprimée, {taille} libérés.",
     "zones.aucuneCarte": "Aucune zone de carte sur ce PC.",
+    "zones.montrer": "Centrer la carte sur cette zone",
     "zones.confirmerCarte": "Supprimer de ce PC la zone {nom} de la carte {carte} ({taille}) ? Elle serait à retélécharger pour la partager au téléphone.",
     "donnees.nettoyer": "Nettoyer",
     "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
@@ -436,6 +437,7 @@ const TEXTES = {
     "zones.confirmer": "Delete the {nom} zone ({taille}) from this PC? The server's will download again if a route goes there.",
     "zones.supprimee": "Zone {nom} deleted, {taille} freed.",
     "zones.aucuneCarte": "No map zone on this PC.",
+    "zones.montrer": "Centre the map on this zone",
     "zones.confirmerCarte": "Delete the {nom} zone of the {carte} map ({taille}) from this PC? It would have to be downloaded again to share it with the phone.",
     "donnees.nettoyer": "Clean up",
     "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
@@ -956,6 +958,7 @@ function cheminsDisponibles(chemins, points = []) {
 }
 let controleFonds = null;
 let fondActif = null;
+let fondVoulu = null;      // la carte d'une zone cliquée, en attente du pays de la zone
 let cleFondActif = null;    // sa clé (providers/<pays>.js), celle d'un fond à garder hors ligne
 let couchesFonds = {};      // clé -> fond de carte Leaflet
 function ajusterRecouvrementTuiles() {
@@ -1452,7 +1455,11 @@ function construireFonds() {
   if (controleFonds) controleFonds.remove();
   if (fondActif) fondActif.remove();
   const defaut = FOURNISSEURS_CARTES[paysCarte].defaultBase;
-  const choix = (clePreferee && couchesFonds[clePreferee]) ? clePreferee : defaut;
+  // Une zone de carte cliquée dans la liste demande sa carte (fondVoulu) : elle
+  // passe avant la préférence du pays, une fois ce pays reconnu.
+  const voulu = fondVoulu && couchesFonds[fondVoulu] ? fondVoulu : null;
+  fondVoulu = null;
+  const choix = voulu || ((clePreferee && couchesFonds[clePreferee]) ? clePreferee : defaut);
   cleFondActif = [choix, "plan", "osm"].find((cle) => couchesFonds[cle]);
   fondActif = couchesFonds[cleFondActif].addTo(carte);
   ajusterRecouvrementTuiles();
@@ -1529,8 +1536,8 @@ function afficherZonesCartes() {
   const lignes = [...fondsInstalles].sort((a, b) => a.nom.localeCompare(b.nom)).map((f) => {
     const [carre, source] = [f.nom.split("-", 1)[0], f.nom.slice(f.nom.indexOf("-") + 1)];
     const li = document.createElement("li");
-    const texte = document.createElement("span");
-    texte.textContent = `${carre} · ${titres[source] || source} · ${tailleTexte(f.octets)}`;
+    const texte = boutonZone(`${carre} · ${titres[source] || source} · ${tailleTexte(f.octets)}`,
+      () => montrerZoneCarte(f.zone, source));
     li.append(texte);
     // Un ancien fond nommé par sa case de 5° ne se supprime pas d'ici.
     if (/^[NS]\d{2}[EW]\d{3}$/.test(carre)) {
@@ -1549,6 +1556,38 @@ function afficherZonesCartes() {
     lignes.push(vide);
   }
   $("zonesCartes").replaceChildren(...lignes);
+}
+
+// Le libellé d'une zone de la liste : un clic recentre la carte sur elle.
+function boutonZone(texte, action) {
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.className = "zone-lien";
+  bouton.textContent = texte;
+  bouton.title = t("zones.montrer");
+  bouton.addEventListener("click", action);
+  return bouton;
+}
+
+function montrerZone([s, o, n, e]) {
+  carte.fitBounds([[s, o], [n, e]]);
+}
+
+// Une zone de carte : la carte recentrée sur elle, et sa carte affichée
+// (le SCAN 25 d'un carré de SCAN 25). Disponible dans le pays courant, elle
+// s'affiche aussitôt ; sinon, construireFonds la prendra quand le pays de
+// la zone sera reconnu, après le déplacement.
+function montrerZoneCarte(zone, source) {
+  if (couchesFonds[source]) {
+    if (cleFondActif !== source) {
+      fondActif.remove();
+      fondActif = couchesFonds[source].addTo(carte);
+      carte.fire("baselayerchange", { layer: fondActif });
+    }
+  } else {
+    fondVoulu = source;
+  }
+  montrerZone(zone);
 }
 
 async function supprimerZoneCarte(carre, source, octets) {
@@ -1885,7 +1924,6 @@ function afficherZonesLocales() {
   const liste = $("zonesLocales");
   const lignes = [...lotsInstalles].sort((a, b) => a.case.localeCompare(b.case)).map((l) => {
     const li = document.createElement("li");
-    const texte = document.createElement("span");
     // Les sources du manifeste : OSM et le relief sont dans tous les lots ; les
     // chemins nationaux, nommés par leur calque (bdtopo) ou leur source (ign),
     // prennent le nom court du pays, comme sur le téléphone (« enrichi IGN »).
@@ -1893,7 +1931,7 @@ function afficherZonesLocales() {
       .map((cle) => Object.values(FOURNISSEURS_CARTES)
         .find((p) => p.paths?.source === cle || p.paths?.overlay === cle)?.paths.label || cle);
     const origine = l.type === "osm" || !sources.length ? "OSM" : t("zones.enrichi", { sources: sources.join(" + ") });
-    texte.textContent = `${l.case} · ${origine} · ${tailleTexte(l.octets)}`;
+    const texte = boutonZone(`${l.case} · ${origine} · ${tailleTexte(l.octets)}`, () => montrerZone(boiteCase(l.case)));
     li.append(texte);
     if (lotsServeur.find((s) => s.case === l.case)?.etat === "ancien") {
       const maj = document.createElement("button");

@@ -36,6 +36,7 @@ function charger(preferences = {}, documentGpx = null) {
       ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
     hasLayer() { return false; }, getZoom() { return this.zoom; }, setZoom(zoom) { this.zoom = zoom; return this; },
     invalidateSize() {},
+    fire(name, e) { this.handlers[name]?.(e); },
     closePopup() { this.popup = null; },
     getCenter() { return { lat: (this.vue.s + this.vue.n) / 2, lng: (this.vue.w + this.vue.e) / 2 }; },
     vue: { s: 43.31, w: 6.01, n: 43.33, e: 6.04 },
@@ -947,6 +948,31 @@ test("une réponse arrivée après une modification est ignorée", async () => {
   await calcul;
   assert.equal(page.etat.dernier, null);
   assert.equal(elements.get("exporter").disabled, true);
+});
+
+test("un clic sur une zone stockée recentre la carte, et choisit sa carte pour une zone de carte", async () => {
+  const { page, elements, requetes, carte } = charger();
+  page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)", plan: "Plan IGN", osm: "OpenStreetMap" };
+  page.construireFonds();
+  assert.equal(page.fond(), page.fonds().plan, "le Plan IGN au départ");
+  // Gestion des cartes : la zone OSM de N43E006, recentrée et affichée en OSM.
+  const charge = page.chargerFonds();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [
+    { nom: "N43E006-osm", zone: [43, 6, 44, 7], zoom: [0, 21], source: "osm", format: "map", octets: 48e6 }] });
+  await charge;
+  const [ligneCarte] = elements.get("zonesCartes").enfants;
+  assert.equal(ligneCarte.enfants[0].title, "Centrer la carte sur cette zone");
+  ligneCarte.enfants[0].click();
+  assert.equal(JSON.stringify(carte.fit.bounds), "[[43,6],[44,7]]");
+  assert.equal(page.fond(), page.fonds().osm, "la carte de la zone");
+  // Gestion des itinéraires : la case de 5°, recentrée.
+  elements.get("pane-itineraires").hidden = false;
+  page.chargerLots();
+  repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"),
+    { lots: [{ case: "E5_N40", type: "enrichi", sources: { osm: {}, bdtopo: {} }, octets: 248e6 }], fonds: [] });
+  await tic();
+  elements.get("zonesLocales").enfants[0].enfants[0].click();
+  assert.equal(JSON.stringify(carte.fit.bounds), "[[40,5],[45,10]]");
 });
 
 test("« Gestion des cartes » liste ses zones stockées localement, toutes cartes confondues", async () => {
