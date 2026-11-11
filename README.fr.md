@@ -36,7 +36,8 @@ l'application Android : la carte d'abord, en plein écran, et un bouton à trois
 traits, en bas à gauche, qui ouvre le menu : « Recherche », « Gestion des
 cartes », « Gestion des itinéraires », « Planifier un itinéraire »,
 « Réglages » et « Aide ». Chaque entrée ouvre sa page dans un panneau à
-gauche, que sa croix referme pour rendre la carte seule ; le menu porte aussi
+gauche, que sa croix referme pour rendre la carte seule (une poignée sur son bord
+droit en change la largeur, et la page la retient) ; le menu porte aussi
 le choix FR/EN et le voyant du calcul. « Aide » ouvre ce mode d'emploi dans la
 langue de la page, pour la version installée.
 

@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-13">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-61">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-62">
 </head>
 <body class="panel-collapsed">
 <div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" class="avec-icone"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span data-i18n="recherche.bouton">Chercher</span></button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
@@ -66,6 +66,7 @@
   <div class="piste"><div id="progressionBarre"></div></div>
   <span id="progressionTexte"></span>
 </div>
+<div id="poigneePanneau" role="separator" aria-orientation="vertical" tabindex="0"></div>
 <aside id="panneau" aria-label="Préparation du parcours">
   <div class="sheet-grip"><span></span></div>
   <div class="page-head"><h2 id="pageTitre" data-i18n="menu.trace">Planifier un itinéraire</h2><button type="button" id="pageFermer" class="page-close" aria-label="Fermer" title="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
@@ -176,10 +177,10 @@
     <div class="partage-boutons"><button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button><button id="arreterPartageFenetre" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div>
   </div>
 </div>
-<script src="/app.js?v=desktop-93"></script>
+<script src="/app.js?v=desktop-94"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-37"></script>
+<script src="/presentation.js?v=desktop-38"></script>
 </body>
 </html>

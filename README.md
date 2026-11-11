@@ -35,7 +35,8 @@ a tray icon. The page is that of the Android app: the map first, full screen,
 and a three-bar button, bottom left, that opens the menu: "Search", "Map
 management", "Route management", "Plan a route", "Settings" and "Help". Each
 entry opens its page in a panel on the left, which its cross closes to leave
-the map alone; the menu also holds the FR/EN choice and the routing
+the map alone (a handle on its right edge resizes it, and the page remembers
+the width); the menu also holds the FR/EN choice and the routing
 indicator. "Help" opens this guide in the language of the page, for the
 installed version.
 

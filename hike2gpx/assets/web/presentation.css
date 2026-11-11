@@ -1,4 +1,4 @@
-:root{--fond:#fff;--texte:#182a3c;--discret:#65768a;--bordure:#e2e9f1;--accent:#2367d1;--panneau:392px;--band-opacity:.55}
+:root{--fond:#fff;--texte:#182a3c;--discret:#65768a;--bordure:#e2e9f1;--accent:#2367d1;--panneau:var(--largeur-panneau,392px);--band-opacity:.55}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{overflow:hidden;color:var(--texte);background:#f7f9fc;font:14px/1.5 "Segoe UI",system-ui,sans-serif}
@@ -38,6 +38,15 @@ body.plein-ecran{--panneau:0px}
 #panneau{transition:width .24s ease}
 #progression{transition:left .24s ease}
 body.panel-collapsed #panneau{visibility:hidden;pointer-events:none}
+/* La poignée du bord droit du panneau : on la tire pour l'élargir ou le rétrécir. */
+#poigneePanneau{position:absolute;top:0;bottom:0;left:calc(var(--panneau) - 4px);width:9px;z-index:1300;cursor:col-resize;touch-action:none}
+#poigneePanneau::after{content:"";position:absolute;top:50%;left:3px;width:3px;height:44px;margin-top:-22px;border-radius:2px;background:#9db3cc;opacity:0;transition:opacity .15s}
+#poigneePanneau:hover::after,#poigneePanneau:focus-visible::after,body.redimensionne #poigneePanneau::after{opacity:.85}
+#poigneePanneau:focus-visible{outline:none}
+body.panel-collapsed #poigneePanneau,body.plein-ecran #poigneePanneau{display:none}
+/* Pendant le glissement, rien ne traîne derrière le curseur, et le texte ne se sélectionne pas. */
+body.redimensionne{cursor:col-resize;user-select:none}
+body.redimensionne *{transition:none!important}
 .sheet-grip{display:none}
 .route-summary{flex-shrink:0;padding:11px 22px 13px;border-bottom:1px solid var(--bordure);background:#f8fbff26}
 .route-summary>strong{display:block;font-size:12px;color:#3d5e80;margin-bottom:8px}
@@ -326,6 +335,7 @@ body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
 .map-widget-toolbar .legende{max-width:270px;margin:0;padding:9px 12px;border:1px solid #d9e5f18c;border-radius:8px;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);box-shadow:0 2px 8px #243b5310;color:#344860}
 @media(max-height:780px) and (min-width:701px){.pane{padding-top:13px}.aide{padding:9px 12px;margin-bottom:11px}.boutons{gap:6px;margin-bottom:13px}.option{padding:8px 0}.panel-footer{padding:8px 20px}}
 @media(max-width:700px){
+  #poigneePanneau{display:none}
   :root{--panneau:0px}
   #carte{top:0;bottom:49vh;left:0;right:0}
   body.panel-collapsed #carte{bottom:0}
