@@ -254,7 +254,13 @@ const TEXTES = {
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
     "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
-    "partage.ouvert": "Partagés : {lots} zone(s) de routage et {fonds} fond(s) de carte, {taille}. Dans hike2gpx sur le téléphone, sur le même Wi-Fi : « Gestion des cartes », puis « Scanner le QR code d’un PC » ; le téléphone demande une confirmation et récupère tout. Le code change à chaque partage.",
+    "partage.ouvert": "Partagé : {quoi}, {taille}. Dans hike2gpx sur le téléphone, sur le même Wi-Fi : « {page} », puis « Scanner le QR code d’un PC » ; le téléphone demande une confirmation et récupère tout. Le code change à chaque partage.",
+    "partage.rien": "Rien à partager : ce PC n’a ni zone de carte ni zone de routage.",
+    "partage.zonesCarte1": "1 zone de carte",
+    "partage.zonesCarte": "{n} zones de carte",
+    "partage.zonesRoutage1": "1 zone de routage",
+    "partage.zonesRoutage": "{n} zones de routage",
+    "partage.et": " et ",
     "partage.titre": "Partager au téléphone",
     "partage.pareFeu": "Attention : le pare-feu de Windows n’autorise pas encore hike2gpx, le téléphone ne pourra pas joindre le PC. Rouvrez le partage et acceptez la demande d’autorisation de Windows.",
     "partage.revoir": "Afficher le QR code",
@@ -516,7 +522,13 @@ const TEXTES = {
     "horsLigne.fondFini": "Base map {nom} ready offline.",
     "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
-    "partage.ouvert": "Shared: {lots} routing zone(s) and {fonds} base map(s), {taille}. In hike2gpx on the phone, on the same Wi-Fi: “Map management”, then “Scan a PC’s QR code”; the phone asks for one confirmation and gets everything. The code changes with every share.",
+    "partage.ouvert": "Shared: {quoi}, {taille}. In hike2gpx on the phone, on the same Wi-Fi: “{page}”, then “Scan a PC’s QR code”; the phone asks for one confirmation and gets everything. The code changes with every share.",
+    "partage.rien": "Nothing to share: this PC has no map zone and no routing zone.",
+    "partage.zonesCarte1": "1 map zone",
+    "partage.zonesCarte": "{n} map zones",
+    "partage.zonesRoutage1": "1 routing zone",
+    "partage.zonesRoutage": "{n} routing zones",
+    "partage.et": " and ",
     "partage.titre": "Share with the phone",
     "partage.pareFeu": "Warning: the Windows firewall does not allow hike2gpx yet, so the phone cannot reach the PC. Share again and accept the Windows authorisation request.",
     "partage.revoir": "Show the QR code",
@@ -2001,7 +2013,7 @@ function afficherPartage(r, montrer = false) {
   $("partageQr").innerHTML = r.ouvert ? r.qr : "";
   // Le pare-feu de Windows (pare_feu.py) : sans sa règle, le téléphone ne joindra pas le PC.
   const pareFeu = ["refuse", "erreur"].includes(r.pare_feu) ? ` ${t("partage.pareFeu")}` : "";
-  const ouvert = r.ouvert ? t("partage.ouvert", { lots: r.lots.length, fonds: r.fonds.length, taille: tailleTexte(r.octets) }) + pareFeu : "";
+  const ouvert = r.ouvert ? texteDuPartage(r) + pareFeu : "";
   $("partageFenetreTexte").textContent = ouvert;
   $("partageTexte").textContent = r.erreur ? t("partage.erreur", { erreur: ts(r.erreur) }) : ouvert;
   $("partageTexte").hidden = !$("partageTexte").textContent;
@@ -2010,6 +2022,20 @@ function afficherPartage(r, montrer = false) {
 
 // selection : {lots, carres}, ce que le volet de la grille a choisi ; sans
 // elle (l'entrée du menu), tout ce qui est sur ce PC.
+// Ce qui est partagé, et seulement cela : « 2 zones de carte », « 1 zone de
+// routage », ou les deux. Le téléphone scanne depuis « Gestion des cartes »,
+// ou « Gestion des itinéraires » quand seul du routage est partagé.
+function texteDuPartage(r) {
+  const compte = (n, cle) => n === 1 ? t(`${cle}1`) : t(cle, { n });
+  const parties = [
+    ...(r.fonds.length ? [compte(r.fonds.length, "partage.zonesCarte")] : []),
+    ...(r.lots.length ? [compte(r.lots.length, "partage.zonesRoutage")] : []),
+  ];
+  if (!parties.length) return t("partage.rien");
+  return t("partage.ouvert", { quoi: parties.join(t("partage.et")), taille: tailleTexte(r.octets),
+    page: t(r.fonds.length ? "menu.cartes" : "menu.itineraires") });
+}
+
 async function basculerPartage(ouvrir, selection = null) {
   try {
     afficherPartage(await api("partage", { ouvrir, ...(selection || {}) }), ouvrir);

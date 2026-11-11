@@ -329,7 +329,7 @@ test("le partage au téléphone s'ouvre à la demande, montre son QR code et se 
   assert.equal(elements.get("partageOuvert").hidden, false);
   assert.equal(elements.get("partagerTelephone").hidden, true);
   assert.match(elements.get("partageTexte").textContent,
-    /^Partagés : 1 zone\(s\) de routage et 1 fond\(s\) de carte, 412 Mo\..*Scanner le QR code d’un PC/);
+    /^Partagé : 1 zone de carte et 1 zone de routage, 412 Mo\. .*« Gestion des cartes », puis « Scanner le QR code d’un PC »/);
   // Le QR code s'ouvre dans sa fenêtre, comme lidar2map ; Fermer la cache, « Afficher le QR code » la rouvre.
   assert.equal(elements.get("partageFenetre").hidden, false);
   elements.get("fermerFenetrePartage").click();
@@ -345,6 +345,24 @@ test("le partage au téléphone s'ouvre à la demande, montre son QR code et se 
   assert.equal(elements.get("partageOuvert").hidden, true);
   assert.equal(elements.get("partageTexte").hidden, true);
   assert.equal(elements.get("partageFenetre").hidden, true, "partage fermé : plus de fenêtre");
+});
+
+test("le texte du partage ne nomme que ce qui est partagé, et la bonne page du téléphone", async () => {
+  const { elements, requetes } = charger();
+  const ouvrir = async (r) => {
+    elements.get("partagerTelephone").click();
+    repondre(requetes.findLast((q) => q.url === "/api/partage"), { ouvert: true, qr: "<svg/>", ...r });
+    await tic();
+    return elements.get("partageTexte").textContent;
+  };
+  // Des cartes seules : pas de « 0 zone de routage ».
+  assert.match(await ouvrir({ lots: [], fonds: ["N43E005-scan25", "N43E006-scan25"], octets: 1.7e9 }),
+    /^Partagé : 2 zones de carte, 1,7 Go\. .*« Gestion des cartes »/);
+  // Du routage seul : le téléphone le scanne depuis ses itinéraires.
+  assert.match(await ouvrir({ lots: ["E5_N40"], fonds: [], octets: 248e6 }),
+    /^Partagé : 1 zone de routage, 248 Mo\. .*« Gestion des itinéraires »/);
+  assert.equal(await ouvrir({ lots: [], fonds: [], octets: 0 }),
+    "Rien à partager : ce PC n’a ni zone de carte ni zone de routage.");
 });
 
 test("le volet de la grille partage sa sélection seule au téléphone", async () => {
