@@ -67,9 +67,9 @@ class Reglages(context: Context) {
         }
     }
 
-    /** La légende des symboles de la carte, sous le bandeau d'état. */
+    /** La légende des symboles, au bord droit de la carte ; décochée par défaut, comme sur le PC. */
     var legende: Boolean
-        get() = preferences.getBoolean(LEGENDE, true)
+        get() = preferences.getBoolean(LEGENDE, false)
         set(v) = preferences.edit().putBoolean(LEGENDE, v).apply()
 
     /** La courbe du dénivelé, au-dessus des boutons, comme le profil de la page. */
