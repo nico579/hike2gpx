@@ -77,11 +77,6 @@ class Reglages(context: Context) {
         get() = preferences.getBoolean(COURBE_DENIVELE, true)
         set(v) = preferences.edit().putBoolean(COURBE_DENIVELE, v).apply()
 
-    /** La zone de recherche de ville, en haut de l'écran ; un double tap la cache avec le reste. */
-    var recherche: Boolean
-        get() = preferences.getBoolean(RECHERCHE, true)
-        set(v) = preferences.edit().putBoolean(RECHERCHE, v).apply()
-
     /** La distance minimale entre deux points d'une trace GPS, en mètres (Locus : 10). */
     var distanceMin: Double
         get() = preferences.getFloat(DISTANCE_MIN, 10f).toDouble()
@@ -114,7 +109,6 @@ class Reglages(context: Context) {
         private const val CALQUE_OFFICIEL = "calque_officiel"       // ancien réglage unique, repris une fois
         private const val LEGENDE = "legende"
         private const val COURBE_DENIVELE = "courbe_denivele"
-        private const val RECHERCHE = "recherche"
         private const val DISTANCE_MIN = "trace_distance_min"
         private const val DUREE_MIN = "trace_duree_min"
         private const val PRECISION_MAX = "trace_precision_max"

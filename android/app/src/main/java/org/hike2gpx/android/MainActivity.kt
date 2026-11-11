@@ -1667,10 +1667,6 @@ class MainActivity : Activity() {
             setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
             setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
         })
-        colonne.addView(CheckBox(this).apply {
-            setText(R.string.afficher_recherche); isChecked = reglages.recherche
-            setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
-        })
 
         // La clé IGN du SCAN 25, le même réglage que sur le PC.
         titre(colonne, R.string.reglages_cle_ign)

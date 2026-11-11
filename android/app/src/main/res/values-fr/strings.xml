@@ -76,7 +76,6 @@
     <string name="reglages_cle_afficher">Afficher la clé</string>
     <string name="afficher_legende">Afficher légendes</string>
     <string name="afficher_courbe">Afficher courbe du dénivelé</string>
-    <string name="afficher_recherche">Afficher la recherche de ville</string>
     <string name="courbe_aide">Touchez la courbe pour voir le point correspondant sur le tracé.</string>
     <string name="legende_titre">Légende</string>
     <string name="legende_itineraire">itinéraire hike2gpx</string>
