@@ -36,10 +36,12 @@ méthode et les réserves sont dans
 [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
 
 **Il calcule le dénivelé sur le terrain, pas sur la cime des arbres.** Sous une
-forêt, un modèle de surface comme SRTM ou Copernicus mesure le haut de la
-canopée, et fausse les pentes. hike2gpx prend le meilleur modèle de terrain qui
-couvre tout le parcours : en France le LiDAR HD de l'IGN, qui décrit le sol nu ;
-ailleurs Mapterhorn, qui prend le LiDAR national dès qu'il en existe un :
+forêt, un modèle de surface comme SRTM ou Copernicus, tirés d'un radar, mesure
+plutôt le haut de la canopée, et fausse les pentes. Le LiDAR, lui, envoie des
+impulsions laser dont certaines traversent le feuillage jusqu'au sol : on en
+tire un vrai modèle numérique de terrain (MNT), le sol nu. hike2gpx prend le
+meilleur modèle de terrain qui couvre tout le parcours : en France le LiDAR HD
+de l'IGN ; ailleurs Mapterhorn, qui prend le LiDAR national dès qu'il en existe un :
 environ deux cents modèles nationaux et régionaux, de 0,25 m à 10 m de
 résolution, pour presque toute l'Europe, les États-Unis, le Canada, le Japon,
 l'Australie et la Nouvelle-Zélande. Hors de ces zones, il retombe sur le modèle

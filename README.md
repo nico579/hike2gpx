@@ -33,9 +33,11 @@ guaranteed gain: the method and its caveats are in
 [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
 
 **It computes elevation on the ground, not on the treetops.** Under a forest, a
-surface model such as SRTM or Copernicus measures the top of the canopy, and
-distorts the slopes. hike2gpx takes the best terrain model that covers the
-whole route: in France, IGN's LiDAR HD, which describes the bare ground;
+surface model such as SRTM or Copernicus, both derived from radar, rather
+measures the top of the canopy, and distorts the slopes. LiDAR sends laser
+pulses, some of which pass through the foliage to the ground: from them one
+builds a true digital terrain model (DTM), the bare ground. hike2gpx takes the
+best terrain model that covers the whole route: in France, IGN's LiDAR HD;
 elsewhere Mapterhorn, which takes the national LiDAR whenever one exists:
 about two hundred national and regional models, at 0.25 m to 10 m resolution,
 for almost all of Europe, the United States, Canada, Japan, Australia and New
