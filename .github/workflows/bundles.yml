@@ -227,6 +227,9 @@ jobs:
     timeout-minutes: 355
     strategy:
       fail-fast: false
+      # Six cases à la fois au plus : toutes ensemble, elles tiraient des dizaines
+      # d'extraits en même temps chez Geofabrik, qui répondait 502/503 (2026-11-11).
+      max-parallel: 6
       matrix:
         case: ${{ fromJSON(needs.liste.outputs.cases) }}
     env:

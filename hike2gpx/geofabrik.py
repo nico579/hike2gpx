@@ -57,8 +57,11 @@ TAILLE_MAX = 2 * 1024 ** 3          # au-delà (grands pays d'un seul tenant), O
 # 2026-10-20, après l'échec de l'extrait Centre sur un délai de 30 s) : délai
 # large, et quelques essais avant de renoncer.
 DELAI_S = 120
-ESSAIS = 3
-PAUSES_S = (10, 30)                 # entre deux essais
+# Attente doublée à chaque échec (2026-11-11 : 7 cases perdues en une
+# soirée sur des 502/503 de Geofabrik, que 10 puis 30 s ne laissaient pas
+# passer). Cinq essais couvrent environ 7 min de panne.
+ESSAIS = 5
+PAUSES_S = (30, 60, 120, 240)       # entre deux essais
 # 2 : identifiants des nœuds (int64) et points (lat, lon en int32 au 1e-7 degré,
 # la précision d'OSM) en binaire petit-boutiste, au lieu de JSON.
 VERSION_BASE = 2
