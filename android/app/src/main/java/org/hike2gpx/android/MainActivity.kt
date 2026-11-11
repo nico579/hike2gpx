@@ -757,11 +757,8 @@ class MainActivity : Activity() {
             outlinePaint.strokeWidth = 8f
         }
         carte.overlays.add(1, trace)        // sous les touches et les repères
-        // Recadré seulement si le tracé sort de la vue : un point ajouté ne fait pas sauter la carte.
-        val boite = BoundingBox.fromGeoPoints(geo)
-        val vue = carte.boundingBox
-        if (!vue.contains(GeoPoint(boite.latNorth, boite.lonWest)) || !vue.contains(GeoPoint(boite.latSouth, boite.lonEast)))
-            carte.zoomToBoundingBox(boite, true, dp(48))
+        // Jamais de recadrage : les points sont posés à l'écran, et la carte reste
+        // là où on l'a mise pour poser le suivant.
         carte.invalidate()
     }
 
