@@ -21,6 +21,7 @@ partage-telephone.md) ; une publication n'en a jamais.
 """
 from __future__ import annotations
 
+import calendar
 import http.client
 import json
 import logging
@@ -98,6 +99,47 @@ def catalogue(lots: list, fonds: list | None = None, cartes: list | None = None)
     if cartes:
         contenu["cartes"] = cartes
     return contenu
+
+
+def fraicheur(contenu: dict, attendues, maintenant: float, jours_max: int) -> tuple[list, list]:
+    """L'âge des lots d'un catalogue, d'après l'édition OSM de chacun, et les
+    cases attendues qui n'y sont pas. Rend les lignes (case, édition, âge en
+    jours ; None pour une case absente), triées, et les problèmes : une case
+    absente, ou un lot plus vieux que jours_max. Une case qui échoue chaque
+    semaine garde son ancien lot publié : sans ce contrôle, personne ne le voit."""
+    par_case = {l["case"]: l for l in contenu.get("lots", [])}
+    lignes, problemes = [], []
+    for case in sorted(set(par_case) | set(attendues)):
+        lot = par_case.get(case)
+        edition = ((lot or {}).get("sources") or {}).get("osm")
+        if lot is None:
+            lignes.append((case, None, None))
+            problemes.append(f"{case} : absent du catalogue")
+            continue
+        try:
+            age = (maintenant - calendar.timegm(time.strptime(edition, "%Y-%m-%dT%H:%M:%SZ"))) / 86400
+        except (TypeError, ValueError):
+            age = None
+        lignes.append((case, edition if age is not None else str(edition or "?"), age))
+        if age is None:
+            problemes.append(f"{case} : édition OSM illisible ({edition!r})")
+        elif age > jours_max:
+            problemes.append(f"{case} : lot de {age:.0f} jours (plus de {jours_max})")
+    return lignes, problemes
+
+
+def tableau_fraicheur(lignes: list, problemes: list, jours_max: int) -> str:
+    """Le contrôle de fraîcheur en Markdown, pour le résumé d'un run GitHub."""
+    sortie = ["## Fraîcheur des lots", "", "| Case | Édition OSM | Âge |", "|---|---|---|"]
+    for case, edition, age in lignes:
+        if edition is None and age is None:
+            sortie.append(f"| {case} | absent | |")
+        else:
+            marque = " (!)" if age is None or age > jours_max else ""
+            sortie.append(f"| {case} | {edition} | {'?' if age is None else f'{age:.0f} j'}{marque} |")
+    sortie.append("")
+    sortie += [f"- {p}" for p in problemes] or [f"Tous les lots ont moins de {jours_max} jours."]
+    return "\n".join(sortie) + "\n"
 
 
 # ------------------------------------------------------------------ téléchargement (application)

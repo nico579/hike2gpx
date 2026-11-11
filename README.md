@@ -351,6 +351,14 @@ weekly server is a [reusable workflow](.github/workflows/bundles.yml) that the
 bundles repository calls: one GitHub Actions machine per cell, about an hour
 and a half for a whole cell.
 
+A passing outage (Geofabrik overloaded, a cut) no longer loses a cell: each
+stage is retried, and only redoes what is missing. At the end of every run,
+`freshness` checks the published catalog: a missing cell, or a bundle older
+than 14 days, fails the run. `report` then writes its report, cell by cell and
+stage by stage, with the cause of each failure. It is kept, timestamped, in the
+`rapports/` folder of the bundles repository: the history of the builds can be
+read there long after the run logs are gone.
+
 ## Limits
 
 hike2gpx can only avoid what is mapped. Around Garéoult, over 250 km²,

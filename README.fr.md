@@ -361,6 +361,14 @@ l'application. Le serveur hebdomadaire est un
 lots : une machine GitHub Actions par case, environ une heure et demie pour une
 case entière.
 
+Une panne passagère (Geofabrik saturé, coupure) ne perd plus une case : chaque
+étape se relance, et ne refait que ce qui manque. À la fin de chaque run,
+`freshness` vérifie le catalogue publié : une case absente, ou un lot de plus de
+14 jours, fait échouer le run. `report` écrit alors son compte rendu, case par
+case et étape par étape, avec la cause de chaque échec. Il est gardé, horodaté,
+dans le dossier `rapports/` du dépôt des lots : l'historique des fabrications
+se lit là, bien après l'effacement des journaux des runs.
+
 ## Limites
 
 hike2gpx ne peut éviter que ce qui est cartographié. Autour de Garéoult, sur
