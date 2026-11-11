@@ -2,23 +2,52 @@
 
 # hike2gpx
 
-hike2gpx trace un itinéraire de randonnée, partout dans le monde, sans
-traverser les clôtures, barrières et interdictions que décrit OpenStreetMap.
-Il calcule son dénivelé et sa durée, puis l'exporte en GPX. En France, il
-peut emprunter en plus les chemins que seule l'IGN connaît.
+hike2gpx planifie des randonnées et exporte l'itinéraire en GPX, avec son
+dénivelé et sa durée. Il existe en deux versions qui se complètent : une
+application pour ordinateur (Windows, macOS, Linux) et une application
+Android. L'ordinateur prépare ce que le téléphone emporte : il fabrique des
+fonds de carte et des zones de routage, puis les partage en Wi-Fi par QR code.
+Le téléphone calcule alors ses itinéraires hors ligne, en pleine randonnée,
+sans réseau.
 
-Les planificateurs courants, Visorando, Locus Map, brouter-web, ne voient pas
-une clôture dessinée en ligne qui coupe un sentier. Ce n'est pas un oubli de
-leur part : leurs moteurs de calcul ne lisent que les étiquettes posées sur les
-nœuds du chemin, et une clôture est une ligne à part. hike2gpx examine
-d'avance le réseau de la zone, repère chaque croisement entre un chemin et une
-barrière, le juge, puis interdit ou décourage son passage. À Garéoult (Var),
-le profil Randonnée standard de BRouter franchit une clôture en béton pour un
-trajet de 69 m ; hike2gpx la contourne par un détour de 435 m.
+Trois choses le distinguent des planificateurs courants (Visorando, Locus Map,
+brouter-web).
 
-Pour ordinateur : Windows, macOS et Linux. Une application Android, qui
-calcule hors ligne avec les lots, est en essai dans `android/` : elle n'est
-pas encore publiée.
+**Il respecte les clôtures, les barrières et les portails que décrit
+OpenStreetMap.** Ces planificateurs ne les voient pas : leurs moteurs de calcul
+ne lisent que les étiquettes posées sur les nœuds du chemin, et une clôture est
+une ligne à part. hike2gpx examine d'avance le réseau de la zone, repère chaque
+croisement entre un chemin et une barrière, le juge, puis interdit ou décourage
+son passage. À Garéoult (Var), le profil Randonnée standard de BRouter franchit
+une clôture en béton pour un trajet de 69 m ; hike2gpx la contourne par un
+détour de 435 m.
+
+**Il combine OpenStreetMap et les cartes nationales.** Un sentier que l'IGN
+connaît et qu'OpenStreetMap ignore n'existe pas pour un moteur qui ne lit que
+ce dernier. hike2gpx y ajoute la BD TOPO de l'IGN (France), l'ATKIS
+(Allemagne), le swissTLM3D (Suisse), le ZABAGED (Tchéquie) et le BDOT10k
+(Pologne, Basse-Silésie seulement). Ce ne sont pas tous les pays, à dessein :
+on ne retient que ceux où la carte nationale apporte une part sensible de
+chemins nouveaux. Sur les zones étudiées, la BD TOPO ajoute de 18 % à 100 % de
+longueur de chemins candidats, l'ATKIS de 12 % à 127 %, le ZABAGED de 40 % à
+66 %, alors que les États-Unis et les Pays-Bas restent entre 0 % et 12 %. Ces
+pourcentages mesurent des longueurs possibles, pas un gain garanti : la
+méthode et les réserves sont dans
+[RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+
+**Il calcule le dénivelé sur le terrain, pas sur la cime des arbres.** Sous une
+forêt, un modèle de surface comme SRTM ou Copernicus mesure le haut de la
+canopée, et fausse les pentes. hike2gpx prend le meilleur modèle de terrain qui
+couvre tout le parcours : en France le LiDAR HD de l'IGN, qui décrit le sol nu ;
+ailleurs Mapterhorn, qui assemble environ deux cents modèles nationaux et
+régionaux, pour la plupart tirés du LiDAR, de 0,25 m à 10 m de résolution :
+presque toute l'Europe, les États-Unis, le Canada, le Japon, l'Australie, la
+Nouvelle-Zélande. Hors de ces zones, il retombe sur le modèle mondial de 30 m
+de Copernicus, moins précis, et SRTM reste le tout dernier recours.
+
+Les deux applications se téléchargent dans les releases : une archive par
+système pour l'ordinateur (Windows, macOS, Linux), `hike2gpx-android.apk` pour
+le téléphone.
 
 Installé depuis une release, hike2gpx se met à jour tout seul, comme les
 autres applications de nico579 : quand une version plus récente est publiée,
