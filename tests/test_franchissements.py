@@ -324,12 +324,11 @@ def test_une_impasse_reliee_qui_finit_pres_d_un_chemin_n_est_pas_signalee():
     rue = (5, {"highway": "residential"}, [(12, 48.3800, -77.1320), (13, 48.3800, -77.1300)])
     allee = (6, {"highway": "service"}, [(12, 48.3800, -77.1320), (60, 48.378027, -77.1320)])        # 3 m
     assert fr.jonctions_manquees(_chemins(ROUTE, BRETELLE, rue, allee), *ZONE) == []
-    # Mais un bout qui s'arrête presque contre l'autre route, à moins d'un mètre,
-    # est une accroche ratée à la saisie : le passage qui devait exister est coupé.
+    # Même presque contre l'autre route : un chemin relié n'est jamais signalé.
+    # Trier les vrais oublis parmi ces impasses demanderait la carte nationale,
+    # trop cher pour ce qu'on y gagne (les ronds jaunes couvraient la carte).
     presque = (7, {"highway": "service"}, [(12, 48.3800, -77.1320), (70, 48.378007, -77.1320)])      # 0,8 m
-    [j] = fr.jonctions_manquees(_chemins(ROUTE, BRETELLE, rue, presque), *ZONE)
-    assert j["voie"] == 7 and j["vers"] == 1 and j["isole"] is False and j["cle"] == "jonction-7-70"
-    assert j["distance_m"] <= fr.SEUIL_RELIE_M
+    assert fr.jonctions_manquees(_chemins(ROUTE, BRETELLE, rue, presque), *ZONE) == []
 
 
 def test_un_cul_de_sac_un_raccord_fait_un_pont_et_une_amorce_ne_sont_pas_signales():

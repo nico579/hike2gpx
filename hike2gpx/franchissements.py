@@ -802,38 +802,32 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
             "jonctions": jonctions_manquees(chemins, sud, ouest, nord, est)}
 
 
-# Ce qui gêne vraiment le calcul (règle de Nico, 2026-11-11, après un premier
-# seuil unique de 15 m qui jaunissait la carte d'impasses) :
-# - un chemin relié à aucun autre est inaccessible : le calcul ne peut même pas
-#   y entrer. S'il passe tout près d'un autre chemin, à SEUIL_ISOLE_M au plus,
-#   c'est sans doute un raccord oublié ;
-# - un chemin déjà relié ailleurs reste accessible : s'il s'arrête à quelques
-#   mètres d'un autre, c'est une impasse (une allée, un accès), qui ne gêne
-#   aucun itinéraire. Seul un bout à SEUIL_RELIE_M au plus, une accroche ratée à
-#   la saisie, coupe un passage qui devait exister.
+# Le seul raccord oublié qu'on signale (règle de Nico, 2026-11-11) : un chemin
+# relié à aucun autre, qui passe à SEUIL_ISOLE_M au plus d'un chemin. Il est
+# inaccessible, le calcul ne peut pas l'emprunter, et ce n'est jamais une
+# impasse voulue. Un chemin déjà relié qui s'arrête près d'un autre n'est plus
+# signalé : c'est presque toujours une impasse (une allée, un talus), qui ne
+# gêne aucun itinéraire. Le premier seuil unique de 15 m les signalait toutes
+# et couvrait la carte de ronds jaunes ; distinguer les vrais oublis parmi elles
+# demanderait la carte nationale (un tronçon BD TOPO qui enjambe le trou), trop
+# cher pour ce qu'on y gagne.
 SEUIL_ISOLE_M = 6.0         # « à 5 m », avec la marge du cas du Québec (5,1 m)
-SEUIL_RELIE_M = 1.0
 _NIVEAUX = ("bridge", "tunnel", "layer")       # un croisement à des niveaux différents n'est pas un raccord oublié
 
 
 def jonctions_manquees(chemins: dict, sud: float, ouest: float, nord: float, est: float) -> list:
-    """Les raccords oubliés entre chemins praticables : dans OSM, deux voies ne
-    communiquent que par un nœud commun, et le calcul ne passe pas de l'une à
-    l'autre sans lui. Deux cas, ceux qui gênent un itinéraire (voir
-    SEUIL_ISOLE_M) : un chemin relié à rien qui passe tout près d'un autre, et
-    le bout libre d'un chemin relié qui s'arrête presque contre un autre
-    (le contrôle « way end node near other highway » de JOSM, la « jonction
-    presque faite » d'Osmose). chemins : {id: (tags, nœuds, points (lat, lon))},
-    toutes les voies « highway » de la zone ; ne sont rendus que les points
-    situés dans la zone. Chaque point dit s'il vient d'un chemin isolé."""
+    """Les chemins praticables reliés à aucun autre qui passent tout près d'un
+    chemin : dans OSM, deux voies ne communiquent que par un nœud commun, et le
+    calcul ne peut pas emprunter un chemin qui n'en partage aucun. Le point se
+    pose là où il passe le plus près. chemins : {id: (tags, nœuds, points
+    (lat, lon))}, toutes les voies « highway » de la zone ; ne sont rendus que
+    les points situés dans la zone."""
     import shapely
     import shapely.ops
 
     praticables = [(ident, c) for ident, c in chemins.items() if _praticable(c[0])]
     if not praticables:
         return []
-    # Un nœud de degré 1 n'appartient qu'à une voie, une seule fois : un bout libre.
-    degres = Counter(n for _, noeuds, _ in chemins.values() for n in noeuds)
     # Le nombre de voies distinctes qui passent par chaque nœud : une voie dont
     # aucun nœud n'est partagé n'est reliée à rien.
     voies_du_noeud = Counter(n for _, noeuds, _ in chemins.values() for n in set(noeuds))
@@ -865,26 +859,17 @@ def jonctions_manquees(chemins: dict, sud: float, ouest: float, nord: float, est
         if any(cle in tags for cle in _NIVEAUX):
             continue
         siens = set(noeuds)
-        if all(voies_du_noeud[n] == 1 for n in siens):
-            # Relié à rien : n'importe quel point du tracé peut passer près d'un autre.
-            meilleur = voisine(rang, lignes[rang], SEUIL_ISOLE_M, siens)
-            if meilleur and frozenset((rang, meilleur[1])) not in paires:
-                paires.add(frozenset((rang, meilleur[1])))
-                proche = shapely.ops.nearest_points(lignes[rang], lignes[meilleur[1]])[0]
-                lat, lon = proche.y / metres_lat, proche.x / metres_lon
-                if dans_la_zone(lat, lon):
-                    trouvees.append({"cle": f"jonction-{ident}-isole", "lat": round(lat, 6), "lon": round(lon, 6),
-                                     "voie": ident, "vers": praticables[meilleur[1]][0],
-                                     "distance_m": round(meilleur[0], 1), "osm": f"way/{ident}", "isole": True})
+        if any(voies_du_noeud[n] > 1 for n in siens):
+            continue        # relié au réseau : accessible, il ne gêne aucun itinéraire
+        # Relié à rien : n'importe quel point du tracé peut passer près d'un autre.
+        meilleur = voisine(rang, lignes[rang], SEUIL_ISOLE_M, siens)
+        if not meilleur or frozenset((rang, meilleur[1])) in paires:
             continue
-        if noeuds[0] == noeuds[-1]:
-            continue
-        for noeud, (lat, lon) in ((noeuds[0], points[0]), (noeuds[-1], points[-1])):
-            if degres[noeud] != 1 or not dans_la_zone(lat, lon):
-                continue
-            meilleur = voisine(rang, shapely.Point(lon * metres_lon, lat * metres_lat), SEUIL_RELIE_M, siens)
-            if meilleur:
-                trouvees.append({"cle": f"jonction-{ident}-{noeud}", "lat": round(lat, 6), "lon": round(lon, 6),
-                                 "voie": ident, "vers": praticables[meilleur[1]][0],
-                                 "distance_m": round(meilleur[0], 1), "osm": f"way/{ident}", "isole": False})
+        paires.add(frozenset((rang, meilleur[1])))
+        proche = shapely.ops.nearest_points(lignes[rang], lignes[meilleur[1]])[0]
+        lat, lon = proche.y / metres_lat, proche.x / metres_lon
+        if dans_la_zone(lat, lon):
+            trouvees.append({"cle": f"jonction-{ident}-isole", "lat": round(lat, 6), "lon": round(lon, 6),
+                             "voie": ident, "vers": praticables[meilleur[1]][0],
+                             "distance_m": round(meilleur[0], 1), "osm": f"way/{ident}", "isole": True})
     return trouvees
