@@ -678,7 +678,7 @@ class MainActivity : Activity() {
         tache(R.string.etat_calcul, false, { _ ->
             val resultat = Itineraire(horsLigne, routeur).calculer(etapes, reglages.strict, reglages.officiels, memoire)
             val proprietes = resultat.feature.optJSONObject("properties")
-            val bilan = getString(R.string.etat_itineraire, resultat.lot.case,
+            val bilan = getString(R.string.etat_itineraire,
                 (proprietes?.optString("track-length")?.toDoubleOrNull() ?: 0.0) / 1000)
             runOnUiThread {
                 if (etapes == points) {
@@ -718,9 +718,10 @@ class MainActivity : Activity() {
             val calcule = profil
             runOnUiThread {
                 if (sequence != sequenceDenivele || dernier !== resultat || isDestroyed) return@runOnUiThread
+                // Une seule ligne : « Distance : … km   Dénivelé : +… m, −… m   Durée : … ».
                 etat.text = if (calcule != null)
                     listOf(base, getString(R.string.etat_denivele, calcule.monteeM, calcule.descenteM,
-                        duree(calcule.dureeMarcheS))).filter { it.isNotEmpty() }.joinToString("\n")
+                        duree(calcule.dureeMarcheS))).filter { it.isNotEmpty() }.joinToString("   ")
                 else
                     listOf(base, getString(R.string.etat_denivele_indisponible, erreur.take(160)))
                         .filter { it.isNotEmpty() }.joinToString("\n")

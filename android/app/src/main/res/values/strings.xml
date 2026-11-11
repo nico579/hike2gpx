@@ -134,9 +134,9 @@
     <string name="etat_supprime">Bundle %1$s removed, %2$s freed.</string>
     <string name="etat_interrompu">Download interrupted: it will resume where it stopped.</string>
     <string name="etat_calcul">Calculating…</string>
-    <string name="etat_itineraire">Route on bundle %1$s: %2$.1f km.</string>
+    <string name="etat_itineraire">Distance: %1$.1f km</string>
     <string name="etat_denivele_calcul">Calculating elevation with gpx2elev…</string>
-    <string name="etat_denivele">Ascent +%1$d m / descent −%2$d m · %3$s on foot.</string>
+    <string name="etat_denivele">"Elevation: +%1$d m, −%2$d m   Time: %3$s"</string>
     <string name="etat_denivele_indisponible">Elevation unavailable: %1$s</string>
     <string name="etat_occupe">A task is already running.</string>
     <string name="rien_a_exporter">No route to export.</string>
