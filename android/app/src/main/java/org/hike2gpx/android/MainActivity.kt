@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.location.Location
@@ -1669,10 +1670,7 @@ class MainActivity : Activity() {
         })
 
         // La clé IGN du SCAN 25, le même réglage que sur le PC.
-        titre(colonne, R.string.reglages_cle_ign)
-        colonne.addView(TextView(this).apply {
-            setText(R.string.reglages_cle_note); textSize = 12f
-        })
+        titreAvecInfo(colonne, R.string.reglages_cle_ign, R.string.reglages_cle_note)
         val cleIgn = EditText(this).apply {
             setSingleLine()             // avant la transformation : sinon elle serait remplacée
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
@@ -2595,6 +2593,33 @@ class MainActivity : Activity() {
 
     private fun titre(parent: LinearLayout, texte: Int) =
         parent.addView(TextView(this).apply { setText(texte); textSize = 18f; setPadding(0, dp(16), 0, dp(4)) })
+
+    /**
+     * Un titre suivi d'un « i » jaune, comme sur la page du PC : la note ne
+     * prend pas de place dans la page, un toucher l'affiche (pas de survol
+     * sur un téléphone, donc une petite fenêtre plutôt qu'une info-bulle).
+     */
+    private fun titreAvecInfo(parent: LinearLayout, texte: Int, info: Int) {
+        val ligne = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(16), 0, dp(4))
+        }
+        ligne.addView(TextView(this).apply { setText(texte); textSize = 18f })
+        ligne.addView(TextView(this).apply {
+            text = "i"
+            textSize = 13f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            setTextColor(0xff4e342e.toInt())
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xfffdd835.toInt()) }
+            contentDescription = getString(info)
+            setOnClickListener {
+                AlertDialog.Builder(this@MainActivity).setMessage(info).setPositiveButton(R.string.fermer, null).show()
+            }
+        }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginStart = dp(10) })
+        parent.addView(ligne)
+    }
 
     /**
      * Un réglage numérique : libellé à gauche, champ à droite. Chaque saisie
