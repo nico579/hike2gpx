@@ -48,7 +48,10 @@ fond choisi.
   (Esri). Un calque à cocher, à partir du zoom 14, montre les
   chemins d'OpenStreetMap (les sentiers en tirets), avec les clôtures, murs et
   franchissements bloquants ou à vérifier qu'il cartographie. Ces obstacles
-  restent visibles même sans itinéraire tracé.
+  restent visibles même sans itinéraire tracé. Un repère jaune signale aussi
+  un chemin non raccordé : il s'arrête à moins de 15 m d'un autre sans le
+  toucher dans OpenStreetMap, si bien que le calcul ne passe pas de l'un à
+  l'autre ; sa bulle donne la distance et ouvre l'éditeur d'OpenStreetMap.
 - **En France** : les fonds de l'IGN, SCAN 25 (avec une clé IGN, voir plus
   bas), Plan IGN, photos aériennes, et le relief du LiDAR HD là où l'IGN l'a
   publié. Un second calque montre les chemins de la BD TOPO de l'IGN ; mis à

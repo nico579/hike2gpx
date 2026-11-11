@@ -1200,14 +1200,18 @@ test("le calque OSM montre clôtures et franchissements sans itinéraire", async
         nature: "Portail", lat: 43.3, lon: 6.01, osm: "node/8" },
       { cle: "ligne-7", statut: "blocked", raison: "Accès interdit ou privé",
         nature: "Clôture", lat: 43.31, lon: 6.01, osm: "way/7" },
-    ], bornes: [43.3, 6, 43.35, 6.05] });
+    ],
+    // Un chemin qui s'arrête à 5 m d'une route sans la toucher.
+    jonctions: [{ cle: "jonction-2-21", lat: 43.32, lon: 6.02, voie: 2, vers: 1, distance_m: 5.1, osm: "way/2" }],
+    bornes: [43.3, 6, 43.35, 6.05] });
   await lecture;
   assert.equal(page.etat.points.length, 0);
   assert.equal(page.etat.dernier, null);
   const couches = page.CALQUES.osm.groupe.layers;
-  assert.equal(couches.length, 3);
+  assert.equal(couches.length, 4);
   assert.equal(couches[0].options.color, "#e53935");
-  assert.deepEqual(couches.slice(1).map((c) => c.options.fillColor), ["#ef6c00", "#d32f2f"]);
+  assert.deepEqual(couches.slice(1).map((c) => c.options.fillColor), ["#ef6c00", "#d32f2f", "#fdd835"],
+    "le chemin non raccordé en jaune, à part des franchissements");
   assert.ok(couches.slice(1).every((c) => c.options.pane === "obstaclesOsm"));
 });
 

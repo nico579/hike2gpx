@@ -6,8 +6,8 @@
   <title>hike2gpx — tracer un parcours</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/style.css?v=desktop-12">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-59">
+  <link rel="stylesheet" href="/style.css?v=desktop-13">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-60">
 </head>
 <body class="panel-collapsed">
 <div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" class="avec-icone"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span data-i18n="recherche.bouton">Chercher</span></button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
@@ -35,6 +35,7 @@
         <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
         <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
         <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
+        <li><span class="pastille jonction"></span> <span data-i18n="legende.jonction">chemin non raccordé (à vérifier)</span></li>
         <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
         <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
       </ul>

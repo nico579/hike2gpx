@@ -13,7 +13,8 @@ import org.osmdroid.views.overlay.Overlay
  * Dessine les calques d'un lot sous le tracé, avec les styles de la page :
  * sentiers OSM en tirets violets, pistes pleines, routes fines et transparentes,
  * barrières rouges, franchissements en pastilles (rouge bloquant, orange à
- * vérifier), tronçons BD TOPO en tirets turquoise.
+ * vérifier), chemins non raccordés en pastilles jaunes cerclées de brun,
+ * tronçons BD TOPO en tirets turquoise.
  */
 class CalquesOverlay(context: Context) : Overlay() {
     @Volatile var donnees = DonneesCalques()
@@ -57,6 +58,14 @@ class CalquesOverlay(context: Context) : Overlay() {
             canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), 6 * densite, pastille)
             canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), 6 * densite, contour)
         }
+        for (j in donnees.jonctions) {
+            vue.projection.toPixels(GeoPoint(j.lat, j.lon), point)
+            pastille.color = COULEUR_JONCTION
+            canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), 6 * densite, pastille)
+            contour.color = CONTOUR_JONCTION
+            canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), 6 * densite, contour)
+            contour.color = 0xffffffff.toInt()
+        }
     }
 
     private fun tracer(canvas: Canvas, vue: MapView, points: List<Point>, couleur: Int,
@@ -86,6 +95,9 @@ class CalquesOverlay(context: Context) : Overlay() {
         const val COULEUR_OFFICIEL = 0xff00897b.toInt()
         const val COULEUR_BLOQUE = 0xffd32f2f.toInt()
         const val COULEUR_A_VERIFIER = 0xffef6c00.toInt()
+        // Les chemins non raccordés, comme sur la page du PC.
+        const val COULEUR_JONCTION = 0xfffdd835.toInt()
+        const val CONTOUR_JONCTION = 0xff4e342e.toInt()
         val NATURES_SENTIER = setOf("Sentier", "Chemin", "Escalier")
     }
 }

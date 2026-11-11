@@ -287,6 +287,41 @@ def test_calque_osm_contient_les_franchissements_sans_itineraire(tmp_path):
     assert [(b["id"], b["nature"]) for b in donnees["barrieres"]] == [(cloture, "Clôture")]
 
 
+def _chemins(*voies):
+    """{id: (tags, nœuds, points)} : chaque voie (id, tags, [(nœud, lat, lon), …])."""
+    return {ident: (tags, [n for n, _, _ in pts], [(la, lo) for _, la, lo in pts]) for ident, tags, pts in voies}
+
+
+def test_un_sentier_qui_s_arrete_a_cinq_metres_d_une_route_est_signale():
+    # Le cas de Nico au Québec : le sentier finit à 5 m de la route, sans nœud commun.
+    route = (1, {"highway": "tertiary"}, [(10, 48.3780, -77.1340), (11, 48.3780, -77.1300)])
+    sentier = (2, {"highway": "footway"}, [(20, 48.3790, -77.1320), (21, 48.378045, -77.1320)])
+    [j] = fr.jonctions_manquees(_chemins(route, sentier), 48.37, -77.14, 48.39, -77.12)
+    assert j["voie"] == 2 and j["vers"] == 1 and j["osm"] == "way/2" and j["cle"] == "jonction-2-21"
+    assert 4.5 < j["distance_m"] < 5.5 and (j["lat"], j["lon"]) == (48.378045, -77.132)
+
+
+def test_un_cul_de_sac_un_raccord_fait_un_pont_et_une_amorce_ne_sont_pas_signales():
+    points_route = [(10, 48.3780, -77.1340), (11, 48.3780, -77.1320), (12, 48.3780, -77.1300)]
+    route = (1, {"highway": "tertiary"}, points_route)
+    zone = (48.37, -77.14, 48.39, -77.12)
+    # Un cul-de-sac : le sentier finit à 100 m de tout ; il ne touche rien et ce n'est pas une erreur.
+    loin = (2, {"highway": "path"}, [(20, 48.3800, -77.1320), (21, 48.3789, -77.1320)])
+    assert fr.jonctions_manquees(_chemins(route, loin), *zone) == []
+    # Raccordé : le bout du sentier est un nœud de la route.
+    raccorde = (3, {"highway": "path"}, [(30, 48.3790, -77.1320), (11, 48.3780, -77.1320)])
+    assert fr.jonctions_manquees(_chemins(route, raccorde), *zone) == []
+    # Sous un pont : pas de raccord à attendre.
+    pont = (1, {"highway": "tertiary", "bridge": "yes"}, points_route)
+    presque = (4, {"highway": "path"}, [(40, 48.3790, -77.1320), (41, 48.378045, -77.1320)])
+    assert fr.jonctions_manquees(_chemins(pont, presque), *zone) == []
+    # L'amorce d'une impasse reste près de la rue d'où elle part : elle la touche déjà.
+    amorce = (5, {"highway": "service"}, [(11, 48.3780, -77.1320), (50, 48.37808, -77.1320)])
+    assert fr.jonctions_manquees(_chemins(route, amorce), *zone) == []
+    # Hors de la zone lue : la tuile voisine s'en charge.
+    assert fr.jonctions_manquees(_chemins(route, presque), 48.3785, -77.14, 48.39, -77.12) == []
+
+
 def test_tuiles_et_requete():
     assert fr.tuiles_zone(43.31, 6.01, 43.34, 6.06) == [(866, 120), (866, 121)]
     assert fr.bornes_tuile(866, 120) == (43.3, 6.0, 43.35, 6.05)

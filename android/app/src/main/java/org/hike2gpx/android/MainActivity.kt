@@ -431,7 +431,8 @@ class MainActivity : Activity() {
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(0xff202020.toInt())
         })
-        fun ligne(texte: Int, couleur: Int, pastille: Boolean = false, tirets: Boolean = false) {
+        fun ligne(texte: Int, couleur: Int, pastille: Boolean = false, tirets: Boolean = false,
+                  cercle: Int = 0xffffffff.toInt()) {
             val rangee = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             }
@@ -451,7 +452,7 @@ class MainActivity : Activity() {
                         canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
                         pinceau.style = Paint.Style.STROKE
                         pinceau.strokeWidth = 2 * densite
-                        pinceau.color = 0xffffffff.toInt()
+                        pinceau.color = cercle
                         canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
                     } else {
                         pinceau.style = Paint.Style.STROKE
@@ -475,6 +476,7 @@ class MainActivity : Activity() {
         ligne(R.string.legende_barriere, CalquesOverlay.COULEUR_BARRIERE)
         ligne(R.string.legende_bloque, CalquesOverlay.COULEUR_BLOQUE, true)
         ligne(R.string.legende_verifier, CalquesOverlay.COULEUR_A_VERIFIER, true)
+        ligne(R.string.legende_jonction, CalquesOverlay.COULEUR_JONCTION, true, cercle = CalquesOverlay.CONTOUR_JONCTION)
         return boite
     }
 

@@ -115,6 +115,10 @@ const TEXTES = {
     "legende.naif": "tracé standard, qui ignore les barrières",
     "legende.bloque": "franchissement bloquant",
     "legende.verifier": "franchissement à vérifier",
+    "legende.jonction": "chemin non raccordé (à vérifier)",
+    "jonction.titre": "Chemin non raccordé",
+    "jonction.detail": "Ce chemin s'arrête à {distance} m d'un autre sans le toucher dans OpenStreetMap : le calcul ne peut pas passer de l'un à l'autre. À vérifier sur place ou sur l'imagerie : il peut aussi s'agir d'un vrai cul-de-sac.",
+    "jonction.corriger": "Corriger dans OpenStreetMap",
     "legende.osm": "chemins OSM (tirets : sentiers)",
     "legende.barriere": "clôtures et murs connus d'OSM",
     "legende.gpx": "GPX chargé",
@@ -380,6 +384,10 @@ const TEXTES = {
     "legende.naif": "standard route, ignoring barriers",
     "legende.bloque": "blocking crossing",
     "legende.verifier": "crossing to check",
+    "legende.jonction": "unconnected path (to check)",
+    "jonction.titre": "Unconnected path",
+    "jonction.detail": "This path ends {distance} m from another one without touching it in OpenStreetMap: routing cannot go from one to the other. Check on site or on imagery: it may also be a real dead end.",
+    "jonction.corriger": "Fix in OpenStreetMap",
     "legende.osm": "OSM paths (dashed: footpaths)",
     "legende.barriere": "fences and walls known to OSM",
     "legende.gpx": "Loaded GPX",
@@ -1065,6 +1073,14 @@ const DESSINS = {
       L.circleMarker([f.lat, f.lon], { radius: 6, weight: 2, color: "#fff", fillOpacity: 1,
         fillColor: COULEURS[f.statut], renderer: renduObstacles, pane: "obstaclesOsm" })
         .bindPopup(() => bulleFranchissement(f)).addTo(groupe);
+    }
+    // Un chemin qui finit tout près d'un autre sans le toucher : le calcul n'y
+    // passe pas. Jaune cerclé de brun, à part du rouge et de l'orange des
+    // franchissements. Un lot fabriqué avant cette couche n'en a pas.
+    for (const j of donnees.jonctions || []) {
+      L.circleMarker([j.lat, j.lon], { radius: 6, weight: 2, color: "#4e342e", fillOpacity: 1,
+        fillColor: "#fdd835", renderer: renduObstacles, pane: "obstaclesOsm" })
+        .bindPopup(() => bulleJonction(j)).addTo(groupe);
     }
   },
 };
@@ -2534,6 +2550,20 @@ function paragraphe(contenu, gras = false) {
     p.textContent = contenu;
   }
   return p;
+}
+
+function bulleJonction(j) {
+  const div = document.createElement("div");
+  div.className = "bulle";
+  const lien = document.createElement("a");
+  // L'éditeur d'OpenStreetMap, ouvert sur la voie à raccorder.
+  lien.href = `https://www.openstreetmap.org/edit?${j.osm.replace("/", "=")}#map=19/${j.lat}/${j.lon}`;
+  lien.target = "_blank";
+  lien.rel = "noopener";
+  lien.textContent = t("jonction.corriger");
+  div.append(paragraphe(t("jonction.titre"), true),
+             paragraphe(t("jonction.detail", { distance: decimal(j.distance_m, 1) })), lien);
+  return div;
 }
 
 function bulleFranchissement(f) {
