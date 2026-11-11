@@ -123,8 +123,8 @@ chargé reste affiché jusqu'à la fermeture ou au rechargement de la page.
 
 **Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
 données téléchargées (30 jours par défaut), la transparence des bandeaux, le
-masquage du profil, le partage au téléphone et un bouton qui vide tous les
-caches locaux. Un bouton ouvre
+masquage du profil et un bouton qui vide tous les caches locaux. Ils
+s'enregistrent à la fermeture du panneau, sans bouton. Un bouton ouvre
 le dossier `logs`, qui contient les journaux de l'application et de BRouter ;
 un autre affiche la version installée et vérifie s'il en existe une plus
 récente. La page parle français ou anglais, et retrouve à sa réouverture la
@@ -327,8 +327,8 @@ libre, un fond reste sur votre PC : il n'est jamais publié.
 
 Le téléphone prend les lots du serveur sur GitHub. Ce que seul votre PC
 possède, les lots préparés hors des pays du serveur et les fonds de carte, il
-le reçoit de lui, par le Wi-Fi. Dans le menu, « Partager au téléphone »
-affiche un QR code : scannez-le avec hike2gpx sur le téléphone, connecté au
+le reçoit de lui, par le Wi-Fi. Dans « Gestion des cartes » et « Gestion des
+itinéraires », le bouton « Partager » affiche un QR code : scannez-le avec hike2gpx sur le téléphone, connecté au
 même réseau. Le PC sert alors ses lots et ses fonds, chaque fichier vérifié
 par son empreinte à l'arrivée, repris après une coupure. Le partage est fermé
 tant que vous ne l'ouvrez pas, n'écoute que sur le réseau local, et son code

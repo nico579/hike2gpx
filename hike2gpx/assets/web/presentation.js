@@ -132,6 +132,9 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   // Une page du menu, ou aucune ("") : la carte seule.
   function selectPane(name, remember = true) {
     const open = pageNames.includes(name);
+    const previous = document.querySelector("[data-pane][aria-current=page]")?.dataset.pane;
+    // Les réglages s'enregistrent quand on quitte leur page (app.js : enregistrerReglages).
+    if (previous === "reglages" && name !== "reglages") document.dispatchEvent(new CustomEvent("hike2gpx:reglages-fermes"));
     for (const tab of tabs) {
       const selected = tab.dataset.pane === name;
       if (selected) tab.setAttribute("aria-current", "page");
@@ -174,13 +177,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   menuButton.addEventListener("click", () => setMenuOpen(menu.hidden));
   menuBackdrop.addEventListener("click", () => setMenuOpen(false));
   document.getElementById("aide").addEventListener("click", () => setMenuOpen(false));
-  // « Partager au téléphone » : ouvre le partage et montre son QR code, ou le
-  // remontre s'il est déjà ouvert. Les mêmes boutons que dans les réglages.
-  document.getElementById("menuPartage").addEventListener("click", () => {
-    setMenuOpen(false);
-    const open = !document.getElementById("partageOuvert").hidden;
-    document.getElementById(open ? "revoirQr" : "partagerTelephone").click();
-  });
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !menu.hidden) {
       setMenuOpen(false);
@@ -212,6 +208,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     setSearchOpen(search.hidden);
   });
   document.addEventListener("hike2gpx:recherche-aboutie", () => setSearchOpen(false));
+  document.addEventListener("hike2gpx:carte-cliquee", () => setSearchOpen(false));
   setSearchOpen(false);
   let savedPage = "";
   try { savedPage = localStorage.getItem(pagePreference) || ""; } catch (error) {}

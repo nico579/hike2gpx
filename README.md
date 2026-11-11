@@ -119,8 +119,8 @@ until the page is closed or reloaded.
 
 **The settings.** The IGN key for the SCAN 25, how long downloaded data is
 kept before being renewed (30 days by default), the transparency of the panels,
-whether to hide the profile, sharing with the phone, and a button that empties
-all local caches. One
+whether to hide the profile, and a button that empties all local caches.
+They are saved when the panel closes, with no button. One
 button opens the `logs` folder, which holds the logs of the application and of
 BRouter; another shows the installed version and checks whether a newer one
 exists. The page speaks French or English, and when reopened it restores the
@@ -320,8 +320,8 @@ published.
 
 The phone takes the server's bundles from GitHub. What only your computer
 has, bundles prepared outside the server's countries and base maps, it gets
-from the computer, over Wi-Fi. In the menu, "Share with the phone" shows
-a QR code: scan it with hike2gpx on the phone, on the same network. The
+from the computer, over Wi-Fi. In "Map management" and "Route management", the
+"Share" button shows a QR code: scan it with hike2gpx on the phone, on the same network. The
 computer then serves its bundles and base maps, each file checked against
 its hash on arrival and resumed after a cut. Sharing stays closed until you
 open it, listens on the local network only, and its code changes every time

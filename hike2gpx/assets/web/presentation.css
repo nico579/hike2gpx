@@ -153,7 +153,6 @@ body.profile-collapsed .map-activity{bottom:81px}
 #afficherCle .eye-strike{display:none}
 #afficherCle[aria-pressed=true] .eye-strike{display:block}
 #reglages .setting-row label{margin:0;font-size:12px;line-height:1.5;color:#546a80}
-.settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
 .display-settings{margin-top:17px;padding-top:7px;border-top:1px solid var(--bordure)}
 #partageOuvert{display:flex;gap:8px;flex-wrap:wrap}
 #partageOuvert[hidden]{display:none}
@@ -287,8 +286,6 @@ body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran 
 .page-action:hover:not(:disabled){background:#e1efff}
 .page-action[aria-expanded=true]{background:#2367d1;border-color:#2367d1;color:#fff}
 .page-action[aria-expanded=true]:hover:not(:disabled){background:#1854b1}
-.partage-settings h3{margin:10px 0 4px;font-size:13px;color:#2e455d}
-.partage-settings .note{margin:0 0 10px}
 /* Le contrôle Leaflet des fonds et des calques, sorti de la carte pour la page
    « Gestion des cartes » : une simple liste, sans cadre ni ombre. */
 .cartes-calques .leaflet-control-layers{float:none;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent;color:#42566d}
@@ -308,6 +305,15 @@ body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
 .zones-locales li.note{border:0;color:#65768a}
 .zones-locales button{padding:5px 9px;border:1px solid #d7e3f0;border-radius:7px;background:#fff;color:#315b88;font-size:11px;cursor:pointer}
 .zones-locales button:hover{background:#f2f7ff}
+/* « Supprimer » d'une zone : le bouton rouge à icône du volet de la grille. */
+.zones-locales button.zone-supprimer{padding:7px 9px;border:1.5px solid #d9827a;border-radius:8px;background:#fff;color:#b3261e;font-size:12px;font-weight:600;box-shadow:0 1px 3px #1b354526}
+.zones-locales button.zone-supprimer:hover{background:#fdf0ef}
+/* Les boutons à icône : le même trait partout. */
+.avec-icone{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.avec-icone .pictogramme{display:inline-flex}
+.avec-icone svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.boutons button.avec-icone{display:flex}
+.city-search>button.avec-icone{gap:6px}
 .cartes-calques .cartes-calques-titre{margin:18px 0 6px;font-size:14px;color:#3d5e80}
 /* Le « i » d'un titre est au bord droit du panneau : sa bulle s'ouvre vers la gauche. */
 .pane>.section-title .info-tooltip [role=tooltip]{left:auto;right:-8px;width:250px;font-size:11px;font-weight:400;line-height:1.4}

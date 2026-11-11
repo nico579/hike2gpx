@@ -7,10 +7,10 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-12">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-56">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-57">
 </head>
 <body class="panel-collapsed">
-<div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" data-i18n="recherche.bouton">Chercher</button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
+<div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" class="avec-icone"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span data-i18n="recherche.bouton">Chercher</span></button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
 <div id="carte" aria-label="Carte interactive">
   <!-- Le menu de l'application Android : un bouton à trois traits, puis une entrée par page. -->
   <button type="button" id="menuButton" class="menu-button" aria-haspopup="true" aria-expanded="false" aria-controls="menuPrincipal" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
@@ -22,7 +22,6 @@
     <button type="button" class="menu-entry" data-pane="cartes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2V6Zm6-2v14m6-12v14"/></svg><span id="entree-cartes" data-i18n="menu.cartes">Gestion des cartes</span></button>
     <button type="button" class="menu-entry" data-pane="itineraires"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/></svg><span id="entree-itineraires" data-i18n="menu.itineraires">Gestion des itinéraires</span></button>
     <button type="button" class="menu-entry" data-pane="trace"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1Zm11-14 3 3"/></svg><span id="entree-trace" data-i18n="menu.trace">Planifier un itinéraire</span></button>
-    <button type="button" class="menu-entry" id="menuPartage"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><span id="entree-partage" data-i18n="menu.partage">Partager au téléphone</span></button>
     <button type="button" class="menu-entry" data-pane="reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span id="entree-reglages" data-i18n="menu.reglages">Réglages</span></button>
     <a id="aide" class="menu-entry" href="https://github.com/nico579/hike2gpx/blob/main/README.fr.md" target="_blank" rel="noopener" title="Aide : le mode d'emploi (README)" aria-label="Aide : le mode d'emploi (README)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7m0 3h.01"/></svg><span data-i18n="menu.aide">Aide</span></a>
   </nav>
@@ -87,10 +86,10 @@
         <span class="action-control"><button id="toutEffacer" type="button" disabled aria-describedby="toutEffacerInfo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7M10 11v6m4-6v6"/></svg><span data-i18n="bouton.toutEffacer">Effacer</span></button><span id="toutEffacerInfo" class="action-tooltip" role="tooltip" data-i18n="bouton.toutEffacerInfo">Efface tous les points et le tracé du parcours en cours.</span></span>
         <span class="action-control"><button id="boucler" type="button" disabled aria-describedby="bouclerInfo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 5 11l4 4M5 11h10a5 5 0 0 1 0 10h-3"/></svg><span data-i18n="bouton.boucler">Revenir</span></button><span id="bouclerInfo" class="action-tooltip" role="tooltip" data-i18n="bouton.bouclerInfo">Ajoute le point de départ à la fin du parcours pour fermer la boucle.</span></span>
       </div>
-      <button id="exporter" type="button" class="principal" disabled data-i18n="bouton.exporter">Exporter le GPX</button>
+      <button id="exporter" type="button" class="principal avec-icone" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg><span data-i18n="bouton.exporter">Exporter le GPX</span></button>
       <div class="gpx-import">
         <input id="fichierGpx" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden>
-        <button id="chargerGpx" type="button" data-i18n="bouton.chargerGpx">Charger un GPX</button>
+        <button id="chargerGpx" type="button" class="avec-icone"><span id="chargerGpxIcone" class="pictogramme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5m-5 5 5-5 5 5M5 20h14"/></svg></span><span id="chargerGpxTexte" data-i18n="bouton.chargerGpx">Charger un GPX</span></button>
         <p id="erreurGpx" class="gpx-erreur" role="alert" hidden></p>
       </div>
     </div>
@@ -111,11 +110,9 @@
     <section id="reglages">
       <div class="setting-row ign-key-row"><div class="ign-key-label"><label for="cleIgn" data-i18n="reglages.cle">Clé IGN pour le SCAN 25</label><span class="info-tooltip" tabindex="0" aria-label="Information sur la clé IGN">i<span role="tooltip" data-i18n="reglages.note">Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</span></span></div><div class="ligne"><input id="cleIgn" type="password" autocomplete="off" spellcheck="false" aria-label="Clé IGN SCAN 25"><button id="afficherCle" type="button" aria-label="Afficher la clé IGN" aria-pressed="false" title="Afficher la clé IGN"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="eye-strike" d="M3 21 21 3"/></svg></button></div></div>
       <div class="setting-row renewal-row"><label class="setting-label" for="renouvellementJours" data-i18n="reglages.renouvellement">Renouveler les données locales après</label><div class="ligne renouvellement-ligne"><input id="renouvellementJours" type="number" min="1" max="365" value="30" inputmode="numeric"><span data-i18n="reglages.jours">jours</span></div></div>
-      <button id="enregistrerCle" type="button" class="settings-save" data-i18n="reglages.enregistrer">Enregistrer</button>
       <div class="display-settings"><label class="option"><input id="showLegend" type="checkbox" checked> <span data-i18n="reglages.afficherLegende">Afficher la légende</span></label><label class="option"><input id="hideElevation" type="checkbox"> <span data-i18n="reglages.masquerDenivele">Masquer le bandeau du dénivelé</span></label><div class="transparency-setting"><label for="panelTransparency" data-i18n="reglages.transparence">Transparence des bandeaux</label><div><input id="panelTransparency" type="range" min="0" max="80" value="45"><output id="panelTransparencyValue" for="panelTransparency">45 %</output></div></div></div>
-      <div class="display-settings partage-settings"><h3 data-i18n="partage.titre">Partager au téléphone</h3><p class="note" data-i18n="partage.note">Le téléphone reçoit de ce PC ses fonds de carte et les zones de routage qu'il a fabriquées, sur le même Wi-Fi.</p><button id="partagerTelephone" type="button" data-i18n="partage.ouvrir">Partager au téléphone</button><div id="partageOuvert" hidden><button id="revoirQr" type="button" data-i18n="partage.revoir">Afficher le QR code</button><button id="fermerPartage" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div><p id="partageTexte" class="note" role="status" hidden></p></div>
-      <div class="journal-settings"><button id="ouvrirDossierJournaux" type="button" data-i18n="reglages.ouvrirJournaux">Ouvrir le dossier des journaux</button><p id="erreurDossierJournaux" class="note" role="alert" hidden></p></div>
-      <div class="journal-settings"><p id="versionApplication" class="note" hidden></p><button id="verifierMaj" type="button" data-i18n="reglages.verifierMaj">Vérifier les mises à jour</button><p id="statutMaj" class="note" role="status" hidden></p></div>
+      <div class="journal-settings"><button id="ouvrirDossierJournaux" type="button" class="avec-icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg><span data-i18n="reglages.ouvrirJournaux">Ouvrir le dossier des journaux</span></button><p id="erreurDossierJournaux" class="note" role="alert" hidden></p></div>
+      <div class="journal-settings"><p id="versionApplication" class="note" hidden></p><button id="verifierMaj" type="button" class="avec-icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></svg><span data-i18n="reglages.verifierMaj">Vérifier les mises à jour</span></button><p id="statutMaj" class="note" role="status" hidden></p></div>
       <div id="donnees"></div>
     </section>
   </section>
@@ -159,6 +156,7 @@
         <span class="action-control"><button id="hlSupprimer" type="button" aria-describedby="hlSupprimerInfo" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7M10 11v6m4-6v6"/></svg><span data-i18n="horsLigne.supprimerSelection">Supprimer</span></button><span id="hlSupprimerInfo" class="action-tooltip" role="tooltip" data-i18n="horsLigne.infoSupprimer">Supprime de ce PC ce que la sélection y a, après une confirmation qui le détaille.</span></span>
       </div>
       <div id="hlFile" class="hl-file" role="status" hidden><p id="hlEnCours" class="note"></p><button id="hlArreter" type="button" data-i18n="horsLigne.arreter">Arrêter</button></div>
+      <div id="hlPartage" class="hl-file" role="status" hidden><p id="hlPartageTexte" class="note"></p><button id="hlPartageQr" type="button" data-i18n="partage.revoir">Afficher le QR code</button><button id="hlPartageArreter" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div>
     </section>
     <h2 class="section-title"><span data-i18n="itineraires.zonesTitre">Zones stockées localement</span></h2>
     <ul id="zonesLocales" class="zones-locales"></ul>
@@ -177,10 +175,10 @@
     <div class="partage-boutons"><button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button><button id="arreterPartageFenetre" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div>
   </div>
 </div>
-<script src="/app.js?v=desktop-92"></script>
+<script src="/app.js?v=desktop-93"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-34"></script>
+<script src="/presentation.js?v=desktop-35"></script>
 </body>
 </html>

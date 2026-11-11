@@ -27,7 +27,6 @@ const TEXTES = {
     "menu.cartes": "Gestion des cartes",
     "menu.itineraires": "Gestion des itinéraires",
     "menu.trace": "Planifier un itinéraire",
-    "menu.partage": "Partager au téléphone",
     "menu.reglages": "Réglages",
     "menu.aide": "Aide",
     "menu.fermer": "Fermer",
@@ -39,7 +38,6 @@ const TEXTES = {
     "itineraires.calculTitre": "Mode de calcul",
     "itineraires.zonesTitre": "Zones stockées localement",
     "itineraires.zonesNote": "Les zones de routage, par cases de 5°, se téléchargent depuis le serveur ; celles qu'il ne publie pas se fabriquent sur ce PC.",
-    "partage.note": "Le téléphone reçoit de ce PC ses fonds de carte et les zones de routage qu'il a fabriquées, sur le même Wi-Fi.",
     "horsLigne.quoi": "À télécharger",
     "horsLigne.modeRoutage": "Données de routage (cases de 5°)",
     "horsLigne.modeFond": "Fond de carte (cases de 1°)",
@@ -122,7 +120,6 @@ const TEXTES = {
     "legende.gpx": "GPX chargé",
     "reglages.titre": "Réglages",
     "reglages.cle": "Clé IGN pour le SCAN 25",
-    "reglages.enregistrer": "Enregistrer",
     "reglages.note": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
     "reglages.renouvellement": "Renouveler les données locales après",
     "reglages.jours": "jours",
@@ -252,10 +249,10 @@ const TEXTES = {
     "horsLigne.etape.outils": "installation des outils de carte",
     "horsLigne.etape.carte": "carte OpenStreetMap",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
-    "partage.ouvrir": "Partager au téléphone",
     "partage.fermer": "Arrêter le partage",
     "partage.ouvert": "Partagé : {quoi}, {taille}. Dans hike2gpx sur le téléphone, sur le même Wi-Fi : « {page} », puis « Scanner le QR code d’un PC » ; le téléphone demande une confirmation et récupère tout. Le code change à chaque partage.",
     "partage.rien": "Rien à partager : ce PC n’a ni zone de carte ni zone de routage.",
+    "partage.etat": "Partage ouvert : {quoi}, {taille}.",
     "partage.zonesCarte1": "1 zone de carte",
     "partage.zonesCarte": "{n} zones de carte",
     "partage.zonesRoutage1": "1 zone de routage",
@@ -295,7 +292,6 @@ const TEXTES = {
     "menu.cartes": "Map management",
     "menu.itineraires": "Route management",
     "menu.trace": "Plan a route",
-    "menu.partage": "Share with the phone",
     "menu.reglages": "Settings",
     "menu.aide": "Help",
     "menu.fermer": "Close",
@@ -307,7 +303,6 @@ const TEXTES = {
     "itineraires.calculTitre": "Calculation mode",
     "itineraires.zonesTitre": "Zones stored locally",
     "itineraires.zonesNote": "Routing areas, in 5° cells, are downloaded from the server; those it does not publish are built on this PC.",
-    "partage.note": "The phone gets this PC's base maps and the routing areas it built, on the same Wi-Fi.",
     "horsLigne.quoi": "To download",
     "horsLigne.modeRoutage": "Routing data (5° cells)",
     "horsLigne.modeFond": "Base map (1° cells)",
@@ -390,7 +385,6 @@ const TEXTES = {
     "legende.gpx": "Loaded GPX",
     "reglages.titre": "Settings",
     "reglages.cle": "IGN key for SCAN 25",
-    "reglages.enregistrer": "Save",
     "reglages.note": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
     "reglages.renouvellement": "Refresh local data after",
     "reglages.jours": "days",
@@ -520,10 +514,10 @@ const TEXTES = {
     "horsLigne.etape.outils": "installing the map tools",
     "horsLigne.etape.carte": "OpenStreetMap map",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
-    "partage.ouvrir": "Share with the phone",
     "partage.fermer": "Stop sharing",
     "partage.ouvert": "Shared: {quoi}, {taille}. In hike2gpx on the phone, on the same Wi-Fi: “{page}”, then “Scan a PC’s QR code”; the phone asks for one confirmation and gets everything. The code changes with every share.",
     "partage.rien": "Nothing to share: this PC has no map zone and no routing zone.",
+    "partage.etat": "Sharing open: {quoi}, {taille}.",
     "partage.zonesCarte1": "1 map zone",
     "partage.zonesCarte": "{n} map zones",
     "partage.zonesRoutage1": "1 routing zone",
@@ -1553,11 +1547,7 @@ function afficherZonesCartes() {
     li.append(texte);
     // Un ancien fond nommé par sa case de 5° ne se supprime pas d'ici.
     if (/^[NS]\d{2}[EW]\d{3}$/.test(carre)) {
-      const supprimer = document.createElement("button");
-      supprimer.type = "button";
-      supprimer.textContent = t("donnees.supprimer");
-      supprimer.addEventListener("click", () => supprimerZoneCarte(carre, source, f.octets));
-      li.append(supprimer);
+      li.append(boutonSupprimerZone(() => supprimerZoneCarte(carre, source, f.octets)));
     }
     return li;
   });
@@ -1568,6 +1558,31 @@ function afficherZonesCartes() {
     lignes.push(vide);
   }
   $("zonesCartes").replaceChildren(...lignes);
+}
+
+// Les pictogrammes des boutons que la page crée : le même trait que ceux d'index.html.
+const PICTOS = {
+  corbeille: '<path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7M10 11v6m4-6v6"/>',
+  charger: '<path d="M12 16V5m-5 5 5-5 5 5M5 20h14"/>',
+};
+function pictogramme(nom) {
+  const boite = document.createElement("span");
+  boite.className = "pictogramme";
+  boite.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${PICTOS[nom]}</svg>`;
+  return boite;
+}
+
+// « Supprimer » d'une ligne des zones stockées localement : le bouton rouge à
+// icône du volet de la grille.
+function boutonSupprimerZone(action) {
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.className = "avec-icone zone-supprimer";
+  const texte = document.createElement("span");
+  texte.textContent = t("donnees.supprimer");
+  bouton.append(pictogramme("corbeille"), texte);
+  bouton.addEventListener("click", action);
+  return bouton;
 }
 
 // Le libellé d'une zone de la liste : un clic recentre la carte sur elle.
@@ -1955,11 +1970,7 @@ function afficherZonesLocales() {
       });
       li.append(maj);
     }
-    const supprimer = document.createElement("button");
-    supprimer.type = "button";
-    supprimer.textContent = t("donnees.supprimer");
-    supprimer.addEventListener("click", () => supprimerZone(l));
-    li.append(supprimer);
+    li.append(boutonSupprimerZone(() => supprimerZone(l)));
     return li;
   });
   if (!lignes.length) {
@@ -2005,37 +2016,45 @@ if (typeof MutationObserver !== "undefined") {
 // défaut. Le QR code porte l'adresse du catalogue et un jeton tiré à chaque
 // ouverture ; il est dessiné par le serveur (SVG).
 // Le QR code s'affiche dans sa fenêtre, comme lidar2map, à l'ouverture du
-// partage ou sur « Afficher le QR code » ; une page rechargée ne la rouvre pas.
+// partage ; « Afficher le QR code », dans le volet de la grille, la rouvre.
+// Le partage s'ouvre depuis « Gestion des cartes » ou « Gestion des itinéraires » :
+// le volet de la grille garde son état et de quoi l'arrêter. Une page rechargée
+// ne rouvre pas la fenêtre.
 function afficherPartage(r, montrer = false) {
   etat.partage = r;
-  $("partagerTelephone").hidden = Boolean(r.ouvert);
-  $("partageOuvert").hidden = !r.ouvert;
   $("partageQr").innerHTML = r.ouvert ? r.qr : "";
   // Le pare-feu de Windows (pare_feu.py) : sans sa règle, le téléphone ne joindra pas le PC.
   const pareFeu = ["refuse", "erreur"].includes(r.pare_feu) ? ` ${t("partage.pareFeu")}` : "";
-  const ouvert = r.ouvert ? texteDuPartage(r) + pareFeu : "";
-  $("partageFenetreTexte").textContent = ouvert;
-  $("partageTexte").textContent = r.erreur ? t("partage.erreur", { erreur: ts(r.erreur) }) : ouvert;
-  $("partageTexte").hidden = !$("partageTexte").textContent;
-  $("partageFenetre").hidden = !(r.ouvert && montrer);
+  const erreur = r.erreur ? t("partage.erreur", { erreur: ts(r.erreur) }) : "";
+  $("partageFenetreTexte").textContent = erreur || (r.ouvert ? texteDuPartage(r) + pareFeu : "");
+  const contenu = r.ouvert ? contenuDuPartage(r) : "";
+  $("hlPartage").hidden = !r.ouvert;
+  $("hlPartageTexte").textContent = !r.ouvert ? ""
+    : contenu ? t("partage.etat", { quoi: contenu, taille: tailleTexte(r.octets) }) : t("partage.rien");
+  $("arreterPartageFenetre").hidden = !r.ouvert;
+  $("partageFenetre").hidden = !((r.ouvert || erreur) && montrer);
 }
 
-// selection : {lots, carres}, ce que le volet de la grille a choisi ; sans
-// elle (l'entrée du menu), tout ce qui est sur ce PC.
 // Ce qui est partagé, et seulement cela : « 2 zones de carte », « 1 zone de
-// routage », ou les deux. Le téléphone scanne depuis « Gestion des cartes »,
-// ou « Gestion des itinéraires » quand seul du routage est partagé.
-function texteDuPartage(r) {
+// routage », ou les deux.
+function contenuDuPartage(r) {
   const compte = (n, cle) => n === 1 ? t(`${cle}1`) : t(cle, { n });
-  const parties = [
+  return [
     ...(r.fonds.length ? [compte(r.fonds.length, "partage.zonesCarte")] : []),
     ...(r.lots.length ? [compte(r.lots.length, "partage.zonesRoutage")] : []),
-  ];
-  if (!parties.length) return t("partage.rien");
-  return t("partage.ouvert", { quoi: parties.join(t("partage.et")), taille: tailleTexte(r.octets),
+  ].join(t("partage.et"));
+}
+
+// Le téléphone scanne depuis « Gestion des cartes », ou « Gestion des
+// itinéraires » quand seul du routage est partagé.
+function texteDuPartage(r) {
+  const contenu = contenuDuPartage(r);
+  if (!contenu) return t("partage.rien");
+  return t("partage.ouvert", { quoi: contenu, taille: tailleTexte(r.octets),
     page: t(r.fonds.length ? "menu.cartes" : "menu.itineraires") });
 }
 
+// selection : {lots, carres, source}, ce que le volet de la grille a choisi.
 async function basculerPartage(ouvrir, selection = null) {
   try {
     afficherPartage(await api("partage", { ouvrir, ...(selection || {}) }), ouvrir);
@@ -2043,14 +2062,13 @@ async function basculerPartage(ouvrir, selection = null) {
     afficherPartage({ ouvert: false, erreur: e.message });
   }
 }
-$("partagerTelephone").addEventListener("click", () => basculerPartage(true));
 $("hlPartager").addEventListener("click", () => {
   const b = bilanSelection();
   basculerPartage(true, horsLigne.mode === "routage" ? { lots: b.installees, carres: [] }
     : { lots: [], carres: b.installees, source: sourceFond() });
 });
-$("fermerPartage").addEventListener("click", () => basculerPartage(false));
-$("revoirQr").addEventListener("click", () => { if (etat.partage?.ouvert) $("partageFenetre").hidden = false; });
+$("hlPartageArreter").addEventListener("click", () => basculerPartage(false));
+$("hlPartageQr").addEventListener("click", () => { if (etat.partage?.ouvert) $("partageFenetre").hidden = false; });
 $("fermerFenetrePartage").addEventListener("click", () => { $("partageFenetre").hidden = true; });
 $("arreterPartageFenetre").addEventListener("click", () => basculerPartage(false));
 $("partageFenetre").addEventListener("click", (e) => { if (e.target === $("partageFenetre")) $("partageFenetre").hidden = true; });
@@ -2257,10 +2275,24 @@ function ajouterPoint(latlng, recalculer = true) {
     rafraichirPoints();
     planifierCalcul();
   });
-  point.marqueur.bindPopup(() => bullePoint(point));
   etat.points.push(point);
+  armerPoint(point);
   rafraichirPoints();
   if (recalculer) planifierCalcul();
+}
+
+// Un point se déplace et se retire seulement en planification : le tracé reste
+// affiché quand on la quitte, mais ne se modifie plus (ni glissement, ni bulle
+// « Retirer ce point »).
+function armerPoint(point) {
+  if (planification) {
+    point.marqueur.dragging.enable();
+    point.marqueur.bindPopup(() => bullePoint(point));
+  } else {
+    point.marqueur.closePopup();
+    point.marqueur.unbindPopup();
+    point.marqueur.dragging.disable();
+  }
 }
 
 function retirerPoint(point) {
@@ -2720,8 +2752,9 @@ async function chargerGpx(fichier) {
     if (controleFonds) controleFonds.addOverlay(traceGpxImporte, echapper(nomGpxImporte));
     else construireFonds();
     $("legendGpx").hidden = false;
-    $("chargerGpx").dataset.i18n = "bouton.supprimerGpx";
-    $("chargerGpx").textContent = t("bouton.supprimerGpx");
+    $("chargerGpxTexte").dataset.i18n = "bouton.supprimerGpx";
+    $("chargerGpxTexte").textContent = t("bouton.supprimerGpx");
+    $("chargerGpxIcone").replaceChildren(pictogramme("corbeille").firstChild);
     carte.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [30, 30], maxZoom: 16 });
   } catch (erreur) {
     if (sequence === sequenceImportGpx) {
@@ -2739,8 +2772,9 @@ function supprimerGpx() {
   $("fichierGpx").value = "";
   nomGpxImporte = null;
   $("legendGpx").hidden = true;
-  $("chargerGpx").dataset.i18n = "bouton.chargerGpx";
-  $("chargerGpx").textContent = t("bouton.chargerGpx");
+  $("chargerGpxTexte").dataset.i18n = "bouton.chargerGpx";
+  $("chargerGpxTexte").textContent = t("bouton.chargerGpx");
+  $("chargerGpxIcone").replaceChildren(pictogramme("charger").firstChild);
   $("erreurGpx").hidden = true;
 }
 
@@ -2754,8 +2788,13 @@ let planification = false;
 function planifier(actif) {
   planification = actif;
   document.body.classList.toggle("planification", actif);
+  etat.points.forEach(armerPoint);
 }
-carte.on("click", (e) => { if (planification) ajouterPoint(e.latlng); });
+carte.on("click", (e) => {
+  // Comme sur le téléphone, un clic sur la carte referme la recherche : presentation.js l'écoute.
+  if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:carte-cliquee"));
+  if (planification) ajouterPoint(e.latlng);
+});
 $("retirerDernier").addEventListener("click", () => { const p = etat.points.at(-1); if (p) retirerPoint(p); });
 $("boucler").addEventListener("click", boucler);
 $("toutEffacer").addEventListener("click", () => {
@@ -2814,20 +2853,36 @@ for (const id of ["strict", "ign", "comparer"]) {
     planifierCalcul();
   });
 }
-$("enregistrerCle").addEventListener("click", async () => {
+// Les champs reviennent aux valeurs enregistrées (un refus, une valeur impossible).
+function restaurerChampsReglages() {
+  $("cleIgn").value = etat.cleIgn;
+  $("renouvellementJours").value = etat.renouvellementJours;
+}
+
+// Les réglages s'enregistrent à la fermeture de leur page (presentation.js),
+// quand l'un d'eux a changé : plus de bouton « Enregistrer ». Un délai hors de
+// 1 à 365 jours est abandonné, comme un refus du serveur, sans rien enregistrer.
+async function enregistrerReglages() {
+  const cle = $("cleIgn").value;
+  const saisie = Math.round(Number($("renouvellementJours").value));
+  const jours = saisie >= 1 && saisie <= 365 ? saisie : etat.renouvellementJours;
+  if (cle === etat.cleIgn && jours === etat.renouvellementJours) { restaurerChampsReglages(); return; }
   try {
-    const r = await api("reglages", { cle_ign: $("cleIgn").value, renouvellement_jours: Number($("renouvellementJours").value) });
-    if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
+    const r = await api("reglages", { cle_ign: cle, renouvellement_jours: jours });
+    if (r.erreur) { afficherStatut(() => ts(r.erreur), true); restaurerChampsReglages(); return; }
     etat.cleIgn = r.cle_ign;
     etat.renouvellementJours = r.renouvellement_jours;
+    restaurerChampsReglages();
     afficherExtrait(etat.extrait);
     construireFonds();
     afficherStatut(() => t(etat.cleIgn ? "cle.enregistree" : "cle.retiree"));
     verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
+    restaurerChampsReglages();
   }
-});
+}
+document.addEventListener("hike2gpx:reglages-fermes", enregistrerReglages);
 $("ouvrirDossierJournaux").addEventListener("click", async () => {
   const bouton = $("ouvrirDossierJournaux");
   bouton.disabled = true;
@@ -2896,7 +2951,10 @@ function afficherDonnees(d) {
   const occupe = donnees.occupe || {};
   const bouton = document.createElement("button");
   bouton.type = "button";
-  bouton.textContent = t("donnees.viderTout");
+  bouton.className = "avec-icone";
+  const libelle = document.createElement("span");
+  libelle.textContent = t("donnees.viderTout");
+  bouton.append(pictogramme("corbeille"), libelle);
   bouton.disabled = Boolean(occupe.extrait || occupe.brouter);
   bouton.addEventListener("click", () => agirDonnees("vider_cache", null, t("donnees.confirmerTout")));
   const controles = document.createElement("div");
