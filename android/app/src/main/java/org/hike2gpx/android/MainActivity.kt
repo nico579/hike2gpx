@@ -173,6 +173,8 @@ class MainActivity : Activity() {
     private var fenetreReglages: LinearLayout? = null
     /** La page « Cartes » du menu, refaite après chaque téléchargement ou suppression. */
     private var fenetreCartes: LinearLayout? = null
+    private var dialogueCartes: AlertDialog? = null
+    private var dialogueItineraires: AlertDialog? = null
     /** La page « Itinéraires » du menu, refaite après chaque téléchargement ou suppression. */
     private var fenetreItineraires: LinearLayout? = null
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
@@ -989,11 +991,11 @@ class MainActivity : Activity() {
         }
         fenetreCartes = colonne
         remplirCartes()
-        AlertDialog.Builder(this)
+        dialogueCartes = AlertDialog.Builder(this)
             .setTitle(R.string.menu_cartes)
             .setView(ScrollView(this).apply { addView(colonne) })
             .setPositiveButton(R.string.fermer, null)
-            .setOnDismissListener { fenetreCartes = null }
+            .setOnDismissListener { fenetreCartes = null; dialogueCartes = null }
             .show()
     }
 
@@ -1094,10 +1096,46 @@ class MainActivity : Activity() {
             ligne.addView(TextView(this).apply {
                 text = getString(R.string.ligne_fond, f.nameWithoutExtension,
                     Formatter.formatShortFileSize(this@MainActivity, f.length()))
+                zoneCliquable { voirFond(f) }
             }, LinearLayout.LayoutParams(0, -2, 1f))
             ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppressionFond(f) })
             colonne.addView(ligne)
         }
+    }
+
+    /** Une zone stockée se touche pour la voir sur la carte : soulignée, comme un lien. */
+    private fun TextView.zoneCliquable(action: () -> Unit) {
+        paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
+        minHeight = dp(48)
+        gravity = Gravity.CENTER_VERTICAL
+        setOnClickListener { action() }
+    }
+
+    private fun refermerPages() {
+        dialogueCartes?.dismiss()
+        dialogueItineraires?.dismiss()
+    }
+
+    /** Le lot touché : la page se referme et la carte cadre sa zone (comme sur le PC). */
+    private fun voirLot(lot: Lot) {
+        val zone = lot.couverture ?: return             // [sud, ouest, nord, est]
+        refermerPages()
+        carte.zoomToBoundingBox(BoundingBox(zone[2], zone[3], zone[0], zone[1]), false, dp(24))
+    }
+
+    /**
+     * La carte touchée : elle devient le fond affiché, et la vue se pose sur
+     * son carré, à un zoom où elle a des tuiles (en deçà de son minzoom, elle
+     * resterait vide).
+     */
+    private fun voirFond(f: File) {
+        val bornes = metadonnees(f)["bounds"]?.split(',')?.mapNotNull { it.trim().toDoubleOrNull() }
+            ?.takeIf { it.size == 4 }
+        refermerPages()
+        appliquerFond(Fonds.source(f.nameWithoutExtension))
+        if (bornes == null) return
+        carte.controller.setZoom(maxOf(carte.zoomLevelDouble.coerceAtMost(15.0), zoomMin(listOf(f)).toDouble()))
+        carte.controller.setCenter(GeoPoint((bornes[1] + bornes[3]) / 2, (bornes[0] + bornes[2]) / 2))
     }
 
     /** Un fond effacé après confirmation ; s'il était affiché et que sa source disparaît, la carte revient en ligne. */
@@ -1156,11 +1194,11 @@ class MainActivity : Activity() {
         }
         fenetreItineraires = colonne
         remplirItineraires()
-        AlertDialog.Builder(this)
+        dialogueItineraires = AlertDialog.Builder(this)
             .setTitle(R.string.menu_itineraires)
             .setView(ScrollView(this).apply { addView(colonne) })
             .setPositiveButton(R.string.fermer, null)
-            .setOnDismissListener { fenetreItineraires = null }
+            .setOnDismissListener { fenetreItineraires = null; dialogueItineraires = null }
             .show()
     }
 
@@ -1231,6 +1269,7 @@ class MainActivity : Activity() {
             ligne.addView(TextView(this).apply {
                 text = getString(R.string.ligne_installe, lot.case, description(lot),
                     Formatter.formatShortFileSize(this@MainActivity, lot.octets))
+                zoneCliquable { voirLot(lot) }
             }, LinearLayout.LayoutParams(0, -2, 1f))
             if (offre != null && plusRecent(offre.lot, lot))
                 ligne.addView(boutonPetit(R.string.mettre_a_jour) { telecharger(offre) })

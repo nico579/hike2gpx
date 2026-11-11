@@ -48,7 +48,7 @@
     <string name="fond_satellite">Satellite (Esri)</string>
     <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$s, depuis %4$s</string>
     <string name="etat_fond_installe">Fond %1$s installé.</string>
-    <string name="cartes_a_telecharger">Télécharger depuis l’ordinateur</string>
+    <string name="cartes_a_telecharger">Télécharger des zones depuis l’ordinateur</string>
     <string name="cartes_aucun_fond">Aucun fond à télécharger pour l’instant. Ajoutez un PC avec son QR code pour recevoir les siens.</string>
     <string name="cartes_supprimer_titre">Supprimer le fond</string>
     <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
@@ -99,7 +99,7 @@
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="aucun_lot">Aucun lot installé.</string>
     <string name="itineraires_modes">Mode de calcul</string>
-    <string name="itineraires_pc">Télécharger depuis l’ordinateur</string>
+    <string name="itineraires_pc">Télécharger des zones depuis l’ordinateur</string>
     <string name="itineraires_lot">Télécharger %1$s · %2$s · %3$s, depuis %4$s</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>
     <string name="telecharger">Télécharger</string>
