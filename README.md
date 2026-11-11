@@ -2,24 +2,59 @@
 
 # hike2gpx
 
-hike2gpx plans a hiking route, anywhere in the world, without crossing the
-fences, barriers and prohibitions that OpenStreetMap describes. It works out
-the elevation gain and the walking time, then exports the route as GPX. In
-France, it can also use the paths that only IGN (the French national mapping
-agency) knows about.
+hike2gpx plans hikes and exports the route as GPX, with its elevation gain
+and its walking time. It comes in two versions that complement each other: a
+desktop application (Windows, macOS, Linux) and an Android application. The
+computer prepares what the phone carries: it builds base maps and routing
+areas, then shares them over Wi-Fi with a QR code. The phone then computes its
+routes offline, in the middle of a hike, with no network.
 
-Common planners such as Visorando, Locus Map or brouter-web do not see a fence
-drawn as a line across a footpath. This is not an oversight on their part:
-their routing engines only read the tags on the nodes of the path, and a fence
-is a separate line. hike2gpx examines the network of the area beforehand,
-finds every crossing between a path and a barrier, judges it, then forbids or
-discourages the passage. In Garéoult (Var, France), BRouter's standard hiking
-profile goes through a concrete fence on a 69 m stretch; hike2gpx goes around
-it with a 435 m detour.
+Three things set it apart from the usual planners (Visorando, Locus Map,
+brouter-web).
 
-For desktop computers: Windows, macOS and Linux. An Android app, which
-routes offline from the bundles, is being tested in `android/`; it is not
-published yet.
+**It respects the fences, barriers and gates that OpenStreetMap describes.**
+These planners do not see them: their routing engines only read the tags on
+the nodes of the path, and a fence is a separate line. hike2gpx examines the
+network of the area beforehand, finds every crossing between a path and a
+barrier, judges it, then forbids or discourages the passage. In Garéoult (Var,
+France), BRouter's standard hiking profile goes through a concrete fence on a
+69 m stretch; hike2gpx goes around it with a 435 m detour.
+
+**It combines OpenStreetMap with national maps.** A path that IGN (the French
+national mapping agency) knows and OpenStreetMap does not does not exist for an
+engine that reads only the latter. hike2gpx adds IGN's BD TOPO (France), ATKIS
+(Germany), swissTLM3D (Switzerland), ZABAGED (Czechia) and BDOT10k (Poland,
+Lower Silesia only). This is not every country, on purpose: only those where
+the national map brings a significant share of new paths are kept. On the
+areas studied, BD TOPO adds 18% to 100% in length of candidate paths, ATKIS
+12% to 127%, ZABAGED 40% to 66%, while the United States and the Netherlands
+stay between 0% and 12%. These percentages measure possible lengths, not a
+guaranteed gain: the method and its caveats are in
+[RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+
+**It computes elevation on the ground, not on the treetops.** Under a forest, a
+surface model such as SRTM or Copernicus, both derived from radar, rather
+measures the top of the canopy, and distorts the slopes. LiDAR sends laser
+pulses, some of which pass through the foliage to the ground: from them one
+builds a true digital terrain model (DTM), the bare ground. hike2gpx takes the
+best terrain model that covers the whole route: in France, IGN's LiDAR HD;
+elsewhere Mapterhorn, which takes the national LiDAR whenever one exists:
+about two hundred national and regional models, at 0.25 m to 10 m resolution,
+for almost all of Europe, the United States, Canada, Japan, Australia and New
+Zealand. Outside these areas it falls back on Copernicus' 30 m global model,
+which is less precise, and SRTM remains the very last resort. The country by
+country detail is in the
+[provider catalog](https://github.com/nico579/lidar2map/blob/main/docs/providers.md)
+of lidar2map, the sister project, which queries these national LiDAR sources
+directly, and which Mapterhorn gathers too. Compared with the native LiDAR,
+Mapterhorn differs by 1.6 to 3 cm (RMSE) from IGN's LiDAR HD terrain model on
+three French areas, and by 10 cm from the DGM1 on one Saxon site: negligible for
+an elevation gain, which the 20 m smoothing averages out anyway. These
+measurements, with their limits, are in
+[lidar2map's evaluation](https://github.com/nico579/lidar2map/blob/main/docs/mapterhorn-evaluation.fr.md).
+
+Both applications are downloaded from the releases: one archive per system for
+the computer (Windows, macOS, Linux), `hike2gpx-android.apk` for the phone.
 
 Installed from a release, hike2gpx updates itself, like the other nico579
 applications: when a newer version is published, a banner on the page and the
