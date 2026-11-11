@@ -50,6 +50,8 @@ def test_la_ligne_d_osmosis(tmp_path, monkeypatch):
     # Le greffon sur le chemin de classes, et le dossier personnel détourné :
     # la copie du greffon d'un autre logiciel ne se déclare pas une seconde fois.
     assert f"-Duser.home={outils.racine}" in ligne
+    # Ses fichiers de travail dans un dossier à lui, pas dans celui des cartes.
+    assert f"-Djava.io.tmpdir={outils.travail}" in ligne
     assert ligne[ligne.index("-cp") + 1].endswith(mapsforge.GREFFON)
     assert ligne.count("--read-pbf") == 2 and ligne.count("--merge") == 1
     assert "left=5.95" in ligne and "top=44.05" in ligne, "la boîte lue déborde un peu du carré"
@@ -116,3 +118,24 @@ def test_l_application_fabrique_la_carte_quand_le_fond_est_openstreetmap(tmp_pat
     a.preparer_fond({"carres": ["N40E006"], "source": "osm"})
     a._fil_lot.join(10)
     assert a.lot_en_cours()["erreur"] == "en mer"
+
+
+def test_les_restes_d_osmosis_s_effacent_sans_toucher_aux_cartes(tmp_path):
+    # Un Osmosis interrompu laisse ses index et ses tas : dans le dossier de
+    # travail désormais, dans celui des cartes avec les versions 0.9.8 et 0.9.9.
+    outils = mapsforge.Outils(tmp_path)
+    cartes = tmp_path / "hors-ligne" / "fonds"
+    cartes.mkdir(parents=True)
+    (cartes / "N43E006-osm.map").write_bytes(b"carte" * 10)
+    (cartes / "N43E006-scan25.mbtiles").write_bytes(b"fond" * 10)
+    (cartes / "N43E004-scan25.mbtiles.part").write_bytes(b"reprise")
+    (cartes / "idxNodesd123.tmp").write_bytes(b"x" * 100)
+    (cartes / "heapWays456.tmp").write_bytes(b"x" * 50)
+    outils.travail.mkdir(parents=True)
+    (outils.travail / "idxWaysd789.tmp").write_bytes(b"x" * 30)
+    assert mapsforge.nettoyer(outils, cartes) == 180
+    assert sorted(p.name for p in cartes.iterdir()) == \
+        ["N43E004-scan25.mbtiles.part", "N43E006-osm.map", "N43E006-scan25.mbtiles"], \
+        "les cartes et le téléchargement à reprendre restent"
+    assert not outils.travail.exists()
+    assert mapsforge.nettoyer(outils, cartes) == 0, "rien à refaire"

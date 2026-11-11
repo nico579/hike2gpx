@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -79,6 +80,9 @@ class Outils:
         self.osmosis = self.racine / f"osmosis-{OSMOSIS_VERSION}"
         self.greffon = self.racine / GREFFON
         self.extraits = self.racine / "extraits"
+        # Les fichiers de travail d'Osmosis (index et tas du greffon, plusieurs
+        # centaines de Mo), dans un dossier à eux, vidé avant et après chaque carte.
+        self.travail = self.racine / "travail"
 
     def installes(self) -> bool:
         return (self.osmosis / "lib" / f"osmosis-core-{OSMOSIS_VERSION}.jar").is_file() and self.greffon.is_file()
@@ -172,7 +176,7 @@ def commande(outils: Outils, pbfs: list, cible: Path, zone: tuple) -> list:
     """Osmosis : chaque extrait réduit à la boîte du carré, le tout fusionné,
     puis écrit en carte Mapsforge coupée au carré exact."""
     sud, ouest, nord, est = zone
-    ligne = [brouter.java(), f"-Xmx{_tas()}", f"-Djava.io.tmpdir={cible.parent}", f"-Duser.home={outils.racine}",
+    ligne = [brouter.java(), f"-Xmx{_tas()}", f"-Djava.io.tmpdir={outils.travail}", f"-Duser.home={outils.racine}",
              "-cp", outils.chemin_de_classes(),
              "org.openstreetmap.osmosis.core.Osmosis", "-q"]
     for pbf in pbfs:
@@ -190,6 +194,32 @@ def isolement(outils: Outils) -> dict:
     refuserait de partir (« Task type "mapfile-writer" already exists »).
     Avec -Duser.home (commande), il ne voit donc que nos outils."""
     return {"cwd": outils.racine, "env": {**os.environ, "APPDATA": str(outils.racine)}}
+
+
+# Ce que le greffon laisse quand Osmosis est interrompu : ses index et ses tas.
+# Les versions 0.9.8 et 0.9.9 les écrivaient dans le dossier des cartes.
+RESTES = ("idx*.tmp", "heap*.tmp")
+
+
+def nettoyer(outils: Outils, dossier_cartes: Path | None = None) -> int:
+    """Vide le dossier de travail d'Osmosis, et efface les restes qu'une
+    fabrication interrompue a pu laisser dans le dossier des cartes. Rend les
+    octets libérés."""
+    fichiers = [p for p in outils.travail.rglob("*") if p.is_file()] if outils.travail.is_dir() else []
+    if dossier_cartes is not None and Path(dossier_cartes).is_dir():
+        fichiers += [p for motif in RESTES for p in Path(dossier_cartes).glob(motif) if p.is_file()]
+    octets = 0
+    for p in fichiers:
+        try:
+            taille = p.stat().st_size
+            p.unlink()
+            octets += taille
+        except OSError as exc:           # encore pris par un Osmosis qui finit
+            journal.warning("Reste d'Osmosis laissé : %s (%s)", p, exc)
+    shutil.rmtree(outils.travail, ignore_errors=True)
+    if octets:
+        journal.info("Restes d'Osmosis effacés : %d Mo", octets // 10 ** 6)
+    return octets
 
 
 def _surveiller(processus, continuer) -> None:
@@ -228,6 +258,8 @@ def fabriquer(dossier, chemin: Path, zone: tuple, *, suivi=None, continuer=None)
     suivi("carte", 0, 0)
     chemin = Path(chemin)
     chemin.parent.mkdir(parents=True, exist_ok=True)
+    nettoyer(outils, chemin.parent)
+    outils.travail.mkdir(parents=True, exist_ok=True)
     partiel = atomique.chemin_part(chemin)
     options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     debut, fin = time.monotonic(), []
@@ -247,6 +279,7 @@ def fabriquer(dossier, chemin: Path, zone: tuple, *, suivi=None, continuer=None)
         atomique.remplacer(partiel, chemin)
     finally:
         partiel.unlink(missing_ok=True)
+        nettoyer(outils)
     journal.info("Carte %s : %d Mo depuis %s, en %.0f s", chemin.name, chemin.stat().st_size // 10 ** 6,
                  ", ".join(r["id"] for r in regions), time.monotonic() - debut)
     return decrire(chemin)
