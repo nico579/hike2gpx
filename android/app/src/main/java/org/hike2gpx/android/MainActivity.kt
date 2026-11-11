@@ -2361,8 +2361,9 @@ class MainActivity : Activity() {
      */
     private val telechargementsDirects get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
-    private fun ecrireTelechargements(nom: String, octets: ByteArray) {
-        try {
+    /** Vrai si le fichier est écrit ; sinon l'erreur est dans le bandeau. Pas de message de succès. */
+    private fun ecrireTelechargements(nom: String, octets: ByteArray): Boolean {
+        return try {
             val valeurs = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, nom)
                 put(MediaStore.Downloads.MIME_TYPE, "application/gpx+xml")
@@ -2371,9 +2372,10 @@ class MainActivity : Activity() {
             val adresse = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valeurs)
                 ?: throw IOException("MediaStore")
             contentResolver.openOutputStream(adresse)?.use { it.write(octets) }
-            etat.text = getString(R.string.export_telechargements, nom)
+            true
         } catch (e: Exception) {
             etat.text = texte(e)
+            false
         }
     }
 
@@ -2381,7 +2383,8 @@ class MainActivity : Activity() {
         if (telechargementsDirects) {
             val octets = contenuExport ?: fichierTrace?.takeIf { it.isFile }?.readBytes()
             contenuExport = null
-            if (octets != null) ecrireTelechargements(nom, octets)
+            // Le « calcul du dénivelé » qui précédait s'efface : le fichier est dans Téléchargements.
+            if (octets == null || ecrireTelechargements(nom, octets)) etat.text = ""
             return
         }
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -2461,7 +2464,7 @@ class MainActivity : Activity() {
                     if (contenu != null) sortie.write(contenu)
                     else fichierTrace?.takeIf { it.isFile }?.let { sortie.write(it.readBytes()) }
                 }
-                etat.setText(R.string.export_fait)
+                etat.text = ""              // le « calcul du dénivelé » qui précédait s'efface
             } catch (e: Exception) {
                 etat.text = texte(e)
             }
@@ -2473,7 +2476,6 @@ class MainActivity : Activity() {
         if (requete != EXPORT || resultat != RESULT_OK) return
         try {
             contentResolver.openOutputStream(adresse)?.use { it.write(Gpx.ecrire(coordonnees).toByteArray()) }
-            etat.setText(R.string.export_fait)
         } catch (e: Exception) {
             etat.text = texte(e)
         }
