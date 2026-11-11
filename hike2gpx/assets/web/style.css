@@ -90,6 +90,7 @@ dd { margin: 0; font-weight: 600; }
             box-shadow: 0 0 0 1px #0004; }
 .pastille.bloque { background: var(--bloque); }
 .pastille.verifier { background: var(--verifier); }
+.pastille.jonction { background: #fdd835; border-color: #4e342e; }
 
 #reglages { margin-top: 14px; }
 #reglages summary { cursor: pointer; font-weight: 600; }

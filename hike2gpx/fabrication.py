@@ -642,7 +642,8 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
         o, s, e, n = lot.bornes_tuile(lot.ZOOM_BLOC, x10, y10)
         lecture = (max(s, zone[0]) - MARGE_LECTURE, max(o, zone[1]) - MARGE_LECTURE,
                    min(n, zone[2]) + MARGE_LECTURE, min(e, zone[3]) + MARGE_LECTURE)
-        couches = {"voies": [], "barrieres": [], "franchissements": []}
+        couches = {"voies": [], "barrieres": [], "franchissements": [], "jonctions": []}
+        jonctions_vues = set()
         for i, j in _tuiles(lecture):
             extraits = geofabrik.extraits_de_tuile(dossier, i, j)
             if not extraits:            # mer, ou région sans extrait : rien à lire sans réseau
@@ -655,6 +656,13 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
             couches["barrieres"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
                                       {"id": x["id"], "nature": x["nature"]}) for x in v["barrieres"]
                                      if len(x["pts"]) > 1]
+            # Les chemins non raccordés (franchissements.jonctions_manquees), une fois chacun.
+            for x in v.get("jonctions", ()):
+                if x["cle"] not in jonctions_vues:
+                    jonctions_vues.add(x["cle"])
+                    couches["jonctions"].append(
+                        (shapely.Point(x["lon"], x["lat"]),
+                         {c: x[c] for c in ("cle", "voie", "vers", "distance_m", "osm")}))
             for f in franchissements_tuile:
                 tous_bloc[f["cle"]] = f
                 if f["statut"] in ("blocked", "uncertain"):
