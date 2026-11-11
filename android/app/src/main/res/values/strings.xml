@@ -103,7 +103,6 @@
     <string name="itineraires_modes">Calculation mode</string>
     <string name="itineraires_pc">Download from the computer</string>
     <string name="itineraires_lot">Download %1$s · %2$s · %3$s, from %4$s</string>
-    <string name="itineraires_aucun_lot">No routing bundle to download from the PC.</string>
     <string name="aucun_fond">No offline base map. They come from a PC that shares its own.</string>
     <string name="telecharger">Download</string>
     <string name="plus_tard">Later</string>

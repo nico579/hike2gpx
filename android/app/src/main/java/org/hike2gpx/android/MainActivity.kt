@@ -1199,8 +1199,6 @@ class MainActivity : Activity() {
                 setOnClickListener { telecharger(Offre(source, lot)) }
             })
         }
-        if (duPc.isEmpty() && cataloguesPc != null)
-            colonne.addView(TextView(this).apply { setText(R.string.itineraires_aucun_lot) })
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
 
         // L'enregistrement de trace de Locus Map, appliqué au prochain point

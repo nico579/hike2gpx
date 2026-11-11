@@ -101,7 +101,6 @@
     <string name="itineraires_modes">Mode de calcul</string>
     <string name="itineraires_pc">Télécharger depuis l’ordinateur</string>
     <string name="itineraires_lot">Télécharger %1$s · %2$s · %3$s, depuis %4$s</string>
-    <string name="itineraires_aucun_lot">Aucun lot de routage à télécharger depuis le PC.</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>
     <string name="telecharger">Télécharger</string>
     <string name="plus_tard">Plus tard</string>
