@@ -3,13 +3,20 @@ package org.hike2gpx.android
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
+import android.app.DownloadManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Dialog
 import android.Manifest
+import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.location.Location
@@ -17,6 +24,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
+import android.provider.MediaStore
 import android.provider.Settings
 import android.text.Editable
 import android.text.InputType
@@ -26,6 +34,7 @@ import android.text.format.Formatter
 import android.text.method.PasswordTransformationMethod
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -65,6 +74,7 @@ import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.MapEventsOverlay
@@ -73,6 +83,7 @@ import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
 import java.io.File
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -168,6 +179,8 @@ class MainActivity : Activity() {
     private var fenetreReglages: LinearLayout? = null
     /** La page « Cartes » du menu, refaite après chaque téléchargement ou suppression. */
     private var fenetreCartes: LinearLayout? = null
+    private var dialogueCartes: AlertDialog? = null
+    private var dialogueItineraires: AlertDialog? = null
     /** La page « Itinéraires » du menu, refaite après chaque téléchargement ou suppression. */
     private var fenetreItineraires: LinearLayout? = null
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
@@ -195,6 +208,7 @@ class MainActivity : Activity() {
         Configuration.getInstance().osmdroidBasePath = File(cacheDir, "osmdroid")
         Configuration.getInstance().osmdroidTileCache = File(cacheDir, "osmdroid/tiles")
         reglages = Reglages(this)
+        reglages.oublierPcs()                   // un PC ne se contacte qu'au scan de son QR code
         horsLigne = HorsLigne(filesDir)
         fonds = Fonds(horsLigne.racine)
         pays = Pays(assets)
@@ -228,6 +242,8 @@ class MainActivity : Activity() {
         overlayCalques = CalquesOverlay(this)
         carte = MapView(this).apply {
             setMultiTouchControls(true)
+            // Le zoom se fait aux doigts : pas de boutons + et −.
+            zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
             controller.setZoom(vue.third)
             controller.setCenter(GeoPoint(vue.first, vue.second))
             // Les calques du lot restent sous le tracé et sous les repères.
@@ -301,7 +317,7 @@ class MainActivity : Activity() {
             minWidth = 0; minimumWidth = 0
             setPadding(dp(12), paddingTop, dp(12), paddingBottom)
             setOnClickListener { chercherVille() }
-        }
+        }.avecIcone(R.drawable.ic_btn_chercher)
         recherche.addView(boutonVille)
         bandeauHaut.addView(recherche)
         bandeauHaut.addView(etat)
@@ -309,7 +325,7 @@ class MainActivity : Activity() {
             max = 1000; visibility = View.GONE
         }
         bandeauHaut.addView(progression)
-        arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }
+        arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }.avecIcone(R.drawable.ic_btn_arreter)
         bandeauHaut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
         legende = construireLegende()
         bandeauHaut.addView(legende)
@@ -326,16 +342,16 @@ class MainActivity : Activity() {
         val bas = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE); setPadding(marge / 2, marge / 2, marge / 2, marge / 2)
         }
-        for ((texte, action) in listOf<Pair<Int, () -> Unit>>(
-            R.string.retirer to ::retirerPoint,
-            R.string.effacer to ::effacer,
-            R.string.revenir to ::revenirAuDepart,
+        for ((texte, icone, action) in listOf<Triple<Int, Int, () -> Unit>>(
+            Triple(R.string.retirer, R.drawable.ic_btn_retirer, ::retirerPoint),
+            Triple(R.string.effacer, R.drawable.ic_btn_supprimer, ::effacer),
+            Triple(R.string.revenir, R.drawable.ic_btn_revenir, ::revenirAuDepart),
         )) {
             bas.addView(Button(this).apply {
                 setText(texte); textSize = 12f; isAllCaps = false; minWidth = 0; minimumWidth = 0
-                setPadding(0, paddingTop, 0, paddingBottom)
+                setPadding(dp(4), paddingTop, dp(4), paddingBottom)
                 setOnClickListener { action() }
-            }, LinearLayout.LayoutParams(0, -2, 1f))
+            }.avecIcone(icone), LinearLayout.LayoutParams(0, -2, 1f))
         }
         bandeauBas.addView(bas, LinearLayout.LayoutParams(-1, -2))
         racine.addView(bandeauBas, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
@@ -674,7 +690,7 @@ class MainActivity : Activity() {
         tache(R.string.etat_calcul, false, { _ ->
             val resultat = Itineraire(horsLigne, routeur).calculer(etapes, reglages.strict, reglages.officiels, memoire)
             val proprietes = resultat.feature.optJSONObject("properties")
-            val bilan = getString(R.string.etat_itineraire, resultat.lot.case,
+            val bilan = getString(R.string.etat_itineraire,
                 (proprietes?.optString("track-length")?.toDoubleOrNull() ?: 0.0) / 1000)
             runOnUiThread {
                 if (etapes == points) {
@@ -714,9 +730,10 @@ class MainActivity : Activity() {
             val calcule = profil
             runOnUiThread {
                 if (sequence != sequenceDenivele || dernier !== resultat || isDestroyed) return@runOnUiThread
+                // Une seule ligne : « Distance : … km   Dénivelé : +… m, −… m   Durée : … ».
                 etat.text = if (calcule != null)
                     listOf(base, getString(R.string.etat_denivele, calcule.monteeM, calcule.descenteM,
-                        duree(calcule.dureeMarcheS))).filter { it.isNotEmpty() }.joinToString("\n")
+                        duree(calcule.dureeMarcheS))).filter { it.isNotEmpty() }.joinToString("   ")
                 else
                     listOf(base, getString(R.string.etat_denivele_indisponible, erreur.take(160)))
                         .filter { it.isNotEmpty() }.joinToString("\n")
@@ -753,11 +770,8 @@ class MainActivity : Activity() {
             outlinePaint.strokeWidth = 8f
         }
         carte.overlays.add(1, trace)        // sous les touches et les repères
-        // Recadré seulement si le tracé sort de la vue : un point ajouté ne fait pas sauter la carte.
-        val boite = BoundingBox.fromGeoPoints(geo)
-        val vue = carte.boundingBox
-        if (!vue.contains(GeoPoint(boite.latNorth, boite.lonWest)) || !vue.contains(GeoPoint(boite.latSouth, boite.lonEast)))
-            carte.zoomToBoundingBox(boite, true, dp(48))
+        // Jamais de recadrage : les points sont posés à l'écran, et la carte reste
+        // là où on l'a mise pour poser le suivant.
         carte.invalidate()
     }
 
@@ -873,7 +887,7 @@ class MainActivity : Activity() {
     /**
      * Le catalogue des lots, lu sur GitHub seulement (décision de Nico du
      * 2026-11-04) : le serveur publie les lots, les PC ajoutent les leurs à la
-     * demande (lireCataloguesPc). Un PC éteint ne retarde donc jamais le
+     * demande, au scan de leur QR code. Un PC éteint ne retarde donc jamais le
      * lancement.
      */
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
@@ -889,26 +903,6 @@ class MainActivity : Activity() {
         else getString(R.string.etat_catalogue_lu, choix.size)
     }, ensuite = { avancer() }, discret = true)
 
-    /**
-     * Les catalogues des PC, lus à la demande (page Cartes ou Itinéraires, PC
-     * ajouté) ; un PC injoignable le dit sans rien bloquer. Ils portent les
-     * fonds de carte et les lots que le serveur ne publie pas.
-     */
-    private fun lireCataloguesPc(ensuite: () -> Unit) = tache(R.string.etat_pc, false, { _ ->
-        val lus = mutableListOf<Pair<Source, Catalogue>>()
-        val echecs = mutableListOf<String>()
-        for (pc in reglages.pcs()) {
-            try {
-                lus.add(pc to Depot().lireCatalogue(pc))
-            } catch (e: ErreurDepot) {
-                echecs.add(texte(e))
-            }
-        }
-        runOnUiThread { cataloguesPc = lus }
-        if (echecs.isEmpty()) getString(R.string.etat_pc_lus,
-            lus.sumOf { it.second.fonds.size }, lus.sumOf { it.second.lots.size })
-        else echecs.joinToString("\n")
-    }, ensuite = { ensuite() })
 
     /** Le lot qui manque : de lui-même sur le Wi-Fi, sur demande sur un réseau facturé. */
     private fun telechargerAuto(offre: Offre) {
@@ -1003,15 +997,12 @@ class MainActivity : Activity() {
         }
         fenetreCartes = colonne
         remplirCartes()
-        AlertDialog.Builder(this)
+        dialogueCartes = AlertDialog.Builder(this)
             .setTitle(R.string.menu_cartes)
             .setView(ScrollView(this).apply { addView(colonne) })
             .setPositiveButton(R.string.fermer, null)
-            .setOnDismissListener { fenetreCartes = null }
+            .setOnDismissListener { fenetreCartes = null; dialogueCartes = null }
             .show()
-        // Les fonds d'un PC déjà ajouté se lisent en arrivant, comme le faisait
-        // le bouton Fond ; un PC injoignable le dit sans bloquer la page.
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) lireCataloguesPc { remplirCartes() }
     }
 
     /** Le contenu de la page « Cartes », refait après chaque téléchargement, suppression ou ajout de PC. */
@@ -1068,16 +1059,10 @@ class MainActivity : Activity() {
                 text = getString(R.string.fond_a_telecharger, Fonds.titre(fond.source), fond.nom,
                     Formatter.formatShortFileSize(this@MainActivity, fond.octets), source.libelle)
                 setOnClickListener { telechargerFond(source, fond) }
-            })
+            }.avecIcone(R.drawable.ic_btn_telecharger))
         }
-        if (proposes.isEmpty() && cataloguesPc != null)
-            colonne.addView(TextView(this).apply { setText(R.string.cartes_aucun_fond) })
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null)
-            colonne.addView(Button(this).apply {
-                setText(R.string.fond_relire)
-                setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirCartes() } }
-            })
-        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
+        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } }
+            .avecIcone(R.drawable.ic_btn_qr))
 
         // Les calques du lot, comme dans la page du PC : la coche OSM reste
         // toujours, celle d'un fournisseur national n'apparaît que si le lot
@@ -1116,10 +1101,46 @@ class MainActivity : Activity() {
             ligne.addView(TextView(this).apply {
                 text = getString(R.string.ligne_fond, f.nameWithoutExtension,
                     Formatter.formatShortFileSize(this@MainActivity, f.length()))
+                zoneCliquable { voirFond(f) }
             }, LinearLayout.LayoutParams(0, -2, 1f))
-            ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppressionFond(f) })
+            ligne.addView(boutonPetit(R.string.supprimer, R.drawable.ic_btn_supprimer, rouge = true) { confirmerSuppressionFond(f) })
             colonne.addView(ligne)
         }
+    }
+
+    /** Une zone stockée se touche pour la voir sur la carte : soulignée, comme un lien. */
+    private fun TextView.zoneCliquable(action: () -> Unit) {
+        paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
+        minHeight = dp(48)
+        gravity = Gravity.CENTER_VERTICAL
+        setOnClickListener { action() }
+    }
+
+    private fun refermerPages() {
+        dialogueCartes?.dismiss()
+        dialogueItineraires?.dismiss()
+    }
+
+    /** Le lot touché : la page se referme et la carte cadre sa zone (comme sur le PC). */
+    private fun voirLot(lot: Lot) {
+        val zone = lot.couverture ?: return             // [sud, ouest, nord, est]
+        refermerPages()
+        carte.zoomToBoundingBox(BoundingBox(zone[2], zone[3], zone[0], zone[1]), false, dp(24))
+    }
+
+    /**
+     * La carte touchée : elle devient le fond affiché, et la vue se pose sur
+     * son carré, à un zoom où elle a des tuiles (en deçà de son minzoom, elle
+     * resterait vide).
+     */
+    private fun voirFond(f: File) {
+        val bornes = metadonnees(f)["bounds"]?.split(',')?.mapNotNull { it.trim().toDoubleOrNull() }
+            ?.takeIf { it.size == 4 }
+        refermerPages()
+        appliquerFond(Fonds.source(f.nameWithoutExtension))
+        if (bornes == null) return
+        carte.controller.setZoom(maxOf(carte.zoomLevelDouble.coerceAtMost(15.0), zoomMin(listOf(f)).toDouble()))
+        carte.controller.setCenter(GeoPoint((bornes[1] + bornes[3]) / 2, (bornes[0] + bornes[2]) / 2))
     }
 
     /** Un fond effacé après confirmation ; s'il était affiché et que sa source disparaît, la carte revient en ligne. */
@@ -1178,15 +1199,12 @@ class MainActivity : Activity() {
         }
         fenetreItineraires = colonne
         remplirItineraires()
-        AlertDialog.Builder(this)
+        dialogueItineraires = AlertDialog.Builder(this)
             .setTitle(R.string.menu_itineraires)
             .setView(ScrollView(this).apply { addView(colonne) })
             .setPositiveButton(R.string.fermer, null)
-            .setOnDismissListener { fenetreItineraires = null }
+            .setOnDismissListener { fenetreItineraires = null; dialogueItineraires = null }
             .show()
-        // Les catalogues d'un PC déjà ajouté portent ses lots de routage ; un
-        // PC injoignable le dit sans bloquer la page.
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null) lireCataloguesPc { remplirItineraires() }
     }
 
     /** Le contenu de la page « Itinéraires », refait après chaque téléchargement ou suppression. */
@@ -1222,16 +1240,10 @@ class MainActivity : Activity() {
                 text = getString(R.string.itineraires_lot, lot.case, description(lot),
                     Formatter.formatShortFileSize(this@MainActivity, lot.octets), source.libelle)
                 setOnClickListener { telecharger(Offre(source, lot)) }
-            })
+            }.avecIcone(R.drawable.ic_btn_telecharger))
         }
-        if (duPc.isEmpty() && cataloguesPc != null)
-            colonne.addView(TextView(this).apply { setText(R.string.itineraires_aucun_lot) })
-        if (reglages.pcs().isNotEmpty() && cataloguesPc == null)
-            colonne.addView(Button(this).apply {
-                setText(R.string.itineraires_relire)
-                setOnClickListener { cataloguesPc = null; lireCataloguesPc { remplirItineraires() } }
-            })
-        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } })
+        colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } }
+            .avecIcone(R.drawable.ic_btn_qr))
 
         // L'enregistrement de trace de Locus Map, appliqué au prochain point
         // même quand un enregistrement est en cours.
@@ -1263,10 +1275,11 @@ class MainActivity : Activity() {
             ligne.addView(TextView(this).apply {
                 text = getString(R.string.ligne_installe, lot.case, description(lot),
                     Formatter.formatShortFileSize(this@MainActivity, lot.octets))
+                zoneCliquable { voirLot(lot) }
             }, LinearLayout.LayoutParams(0, -2, 1f))
             if (offre != null && plusRecent(offre.lot, lot))
-                ligne.addView(boutonPetit(R.string.mettre_a_jour) { telecharger(offre) })
-            ligne.addView(boutonPetit(R.string.supprimer) { supprimerLot(lot) })
+                ligne.addView(boutonPetit(R.string.mettre_a_jour, R.drawable.ic_btn_actualiser) { telecharger(offre) })
+            ligne.addView(boutonPetit(R.string.supprimer, R.drawable.ic_btn_supprimer, rouge = true) { supprimerLot(lot) })
             colonne.addView(ligne)
         }
     }
@@ -1618,8 +1631,8 @@ class MainActivity : Activity() {
                     Formatter.formatShortFileSize(this@MainActivity, f.length())
                 textSize = 13f
             }, LinearLayout.LayoutParams(0, -2, 1f))
-            ligne.addView(boutonPetit(R.string.exporter) { exporterTrace(f) })
-            ligne.addView(boutonPetit(R.string.supprimer) { confirmerSuppression(listOf(f)) })
+            ligne.addView(boutonPetit(R.string.exporter, R.drawable.ic_btn_telecharger) { exporterTrace(f) })
+            ligne.addView(boutonPetit(R.string.supprimer, R.drawable.ic_btn_supprimer, rouge = true) { confirmerSuppression(listOf(f)) })
             colonne.addView(ligne)
         }
         colonne.addView(Button(this).apply {
@@ -1631,7 +1644,7 @@ class MainActivity : Activity() {
                         Toast.LENGTH_SHORT).show()
                 else confirmerSuppression(choisies)
             }
-        })
+        }.avecIcone(R.drawable.ic_btn_supprimer, rouge = true))
     }
 
     // ------------------------------------------------------------------ réglages
@@ -1662,16 +1675,9 @@ class MainActivity : Activity() {
             setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
             setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
         })
-        colonne.addView(CheckBox(this).apply {
-            setText(R.string.afficher_recherche); isChecked = reglages.recherche
-            setOnCheckedChangeListener { _, v -> reglages.recherche = v; appliquerAffichage() }
-        })
 
         // La clé IGN du SCAN 25, le même réglage que sur le PC.
-        titre(colonne, R.string.reglages_cle_ign)
-        colonne.addView(TextView(this).apply {
-            setText(R.string.reglages_cle_note); textSize = 12f
-        })
+        titreAvecInfo(colonne, R.string.reglages_cle_ign, R.string.reglages_cle_note)
         val cleIgn = EditText(this).apply {
             setSingleLine()             // avant la transformation : sinon elle serait remplacée
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
@@ -1707,11 +1713,12 @@ class MainActivity : Activity() {
         colonne.addView(Button(this).apply {
             text = getString(R.string.vider_cache, Formatter.formatShortFileSize(this@MainActivity, octetsCaches()))
             setOnClickListener { viderCache() }
-        })
+        }.avecIcone(R.drawable.ic_btn_supprimer))
 
         titre(colonne, R.string.maj_titre)
         colonne.addView(TextView(this).apply { text = getString(R.string.maj_version, versionInstallee()) })
-        colonne.addView(Button(this).apply { setText(R.string.maj_verifier); setOnClickListener { verifierMaj() } })
+        colonne.addView(Button(this).apply { setText(R.string.maj_verifier); setOnClickListener { verifierMaj() } }
+            .avecIcone(R.drawable.ic_btn_actualiser))
     }
 
     // ------------------------------------------------------------------ recherche de ville
@@ -1992,12 +1999,12 @@ class MainActivity : Activity() {
                 else getString(R.string.recuperer_message, source.libelle, lots.size, fondsVenus.size,
                     Formatter.formatShortFileSize(this, octets)))
             .setPositiveButton(if (rien) android.R.string.ok else R.string.telecharger) { _, _ ->
-                reglages.ajouterPc(source)
-                cataloguesPc = null
+                // Le PC n'est pas retenu : son jeton meurt avec le partage. Les pages
+                // gardent son catalogue le temps de la session, puis se redessinent.
+                cataloguesPc = listOf(source to catalogue)
                 for (lot in lots) recuperations.addLast { telecharger(Offre(source, lot)) }
                 for (fond in fondsVenus) recuperations.addLast { installerFond(source, fond) }
-                // Les pages Cartes et Itinéraires relisent les PC, une fois tout arrivé.
-                recuperations.addLast { lireCataloguesPc { remplirCartes(); remplirItineraires() } }
+                recuperations.addLast { remplirCartes(); remplirItineraires() }
                 if (!enCours.get()) recuperations.removeFirstOrNull()?.invoke()
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -2029,6 +2036,12 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requete: Int, permissions: Array<out String>,
                                             resultats: IntArray) {
         super.onRequestPermissionsResult(requete, permissions, resultats)
+        if (requete == PERMISSION_NOTIFICATIONS) {
+            val nom = exportANotifier
+            exportANotifier = null
+            if (nom != null && resultats.firstOrNull() == PackageManager.PERMISSION_GRANTED) posterNotificationExport(nom)
+            return
+        }
         if (requete != PERMISSION_POSITION) return
         val action = apresPermission
         apresPermission = null
@@ -2352,7 +2365,73 @@ class MainActivity : Activity() {
     private fun sourcesRelief(mapterhorn: Mapterhorn): List<SourceRelief> =
         if (reseauDisponible()) listOf(IgnLidar(), mapterhorn.source()) else listOf(mapterhorn.source())
 
+    /**
+     * Android 10 et plus : le GPX va directement dans Téléchargements (MediaStore,
+     * sans permission ni sélecteur), comme sur le PC. Avant, il faudrait une
+     * permission d'écriture : le sélecteur de fichiers reste.
+     */
+    private val telechargementsDirects get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+
+    /** Vrai si le fichier est écrit ; sinon l'erreur est dans le bandeau. Pas de message de succès. */
+    private fun ecrireTelechargements(nom: String, octets: ByteArray): Boolean {
+        return try {
+            val valeurs = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, nom)
+                put(MediaStore.Downloads.MIME_TYPE, "application/gpx+xml")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val adresse = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valeurs)
+                ?: throw IOException("MediaStore")
+            contentResolver.openOutputStream(adresse)?.use { it.write(octets) }
+            notifierExport(nom, adresse)
+            true
+        } catch (e: Exception) {
+            etat.text = texte(e)
+            false
+        }
+    }
+
+    /**
+     * MediaStore n'annonce rien : la notification dit où est le fichier, et un
+     * toucher ouvre Téléchargements. Android 13 et plus demande l'autorisation
+     * de notifier au premier export ; la notification part dès qu'elle est
+     * accordée. Refusée, l'export reste silencieux.
+     */
+    private var exportANotifier: String? = null
+
+    private fun notifierExport(nom: String, adresse: Uri) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            exportANotifier = nom
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), PERMISSION_NOTIFICATIONS)
+            return
+        }
+        posterNotificationExport(nom)
+    }
+
+    private fun posterNotificationExport(nom: String) {
+        val gestionnaire = getSystemService(NotificationManager::class.java)
+        gestionnaire.createNotificationChannel(NotificationChannel(CANAL_EXPORT,
+            getString(R.string.export_canal), NotificationManager.IMPORTANCE_LOW))
+        val ouvrir = PendingIntent.getActivity(this, 0, Intent(DownloadManager.ACTION_VIEW_DOWNLOADS),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        gestionnaire.notify(nom.hashCode(), Notification.Builder(this, CANAL_EXPORT)
+            .setSmallIcon(R.drawable.ic_btn_telecharger)
+            .setContentTitle(nom)
+            .setContentText(getString(R.string.export_notification_texte))
+            .setContentIntent(ouvrir)
+            .setAutoCancel(true)
+            .build())
+    }
+
     private fun lancerExport(nom: String) {
+        if (telechargementsDirects) {
+            val octets = contenuExport ?: fichierTrace?.takeIf { it.isFile }?.readBytes()
+            contenuExport = null
+            // Le « calcul du dénivelé » qui précédait s'efface : le fichier est dans Téléchargements.
+            if (octets == null || ecrireTelechargements(nom, octets)) etat.text = ""
+            return
+        }
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/gpx+xml"
@@ -2383,10 +2462,17 @@ class MainActivity : Activity() {
         if (dernier == null) {
             etat.setText(R.string.rien_a_exporter); return
         }
+        // Horodaté comme la trace GPS (« trace-… »), avec son propre préfixe pour ne pas les confondre.
+        val nom = "itineraire-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
+        val coordonnees = dernier?.coordonnees ?: return
+        if (telechargementsDirects) {
+            ecrireTelechargements(nom, Gpx.ecrire(coordonnees).toByteArray())
+            return
+        }
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/gpx+xml"
-            putExtra(Intent.EXTRA_TITLE, "hike2gpx.gpx")
+            putExtra(Intent.EXTRA_TITLE, nom)
         }, EXPORT)
     }
 
@@ -2423,7 +2509,7 @@ class MainActivity : Activity() {
                     if (contenu != null) sortie.write(contenu)
                     else fichierTrace?.takeIf { it.isFile }?.let { sortie.write(it.readBytes()) }
                 }
-                etat.setText(R.string.export_fait)
+                etat.text = ""              // le « calcul du dénivelé » qui précédait s'efface
             } catch (e: Exception) {
                 etat.text = texte(e)
             }
@@ -2435,7 +2521,6 @@ class MainActivity : Activity() {
         if (requete != EXPORT || resultat != RESULT_OK) return
         try {
             contentResolver.openOutputStream(adresse)?.use { it.write(Gpx.ecrire(coordonnees).toByteArray()) }
-            etat.setText(R.string.export_fait)
         } catch (e: Exception) {
             etat.text = texte(e)
         }
@@ -2560,6 +2645,33 @@ class MainActivity : Activity() {
         parent.addView(TextView(this).apply { setText(texte); textSize = 18f; setPadding(0, dp(16), 0, dp(4)) })
 
     /**
+     * Un titre suivi d'un « i » jaune, comme sur la page du PC : la note ne
+     * prend pas de place dans la page, un toucher l'affiche (pas de survol
+     * sur un téléphone, donc une petite fenêtre plutôt qu'une info-bulle).
+     */
+    private fun titreAvecInfo(parent: LinearLayout, texte: Int, info: Int) {
+        val ligne = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(16), 0, dp(4))
+        }
+        ligne.addView(TextView(this).apply { setText(texte); textSize = 18f })
+        ligne.addView(TextView(this).apply {
+            text = "i"
+            textSize = 13f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            setTextColor(0xff4e342e.toInt())
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xfffdd835.toInt()) }
+            contentDescription = getString(info)
+            setOnClickListener {
+                AlertDialog.Builder(this@MainActivity).setMessage(info).setPositiveButton(R.string.fermer, null).show()
+            }
+        }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginStart = dp(10) })
+        parent.addView(ligne)
+    }
+
+    /**
      * Un réglage numérique : libellé à gauche, champ à droite. Chaque saisie
      * valide est enregistrée aussitôt (virgule décimale acceptée), pour ne pas
      * perdre la dernière valeur quand la fenêtre se ferme.
@@ -2602,12 +2714,23 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun boutonPetit(texte: Int, action: () -> Unit) = Button(this).apply {
+    /** Une icône de 18 dp avant le texte du bouton, comme sur la page du PC ; rouge pour ce qui supprime. */
+    private fun Button.avecIcone(icone: Int, rouge: Boolean = false): Button = apply {
+        getDrawable(icone)?.mutate()?.let { d ->
+            d.setBounds(0, 0, dp(18), dp(18))
+            if (rouge) d.setTint(0xffb3261e.toInt())
+            setCompoundDrawablesRelative(d, null, null, null)
+        }
+        compoundDrawablePadding = dp(6)
+        if (rouge) setTextColor(0xffb3261e.toInt())
+    }
+
+    private fun boutonPetit(texte: Int, icone: Int, rouge: Boolean = false, action: () -> Unit) = Button(this).apply {
         setText(texte); textSize = 12f; isAllCaps = false
         minWidth = 0; minimumWidth = 0
         setPadding(dp(8), paddingTop, dp(8), paddingBottom)
         setOnClickListener { action() }
-    }
+    }.avecIcone(icone, rouge)
 
     private fun confirmerSuppression(fichiers: List<File>) {
         if (fichiers.isEmpty()) return
@@ -2685,6 +2808,7 @@ class MainActivity : Activity() {
         private const val EXPORT_TRACE = 2
         private const val PERMISSION_POSITION = 3
         private const val PERMISSION_NOTIFICATIONS = 4
+        private const val CANAL_EXPORT = "export"
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
         /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */

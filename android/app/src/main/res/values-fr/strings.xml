@@ -47,10 +47,8 @@
     <string name="fond_pologne">Carte topographique (Geoportal Pologne)</string>
     <string name="fond_satellite">Satellite (Esri)</string>
     <string name="fond_a_telecharger">Télécharger %1$s : %2$s, %3$s, depuis %4$s</string>
-    <string name="fond_relire">Relire les fonds partagés par le PC</string>
     <string name="etat_fond_installe">Fond %1$s installé.</string>
-    <string name="cartes_a_telecharger">Télécharger depuis l’ordinateur</string>
-    <string name="cartes_aucun_fond">Aucun fond à télécharger pour l’instant. Ajoutez un PC avec son QR code pour recevoir les siens.</string>
+    <string name="cartes_a_telecharger">Télécharger des zones depuis l’ordinateur</string>
     <string name="cartes_supprimer_titre">Supprimer le fond</string>
     <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
 
@@ -78,7 +76,6 @@
     <string name="reglages_cle_afficher">Afficher la clé</string>
     <string name="afficher_legende">Afficher légendes</string>
     <string name="afficher_courbe">Afficher courbe du dénivelé</string>
-    <string name="afficher_recherche">Afficher la recherche de ville</string>
     <string name="courbe_aide">Touchez la courbe pour voir le point correspondant sur le tracé.</string>
     <string name="legende_titre">Légende</string>
     <string name="legende_itineraire">itinéraire hike2gpx</string>
@@ -100,10 +97,8 @@
     <string name="ligne_fond">%1$s · %2$s</string>
     <string name="aucun_lot">Aucun lot installé.</string>
     <string name="itineraires_modes">Mode de calcul</string>
-    <string name="itineraires_relire">Relire les lots partagés par les PC</string>
-    <string name="itineraires_pc">Télécharger depuis l’ordinateur</string>
+    <string name="itineraires_pc">Télécharger des zones depuis l’ordinateur</string>
     <string name="itineraires_lot">Télécharger %1$s · %2$s · %3$s, depuis %4$s</string>
-    <string name="itineraires_aucun_lot">Aucun lot de routage à télécharger depuis le PC.</string>
     <string name="aucun_fond">Aucun fond hors ligne. Ils viennent d’un PC qui partage les siens.</string>
     <string name="telecharger">Télécharger</string>
     <string name="plus_tard">Plus tard</string>
@@ -134,13 +129,12 @@
     <string name="etat_supprime">Lot %1$s retiré, %2$s libérés.</string>
     <string name="etat_interrompu">Téléchargement interrompu : il reprendra là où il s’est arrêté.</string>
     <string name="etat_calcul">Calcul en cours…</string>
-    <string name="etat_itineraire">Itinéraire sur le lot %1$s : %2$.1f km.</string>
-    <string name="etat_denivele_calcul">Calcul du dénivelé par gpx2elev…</string>
-    <string name="etat_denivele">Montée +%1$d m / descente −%2$d m · %3$s à pied.</string>
+    <string name="etat_itineraire">Distance : %1$.1f km</string>
+    <string name="etat_denivele_calcul">Calcul du dénivelé…</string>
+    <string name="etat_denivele">"Dénivelé : +%1$d m, −%2$d m   Durée : %3$s"</string>
     <string name="etat_denivele_indisponible">Dénivelé indisponible : %1$s</string>
     <string name="etat_occupe">Une tâche est déjà en cours.</string>
     <string name="rien_a_exporter">Aucun itinéraire à exporter.</string>
-    <string name="export_fait">GPX enregistré.</string>
     <string name="lot_enrichi">enrichi %1$s</string>
     <string name="duree_heures">%1$d h %2$02d</string>
     <string name="duree_minutes">%1$d min</string>
@@ -226,6 +220,8 @@
     <string name="trace_demarree">Trace GPS démarrée : le téléphone relève les points.</string>
     <string name="trace_sans_point">Aucun point retenu : la trace n’a pas été enregistrée.</string>
     <string name="trace_canal">Enregistrement de trace GPS</string>
+    <string name="export_canal">Exports GPX</string>
+    <string name="export_notification_texte">Enregistré dans Téléchargements. Touchez pour l’ouvrir.</string>
     <string name="trace_notification_titre">Trace GPS en cours</string>
     <string name="trace_notification_texte">Touchez pour ouvrir hike2gpx. Les points sont gardés même écran éteint.</string>
     <string name="trace_recuperee">Trace interrompue récupérée : %1$s</string>
@@ -233,13 +229,13 @@
     <string name="trace_resume">%1$s, %2$s, %3$s.</string>
     <string name="trace_fichier">Fichier : %1$s</string>
     <string name="trace_exporter">Exporter le GPX</string>
-    <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m (gpx2elev).</string>
+    <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m.</string>
     <string name="trace_etat_debut">Trace GPS : %1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
-    <string name="trace_etat_sans_denivele">Trace GPS : %1$s, %2$s, %3$s. Dénivelé indisponible : le cache gpx2elev ne couvre pas encore le parcours.</string>
+    <string name="trace_etat_sans_denivele">Trace GPS : %1$s, %2$s, %3$s. Dénivelé indisponible : les données d’altitude ne couvrent pas encore le parcours.</string>
     <string name="trace_resume_court">%1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
-    <string name="trace_resume_denivele">%1$s, %2$s, %3$s, D+ %4$d m / D- %5$d m (gpx2elev).</string>
-    <string name="trace_resume_sans_denivele">%1$s, %2$s, %3$s. Dénivelé non calculé : le cache gpx2elev est incomplet.</string>
-    <string name="trace_denivele_calcul">Calcul du dénivelé gpx2elev avant l’export…</string>
+    <string name="trace_resume_denivele">%1$s, %2$s, %3$s, D+ %4$d m / D- %5$d m.</string>
+    <string name="trace_resume_sans_denivele">%1$s, %2$s, %3$s. Dénivelé non calculé : les données d’altitude sont incomplètes.</string>
+    <string name="trace_denivele_calcul">Calcul du dénivelé avant l’export…</string>
     <string name="trace_gpx_desc">D+ %1$d m / D− %2$d m (gpx2elev)</string>
     <string name="trace_export_annule">Export annulé.</string>
     <string name="titre_traces">Traces enregistrées</string>

@@ -153,7 +153,6 @@ body.profile-collapsed .map-activity{bottom:81px}
 #afficherCle .eye-strike{display:none}
 #afficherCle[aria-pressed=true] .eye-strike{display:block}
 #reglages .setting-row label{margin:0;font-size:12px;line-height:1.5;color:#546a80}
-.settings-save{margin-top:14px;font-size:12px;padding:7px 11px}
 .display-settings{margin-top:17px;padding-top:7px;border-top:1px solid var(--bordure)}
 #partageOuvert{display:flex;gap:8px;flex-wrap:wrap}
 #partageOuvert[hidden]{display:none}
@@ -207,8 +206,8 @@ body.profile-collapsed .map-activity{bottom:81px}
 .transparency-setting input{flex:1;min-width:0;accent-color:var(--accent);cursor:pointer}
 .transparency-setting output{min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
 .journal-settings{margin-top:18px;padding-top:16px;border-top:1px solid var(--bordure)}
-.journal-settings button{padding:9px 12px;border:1px solid #d5e5fa;border-radius:8px;background:#eef5ff;color:#1959b5;font-size:12px;cursor:pointer}
-.journal-settings button:hover:not(:disabled){background:#e1efff}
+.journal-settings button{padding:9px 12px;border:1px solid #8fb0d8;border-radius:8px;background:#e3eefc;color:#1959b5;font-size:12px;cursor:pointer}
+.journal-settings button:hover:not(:disabled){background:#d2e4fa}
 .journal-settings .note{margin:8px 0 0;color:#bc3944}
 body.hide-elevation .elevation-panel{display:none!important}
 #noteCalques,#extraitOsm,#brouterEnCours{display:none!important}
@@ -221,8 +220,8 @@ body.hide-elevation .elevation-panel{display:none!important}
 #donnees{margin-top:22px;border-top:1px solid var(--bordure);padding-top:16px}
 .cache-controls{display:flex;align-items:center;gap:8px}
 .cache-controls .info-tooltip [role=tooltip]{left:-135px;width:330px}
-#donnees .cache-controls>button{padding:9px 13px;border:1px solid #d7e3f0;border-radius:8px;background:#f5f9ff;color:#315b88;cursor:pointer;font-size:12px}
-#donnees .cache-controls>button:hover:not(:disabled){background:#e9f2ff}
+#donnees .cache-controls>button{padding:9px 13px;border:1px solid #8fb0d8;border-radius:8px;background:#e3eefc;color:#1959b5;cursor:pointer;font-size:12px}
+#donnees .cache-controls>button:hover:not(:disabled){background:#d2e4fa}
 #donnees .cache-controls>button:disabled{opacity:.5;cursor:default}
 #cacheStatus{min-height:1em;margin:8px 0 0;font-size:11px;color:#5d7186}
 #lignesJournal{max-height:none;min-height:170px;max-width:100%;margin-top:11px;padding:12px;font-size:11px;line-height:1.5;background:#f7f9fc;border-color:#e4ebf3}
@@ -287,8 +286,6 @@ body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran 
 .page-action:hover:not(:disabled){background:#e1efff}
 .page-action[aria-expanded=true]{background:#2367d1;border-color:#2367d1;color:#fff}
 .page-action[aria-expanded=true]:hover:not(:disabled){background:#1854b1}
-.partage-settings h3{margin:10px 0 4px;font-size:13px;color:#2e455d}
-.partage-settings .note{margin:0 0 10px}
 /* Le contrôle Leaflet des fonds et des calques, sorti de la carte pour la page
    « Gestion des cartes » : une simple liste, sans cadre ni ombre. */
 .cartes-calques .leaflet-control-layers{float:none;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent;color:#42566d}
@@ -308,6 +305,15 @@ body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
 .zones-locales li.note{border:0;color:#65768a}
 .zones-locales button{padding:5px 9px;border:1px solid #d7e3f0;border-radius:7px;background:#fff;color:#315b88;font-size:11px;cursor:pointer}
 .zones-locales button:hover{background:#f2f7ff}
+/* « Supprimer » d'une zone : le bouton rouge à icône du volet de la grille. */
+.zones-locales button.zone-supprimer{padding:7px 9px;border:1.5px solid #d9827a;border-radius:8px;background:#fff;color:#b3261e;font-size:12px;font-weight:600;box-shadow:0 1px 3px #1b354526}
+.zones-locales button.zone-supprimer:hover{background:#fdf0ef}
+/* Les boutons à icône : le même trait partout. */
+.avec-icone{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.avec-icone .pictogramme{display:inline-flex}
+.avec-icone svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.boutons button.avec-icone{display:flex}
+.city-search>button.avec-icone{gap:6px}
 .cartes-calques .cartes-calques-titre{margin:18px 0 6px;font-size:14px;color:#3d5e80}
 /* Le « i » d'un titre est au bord droit du panneau : sa bulle s'ouvre vers la gauche. */
 .pane>.section-title .info-tooltip [role=tooltip]{left:auto;right:-8px;width:250px;font-size:11px;font-weight:400;line-height:1.4}
@@ -335,3 +341,4 @@ body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
   .page-head{padding:2px 12px 8px 20px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+body.profil-hors-page #elevationPanel{display:none}

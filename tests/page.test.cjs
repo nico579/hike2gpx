@@ -28,7 +28,11 @@ function charger(preferences = {}, documentGpx = null) {
       addEventListener(type, f) { (this.ecouteurs[type] ??= []).push(f); }, remove() { this.removed = true; },
       click() { for (const action of this.ecouteurs.click || []) action(); } };
   };
-  const couche = () => ({ handlers: {}, layers: [], addTo(parent) { this.addedTo = parent; parent.layers?.push(this); return this; }, bindPopup() { return this; }, bindTooltip() { return this; },
+  const couche = () => ({ handlers: {}, layers: [], addTo(parent) { this.addedTo = parent; parent.layers?.push(this); return this; },
+    // Un marqueur se déplace et ouvre sa bulle seulement en planification : ces deux états se lisent ici.
+    bindPopup() { this.popupLie = true; return this; }, unbindPopup() { this.popupLie = false; return this; },
+    dragging: { actif: true, enable() { this.actif = true; }, disable() { this.actif = false; } },
+    bindTooltip() { return this; },
     on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() { this.removed = true; }, closePopup() {} });
   const carte = { handlers: {}, zoom: 14, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; },
     fitBounds(bounds, options) { this.fit = { bounds, options }; return this; },
@@ -130,6 +134,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
+    + " basculerPartage, enregistrerReglages,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -316,44 +321,57 @@ test("supprimer une case depuis l'onglet retire le routage seul, pas les fonds",
     { case: "E5_N40", fonds: false });
 });
 
-test("le partage au téléphone s'ouvre à la demande, montre son QR code et se ferme", async () => {
-  const { elements, requetes } = charger();
+test("le partage s'ouvre depuis le volet : son QR code, son état dans le volet, de quoi l'arrêter", async () => {
+  const { page, elements, requetes } = charger();
   const attendre = () => new Promise((fin) => setImmediate(fin));
-  elements.get("partagerTelephone").click();
+  page.basculerPartage(true, { lots: ["E5_N40"], carres: [] });
   const ouverture = requetes.findLast((r) => r.url === "/api/partage");
-  assert.deepEqual(JSON.parse(ouverture.options.body), { ouvrir: true });
+  assert.deepEqual(JSON.parse(ouverture.options.body), { ouvrir: true, lots: ["E5_N40"], carres: [] });
   repondre(ouverture, { ouvert: true, url: "http://192.168.1.20:8799/depot/catalog.json", qr: "<svg>qr</svg>",
     lien: "hike2gpx://depot?url=…", lots: ["E5_N40"], fonds: ["E5_N40-scan25"], octets: 412e6 });
   await attendre();
   assert.equal(elements.get("partageQr").innerHTML, "<svg>qr</svg>");
-  assert.equal(elements.get("partageOuvert").hidden, false);
-  assert.equal(elements.get("partagerTelephone").hidden, true);
-  assert.match(elements.get("partageTexte").textContent,
+  assert.match(elements.get("partageFenetreTexte").textContent,
     /^Partagé : 1 zone de carte et 1 zone de routage, 412 Mo\. .*« Gestion des cartes », puis « Scanner le QR code d’un PC »/);
-  // Le QR code s'ouvre dans sa fenêtre, comme lidar2map ; Fermer la cache, « Afficher le QR code » la rouvre.
+  // Le QR code s'ouvre dans sa fenêtre, comme lidar2map ; Fermer la cache, le volet la rouvre.
   assert.equal(elements.get("partageFenetre").hidden, false);
+  assert.equal(elements.get("arreterPartageFenetre").hidden, false);
   elements.get("fermerFenetrePartage").click();
   assert.equal(elements.get("partageFenetre").hidden, true);
-  elements.get("revoirQr").click();
+  // Le partage reste ouvert : le volet le dit, et propose le QR code et l'arrêt.
+  assert.equal(elements.get("hlPartage").hidden, false);
+  assert.equal(elements.get("hlPartageTexte").textContent,
+    "Partage ouvert : 1 zone de carte et 1 zone de routage, 412 Mo.");
+  elements.get("hlPartageQr").click();
   assert.equal(elements.get("partageFenetre").hidden, false);
-  elements.get("fermerPartage").click();
+  elements.get("hlPartageArreter").click();
   const fermeture = requetes.findLast((r) => r.url === "/api/partage");
   assert.deepEqual(JSON.parse(fermeture.options.body), { ouvrir: false });
   repondre(fermeture, { ouvert: false });
   await attendre();
   assert.equal(elements.get("partageQr").innerHTML, "", "le QR code s'efface : son jeton ne vaut plus");
-  assert.equal(elements.get("partageOuvert").hidden, true);
-  assert.equal(elements.get("partageTexte").hidden, true);
+  assert.equal(elements.get("hlPartage").hidden, true);
   assert.equal(elements.get("partageFenetre").hidden, true, "partage fermé : plus de fenêtre");
 });
 
+test("un partage refusé s'affiche dans sa fenêtre, sans QR code ni bouton d'arrêt", async () => {
+  const { page, elements, requetes } = charger();
+  page.basculerPartage(true, { lots: ["E5_N40"], carres: [] });
+  repondre(requetes.findLast((r) => r.url === "/api/partage"), { ouvert: false, erreur: "Pas de réseau local." });
+  await tic();
+  assert.equal(elements.get("partageFenetre").hidden, false);
+  assert.equal(elements.get("partageFenetreTexte").textContent, "Partage impossible : Pas de réseau local.");
+  assert.equal(elements.get("arreterPartageFenetre").hidden, true);
+  assert.equal(elements.get("hlPartage").hidden, true);
+});
+
 test("le texte du partage ne nomme que ce qui est partagé, et la bonne page du téléphone", async () => {
-  const { elements, requetes } = charger();
+  const { page, elements, requetes } = charger();
   const ouvrir = async (r) => {
-    elements.get("partagerTelephone").click();
+    page.basculerPartage(true, { lots: [], carres: [] });
     repondre(requetes.findLast((q) => q.url === "/api/partage"), { ouvert: true, qr: "<svg/>", ...r });
     await tic();
-    return elements.get("partageTexte").textContent;
+    return elements.get("partageFenetreTexte").textContent;
   };
   // Des cartes seules : pas de « 0 zone de routage ».
   assert.match(await ouvrir({ lots: [], fonds: ["N43E005-scan25", "N43E006-scan25"], octets: 1.7e9 }),
@@ -363,6 +381,34 @@ test("le texte du partage ne nomme que ce qui est partagé, et la bonne page du 
     /^Partagé : 1 zone de routage, 248 Mo\. .*« Gestion des itinéraires »/);
   assert.equal(await ouvrir({ lots: [], fonds: [], octets: 0 }),
     "Rien à partager : ce PC n’a ni zone de carte ni zone de routage.");
+});
+
+test("les réglages s'enregistrent à la fermeture de leur page, seulement s'ils ont changé", async () => {
+  const { page, document, requetes } = charger();
+  page.etat.cleIgn = "ancienne";
+  page.etat.renouvellementJours = 30;
+  document.getElementById("cleIgn").value = "ancienne";
+  document.getElementById("renouvellementJours").value = "30";
+  const avant = requetes.length;
+  const envois = () => requetes.filter((r) => r.url === "/api/reglages").length;
+  const initiaux = envois();
+  await page.enregistrerReglages();
+  assert.equal(requetes.length, avant, "rien n'a changé : rien n'est envoyé");
+  // Une nouvelle clé et un délai : un seul envoi, et les champs gardent ce que le serveur a retenu.
+  document.getElementById("cleIgn").value = "nouvelle";
+  document.getElementById("renouvellementJours").value = "45";
+  const envoi = page.enregistrerReglages();
+  const requete = requetes.findLast((r) => r.url === "/api/reglages");
+  assert.deepEqual(JSON.parse(requete.options.body), { cle_ign: "nouvelle", renouvellement_jours: 45 });
+  repondre(requete, { cle_ign: "nouvelle", renouvellement_jours: 45 });
+  await envoi;
+  assert.equal(page.etat.cleIgn, "nouvelle");
+  assert.equal(page.etat.renouvellementJours, 45);
+  // Un délai impossible est abandonné : le champ revient à la valeur enregistrée.
+  document.getElementById("renouvellementJours").value = "9999";
+  await page.enregistrerReglages();
+  assert.equal(document.getElementById("renouvellementJours").value, 45);
+  assert.equal(envois(), initiaux + 1, "pas de second envoi");
 });
 
 test("le volet de la grille partage sa sélection seule au téléphone", async () => {
@@ -434,14 +480,14 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   page.traceGpxImporte.addTo(carte);
   page.construireFonds();
   assert.equal(page.controle().calques["2026-09-20_09-03"], page.traceGpxImporte);
-  assert.equal(elements.get("chargerGpx").textContent, "Supprimer le GPX");
+  assert.equal(elements.get("chargerGpxTexte").textContent, "Supprimer le GPX");
   assert.equal(page.etat.points.length, 0);
   assert.equal(stockage.has("hike2gpx.points"), false);
   elements.get("chargerGpx").click();
   assert.equal(page.traceGpxImporte.layers.length, 0);
   assert.equal(page.controle().calques["2026-09-20_09-03"], undefined);
   assert.equal(elements.get("legendGpx").hidden, true);
-  assert.equal(elements.get("chargerGpx").textContent, "Charger un GPX");
+  assert.equal(elements.get("chargerGpxTexte").textContent, "Charger un GPX");
 });
 
 test("un GPX invalide conserve le tracé précédemment chargé", async () => {
@@ -1032,7 +1078,8 @@ test("« Zones stockées localement » liste les lots installés, comme le tél�
   const [texte, maj, supprimer] = ligne.enfants;
   assert.equal(texte.textContent, "E5_N40 · enrichi IGN · 248 Mo");
   assert.equal(maj.textContent, "Mettre à jour", "le serveur en publie un plus récent");
-  assert.equal(supprimer.textContent, "Supprimer");
+  assert.equal(supprimer.enfants[1].textContent, "Supprimer", "un bouton à icône : pictogramme, puis texte");
+  assert.match(supprimer.className, /zone-supprimer/, "le bouton rouge du volet");
   // Supprimer : après confirmation, le routage seul, pas les fonds du carré.
   confirmations.reponse = true;
   supprimer.click();
@@ -1067,6 +1114,21 @@ test("un clic sur la carte ne pose un point qu'en planification, comme sur le t�
   page.planifier(false);
   carte.handlers.click({ latlng: { lat: 43.31, lng: 6.01 } });
   assert.equal(page.etat.points.length, 1);
+  // Le tracé reste, mais ses points ne se déplacent plus et n'ont plus de bulle « Retirer ».
+  const marqueur = page.etat.points[0].marqueur;
+  assert.equal(marqueur.dragging.actif, false, "hors planification : pas de glissement");
+  assert.equal(marqueur.popupLie, false, "hors planification : pas de bulle");
+  page.planifier(true);
+  assert.equal(marqueur.dragging.actif, true, "planification reprise : le point se déplace");
+  assert.equal(marqueur.popupLie, true);
+});
+
+test("un clic sur la carte le dit à la page, que la planification soit active ou non", () => {
+  const { carte, evenements } = charger();
+  const avant = evenements.filter((t) => t === "hike2gpx:carte-cliquee").length;
+  carte.handlers.click({ latlng: { lat: 43.3, lng: 6 } });
+  assert.equal(evenements.filter((t) => t === "hike2gpx:carte-cliquee").length, avant + 1,
+    "presentation.js en profite pour refermer la recherche de ville");
 });
 
 test("revenir au départ ferme la boucle, une seule fois", () => {
@@ -1352,7 +1414,7 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
   });
   let controles = elements.get("donnees").enfants[0];
   let bouton = controles.enfants[0];
-  assert.equal(bouton.textContent, "Vider le cache");
+  assert.equal(bouton.enfants[1].textContent, "Vider le cache", "pictogramme, puis texte");
   assert.match(controles.enfants[1].enfants[0].textContent, /IGN LiDAR HD|gpx2elev/);
   assert.match(controles.enfants[1].enfants[0].textContent, /tuiles des fonds de carte/);
   assert.equal(bouton.disabled, true);
@@ -1367,6 +1429,6 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
   const envoi = requetes.find((r) => r.url === "/api/donnees");
   assert.deepEqual(JSON.parse(envoi.options.body), { action: "vider_cache", cible: null });
   page.appliquerLangue("en");
-  assert.equal(elements.get("donnees").enfants[0].enfants[0].textContent, "Clear cache");
+  assert.equal(elements.get("donnees").enfants[0].enfants[0].enfants[1].textContent, "Clear cache");
   assert.match(elements.get("donnees").enfants[0].enfants[1].enfants[0].textContent, /BRouter data/);
 });

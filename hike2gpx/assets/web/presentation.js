@@ -130,8 +130,14 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     offline.hidden = !anchor;
   }
   // Une page du menu, ou aucune ("") : la carte seule.
+  let profilPret = false;                          // vrai quand le bandeau d'altitude est initialisé
+  const routeSummary = document.getElementById("routeSummary");
+  const result = document.getElementById("resultat");
   function selectPane(name, remember = true) {
     const open = pageNames.includes(name);
+    const previous = document.querySelector("[data-pane][aria-current=page]")?.dataset.pane;
+    // Les réglages s'enregistrent quand on quitte leur page (app.js : enregistrerReglages).
+    if (previous === "reglages" && name !== "reglages") document.dispatchEvent(new CustomEvent("hike2gpx:reglages-fermes"));
     for (const tab of tabs) {
       const selected = tab.dataset.pane === name;
       if (selected) tab.setAttribute("aria-current", "page");
@@ -146,6 +152,9 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       pageTitle.textContent = t(`menu.${name}`);
     }
     setPanelCollapsed(!open);
+    routeSummary.hidden = result.hidden || name !== "trace";
+    document.body.classList.toggle("profil-hors-page", name !== "trace");
+    if (profilPret) syncProfileHeight();
     panel.querySelector(".panel-scroll").scrollTop = 0;
     if (name === "reglages") chargerDonnees();
     if (name === "itineraires") chargerLots();      // la liste des zones stockées localement
@@ -174,13 +183,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   menuButton.addEventListener("click", () => setMenuOpen(menu.hidden));
   menuBackdrop.addEventListener("click", () => setMenuOpen(false));
   document.getElementById("aide").addEventListener("click", () => setMenuOpen(false));
-  // « Partager au téléphone » : ouvre le partage et montre son QR code, ou le
-  // remontre s'il est déjà ouvert. Les mêmes boutons que dans les réglages.
-  document.getElementById("menuPartage").addEventListener("click", () => {
-    setMenuOpen(false);
-    const open = !document.getElementById("partageOuvert").hidden;
-    document.getElementById(open ? "revoirQr" : "partagerTelephone").click();
-  });
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !menu.hidden) {
       setMenuOpen(false);
@@ -212,12 +214,11 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     setSearchOpen(search.hidden);
   });
   document.addEventListener("hike2gpx:recherche-aboutie", () => setSearchOpen(false));
+  document.addEventListener("hike2gpx:carte-cliquee", () => setSearchOpen(false));
   setSearchOpen(false);
   let savedPage = "";
   try { savedPage = localStorage.getItem(pagePreference) || ""; } catch (error) {}
   selectPane(savedPage, false);
-  const routeSummary = document.getElementById("routeSummary");
-  const result = document.getElementById("resultat");
   const elevationPanel = document.getElementById("elevationPanel");
   const elevationToggle = document.getElementById("elevationToggle");
   const elevationContent = document.getElementById("elevationContent");
@@ -254,7 +255,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   }
   syncCollapsedMetrics();
   function syncProfileHeight() {
-    const visible = !elevationPanel.hidden && !hideElevation.checked;
+    // Le bandeau, comme le résumé, ne vit que dans « Planifier un itinéraire ».
+    const visible = !elevationPanel.hidden && !hideElevation.checked && !document.body.classList.contains("profil-hors-page");
     document.body.classList.toggle("profile-open", visible && !elevationContent.hidden);
     document.body.classList.toggle("profile-collapsed", visible && elevationContent.hidden);
   }
@@ -270,12 +272,14 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     syncElevationVisibility();
   });
   syncElevationVisibility();
+  profilPret = true;
   function syncRoute() {
     // L'export est désactivé dès qu'un point change, pendant que le nouveau
     // parcours se calcule. Garder le profil précédent en place jusque-là.
     const ready = !result.hidden;
     const wasVisible = !elevationPanel.hidden;
-    routeSummary.hidden = !ready;
+    // Les chiffres du parcours ne vivent que dans « Planifier un itinéraire » ; le tracé reste sur la carte.
+    routeSummary.hidden = !ready || document.querySelector("[data-pane][aria-current=page]")?.dataset.pane !== "trace";
     elevationPanel.hidden = !ready;
     if (!ready) {
       profilePoints = [];
