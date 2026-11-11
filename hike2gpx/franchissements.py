@@ -802,56 +802,89 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
             "jonctions": jonctions_manquees(chemins, sud, ouest, nord, est)}
 
 
-# Un chemin qui finit à moins de cette distance d'un autre sans le toucher :
-# au-delà, c'est un cul-de-sac ordinaire (un point de vue, le bord d'un lac),
-# il y en a des milliers par case. Le seuil ne dit pas ce qui est raccordé, il
-# choisit ce qu'on signale.
-SEUIL_JONCTION_M = 15.0
+# Ce qui gêne vraiment le calcul (règle de Nico, 2026-11-11, après un premier
+# seuil unique de 15 m qui jaunissait la carte d'impasses) :
+# - un chemin relié à aucun autre est inaccessible : le calcul ne peut même pas
+#   y entrer. S'il passe tout près d'un autre chemin, à SEUIL_ISOLE_M au plus,
+#   c'est sans doute un raccord oublié ;
+# - un chemin déjà relié ailleurs reste accessible : s'il s'arrête à quelques
+#   mètres d'un autre, c'est une impasse (une allée, un accès), qui ne gêne
+#   aucun itinéraire. Seul un bout à SEUIL_RELIE_M au plus, une accroche ratée à
+#   la saisie, coupe un passage qui devait exister.
+SEUIL_ISOLE_M = 6.0         # « à 5 m », avec la marge du cas du Québec (5,1 m)
+SEUIL_RELIE_M = 1.0
 _NIVEAUX = ("bridge", "tunnel", "layer")       # un croisement à des niveaux différents n'est pas un raccord oublié
 
 
 def jonctions_manquees(chemins: dict, sud: float, ouest: float, nord: float, est: float) -> list:
-    """Les bouts de chemins praticables qui s'arrêtent tout près d'un autre
-    chemin sans partager de nœud avec lui : dans OSM, deux voies ne
-    communiquent que par un nœud commun, et le calcul ne passe pas d'une voie
-    à l'autre sans lui. C'est le contrôle « way end node near other highway »
-    de JOSM, la « jonction presque faite » d'Osmose. chemins : {id: (tags,
-    nœuds, points (lat, lon))}, toutes les voies « highway » de la zone ; ne
-    sont rendus que les bouts situés dans la zone. Un chemin qui en rejoint
-    déjà un autre plus loin n'est pas écarté : seul ce bout-ci compte."""
+    """Les raccords oubliés entre chemins praticables : dans OSM, deux voies ne
+    communiquent que par un nœud commun, et le calcul ne passe pas de l'une à
+    l'autre sans lui. Deux cas, ceux qui gênent un itinéraire (voir
+    SEUIL_ISOLE_M) : un chemin relié à rien qui passe tout près d'un autre, et
+    le bout libre d'un chemin relié qui s'arrête presque contre un autre
+    (le contrôle « way end node near other highway » de JOSM, la « jonction
+    presque faite » d'Osmose). chemins : {id: (tags, nœuds, points (lat, lon))},
+    toutes les voies « highway » de la zone ; ne sont rendus que les points
+    situés dans la zone. Chaque point dit s'il vient d'un chemin isolé."""
     import shapely
+    import shapely.ops
 
     praticables = [(ident, c) for ident, c in chemins.items() if _praticable(c[0])]
     if not praticables:
         return []
     # Un nœud de degré 1 n'appartient qu'à une voie, une seule fois : un bout libre.
     degres = Counter(n for _, noeuds, _ in chemins.values() for n in noeuds)
+    # Le nombre de voies distinctes qui passent par chaque nœud : une voie dont
+    # aucun nœud n'est partagé n'est reliée à rien.
+    voies_du_noeud = Counter(n for _, noeuds, _ in chemins.values() for n in set(noeuds))
     metres_lat = 111_320.0
     metres_lon = metres_lat * math.cos(math.radians((sud + nord) / 2))
     lignes = [shapely.LineString([(lon * metres_lon, lat * metres_lat) for lat, lon in points])
               for _, (_, _, points) in praticables]
     arbre = shapely.STRtree(lignes)
+
+    def dans_la_zone(lat, lon):
+        return sud <= lat <= nord and ouest <= lon <= est
+
+    def voisine(rang, forme, seuil, siens):
+        """La voie praticable la plus proche de forme, à seuil au plus : ni elle-même,
+        ni une voie qu'elle touche déjà, ni un pont ou un tunnel."""
+        meilleur = None
+        for autre in arbre.query(forme.buffer(seuil)):
+            autres_tags, autres_noeuds = praticables[autre][1][0], praticables[autre][1][1]
+            if autre == rang or any(cle in autres_tags for cle in _NIVEAUX) or siens & set(autres_noeuds):
+                continue
+            distance = float(lignes[autre].distance(forme))
+            if distance <= seuil and (meilleur is None or distance < meilleur[0]):
+                meilleur = (distance, autre)
+        return meilleur
+
     trouvees = []
+    paires = set()          # deux chemins isolés l'un près de l'autre : un seul point pour le même raccord
     for rang, (ident, (tags, noeuds, points)) in enumerate(praticables):
-        if noeuds[0] == noeuds[-1] or any(cle in tags for cle in _NIVEAUX):
+        if any(cle in tags for cle in _NIVEAUX):
             continue
         siens = set(noeuds)
+        if all(voies_du_noeud[n] == 1 for n in siens):
+            # Relié à rien : n'importe quel point du tracé peut passer près d'un autre.
+            meilleur = voisine(rang, lignes[rang], SEUIL_ISOLE_M, siens)
+            if meilleur and frozenset((rang, meilleur[1])) not in paires:
+                paires.add(frozenset((rang, meilleur[1])))
+                proche = shapely.ops.nearest_points(lignes[rang], lignes[meilleur[1]])[0]
+                lat, lon = proche.y / metres_lat, proche.x / metres_lon
+                if dans_la_zone(lat, lon):
+                    trouvees.append({"cle": f"jonction-{ident}-isole", "lat": round(lat, 6), "lon": round(lon, 6),
+                                     "voie": ident, "vers": praticables[meilleur[1]][0],
+                                     "distance_m": round(meilleur[0], 1), "osm": f"way/{ident}", "isole": True})
+            continue
+        if noeuds[0] == noeuds[-1]:
+            continue
         for noeud, (lat, lon) in ((noeuds[0], points[0]), (noeuds[-1], points[-1])):
-            if degres[noeud] != 1 or not (sud <= lat <= nord and ouest <= lon <= est):
+            if degres[noeud] != 1 or not dans_la_zone(lat, lon):
                 continue
-            bout = shapely.Point(lon * metres_lon, lat * metres_lat)
-            meilleur = None
-            for autre in arbre.query(bout.buffer(SEUIL_JONCTION_M)):
-                autre_id, (autres_tags, autres_noeuds, _) = praticables[autre]
-                # Ni lui-même, ni une voie qu'il touche déjà (l'amorce d'une
-                # impasse reste près de la rue d'où elle part), ni un pont.
-                if autre == rang or any(cle in autres_tags for cle in _NIVEAUX) or siens & set(autres_noeuds):
-                    continue
-                distance = float(lignes[autre].distance(bout))
-                if distance <= SEUIL_JONCTION_M and (meilleur is None or distance < meilleur[0]):
-                    meilleur = (distance, autre_id)
+            meilleur = voisine(rang, shapely.Point(lon * metres_lon, lat * metres_lat), SEUIL_RELIE_M, siens)
             if meilleur:
                 trouvees.append({"cle": f"jonction-{ident}-{noeud}", "lat": round(lat, 6), "lon": round(lon, 6),
-                                 "voie": ident, "vers": meilleur[1], "distance_m": round(meilleur[0], 1),
-                                 "osm": f"way/{ident}"})
+                                 "voie": ident, "vers": praticables[meilleur[1]][0],
+                                 "distance_m": round(meilleur[0], 1), "osm": f"way/{ident}", "isole": False})
     return trouvees
