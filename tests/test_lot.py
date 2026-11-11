@@ -123,7 +123,7 @@ def test_lire_calque_rend_le_format_de_la_page(tmp_path):
         calques.ajouter_bloc(x, y, couches)
     calques.fermer()
     osm = lot.lire_calque(chemin, "osm", 43.299, 5.999, 43.303, 6.005)
-    assert set(osm) == {"voies", "barrieres", "franchissements"}
+    assert set(osm) == {"voies", "barrieres", "franchissements", "jonctions"}
     assert {v["genre"] for v in osm["voies"]} == {"sentier"} and osm["barrieres"] == []
     debut = min((p for v in osm["voies"] for p in v["pts"]), key=lambda p: p[1])
     assert debut[0] == pytest.approx(43.300, abs=1e-5) and debut[1] == pytest.approx(6.000, abs=1e-5)

@@ -279,7 +279,8 @@ def boite_case(nom: str) -> tuple:
 
 
 # Calque de la page -> couches du lot qui le composent.
-CALQUES = {"osm": ("voies", "barrieres", "franchissements")}
+# « jonctions » : les chemins non raccordés ; un lot fabriqué avant cette couche n'en a pas.
+CALQUES = {"osm": ("voies", "barrieres", "franchissements", "jonctions")}
 
 
 def couche_officielle(calque: str) -> str:

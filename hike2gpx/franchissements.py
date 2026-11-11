@@ -769,7 +769,7 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
     piéton, telles que les tuiles Overpass les connaissent, pour le calque des
     chemins OSM. Une bordure de trottoir n'y figure pas : elle se franchit.
     suivi(faites, total), tuile après tuile, pour la barre de la page."""
-    voies, barrieres, franchissements = {}, {}, []
+    voies, barrieres, franchissements, chemins = {}, {}, [], {}
     continuer = options.get("continuer", _toujours)
     suivi = options.pop("suivi", None)
     tuiles = _couvertes_d_abord(tuiles_zone(sud, ouest, nord, est), dossier)
@@ -785,6 +785,8 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
                 continue
             tags = e.get("tags", {})
             ligne = [[round(lat, 6), round(lon, 6)] for lat, lon in points]
+            if "highway" in tags:
+                chemins[e["id"]] = (tags, e["nodes"], points)
             if _praticable(tags):
                 voies[e["id"]] = {"id": e["id"], "genre": GENRES.get(tags["highway"], "route"), "pts": ligne}
             elif "barrier" in tags and "highway" not in tags and regles.status(tags, MODE)[0] != "passable":
@@ -796,4 +798,60 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
         if suivi:
             suivi(k + 1, len(tuiles))
     return {"voies": list(voies.values()), "barrieres": list(barrieres.values()),
-            "franchissements": franchissements}
+            "franchissements": franchissements,
+            "jonctions": jonctions_manquees(chemins, sud, ouest, nord, est)}
+
+
+# Un chemin qui finit à moins de cette distance d'un autre sans le toucher :
+# au-delà, c'est un cul-de-sac ordinaire (un point de vue, le bord d'un lac),
+# il y en a des milliers par case. Le seuil ne dit pas ce qui est raccordé, il
+# choisit ce qu'on signale.
+SEUIL_JONCTION_M = 15.0
+_NIVEAUX = ("bridge", "tunnel", "layer")       # un croisement à des niveaux différents n'est pas un raccord oublié
+
+
+def jonctions_manquees(chemins: dict, sud: float, ouest: float, nord: float, est: float) -> list:
+    """Les bouts de chemins praticables qui s'arrêtent tout près d'un autre
+    chemin sans partager de nœud avec lui : dans OSM, deux voies ne
+    communiquent que par un nœud commun, et le calcul ne passe pas d'une voie
+    à l'autre sans lui. C'est le contrôle « way end node near other highway »
+    de JOSM, la « jonction presque faite » d'Osmose. chemins : {id: (tags,
+    nœuds, points (lat, lon))}, toutes les voies « highway » de la zone ; ne
+    sont rendus que les bouts situés dans la zone. Un chemin qui en rejoint
+    déjà un autre plus loin n'est pas écarté : seul ce bout-ci compte."""
+    import shapely
+
+    praticables = [(ident, c) for ident, c in chemins.items() if _praticable(c[0])]
+    if not praticables:
+        return []
+    # Un nœud de degré 1 n'appartient qu'à une voie, une seule fois : un bout libre.
+    degres = Counter(n for _, noeuds, _ in chemins.values() for n in noeuds)
+    metres_lat = 111_320.0
+    metres_lon = metres_lat * math.cos(math.radians((sud + nord) / 2))
+    lignes = [shapely.LineString([(lon * metres_lon, lat * metres_lat) for lat, lon in points])
+              for _, (_, _, points) in praticables]
+    arbre = shapely.STRtree(lignes)
+    trouvees = []
+    for rang, (ident, (tags, noeuds, points)) in enumerate(praticables):
+        if noeuds[0] == noeuds[-1] or any(cle in tags for cle in _NIVEAUX):
+            continue
+        siens = set(noeuds)
+        for noeud, (lat, lon) in ((noeuds[0], points[0]), (noeuds[-1], points[-1])):
+            if degres[noeud] != 1 or not (sud <= lat <= nord and ouest <= lon <= est):
+                continue
+            bout = shapely.Point(lon * metres_lon, lat * metres_lat)
+            meilleur = None
+            for autre in arbre.query(bout.buffer(SEUIL_JONCTION_M)):
+                autre_id, (autres_tags, autres_noeuds, _) = praticables[autre]
+                # Ni lui-même, ni une voie qu'il touche déjà (l'amorce d'une
+                # impasse reste près de la rue d'où elle part), ni un pont.
+                if autre == rang or any(cle in autres_tags for cle in _NIVEAUX) or siens & set(autres_noeuds):
+                    continue
+                distance = float(lignes[autre].distance(bout))
+                if distance <= SEUIL_JONCTION_M and (meilleur is None or distance < meilleur[0]):
+                    meilleur = (distance, autre_id)
+            if meilleur:
+                trouvees.append({"cle": f"jonction-{ident}-{noeud}", "lat": round(lat, 6), "lon": round(lon, 6),
+                                 "voie": ident, "vers": meilleur[1], "distance_m": round(meilleur[0], 1),
+                                 "osm": f"way/{ident}"})
+    return trouvees

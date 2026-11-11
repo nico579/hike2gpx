@@ -47,7 +47,10 @@ base map you chose.
   view (Esri). A layer you can tick, from zoom 14,
   shows OpenStreetMap's paths (footpaths dashed), plus mapped fences, walls,
   blocked crossings and crossings to check. These remain visible without a
-  planned route.
+  planned route. A yellow marker also flags an unconnected path: it ends less
+  than 15 m from another one without touching it in OpenStreetMap, so routing
+  cannot go from one to the other; its popup gives the distance and opens the
+  OpenStreetMap editor.
 - **In France**: IGN's base maps, SCAN 25 (with an IGN key, see below), IGN
   Plan, aerial photos, and the LiDAR HD relief wherever IGN has published it.
   A second layer shows the paths of IGN's BD TOPO; next to OpenStreetMap's, it
