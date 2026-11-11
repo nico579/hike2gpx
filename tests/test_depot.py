@@ -167,3 +167,41 @@ def test_le_lot_du_serveur_se_telecharge_de_lui_meme(tmp_path, monkeypatch):
     (a.hors_ligne.racine / "E5_N40" / "origine.json").write_text("{}")
     a.supprimer_case({"case": "E5_N40"})
     assert a._lots_a_telecharger(a._catalogue[1], zone) == []
+
+
+# ------------------------------------------------------------------ fraîcheur du catalogue publié
+
+def _instant(texte):
+    import calendar
+    import time
+    return calendar.timegm(time.strptime(texte, "%Y-%m-%dT%H:%M:%SZ"))
+
+
+def _lot_osm(case, edition):
+    return {"case": case, "sources": {"osm": edition}}
+
+
+def test_la_fraicheur_signale_les_cases_absentes_et_les_lots_trop_vieux():
+    contenu = {"lots": [_lot_osm("E0_N45", "2026-11-09T21:21:36Z"),       # 2 jours : frais
+                        _lot_osm("E5_N45", "2026-10-20T21:21:36Z")]}      # 22 jours : trop vieux
+    lignes, problemes = depot.fraicheur(contenu, ["E0_N45", "E10_N45"], _instant("2026-11-11T12:00:00Z"), 14)
+    # Les cases du catalogue et celles attendues, triées ; une case absente n'a ni édition ni âge.
+    assert [l[0] for l in lignes] == ["E0_N45", "E10_N45", "E5_N45"]
+    assert round(lignes[0][2]) == 2 and lignes[1][1:] == (None, None)
+    assert problemes == ["E10_N45 : absent du catalogue", "E5_N45 : lot de 22 jours (plus de 14)"]
+    texte = depot.tableau_fraicheur(lignes, problemes, 14)
+    assert "| E10_N45 | absent | |" in texte and "22 j (!)" in texte
+
+
+def test_un_catalogue_frais_ne_signale_rien():
+    lignes, problemes = depot.fraicheur({"lots": [_lot_osm("W5_N40", "2026-11-08T21:21:00Z")]},
+                                        ["W5_N40"], _instant("2026-11-11T12:00:00Z"), 14)
+    assert problemes == [] and len(lignes) == 1
+    assert "Tous les lots ont moins de 14 jours." in depot.tableau_fraicheur(lignes, problemes, 14)
+
+
+def test_une_edition_illisible_est_signalee_sans_passer_pour_absente():
+    lignes, problemes = depot.fraicheur({"lots": [{"case": "E0_N40", "sources": {}}]}, [], 0.0, 14)
+    assert lignes == [("E0_N40", "?", None)]
+    assert problemes == ["E0_N40 : édition OSM illisible (None)"]
+    assert "| E0_N40 | ? | ? (!) |" in depot.tableau_fraicheur(lignes, problemes, 14)

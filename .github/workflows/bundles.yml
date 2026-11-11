@@ -285,7 +285,8 @@ jobs:
           key: ${{ needs.zabaged.outputs.cle }}
 
       - name: Télécharger les données de la case
-        run: python -m hike2gpx bundles "$CASE" --bulk --stage data --output "$RUNNER_TEMP/lots"
+        # Trois passages : une panne passagère ne perd plus la case (.github/reessayer.sh).
+        run: bash .github/reessayer.sh 3 python -m hike2gpx bundles "$CASE" --bulk --stage data --output "$RUNNER_TEMP/lots"
 
       - name: Ne garder que les régions de la case
         run: |
@@ -388,7 +389,8 @@ jobs:
       - name: Calculer la case
         # Fusion, RD5 et relief ; les calques suivent sur PARTS machines. Un lot
         # OSM, sans rien à répartir, se fait ici en entier.
-        run: python -m hike2gpx bundles "$CASE" --bulk --stage compute --output "$RUNNER_TEMP/lots"
+        # Deux passages seulement : le calcul est long, et ses vraies erreurs se répètent.
+        run: bash .github/reessayer.sh 2 python -m hike2gpx bundles "$CASE" --bulk --stage compute --output "$RUNNER_TEMP/lots"
 
       - name: Publier le relief
         if: env.RELIEF_PUBLIE != '1' && env.PUBLIER == 'true'
@@ -458,7 +460,8 @@ jobs:
           path: ${{ runner.temp }}/lots
 
       - name: Calques, part ${{ matrix.part }}/4
-        run: python -m hike2gpx bundles "$CASE" --bulk --stage layers --part ${{ matrix.part }}/4 --output "$RUNNER_TEMP/lots"
+        # Un extrait manquant se retélécharge ici aussi (E10_N50, 2026-11-11) : trois passages.
+        run: bash .github/reessayer.sh 3 python -m hike2gpx bundles "$CASE" --bulk --stage layers --part ${{ matrix.part }}/4 --output "$RUNNER_TEMP/lots"
 
       - name: Garder la part
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -514,7 +517,7 @@ jobs:
 
       - name: Assembler le lot
         # Refuse de finir si une part manque : jamais de calques à trous.
-        run: python -m hike2gpx bundles "$CASE" --bulk --stage finish --part 4/4 --output "$RUNNER_TEMP/lots"
+        run: bash .github/reessayer.sh 3 python -m hike2gpx bundles "$CASE" --bulk --stage finish --part 4/4 --output "$RUNNER_TEMP/lots"
 
       - name: Garder le lot pour la publication
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -527,7 +530,7 @@ jobs:
           retention-days: 1
 
   publier:
-    needs: fin
+    needs: [liste, fin]
     # Les cases réussies sont publiées même si une autre a échoué ; jamais
     # depuis ce dépôt, où le workflow ne tourne qu'en essai.
     if: ${{ !cancelled() && github.repository != 'nico579/hike2gpx' }}
@@ -582,3 +585,18 @@ jobs:
             || gh release create bundles --repo "$GITHUB_REPOSITORY" --title "Lots hors ligne de hike2gpx" \
                  --notes "Lots hors ligne des cases BRouter, refaits chaque semaine. Catalogue : catalog.json."
           gh release upload bundles "$RUNNER_TEMP"/publication/* --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Fraîcheur des lots
+        # Un lot qui échoue chaque semaine reste publié, et le téléphone le croit
+        # à jour : sans ce contrôle, la dérive passerait inaperçue. Le tableau va
+        # dans le résumé du run ; une case demandée absente du catalogue, ou un
+        # lot de plus de 14 jours, fait échouer le run, et GitHub prévient.
+        env:
+          CASES: ${{ join(fromJSON(needs.liste.outputs.cases), ' ') }}
+        run: |
+          set +e
+          python -m hike2gpx freshness "$RUNNER_TEMP/publication/catalog.json" --cells "$CASES" --max-age 14 \
+            > "$RUNNER_TEMP/fraicheur.md"
+          statut=$?
+          tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/fraicheur.md"
+          exit "$statut"

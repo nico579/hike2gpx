@@ -6,6 +6,7 @@ import collections
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 from nico579_commons import environnement
@@ -78,6 +79,12 @@ def main(argv=None) -> int:
     catalogue.add_argument("bundles", type=Path, help="directory of built bundles, one per cell")
     catalogue.add_argument("--publish-dir", type=Path,
                            help="copy the files there, flat (CELL.name), with the catalog: ready for a GitHub release")
+    frais = sous.add_parser("freshness", help="check the age of the bundles of a catalog",
+                            description="Print, as Markdown, the OSM edition and age of each bundle of CATALOG and "
+                                        "of each expected cell; exit 1 if a cell is missing or a bundle too old.")
+    frais.add_argument("catalog", type=Path, help="catalog.json")
+    frais.add_argument("--cells", default="", help="expected cells, space separated")
+    frais.add_argument("--max-age", type=int, default=14, help="maximum age of a bundle, in days (default 14)")
     cellules = sous.add_parser("cells", help="list the BRouter cells touched by the national providers' countries",
                                description="Print, space separated, the 5° BRouter cells that the country of each "
                                            "national paths provider touches: the cells a bundle server builds.")
@@ -146,6 +153,12 @@ def main(argv=None) -> int:
         lus = json.loads(chemin.read_text(encoding="utf-8"))["lots"]
         print(f"{chemin} : {len(lus)} lots, {sum(l['octets'] for l in lus) / 1e6:.0f} Mo", flush=True)
         return 0
+    if args.commande == "freshness":
+        from . import depot
+        contenu = json.loads(args.catalog.read_text(encoding="utf-8"))
+        lignes, problemes = depot.fraicheur(contenu, args.cells.split(), time.time(), args.max_age)
+        print(depot.tableau_fraicheur(lignes, problemes, args.max_age), end="", flush=True)
+        return 1 if problemes else 0
     if args.commande == "analyser":
         liste = franchissements.franchissements_zone(args.sud, args.ouest, args.nord, args.est, dossier)
         compte = collections.Counter((f["statut"], f["nature"], f["raison"]) for f in liste)
