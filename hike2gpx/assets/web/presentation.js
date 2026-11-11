@@ -50,6 +50,64 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   try { savedTransparency = localStorage.getItem(transparencyPreference) ?? savedTransparency; } catch (error) {}
   setTransparency(savedTransparency);
   transparencySlider.addEventListener("input", () => setTransparency(transparencySlider.value, true));
+  // La largeur du panneau : une poignée sur son bord droit, mémorisée d'une session à l'autre.
+  // Toute la page suit --panneau (carte, boutons, profil), qui lit --largeur-panneau : une seule valeur à poser.
+  const handle = document.getElementById("poigneePanneau");
+  const widthPreference = "hike2gpx.panelWidth";
+  const defaultWidth = 392, minWidth = 300;
+  const maxWidth = () => Math.max(minWidth, Math.min(760, Math.round(window.innerWidth * 0.6)));
+  let panelWidth = defaultWidth;
+  function setPanelWidth(value, remember = false) {
+    const parsed = Number(value);
+    panelWidth = Number.isFinite(parsed) ? Math.max(minWidth, Math.min(maxWidth(), Math.round(parsed))) : defaultWidth;
+    document.documentElement.style.setProperty("--largeur-panneau", `${panelWidth}px`);
+    handle.setAttribute("aria-valuenow", String(panelWidth));
+    handle.setAttribute("aria-valuemin", String(minWidth));
+    handle.setAttribute("aria-valuemax", String(maxWidth()));
+    if (remember) {
+      try { localStorage.setItem(widthPreference, String(panelWidth)); } catch (error) {}
+    }
+  }
+  // La carte suit le panneau : Leaflet relit sa taille à chaque « resize », au plus une fois par image.
+  let resizePending = false;
+  function mapFollowsPanel() {
+    if (resizePending) return;
+    resizePending = true;
+    requestAnimationFrame(() => { resizePending = false; window.dispatchEvent(new Event("resize")); });
+  }
+  let savedWidth = defaultWidth;
+  try { savedWidth = localStorage.getItem(widthPreference) ?? savedWidth; } catch (error) {}
+  setPanelWidth(savedWidth);
+  handle.addEventListener("pointerdown", event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    document.body.classList.add("redimensionne");
+  });
+  handle.addEventListener("pointermove", event => {
+    if (!handle.hasPointerCapture(event.pointerId)) return;
+    setPanelWidth(event.clientX);
+    mapFollowsPanel();
+  });
+  const endDrag = event => {
+    if (!handle.hasPointerCapture(event.pointerId)) return;
+    handle.releasePointerCapture(event.pointerId);
+    document.body.classList.remove("redimensionne");
+    setPanelWidth(panelWidth, true);
+    mapFollowsPanel();
+  };
+  handle.addEventListener("pointerup", endDrag);
+  handle.addEventListener("pointercancel", endDrag);
+  handle.addEventListener("dblclick", () => { setPanelWidth(defaultWidth, true); mapFollowsPanel(); });
+  handle.addEventListener("keydown", event => {
+    const step = { ArrowLeft: -16, ArrowRight: 16 }[event.key];
+    if (step === undefined) return;
+    event.preventDefault();
+    setPanelWidth(panelWidth + step, true);
+    mapFollowsPanel();
+  });
+  // Une fenêtre qui rétrécit ne laisse pas un panneau plus large que son plafond.
+  window.addEventListener("resize", () => { if (panelWidth > maxWidth()) setPanelWidth(panelWidth); });
   // Sans page ouverte, le panneau s'efface : la carte reste seule, comme sur le téléphone.
   function setPanelCollapsed(collapsed) {
     document.body.classList.toggle("panel-collapsed", collapsed);

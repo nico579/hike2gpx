@@ -30,6 +30,7 @@ const TEXTES = {
     "menu.reglages": "Réglages",
     "menu.aide": "Aide",
     "menu.fermer": "Fermer",
+    "panneau.poignee": "Glisser pour changer la largeur du panneau (double-clic : largeur d’origine)",
     "cartes.fondTitre": "En ligne",
     "cartes.fondNote": "Les cartes servies par Internet : celles du pays affiché, puis celles du monde. La carte nationale suit le pays du centre de la carte. Le SCAN 25 demande la clé IGN des réglages.",
     "cartes.calquesTitre": "Superposition des chemins",
@@ -299,6 +300,7 @@ const TEXTES = {
     "menu.reglages": "Settings",
     "menu.aide": "Help",
     "menu.fermer": "Close",
+    "panneau.poignee": "Drag to resize the panel (double-click: default width)",
     "cartes.fondTitre": "Online",
     "cartes.fondNote": "Maps served over the Internet: those of the country shown, then those of the world. The national map follows the country at the map centre. SCAN 25 needs the IGN key from the settings.",
     "cartes.calquesTitre": "Path overlays",
@@ -669,6 +671,8 @@ function appliquerLangue(code) {
   for (const id of ["menuPrincipal", "menuButton"]) $(id).setAttribute("aria-label", t("menu.titre"));
   $("menuButton").title = t("menu.titre");
   $("pageFermer").title = t("menu.fermer");
+  $("poigneePanneau").title = t("panneau.poignee");
+  $("poigneePanneau").setAttribute("aria-label", t("panneau.poignee"));
   $("pageFermer").setAttribute("aria-label", t("menu.fermer"));
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
   lienAide();
