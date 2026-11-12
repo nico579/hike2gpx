@@ -81,13 +81,13 @@
     <!-- DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main -->
     <string name="legende_titre">Légende</string>
     <string name="legende_fermer">Masquer la légende</string>
-    <string name="legende_itineraire">itinéraire hike2gpx</string>
-    <string name="legende_chemins_officiels">chemins %1$s (tirets : sentiers)</string>
+    <string name="legende_osm">chemin OSM</string>
+    <string name="legende_chemins_officiels">chemin %1$s</string>
+    <string name="legende_itineraire">tracé itinéraire</string>
+    <string name="legende_barriere">clôture et mur</string>
     <string name="legende_bloque">franchissement bloquant</string>
     <string name="legende_verifier">franchissement à vérifier</string>
     <string name="legende_jonction">chemin non raccordé (à vérifier)</string>
-    <string name="legende_osm">chemins OSM (tirets : sentiers)</string>
-    <string name="legende_barriere">clôtures et murs connus d’OSM</string>
     <!-- FIN LEGENDE -->
 
     <string name="titre_lots">Zones stockées localement</string>

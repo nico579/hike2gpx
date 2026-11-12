@@ -4,16 +4,13 @@ window.HIKE2GPX_MAP_PROVIDERS.pl = {
   baseNames: { plTopo: { fr: "Carte topographique (Geoportal Pologne)",
     en: "Topographic map (Polish Geoportal)" } },
   paths: {
-    legendStyle: { borderTop: "3px dashed #b04a75" },
     overlay: "bdot10k_ds", source: "bdot10k_ds", label: "BDOT10k",
     name: { fr: "chemins BDOT10k (Pologne)", en: "BDOT10k paths (Poland)" },
-    legend: { fr: "portion sur un chemin BDOT10k absent d'OSM, à vérifier",
-              en: "section on a BDOT10k path missing from OSM, to check" },
     gpx: { fr: ", chemins BDOT10k © GUGiK", en: ", BDOT10k paths © GUGiK" },
     attribution: '© <a href="https://www.geoportal.gov.pl/">GUGiK / Geoportal Polska</a>',
-    draw({ L, groupe, donnees, rendu, texte }) {
+    draw({ couleur, L, groupe, donnees, rendu, texte }) {
       for (const troncon of donnees.troncons) {
-        L.polyline(troncon.pts, { color: "#b04a75", weight: 3, dashArray: "5 4", renderer: rendu })
+        L.polyline(troncon.pts, { color: couleur, weight: 3, dashArray: "5 4", renderer: rendu })
           .bindTooltip(texte(`${troncon.nature} (BDOT10k)`), { sticky: true }).addTo(groupe);
       }
     },

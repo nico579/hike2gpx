@@ -22,6 +22,12 @@ function charger(preferences = {}, documentGpx = null) {
       classList: { toggle(c, oui) { (oui ?? !classes.has(c)) ? classes.add(c) : classes.delete(c); },
         add: (c) => classes.add(c), contains: (c) => classes.has(c) },
       enfants: [], ecouteurs: {},
+      get children() { return this.enfants; },
+      querySelector(selecteur) {
+        const id = /data-legende="(\w+)"/.exec(selecteur)?.[1];
+        const cible = this.enfants.find((e) => e.dataset.legende === id);
+        return { before: (e) => { const i = this.enfants.indexOf(cible); this.enfants.splice(i < 0 ? this.enfants.length : i, 0, e); } };
+      },
       append(...e) { this.enfants.push(...e); }, replaceChildren(...e) { this.enfants = e; },
       after(...e) { this.suivants = e; },
       setAttribute(name, value) { this[name] = value; },
@@ -33,12 +39,13 @@ function charger(preferences = {}, documentGpx = null) {
     bindPopup() { this.popupLie = true; return this; }, unbindPopup() { this.popupLie = false; return this; },
     dragging: { actif: true, enable() { this.actif = true; }, disable() { this.actif = false; } },
     bindTooltip() { return this; },
-    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() { this.removed = true; }, closePopup() {} });
-  const carte = { handlers: {}, zoom: 14, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; },
+    on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() { this.removed = true; if (this.addedTo?.layers) this.addedTo.layers = this.addedTo.layers.filter((c) => c !== this); }, closePopup() {} });
+  const carte = { handlers: {}, layers: [], zoom: 14,
+    eachLayer(f) { const voir = (c) => { f(c); (c.layers || []).forEach(voir); }; this.layers.forEach(voir); }, setView(center, zoom) { this.center = center; this.viewZoom = zoom; return this; },
     fitBounds(bounds, options) { this.fit = { bounds, options }; return this; },
     on(name, handler) { const precedent = this.handlers[name]; this.handlers[name] = precedent
       ? (...args) => { precedent(...args); handler(...args); } : handler; }, createPane() { return { style: {} }; },
-    hasLayer() { return false; }, getZoom() { return this.zoom; }, setZoom(zoom) { this.zoom = zoom; return this; },
+    hasLayer(c) { return this.layers.includes(c); }, getZoom() { return this.zoom; }, setZoom(zoom) { this.zoom = zoom; return this; },
     invalidateSize() {},
     fire(name, e) { this.handlers[name]?.(e); },
     closePopup() { this.popup = null; },
@@ -55,6 +62,15 @@ function charger(preferences = {}, documentGpx = null) {
     const tab = element();
     tab.dataset.i18n = cle;
     elements.set(id, tab);
+  }
+  const lignesLegende = elements.get("legendRows") || element();
+  elements.set("legendRows", lignesLegende);
+  const html = fs.readFileSync(path.join(__dirname, "..", "hike2gpx", "assets", "web", "index.html"), "utf8");
+  for (const [, id] of html.matchAll(/<li data-legende="(\w+)" hidden>/g)) {
+    const ligne = element();
+    ligne.dataset.legende = id;
+    ligne.hidden = true;
+    lignesLegende.enfants.push(ligne);
   }
   // Le DOM initial reproduit la valeur cochée dans index.html.
   const strict = element();
@@ -81,7 +97,7 @@ function charger(preferences = {}, documentGpx = null) {
     navigator: { clipboard: { async writeText(texte) { pressePapiers.push(texte); } } },
     setTimeout(callback, ms) { minuteurs.push({ callback, ms }); return minuteurs.length; },
     clearTimeout(id) { if (minuteurs[id - 1]) minuteurs[id - 1].annule = true; },
-    setInterval() { return 1; }, clearInterval() {},
+    setInterval() { return 1; }, clearInterval() {}, requestAnimationFrame(f) { f(); },
      L: { map() { return carte; }, layerGroup: couche, canvas: couche,
        popup: (options) => ({ options, setLatLng(latlng) { this.latlng = latlng; return this; },
          setContent(content) { this.content = content; return this; },
@@ -134,7 +150,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
-    + " basculerPartage, enregistrerReglages,"
+    + " basculerPartage, enregistrerReglages, majLegende, coucheCalque,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -146,6 +162,10 @@ function resultat(lonArrivee) {
     geometry: { type: "LineString", coordinates: [[6, 43.3, 0], [lonArrivee, 43.3, 0]] } },
     franchissements: [], sur_le_trace: [], portions_ign: [], longueur_m: 809, denivele_m: 0, duree_s: 0.1 };
 }
+
+const ligneLegende = (elements, id) => elements.get("legendRows").enfants.find((l) => l.dataset.legende === id);
+const legendeVisible = (elements) => elements.get("legendRows").enfants.filter((l) => !l.hidden)
+  .map((l) => l.dataset.legende || l.dataset.mapOverlay);
 
 const repondre = (requete, corps) => requete.resolve({ ok: true, json: async () => corps });
 
@@ -473,7 +493,8 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   assert.equal(JSON.stringify(carte.fit.bounds), "[[43.3,6],[43.31,6.02]]");
   assert.deepEqual(Object.keys(page.controle().calques),
     ["OSM", "IGN", "2026-09-20_09-03"]);
-  assert.equal(elements.get("legendGpx").hidden, false);
+  page.majLegende();
+  assert.equal(ligneLegende(elements, "gpx").hidden, false);
   page.traceGpxImporte.remove();
   carte.handlers["overlayadd overlayremove"]({ layer: page.traceGpxImporte, type: "overlayremove" });
   assert.equal(page.traceGpxImporte.layers.length, 2);
@@ -486,7 +507,8 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   elements.get("chargerGpx").click();
   assert.equal(page.traceGpxImporte.layers.length, 0);
   assert.equal(page.controle().calques["2026-09-20_09-03"], undefined);
-  assert.equal(elements.get("legendGpx").hidden, true);
+  page.majLegende();
+  assert.equal(ligneLegende(elements, "gpx").hidden, true);
   assert.equal(elements.get("chargerGpxTexte").textContent, "Charger un GPX");
 });
 
@@ -543,7 +565,7 @@ test("chaque fond et chaque calque des providers a son libellé FR et EN", () =>
         assert.ok(provider.overlayNames?.[calque]?.[langue],
           `${code} : calque du panneau ⓘ sans libellé ${langue}`);
       }
-      if (provider.paths) assert.ok(provider.paths.name[langue] && provider.paths.legend[langue]);
+      if (provider.paths) assert.ok(provider.paths.name[langue]);
     }
   }
 });
@@ -734,7 +756,7 @@ test("Madrid active IGN Espagne et ses sentiers, puis les couches IGN reviennent
   assert.equal(elements.get("ignOption").hidden, false);
   assert.equal(elements.get("ign").disabled, true);
   assert.match(elements.get("ignOptionTexte").textContent, /affichage seul/);
-  assert.equal(elements.get("legendRows").enfants.find((ligne) => ligne.dataset.mapOverlay === "bdtopo").hidden, true);
+  assert.equal(ligneLegende(elements, "chemins_officiels").hidden, true, "Madrid : calques espagnols d affichage seul, pas de ligne officielle");
   assert.equal(JSON.parse(stockage.get("hike2gpx.vue")).hors_france, true);
 
   const recharge = charger(Object.fromEntries(stockage));
@@ -833,7 +855,11 @@ test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => 
   assert.deepEqual(Object.keys(page.controle().calques),
     ["OSM", "ATKIS"]);
   assert.match(page.CALQUES.atkis.groupe.getAttribution(), /GeoBasis-DE.*GDI-Th.*BVV.*CC BY 4\.0/);
-  assert.equal(elements.get("legendRows").enfants.find((ligne) => ligne.dataset.mapOverlay === "atkis").hidden, false);
+  assert.equal(ligneLegende(elements, "chemins_officiels").hidden, true, "calque ATKIS non coché : pas de ligne");
+  page.coucheCalque("atkis").addTo(carte);
+  page.majLegende();
+  assert.equal(ligneLegende(elements, "chemins_officiels").hidden, false);
+  assert.equal(elements.get("legendOfficielTexte").textContent, "chemin ATKIS");
   assert.equal(elements.get("ignOption").hidden, false);
   assert.equal(elements.get("ign").disabled, false);
   page.CALQUES.atkis.groupe.addTo(carte);
@@ -1449,4 +1475,34 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
   page.appliquerLangue("en");
   assert.equal(elements.get("donnees").enfants[0].enfants[0].enfants[1].textContent, "Clear cache");
   assert.match(elements.get("donnees").enfants[0].enfants[1].enfants[0].textContent, /BRouter data/);
+});
+
+test("la légende ne montre que ce qui est sur la carte, dans l'ordre voulu", () => {
+  const { page, elements, carte } = charger();
+  const ordre = elements.get("legendRows").enfants.map((l) => l.dataset.legende);
+  assert.deepEqual(ordre, ["osm", "chemins_officiels", "itineraire", "gpx", "barriere", "bloque", "verifier", "jonction"]);
+  page.majLegende();
+  assert.deepEqual(legendeVisible(elements), [], "rien sur la carte : aucune ligne");
+  assert.equal(elements.get("mapLegend").classList.contains("vide"), true);
+  // Un franchissement à vérifier et un tracé : ces deux lignes seules, dans l'ordre de la légende.
+  carte.layers.push({ options: { leg: "verifier" } }, { options: { leg: "itineraire" } });
+  page.majLegende();
+  assert.deepEqual(legendeVisible(elements), ["itineraire", "verifier"]);
+  assert.equal(elements.get("mapLegend").classList.contains("vide"), false);
+  // Un groupe de couches compte aussi par ses enfants (le calque OSM).
+  carte.layers.push({ layers: [{ options: { leg: "osm" } }, { options: { leg: "barriere" } }] });
+  page.majLegende();
+  assert.deepEqual(legendeVisible(elements), ["osm", "itineraire", "barriere", "verifier"]);
+});
+
+test("les couches d'affichage seul (Espagne, États-Unis) n'ont pas de ligne de légende officielle", () => {
+  const { page, elements, carte } = charger();
+  page.choisirPays("es");
+  page.coucheCalque("senderos").addTo(carte);
+  page.majLegende();
+  assert.equal(ligneLegende(elements, "chemins_officiels").hidden, true);
+  page.choisirPays("fr");
+  page.coucheCalque("bdtopo").addTo(carte);
+  page.majLegende();
+  assert.equal(elements.get("legendOfficielTexte").textContent, "chemin IGN");
 });
