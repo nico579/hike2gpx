@@ -138,10 +138,15 @@ The sections below follow these steps, from the routing towards what feeds it.
 
 [BRouter](https://github.com/abrensch/brouter), the one Locus Map uses,
 computes the route locally, on the computer as on the phone, which embeds it.
-hike2gpx does not modify it. The profile is BRouter's hiking one
-("hiking-mountain", the one of brouter-web), corrected on one point: a
-pedestrian ban (`foot=no` or `foot=private`) is respected even where a bicycle
-could pass or a sidewalk is tagged.
+hike2gpx does not modify its code, but gives it its own tiles: where a
+national map exists, the BRouter site's tiles, built from OpenStreetMap alone,
+are replaced by tiles **enriched with the paths of IGN** (or ATKIS,
+swissTLM3D, ZABAGED, BDOT10k) **and with LiDAR elevation** (Mapterhorn), the
+bare ground, instead of the SRTM behind their slopes
+([what they hold](#what-a-routing-area-holds)). The profile is BRouter's
+hiking one ("hiking-mountain", the one of brouter-web), corrected on one
+point: a pedestrian ban (`foot=no` or `foot=private`) is respected even where
+a bicycle could pass or a sidewalk is tagged.
 
 Barriers are not baked into the network: every computation lays them across
 the paths. hike2gpx reads from OpenStreetMap the paths usable on foot, the

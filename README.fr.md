@@ -148,10 +148,16 @@ nourrit.
 
 [BRouter](https://github.com/abrensch/brouter), celui qu'utilise Locus Map,
 calcule l'itinéraire en local, sur l'ordinateur comme sur le téléphone, qui
-l'embarque. hike2gpx ne le modifie pas. Le profil est celui de la randonnée de
-BRouter (« hiking-mountain », celui de brouter-web), corrigé sur un point : une
-interdiction piétonne (`foot=no` ou `foot=private`) est respectée même là où un
-vélo passerait ou qu'un trottoir est indiqué.
+l'embarque. hike2gpx ne modifie pas son code, mais lui donne ses propres
+tuiles : là où une carte nationale existe, celles du site de BRouter, tirées
+d'OpenStreetMap seul, sont remplacées par des tuiles **enrichies des chemins de
+l'IGN** (ou de l'ATKIS, du swissTLM3D, du ZABAGED, du BDOT10k) **et de
+l'altitude du LiDAR** (Mapterhorn), le sol nu, au lieu du SRTM de leurs
+pentes ([ce qu'elles contiennent](#ce-que-contient-une-zone-de-routage)). Le
+profil est celui de la randonnée de BRouter (« hiking-mountain », celui de
+brouter-web), corrigé sur un point : une interdiction piétonne (`foot=no` ou
+`foot=private`) est respectée même là où un vélo passerait ou qu'un trottoir
+est indiqué.
 
 Les barrières ne sont pas gravées dans le réseau : chaque calcul les pose en
 travers des chemins. hike2gpx lit dans OpenStreetMap les chemins praticables à
