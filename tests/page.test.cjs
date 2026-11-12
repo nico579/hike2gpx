@@ -206,7 +206,6 @@ test("l'onglet « Hors ligne » : la grille du routage, la sélection, le bilan 
   assert.equal(cadre.options.color, "#1565c0", "bleu : sélectionnée");
   assert.equal(elements.get("hlSelection").textContent, "1 à télécharger : 247 Mo. 1 déjà sur ce PC (135 Mo).");
   assert.equal(elements.get("hlTelecharger").disabled, false);
-  assert.equal(elements.get("hlSupprimer").hidden, false);
   // Une case que le serveur ne publie pas se fabrique sur le PC.
   carte.vue = { s: 42.5, w: 2.5, n: 42.7, e: 2.8 };
   page.dessinerCases();
@@ -300,14 +299,7 @@ test("un fond de carte installé ne s'ajoute pas aux fonds en ligne, et se retir
   page.grilleCases.layers[0].handlers.click();
   assert.equal(elements.get("hlSelection").textContent, "1 déjà sur ce PC (600 Mo).");
   assert.equal(elements.get("hlTelecharger").disabled, true, "rien à télécharger : le Plan IGN est déjà là");
-  assert.equal(elements.get("hlSupprimer").hidden, false, "« Supprimer », libellé fixe");
-  confirmations.reponse = true;
-  elements.get("hlSupprimer").click();
-  await tic();
-  assert.match(confirmations.at(-1), /^Supprimer de ce PC :\n• N43E006 · Plan IGN · 600 Mo\n\n600 Mo en tout/,
-    "la confirmation nomme la case, le fond et la taille");
-  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body),
-    { carre: "N43E006", source: "plan" }, "le fond choisi seul, pas les autres de la case");
+  assert.equal(elements.get("hlPartager").hidden, false, "ce qui est là se partage");
 });
 
 test("une case qui n'a qu'un autre fond n'est pas « déjà là » pour le fond choisi", async () => {
@@ -326,19 +318,7 @@ test("une case qui n'a qu'un autre fond n'est pas « déjà là » pour le fond 
   page.grilleCases.layers[0].handlers.click();
   assert.equal(elements.get("hlSelection").textContent, "1 case(s) : environ 1 Go et 35 min.");
   assert.equal(elements.get("hlTelecharger").disabled, false, "le Plan IGN est à télécharger");
-  assert.equal(elements.get("hlSupprimer").hidden, true, "rien à supprimer en Plan IGN");
   assert.equal(elements.get("hlPartager").hidden, true, "rien à partager en Plan IGN");
-});
-
-test("supprimer une case depuis l'onglet retire le routage seul, pas les fonds", async () => {
-  const { page, elements, requetes, confirmations } = charger();
-  await ouvrirHorsLigne(page, requetes, [{ case: "E5_N40", octets: 135e6 }], []);
-  page.grilleCases.layers[0].handlers.click();
-  confirmations.reponse = true;
-  elements.get("hlSupprimer").click();
-  await tic();
-  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_case").options.body),
-    { case: "E5_N40", fonds: false });
 });
 
 test("le partage s'ouvre depuis le volet : son QR code, son état dans le volet, de quoi l'arrêter", async () => {

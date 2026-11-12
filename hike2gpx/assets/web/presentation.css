@@ -196,8 +196,6 @@ body.profile-collapsed .map-activity{bottom:81px}
 #hlTelecharger{background:var(--accent);border-color:var(--accent);color:#fff}
 #hlTelecharger:hover:not(:disabled){background:var(--accent-fonce)}
 #hlTelecharger:disabled{background:#fff;border-color:#b9c9dc;color:#7b8ca0;box-shadow:none}
-#hlSupprimer{border-color:#d9827a;color:#b3261e}
-#hlSupprimer:hover:not(:disabled){background:#fdf0ef}
 .hl-actions button svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .hl-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .hl-file[hidden]{display:none}
