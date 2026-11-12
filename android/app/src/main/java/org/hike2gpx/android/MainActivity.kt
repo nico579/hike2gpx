@@ -240,6 +240,9 @@ class MainActivity : Activity() {
         // nationale serait prise pour une carte du monde et remplacée par OSM.
         val vue = reglages.vue
         paysAffiche = pays.de(vue.first, vue.second)
+        // La légende a été construite avant cette lecture : sa ligne « chemin
+        // officiel » attend le pays enregistré.
+        majLegendeOfficiel()
         appliquerFond(reglages.fond)
         lireLien(intent)
         actualiser()
