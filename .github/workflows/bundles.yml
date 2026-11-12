@@ -20,6 +20,11 @@ on:
         description: Version de hike2gpx qui fabrique
         type: string
         default: main
+      forcer:
+        description: Refaire aussi les lots à jour (mêmes éditions OSM et fournisseurs), par exemple
+          après un changement de règle de fabrication, que ces éditions ne reflètent pas
+        type: boolean
+        default: false
   # Essai depuis ce dépôt, sur une branche, avant de toucher au serveur : la
   # même fabrication, mais rien n'est publié (voir PUBLIER).
   workflow_dispatch:
@@ -32,6 +37,11 @@ on:
         description: Version de hike2gpx qui fabrique
         type: string
         default: main
+      forcer:
+        description: Refaire aussi les lots à jour (mêmes éditions OSM et fournisseurs), par exemple
+          après un changement de règle de fabrication, que ces éditions ne reflètent pas
+        type: boolean
+        default: false
 
 permissions:
   contents: write                   # publier sur le dépôt appelant
@@ -235,6 +245,7 @@ jobs:
         case: ${{ fromJSON(needs.liste.outputs.cases) }}
     env:
       CASE: ${{ matrix.case }}
+      FORCER: ${{ inputs.forcer && '--force' || '' }}     # vide : sans effet
       GH_TOKEN: ${{ github.token }}
       HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
     steps:
@@ -287,7 +298,7 @@ jobs:
 
       - name: Télécharger les données de la case
         # Trois passages : une panne passagère ne perd plus la case (.github/reessayer.sh).
-        run: bash .github/reessayer.sh 3 python -m hike2gpx bundles "$CASE" --bulk --stage data --output "$RUNNER_TEMP/lots"
+        run: bash .github/reessayer.sh 3 python -m hike2gpx bundles "$CASE" --bulk --stage data $FORCER --output "$RUNNER_TEMP/lots"
 
       - name: Ne garder que les régions de la case
         run: |
@@ -327,6 +338,7 @@ jobs:
         case: ${{ fromJSON(needs.liste.outputs.cases) }}
     env:
       CASE: ${{ matrix.case }}
+      FORCER: ${{ inputs.forcer && '--force' || '' }}     # vide : sans effet
       GH_TOKEN: ${{ github.token }}
       HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
       # Lancé depuis ce dépôt (essai), rien n'est publié.
@@ -391,7 +403,7 @@ jobs:
         # Fusion, RD5 et relief ; les calques suivent sur PARTS machines. Un lot
         # OSM, sans rien à répartir, se fait ici en entier.
         # Deux passages seulement : le calcul est long, et ses vraies erreurs se répètent.
-        run: bash .github/reessayer.sh 2 python -m hike2gpx bundles "$CASE" --bulk --stage compute --output "$RUNNER_TEMP/lots"
+        run: bash .github/reessayer.sh 2 python -m hike2gpx bundles "$CASE" --bulk --stage compute $FORCER --output "$RUNNER_TEMP/lots"
 
       - name: Publier le relief
         if: env.RELIEF_PUBLIE != '1' && env.PUBLIER == 'true'
@@ -429,6 +441,7 @@ jobs:
         part: [1, 2, 3, 4]
     env:
       CASE: ${{ matrix.case }}
+      FORCER: ${{ inputs.forcer && '--force' || '' }}     # vide : sans effet
       HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
     steps:
       - name: Checkout hike2gpx
@@ -462,7 +475,7 @@ jobs:
 
       - name: Calques, part ${{ matrix.part }}/4
         # Un extrait manquant se retélécharge ici aussi (E10_N50, 2026-11-11) : trois passages.
-        run: bash .github/reessayer.sh 3 python -m hike2gpx bundles "$CASE" --bulk --stage layers --part ${{ matrix.part }}/4 --output "$RUNNER_TEMP/lots"
+        run: bash .github/reessayer.sh 3 python -m hike2gpx bundles "$CASE" --bulk --stage layers --part ${{ matrix.part }}/4 $FORCER --output "$RUNNER_TEMP/lots"
 
       - name: Garder la part
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -485,6 +498,7 @@ jobs:
         case: ${{ fromJSON(needs.liste.outputs.cases) }}
     env:
       CASE: ${{ matrix.case }}
+      FORCER: ${{ inputs.forcer && '--force' || '' }}     # vide : sans effet
       HIKE2GPX_HOME: ${{ github.workspace }}/../donnees
     steps:
       - name: Checkout hike2gpx
@@ -518,7 +532,7 @@ jobs:
 
       - name: Assembler le lot
         # Refuse de finir si une part manque : jamais de calques à trous.
-        run: bash .github/reessayer.sh 3 python -m hike2gpx bundles "$CASE" --bulk --stage finish --part 4/4 --output "$RUNNER_TEMP/lots"
+        run: bash .github/reessayer.sh 3 python -m hike2gpx bundles "$CASE" --bulk --stage finish --part 4/4 $FORCER --output "$RUNNER_TEMP/lots"
 
       - name: Garder le lot pour la publication
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
