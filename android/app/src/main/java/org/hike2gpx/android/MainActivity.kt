@@ -67,6 +67,7 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import com.google.zxing.integration.android.IntentIntegrator
+import kotlin.concurrent.thread
 import org.json.JSONArray
 import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.osmdroid.config.Configuration
@@ -273,7 +274,9 @@ class MainActivity : Activity() {
         calques = Calques(horsLigne)
         relief = Mapterhorn(filesDir)
         reliefTrace = Mapterhorn(filesDir, reseau = false)
+        val premierLancement = !reglages.vueConnue
         construire()
+        if (premierLancement) centrerSurIp()
         // Avant la première mise en page, la carte n'a pas encore son centre
         // (0, 0) : le pays se lit sur la vue enregistrée, sinon une carte
         // nationale serait prise pour une carte du monde et remplacée par OSM.
@@ -330,7 +333,11 @@ class MainActivity : Activity() {
                         afficherTraceImportee(it)
                         return true
                     }
-                    if (modePlan) ajouterPoint(Point(p.latitude, p.longitude))
+                    if (modePlan) {
+                        if (lotAuPoint(horsLigne.lots(), p.latitude, p.longitude) == null)
+                            Toast.makeText(this@MainActivity, R.string.plan_point_sans_zone, Toast.LENGTH_SHORT).show()
+                        else ajouterPoint(Point(p.latitude, p.longitude))
+                    }
                     return true
                 }
                 override fun longPressHelper(p: GeoPoint) = false
@@ -863,7 +870,7 @@ class MainActivity : Activity() {
             aReprendre = true; return
         }
         val maintenant = SystemClock.elapsedRealtime()
-        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
+        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees + reglages.zonesRefusees
         val aFaire = lotsATelecharger(offres, horsLigne.lots(), Zone.autour(points), exclu)
         if (aFaire.isNotEmpty()) {
             autoLotDemande = aFaire.first().lot.case
@@ -1028,7 +1035,7 @@ class MainActivity : Activity() {
         lotDeZoneEnAttente = false
         val boite = carte.boundingBox ?: return
         val maintenant = SystemClock.elapsedRealtime()
-        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
+        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees + reglages.zonesRefusees
         val zone = Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast)
         val offre = offreAuCentre(offres, horsLigne.lots(), zone, exclu) ?: return
         autoLotDemande = offre.lot.case
@@ -1113,6 +1120,9 @@ class MainActivity : Activity() {
             if (points.size < 2) exclues[offre.lot.case] = SystemClock.elapsedRealtime()
             if (points.size >= 2) calculer()
             return
+        }
+        if (!reglages.zoneInitialeProposee) {
+            demanderPremiereZone(offre); return
         }
         if (!reseau.isActiveNetworkMetered) {
             autoLotDemande = null
@@ -1743,6 +1753,8 @@ class MainActivity : Activity() {
                 setTextColor(0xff263238.toInt())
                 setPadding(dp(18), 0, 0, 0)
             }, LinearLayout.LayoutParams(0, -2, 1f))
+            // Sans zone de routage au centre, la planification ne peut rien calculer : grisée.
+            if (texte == R.string.menu_planifier && !zoneAuCentre()) ligne.alpha = 0.4f
             ligne.setOnClickListener {
                 dialogue.dismiss()
                 action()
@@ -1844,6 +1856,9 @@ class MainActivity : Activity() {
         if (!modePlan && EnregistrementGps.actif) {
             Toast.makeText(this, R.string.plan_trace_en_cours, Toast.LENGTH_LONG).show()
             return
+        }
+        if (!modePlan && !zoneAuCentre()) {
+            expliquerSansZone(); return
         }
         modePlan = !modePlan
         modeRecherche = false
@@ -2240,6 +2255,68 @@ class MainActivity : Activity() {
                 if (!enCours.get()) recuperations.removeFirstOrNull()?.invoke()
             }
             .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    // ------------------------------------------------------------------ premier lancement et zones
+
+    /**
+     * Au tout premier lancement, la carte s'ouvre sur la ville de l'adresse IP
+     * (PositionIp) plutôt que sur un point fixe ; sans réponse, elle reste où
+     * elle est. La zone de routage de la ville se propose ensuite (une fois).
+     */
+    private fun centrerSurIp() {
+        thread(isDaemon = true) {
+            val position = PositionIp.demander() ?: return@thread
+            runOnUiThread {
+                if (isDestroyed || reglages.vueConnue) return@runOnUiThread
+                carte.controller.setZoom(12.0)
+                carte.controller.setCenter(GeoPoint(position.first, position.second))
+                reglages.vue = Triple(position.first, position.second, 12.0)
+                proposerLotZone(attendreCatalogue = true)
+            }
+        }
+    }
+
+    /** Une zone de routage installée couvre-t-elle le centre de la carte ? */
+    private fun zoneAuCentre(): Boolean {
+        val centre = carte.mapCenter
+        return lotAuPoint(horsLigne.lots(), centre.latitude, centre.longitude) != null
+    }
+
+    /** Sans zone de routage, la planification ne mènerait à rien : on le dit, et où la prendre. */
+    private fun expliquerSansZone() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.plan_sans_zone_titre)
+            .setMessage(R.string.plan_sans_zone_message)
+            .setPositiveButton(R.string.menu_itineraires) { _, _ -> ouvrirItineraires() }
+            .setNegativeButton(R.string.fermer, null)
+            .show()
+    }
+
+    /**
+     * Le tout premier téléchargement automatique demande d'abord, même sur
+     * Wi-Fi : une zone pèse plusieurs centaines de Mo. La question n'est posée
+     * qu'une fois ; un refus est retenu pour cette case, qui reste disponible
+     * dans « Gestion des itinéraires ».
+     */
+    private fun demanderPremiereZone(offre: Offre) {
+        reglages.zoneInitialeProposee = true
+        AlertDialog.Builder(this)
+            .setTitle(R.string.zone_initiale_titre)
+            .setMessage(getString(R.string.zone_initiale_message, offre.lot.case,
+                Formatter.formatShortFileSize(this, offre.lot.octets)))
+            .setPositiveButton(R.string.telecharger) { _, _ ->
+                autoLotDemande = null
+                telecharger(offre)
+            }
+            .setNegativeButton(R.string.zone_refuser) { _, _ ->
+                autoLotDemande = null
+                reglages.zonesRefusees = reglages.zonesRefusees + offre.lot.case
+                avancer()
+                planifierCalques()
+            }
+            .setCancelable(false)
             .show()
     }
 

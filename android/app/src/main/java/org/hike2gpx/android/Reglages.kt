@@ -110,6 +110,19 @@ class Reglages(context: Context) {
         get() = preferences.getFloat(PRECISION_MAX, 100f).toDouble()
         set(v) = preferences.edit().putFloat(PRECISION_MAX, v.toFloat()).apply()
 
+    /** Vrai dès qu'une vue est enregistrée : faux au tout premier lancement. */
+    val vueConnue: Boolean get() = preferences.contains(VUE)
+
+    /** La question « télécharger la zone de routage ? » a-t-elle déjà été posée ? Elle ne l'est qu'une fois. */
+    var zoneInitialeProposee: Boolean
+        get() = preferences.getBoolean(ZONE_INITIALE_PROPOSEE, false)
+        set(v) = preferences.edit().putBoolean(ZONE_INITIALE_PROPOSEE, v).apply()
+
+    /** Les cases dont la zone de routage a été refusée : plus de téléchargement automatique pour elles. */
+    var zonesRefusees: Set<String>
+        get() = preferences.getStringSet(ZONES_REFUSEES, null)?.toSet() ?: emptySet()
+        set(v) = preferences.edit().putStringSet(ZONES_REFUSEES, v).apply()
+
     /** La dernière vue de la carte : latitude, longitude, zoom ; Garéoult au premier lancement. */
     var vue: Triple<Double, Double, Double>
         get() = preferences.getString(VUE, null)?.split(',')?.mapNotNull { it.toDoubleOrNull() }
@@ -132,6 +145,8 @@ class Reglages(context: Context) {
         private const val DUREE_MIN = "trace_duree_min"
         private const val PRECISION_MAX = "trace_precision_max"
         private const val VUE = "vue"
+        private const val ZONE_INITIALE_PROPOSEE = "zone_initiale_proposee"
+        private const val ZONES_REFUSEES = "zones_refusees"
 
         /**
          * Les profils BRouter des assets, recopiés à chaque démarrage là où

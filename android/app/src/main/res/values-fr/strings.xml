@@ -27,6 +27,12 @@
     <string name="import_denivele">Dénivelé : + %1$d m / − %2$d m (%3$s)</string>
     <string name="import_denivele_nom">Dénivelé : + %1$d m</string>
     <string name="import_duree">Durée : %1$s</string>
+    <string name="zone_initiale_titre">Zone de routage</string>
+    <string name="zone_initiale_message">Pour calculer des itinéraires sans réseau, le téléphone a besoin de la zone de routage de cette région (case %1$s, %2$s). La télécharger maintenant ? Sinon, elle reste disponible dans « Gestion des itinéraires ».</string>
+    <string name="zone_refuser">Non merci</string>
+    <string name="plan_sans_zone_titre">Pas de zone de routage ici</string>
+    <string name="plan_sans_zone_message">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage. Aucune n’est installée pour cette partie de la carte : téléchargez-la dans « Gestion des itinéraires », ou partagez-la depuis un PC.</string>
+    <string name="plan_point_sans_zone">Pas de zone de routage ici : le point n’est pas posé.</string>
     <string name="menu_itineraires">Gestion des itinéraires</string>
     <string name="menu_aide">Aide</string>
     <string name="menu_enregistrer">Enregistrer un parcours</string>

@@ -37,6 +37,11 @@ fun offreAuCentre(offres: List<Offre>, installes: List<Lot>, zone: Zone, exclues
     }.minByOrNull { if (it.lot.osm) 1 else 0 }
 }
 
+/** La zone de routage installée qui couvre ce point, ou null : sans elle, le téléphone ne peut pas calculer ici. */
+fun lotAuPoint(installes: List<Lot>, lat: Double, lon: Double): Lot? = installes.firstOrNull { lot ->
+    lot.couverture?.let { c -> lat in c[0]..c[2] && lon in c[1]..c[3] } == true
+}
+
 /** La zone a-t-elle une partie commune avec la boîte [sud, ouest, nord, est] ? (hors_ligne.touche) */
 fun Zone.touche(boite: List<Double>): Boolean =
     sud < boite[2] && boite[0] < nord && ouest < boite[3] && boite[1] < est

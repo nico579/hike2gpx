@@ -29,6 +29,12 @@
     <string name="import_denivele">Elevation: + %1$d m / − %2$d m (%3$s)</string>
     <string name="import_denivele_nom">Elevation gain: + %1$d m</string>
     <string name="import_duree">Time: %1$s</string>
+    <string name="zone_initiale_titre">Routing area</string>
+    <string name="zone_initiale_message">To compute routes with no network, the phone needs the routing area of this region (cell %1$s, %2$s). Download it now? Otherwise it stays available in “Route management”.</string>
+    <string name="zone_refuser">No thanks</string>
+    <string name="plan_sans_zone_titre">No routing area here</string>
+    <string name="plan_sans_zone_message">The phone computes its routes offline, with a routing area. None is installed for this part of the map: download it in “Route management”, or share it from a PC.</string>
+    <string name="plan_point_sans_zone">No routing area here: the point is not placed.</string>
     <string name="menu_itineraires">Route management</string>
     <string name="menu_aide">Help</string>
     <string name="menu_enregistrer">Record a track</string>
