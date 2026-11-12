@@ -352,7 +352,7 @@ test("le partage s'ouvre depuis le volet : son QR code, son état dans le volet,
   await attendre();
   assert.equal(elements.get("partageQr").innerHTML, "<svg>qr</svg>");
   assert.match(elements.get("partageFenetreTexte").textContent,
-    /^Partagé : 1 zone de carte et 1 zone de routage, 412 Mo\. .*« Gestion des cartes », puis « Scanner le QR code d’un PC »/);
+    /^Partagé : 1 zone de carte et 1 zone de routage, 412 Mo\. .*« Gestion des cartes », puis « Scanner le QR code de l’ordinateur »/);
   // Le QR code s'ouvre dans sa fenêtre, comme lidar2map ; Fermer la cache, le volet la rouvre.
   assert.equal(elements.get("partageFenetre").hidden, false);
   assert.equal(elements.get("arreterPartageFenetre").hidden, false);
@@ -857,6 +857,10 @@ test("l'Allemagne propose TopPlusOpen et le calque ATKIS par zone", async () => 
   assert.match(page.CALQUES.atkis.groupe.getAttribution(), /GeoBasis-DE.*GDI-Th.*BVV.*CC BY 4\.0/);
   assert.equal(ligneLegende(elements, "chemins_officiels").hidden, true, "calque ATKIS non coché : pas de ligne");
   page.coucheCalque("atkis").addTo(carte);
+  page.coucheCalque("atkis").getLayers = () => page.coucheCalque("atkis").layers;
+  page.majLegende();
+  assert.equal(ligneLegende(elements, "chemins_officiels").hidden, true, "coché mais rien de dessiné (zoom) : pas de ligne");
+  page.coucheCalque("atkis").layers.push({ options: {} });
   page.majLegende();
   assert.equal(ligneLegende(elements, "chemins_officiels").hidden, false);
   assert.equal(elements.get("legendOfficielTexte").textContent, "chemin ATKIS");
@@ -1503,6 +1507,8 @@ test("les couches d'affichage seul (Espagne, États-Unis) n'ont pas de ligne de 
   assert.equal(ligneLegende(elements, "chemins_officiels").hidden, true);
   page.choisirPays("fr");
   page.coucheCalque("bdtopo").addTo(carte);
+  page.coucheCalque("bdtopo").getLayers = () => page.coucheCalque("bdtopo").layers;
+  page.coucheCalque("bdtopo").layers.push({ options: {} });
   page.majLegende();
   assert.equal(elements.get("legendOfficielTexte").textContent, "chemin IGN");
 });
