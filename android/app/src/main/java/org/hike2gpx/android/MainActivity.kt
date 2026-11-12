@@ -127,6 +127,10 @@ class MainActivity : Activity() {
     /** Vrai tant qu'aucune ligne de la légende n'est montrée : le panneau disparaît alors. */
     private var legendeVide = true
     private var courbe: CourbeDenivele? = null
+    /** L'en-tête de la courbe : titre, résumé quand elle est repliée, chevron. Un toucher la replie ou la déplie. */
+    private var enteteCourbe: LinearLayout? = null
+    private var resumeCourbe: TextView? = null
+    private var chevronCourbe: TextView? = null
     private var repereProfil: RepereProfil? = null
     private var coordonneesProfil: List<DoubleArray> = emptyList()
     private var distancesProfil: DoubleArray = DoubleArray(0)
@@ -375,6 +379,28 @@ class MainActivity : Activity() {
             contentDescription = getString(R.string.courbe_aide)
             onPosition = ::montrerPositionProfil
         }
+        enteteCourbe = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+            setBackgroundColor(0xf7ffffff.toInt())
+            setPadding(marge, 0, marge, 0)
+            minimumHeight = dp(40)                          // une cible tactile, pas un simple filet
+            setOnClickListener { reglages.courbeReduite = !reglages.courbeReduite; afficherCourbe() }
+        }
+        enteteCourbe?.addView(TextView(this).apply {
+            setText(R.string.courbe_titre); textSize = 12f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xff305574.toInt())
+        })
+        resumeCourbe = TextView(this).apply {
+            textSize = 12f; setTextColor(0xff305574.toInt()); gravity = Gravity.END
+        }
+        enteteCourbe?.addView(resumeCourbe, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = marge })
+        chevronCourbe = TextView(this).apply {
+            textSize = 18f; setTextColor(0xff305574.toInt()); setPadding(marge, 0, 0, 0)
+        }
+        enteteCourbe?.addView(chevronCourbe)
+        bandeauBas.addView(enteteCourbe, LinearLayout.LayoutParams(-1, -2))
         bandeauBas.addView(courbe, LinearLayout.LayoutParams(-1, dp(96)))
         val bas = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE); setPadding(marge / 2, marge / 2, marge / 2, marge / 2)
@@ -682,9 +708,16 @@ class MainActivity : Activity() {
      */
     private fun afficherCourbe() {
         val vue = courbe ?: return
-        val montre = reglages.courbeDenivele && vue.profil != null && modePlan && !bandeauxMasques
-        vue.visibility = if (montre) View.VISIBLE else View.GONE
-        if (!montre) cacherRepereProfil()
+        val montre = vue.profil != null && modePlan && !bandeauxMasques
+        val reduite = reglages.courbeReduite
+        enteteCourbe?.visibility = if (montre) View.VISIBLE else View.GONE
+        vue.visibility = if (montre && !reduite) View.VISIBLE else View.GONE
+        // Repliée, l'en-tête garde les chiffres du parcours ; dépliée, la courbe les montre déjà.
+        resumeCourbe?.text = vue.profil?.takeIf { reduite }
+            ?.let { getString(R.string.courbe_resume, it.monteeM, it.descenteM) } ?: ""
+        chevronCourbe?.text = if (reduite) "⌃" else "⌄"
+        enteteCourbe?.contentDescription = getString(if (reduite) R.string.courbe_deplier else R.string.courbe_replier)
+        if (!montre || reduite) cacherRepereProfil()
     }
 
     /** Le point du tracé sous le doigt, comme le circleMarker du profil de la page. */
@@ -1878,10 +1911,6 @@ class MainActivity : Activity() {
         colonne.addView(CheckBox(this).apply {
             setText(R.string.afficher_legende); isChecked = reglages.legende
             setOnCheckedChangeListener { _, v -> reglages.legende = v; appliquerAffichage() }
-        })
-        colonne.addView(CheckBox(this).apply {
-            setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
-            setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
         })
         // Les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
         // téléphone a moins à tracer.
