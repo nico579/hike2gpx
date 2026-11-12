@@ -849,7 +849,7 @@ class MainActivity : Activity() {
      * contient aucun chemin de calque.
      */
     private fun signalerCocheCalque() {
-        if (carte.zoomLevelDouble < ZOOM_CALQUES) {
+        if (carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             Toast.makeText(this, R.string.calque_zoom, Toast.LENGTH_LONG).show()
         } else {
@@ -865,7 +865,7 @@ class MainActivity : Activity() {
         sequenceCalques += 1
         planificateur.removeCallbacksAndMessages(null)
         if ((!reglages.calqueOsm && reglages.calquesOfficiels.isEmpty()) ||
-            carte.zoomLevelDouble < ZOOM_CALQUES) {
+            carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
             carte.invalidate()
@@ -909,7 +909,7 @@ class MainActivity : Activity() {
         if (isDestroyed) return
         val osm = reglages.calqueOsm
         val officiels = reglages.calquesOfficiels
-        if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < ZOOM_CALQUES) {
+        if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
             carte.invalidate()
@@ -1819,6 +1819,12 @@ class MainActivity : Activity() {
             setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
             setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
         })
+        // Les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
+        // téléphone a moins à tracer.
+        champNombre(colonne, R.string.reglages_zoom_calques, reglages.zoomCalques.toDouble(), entier = true) {
+            reglages.zoomCalques = it.roundToInt()
+            planifierCalques()
+        }
 
         // La clé IGN du SCAN 25, le même réglage que sur le PC.
         titreAvecInfo(colonne, R.string.reglages_cle_ign, R.string.reglages_cle_note)
@@ -2970,7 +2976,6 @@ class MainActivity : Activity() {
         /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */
         private val CLE_IGN = Regex("[A-Za-z0-9_-]{0,100}")
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */
-        private const val ZOOM_CALQUES = 14.0
         // Au niveau du processus : un téléchargement survit à l'écran qui l'a lancé.
         private val EXECUTEUR = Executors.newSingleThreadExecutor()
         // Les calques et le relief ne prennent pas la tâche unique : l'itinéraire

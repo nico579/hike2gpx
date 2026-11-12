@@ -78,6 +78,7 @@
     <string name="reglages_cle_afficher">Show the key</string>
     <string name="afficher_legende">Show the legend</string>
     <string name="afficher_courbe">Show elevation profile</string>
+    <string name="reglages_zoom_calques">Minimum zoom for layers (14 to 19)</string>
     <string name="courbe_aide">Touch the profile to see the matching point on the route.</string>
     <string name="legende_titre">Legend</string>
     <string name="legende_itineraire">hike2gpx route</string>

@@ -127,7 +127,7 @@ function charger(preferences = {}, documentGpx = null) {
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, planifier, ajouterPoint, boucler, basculerPleinEcran,"
-    + " appliquerLangue, texteErreur, ts, rafraichirCalques, CALQUES, afficherExtrait, afficherErreur,"
+    + " appliquerLangue, texteErreur, ts, rafraichirCalques, reglerZoomCalques, borneZoomCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " afficherDisponibilite,"
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
@@ -1247,6 +1247,24 @@ test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tu
   const { calques: arretes, vue } = JSON.parse(arret.options.body);
   assert.deepEqual(arretes, ["osm", "bdtopo"]);
   assert.equal(typeof vue, "number");
+});
+
+test("le zoom minimal des calques se règle, reste entre 14 et 19, et se retient", async () => {
+  const { page, elements, stockage } = charger();
+  // Au grand écran du PC : 14 par défaut ; les bornes sont celles du lot (rien sous 14) et de la carte.
+  assert.equal(elements.get("zoomCalques").value, "14");
+  assert.equal(page.borneZoomCalques(3), 14);
+  assert.equal(page.borneZoomCalques(16), 16);
+  assert.equal(page.borneZoomCalques(116), 19);
+  assert.equal(page.borneZoomCalques("abc"), 14);
+  // Réglé à 16, il est retenu d'une session à l'autre, et la saisie hors bornes y est ramenée.
+  page.reglerZoomCalques(16);
+  assert.equal(stockage.get("hike2gpx.zoomCalques"), "16");
+  page.reglerZoomCalques(2);
+  assert.equal(stockage.get("hike2gpx.zoomCalques"), "14");
+  // Une page rouverte relit le réglage : 16 retenu, le champ le montre.
+  const rouverte = charger({ "hike2gpx.zoomCalques": "16" });
+  assert.equal(rouverte.elements.get("zoomCalques").value, "16");
 });
 
 test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcul reprend", async () => {

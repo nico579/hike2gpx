@@ -7,6 +7,13 @@ import java.io.File
  * Ce que l'application garde d'une session à l'autre : la carte, la vue, les
  * calques, les réglages de trace.
  */
+/** Les calques n'ont pas de tuile sous le zoom 14 ; au-delà de 19, plus rien à voir. */
+const val ZOOM_CALQUES_MIN = 14
+const val ZOOM_CALQUES_MAX = 19
+const val ZOOM_CALQUES_DEFAUT = 16
+
+fun borneZoomCalques(zoom: Int): Int = zoom.coerceIn(ZOOM_CALQUES_MIN, ZOOM_CALQUES_MAX)
+
 class Reglages(context: Context) {
     private val preferences = context.getSharedPreferences("hike2gpx", Context.MODE_PRIVATE)
 
@@ -72,6 +79,17 @@ class Reglages(context: Context) {
         get() = preferences.getBoolean(LEGENDE, false)
         set(v) = preferences.edit().putBoolean(LEGENDE, v).apply()
 
+    /**
+     * Le zoom à partir duquel les calques (chemins OSM et officiels, barrières,
+     * franchissements) se dessinent. En dessous, la vue couvre trop de pays pour
+     * les lire, et le téléphone peine à tracer des milliers de lignes : 16 par
+     * défaut (2,5 km de large sur un écran de 1 080 px). La page du PC, au grand
+     * écran, garde 14. Le lot ne porte pas de tuile sous le zoom 14.
+     */
+    var zoomCalques: Int
+        get() = borneZoomCalques(preferences.getInt(ZOOM_CALQUES, ZOOM_CALQUES_DEFAUT))
+        set(v) = preferences.edit().putInt(ZOOM_CALQUES, borneZoomCalques(v)).apply()
+
     /** La courbe du dénivelé, au-dessus des boutons, comme le profil de la page. */
     var courbeDenivele: Boolean
         get() = preferences.getBoolean(COURBE_DENIVELE, true)
@@ -99,6 +117,7 @@ class Reglages(context: Context) {
         set(v) = preferences.edit().putString(VUE, "${v.first},${v.second},${v.third}").apply()
 
     companion object {
+        private const val ZOOM_CALQUES = "zoom_calques"
         private const val PCS = "pcs"                               // ancienne liste des PC, effacée
         private const val FOND = "fond"
         private const val CLE_IGN = "cle_ign"
