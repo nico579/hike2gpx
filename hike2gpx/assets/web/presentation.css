@@ -221,7 +221,6 @@ body.profile-collapsed .map-activity{bottom:81px}
 .journal-settings button{padding:9px 12px;border:1px solid #8fb0d8;border-radius:8px;background:#e3eefc;color:#1959b5;font-size:12px;cursor:pointer}
 .journal-settings button:hover:not(:disabled){background:#d2e4fa}
 .journal-settings .note{margin:8px 0 0;color:#bc3944}
-body.hide-elevation .elevation-panel{display:none!important}
 #noteCalques,#extraitOsm,#brouterEnCours{display:none!important}
 #resultat #sourceDenivele,#resultat #comparaison,#resultat #aucunAVerifier{display:none!important}
 #resultat.empty{display:none!important}

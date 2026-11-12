@@ -280,9 +280,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   const elevationPanel = document.getElementById("elevationPanel");
   const elevationToggle = document.getElementById("elevationToggle");
   const elevationContent = document.getElementById("elevationContent");
-  const hideElevation = document.getElementById("hideElevation");
-  const elevationVisibilityPreference = "hike2gpx.hideElevation";
-  try { hideElevation.checked = localStorage.getItem(elevationVisibilityPreference) === "true"; } catch (error) {}
   const profilePreference = "hike2gpx.profileCollapsed";
   try { elevationContent.hidden = localStorage.getItem(profilePreference) === "true"; } catch (error) {}
   elevationToggle.setAttribute("aria-expanded", String(!elevationContent.hidden));
@@ -314,22 +311,11 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   syncCollapsedMetrics();
   function syncProfileHeight() {
     // Le bandeau, comme le résumé, ne vit que dans « Planifier un itinéraire ».
-    const visible = !elevationPanel.hidden && !hideElevation.checked && !document.body.classList.contains("profil-hors-page");
+    const visible = !elevationPanel.hidden && !document.body.classList.contains("profil-hors-page");
     document.body.classList.toggle("profile-open", visible && !elevationContent.hidden);
     document.body.classList.toggle("profile-collapsed", visible && elevationContent.hidden);
   }
-  function syncElevationVisibility() {
-    document.body.classList.toggle("hide-elevation", hideElevation.checked);
-    elevationPanel.toggleAttribute("inert", hideElevation.checked);
-    elevationPanel.setAttribute("aria-hidden", String(hideElevation.checked));
-    if (hideElevation.checked) hideProfileCursor();
-    syncProfileHeight();
-  }
-  hideElevation.addEventListener("change", () => {
-    try { localStorage.setItem(elevationVisibilityPreference, String(hideElevation.checked)); } catch (error) {}
-    syncElevationVisibility();
-  });
-  syncElevationVisibility();
+  syncProfileHeight();
   profilPret = true;
   function syncRoute() {
     // L'export est désactivé dès qu'un point change, pendant que le nouveau

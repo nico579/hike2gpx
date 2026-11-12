@@ -79,6 +79,10 @@
     <string name="afficher_legende">Show the legend</string>
     <string name="afficher_courbe">Show elevation profile</string>
     <string name="reglages_zoom_calques">Minimum zoom for layers (14 to 19)</string>
+    <string name="courbe_titre">Route elevation</string>
+    <string name="courbe_resume">+%1$d m, −%2$d m</string>
+    <string name="courbe_replier">Collapse the elevation profile</string>
+    <string name="courbe_deplier">Expand the elevation profile</string>
     <string name="courbe_aide">Touch the profile to see the matching point on the route.</string>
     <!-- DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main -->
     <string name="legende_titre">Legend</string>
