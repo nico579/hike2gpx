@@ -98,7 +98,7 @@ l'application Android](android/README.md).
 
 À Garéoult (Var), le profil Randonnée standard de BRouter franchit une clôture
 en béton pour un trajet de 69 m ; hike2gpx la contourne par un détour de 435 m.
-L'option « Montrer le tracé qui ignore les barrières » de la page superpose ce
+L'option « Comparer avec le tracé standard (qui ignore les barrières) » de la page superpose ce
 tracé standard, pour comparer. La méthode est décrite plus bas, dans
 [Comment ça marche](#comment-ça-marche).
 

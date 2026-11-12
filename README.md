@@ -94,7 +94,7 @@ title; a tap on a crossing opens its details.
 
 In Garéoult (Var, France), BRouter's standard hiking profile goes through a
 concrete fence on a 69 m stretch; hike2gpx goes around it with a 435 m detour.
-The page option "Show the route that ignores barriers" overlays that standard
+The page option "Compare with the standard route (which ignores barriers)" overlays that standard
 route, for comparison. The method is described further down, in
 [How it works](#how-it-works).
 
