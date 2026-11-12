@@ -1433,7 +1433,8 @@ class Application:
         continuer = lambda: not self._lot.get("arreter")      # noqa: E731
         for carre in carres:
             nom, zone, debut = fonds.nom_fond(carre, source), fonds.boite_carre(carre), time.monotonic()
-            self._lot.update(case=carre, zone=list(zone), faites=0, total=0)
+            # La source nomme la carte dans la ligne d'activité (« Carte hors ligne « SCAN 25 (IGN) » »).
+            self._lot.update(case=carre, zone=list(zone), faites=0, total=0, source=source)
             try:
                 if source == mapsforge.SOURCE:
                     decrit = mapsforge.fabriquer(

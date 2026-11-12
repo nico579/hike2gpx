@@ -452,7 +452,7 @@ test("la note suit la préparation hors ligne, puis la case est prête", async (
     { actif: true, case: "E5_N40", etape: "calques", faites: 4, total: 16, duree_s: 125 });
   await suivi;
   assert.equal(elements.get("lotHorsLigneTexte").textContent,
-    "Préparation hors ligne de E5_N40 : chemins et franchissements 4/16, depuis 2 min");
+    "Préparation de la case E5_N40 : chemins et franchissements 4/16, depuis 2 min");
   assert.equal(elements.get("arreterLot").hidden, false);
   assert.equal(elements.get("lotHorsLigneBarre").style.width, "25%");
   assert.equal(minuteurs.at(-1).ms, 2000, "relu toutes les deux secondes");
@@ -461,6 +461,23 @@ test("la note suit la préparation hors ligne, puis la case est prête", async (
   await fin;
   assert.equal(elements.get("lotHorsLigneTexte").textContent, "Case E5_N40 prête hors ligne.");
   assert.equal(elements.get("arreterLot").hidden, true);
+});
+
+test("une case de fond de carte se nomme par sa carte, une zone de routage par son nom", async () => {
+  const { page, requetes, elements } = charger();
+  page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)" };
+  const suivi = page.suivreLot();
+  repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"),
+    { actif: true, case: "N43E006", source: "scan25", etape: "fond", faites: 30, total: 600, duree_s: 60 });
+  await suivi;
+  assert.equal(elements.get("lotHorsLigne").dataset.titre, "Carte hors ligne « SCAN 25 (IGN) »");
+  assert.equal(elements.get("lotHorsLigneTexte").textContent,
+    "Préparation de la case N43E006 : téléchargement des tuiles 30/600, depuis 1 min");
+  const zone = page.suivreLot();
+  repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"),
+    { actif: true, case: "E5_N40", etape: "calques", faites: 4, total: 16, duree_s: 125 });
+  await zone;
+  assert.equal(elements.get("lotHorsLigne").dataset.titre, "Zone de routage");
 });
 
 test("un clic droit affiche les coordonnées et permet de les copier sans ajouter de point", async () => {

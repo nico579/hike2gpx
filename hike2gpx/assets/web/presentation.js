@@ -123,7 +123,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     ["Extrait OSM", "extraitOsm", "extraitTexte", "extraitPiste", "extraitBarre"],
     ["BRouter", "brouterEnCours", "brouterTexte", "brouterPiste", "brouterBarre"],
     ["Calcul du parcours", "progression", "progressionTexte", "progression", "progressionBarre"],
-    ["Lot hors ligne", "lotHorsLigne", "lotHorsLigneTexte", "lotHorsLignePiste", "lotHorsLigneBarre"],
+    ["Zone de routage", "lotHorsLigne", "lotHorsLigneTexte", "lotHorsLignePiste", "lotHorsLigneBarre"],
   ].map(([label, sourceId, textId, trackId, barId]) => {
     const row = document.createElement("div");
     row.className = "map-activity-row";
@@ -142,7 +142,7 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     activityRows.append(row);
     return { source: document.getElementById(sourceId), text: document.getElementById(textId),
       sourceTrack: document.getElementById(trackId), sourceBar: document.getElementById(barId),
-      row, message, track, bar };
+      row, title, label, message, track, bar };
   });
   function refreshActivity() {
     const wasVisible = !activity.hidden;
@@ -152,6 +152,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
       job.row.hidden = !active;
       if (!active) continue;
       visible = true;
+      // app.js peut nommer la tâche en cours (la carte hors ligne qui se prépare).
+      job.title.textContent = job.source.dataset.titre || job.label;
       job.message.textContent = job.text.textContent;
       const indeterminate = job.sourceTrack.classList.contains("indeterminee") || job.source.id === "brouterEnCours";
       job.track.classList.toggle("indeterminee", indeterminate);

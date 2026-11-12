@@ -248,7 +248,9 @@ const TEXTES = {
     "aide.titre": "Aide : le mode d'emploi (README)",
     "horsLigne.mettreAJour": "Mettre à jour",
     "horsLigne.arreter": "Arrêter",
-    "horsLigne.avancement": "Préparation hors ligne de {nom} : {etape}{compte}, depuis {duree}",
+    "horsLigne.avancement": "Préparation de la case {nom} : {etape}{compte}, depuis {duree}",
+    "horsLigne.titreCarte": "Carte hors ligne « {fond} »",
+    "horsLigne.titreZone": "Zone de routage",
     "horsLigne.attenteCalques": "Chemins de la carte : en attente de la zone de routage hors ligne, qui se télécharge.",
     "horsLigne.attenteCalcul": "La zone de routage hors ligne se télécharge : le calcul reprendra dès son arrivée.",
     "horsLigne.automatique": "Zone de routage de la case {nom}, téléchargée d'elle-même depuis le serveur :{compte}, depuis {duree}. Elle prendra le relais du mode à la volée.",
@@ -266,7 +268,7 @@ const TEXTES = {
     "horsLigne.etape.fusion": "fusion des chemins officiels",
     "horsLigne.etape.relief": "relief",
     "horsLigne.etape.compilation": "itinéraires BRouter",
-    "horsLigne.etape.fond": "fond de carte",
+    "horsLigne.etape.fond": "téléchargement des tuiles",
     "horsLigne.etape.outils": "installation des outils de carte",
     "horsLigne.etape.carte": "carte OpenStreetMap",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
@@ -530,7 +532,9 @@ const TEXTES = {
     "aide.titre": "Help: the user guide (README)",
     "horsLigne.mettreAJour": "Update",
     "horsLigne.arreter": "Stop",
-    "horsLigne.avancement": "Preparing {nom} for offline use: {etape}{compte}, for {duree}",
+    "horsLigne.avancement": "Preparing cell {nom}: {etape}{compte}, for {duree}",
+    "horsLigne.titreCarte": "Offline map “{fond}”",
+    "horsLigne.titreZone": "Routing area",
     "horsLigne.attenteCalques": "Map paths: waiting for the offline routing area, which is downloading.",
     "horsLigne.attenteCalcul": "The offline routing area is downloading: the route will be computed as soon as it arrives.",
     "horsLigne.automatique": "Routing area of the {nom} cell, downloading by itself from the server:{compte}, for {duree}. It will take over from on-the-fly mode.",
@@ -548,7 +552,7 @@ const TEXTES = {
     "horsLigne.etape.fusion": "merging official paths",
     "horsLigne.etape.relief": "elevation",
     "horsLigne.etape.compilation": "BRouter routing data",
-    "horsLigne.etape.fond": "base map",
+    "horsLigne.etape.fond": "downloading tiles",
     "horsLigne.etape.outils": "installing the map tools",
     "horsLigne.etape.carte": "OpenStreetMap map",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
@@ -2192,6 +2196,10 @@ function afficherLot(r) {
     message = r.fond ? t("horsLigne.fondFini", { nom: r.fond }) : t("horsLigne.fini", { nom });
   }
   $("lotHorsLigneTexte").textContent = message;
+  // Le titre de la ligne d'activité sur la carte : la carte en cours ou la zone de routage.
+  $("lotHorsLigne").dataset.titre = r.source
+    ? t("horsLigne.titreCarte", { fond: (etat.fondsHorsLigne || {})[r.source] || r.source })
+    : t("horsLigne.titreZone");
   $("lotHorsLigne").hidden = !message;
   afficherFile(message);    // le même message dans le volet « Hors ligne », avec la file
   $("arreterLot").hidden = !r.actif;
