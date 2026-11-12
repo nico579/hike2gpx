@@ -95,11 +95,6 @@ class Reglages(context: Context) {
         get() = preferences.getBoolean(COURBE_REDUITE, false)
         set(v) = preferences.edit().putBoolean(COURBE_REDUITE, v).apply()
 
-    /** La courbe du dénivelé, au-dessus des boutons, comme le profil de la page. */
-    var courbeDenivele: Boolean
-        get() = preferences.getBoolean(COURBE_DENIVELE, true)
-        set(v) = preferences.edit().putBoolean(COURBE_DENIVELE, v).apply()
-
     /** La distance minimale entre deux points d'une trace GPS, en mètres (Locus : 10). */
     var distanceMin: Double
         get() = preferences.getFloat(DISTANCE_MIN, 10f).toDouble()
@@ -132,7 +127,6 @@ class Reglages(context: Context) {
         private const val CALQUES_OFFICIELS = "calques_officiels"
         private const val CALQUE_OFFICIEL = "calque_officiel"       // ancien réglage unique, repris une fois
         private const val LEGENDE = "legende"
-        private const val COURBE_DENIVELE = "courbe_denivele"
         private const val COURBE_REDUITE = "courbe_reduite"
         private const val DISTANCE_MIN = "trace_distance_min"
         private const val DUREE_MIN = "trace_duree_min"

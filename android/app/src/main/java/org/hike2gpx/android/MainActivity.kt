@@ -666,7 +666,7 @@ class MainActivity : Activity() {
      */
     private fun afficherCourbe() {
         val vue = courbe ?: return
-        val montre = reglages.courbeDenivele && vue.profil != null && modePlan && !bandeauxMasques
+        val montre = vue.profil != null && modePlan && !bandeauxMasques
         val reduite = reglages.courbeReduite
         enteteCourbe?.visibility = if (montre) View.VISIBLE else View.GONE
         vue.visibility = if (montre && !reduite) View.VISIBLE else View.GONE
@@ -1865,10 +1865,6 @@ class MainActivity : Activity() {
         colonne.addView(CheckBox(this).apply {
             setText(R.string.afficher_legende); isChecked = reglages.legende
             setOnCheckedChangeListener { _, v -> reglages.legende = v; appliquerAffichage() }
-        })
-        colonne.addView(CheckBox(this).apply {
-            setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
-            setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
         })
         // Les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
         // téléphone a moins à tracer.
