@@ -15,6 +15,7 @@ import android.content.ContentValues
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
@@ -93,6 +94,9 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
+import org.osmdroid.views.overlay.milestones.MilestoneBitmapDisplayer
+import org.osmdroid.views.overlay.milestones.MilestoneManager
+import org.osmdroid.views.overlay.milestones.MilestoneMeterDistanceLister
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -103,6 +107,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.log2
 import kotlin.math.roundToInt
 
 /**
@@ -186,6 +191,8 @@ class MainActivity : Activity() {
     private val points = mutableListOf<Point>()
     private val reperes = mutableListOf<Marker>()
     private var trace: Polyline? = null
+    // Les flèches du sens de marche, posées par osmdroid le long du tracé (ses « milestones »).
+    private var flechesTrace: List<MilestoneManager> = emptyList()
     /** Les traces importées (GPX, KML), dessinées sur la carte, et le nom du fichier : null sans import. */
     private val tracesImportees = mutableListOf<Polyline>()
     private var nomImport: String? = null
@@ -356,7 +363,7 @@ class MainActivity : Activity() {
                 }
 
                 override fun onZoom(event: ZoomEvent): Boolean {
-                    planifierCalques(); planifierPays(); return false
+                    majFleches(); planifierCalques(); planifierPays(); return false
                 }
             })
         }
@@ -965,11 +972,55 @@ class MainActivity : Activity() {
             outlinePaint.color = COULEUR_ITINERAIRE
             outlinePaint.strokeWidth = 8f
         }
+        val demi = dp(FLECHE_DP) / 2
+        flechesTrace = listOf(MilestoneManager(
+            MilestoneMeterDistanceLister(Denivele.distancesFleches(distancesProfil.lastOrNull() ?: 0.0)),
+            MilestoneBitmapDisplayer(0.0, true, iconeFleche, demi, demi),
+        ))
+        majFleches()
         carte.overlays.add(1 + tracesImportees.size, trace)   // sur les traces importées, sous les touches et les repères
         majLegende()
         // Jamais de recadrage : les points sont posés à l'écran, et la carte reste
         // là où on l'a mise pour poser le suivant.
         carte.invalidate()
+    }
+
+    /**
+     * Comme la page : pas de flèches sous le zoom 12, où elles s'entasseraient
+     * sur le tracé. Le zoom de Leaflet se compte en pixels CSS, celui d'osmdroid
+     * en pixels de l'écran : sur un écran de densité 2,6, la même échelle porte
+     * un zoom plus grand de log2(2,6), soit 1,4.
+     */
+    private fun majFleches() {
+        val zoomPage = carte.zoomLevelDouble - log2(resources.displayMetrics.density.toDouble())
+        trace?.setMilestoneManagers(if (zoomPage >= ZOOM_FLECHES) flechesTrace else emptyList())
+    }
+
+    /**
+     * La flèche de la page (.route-direction-icon) : une pastille blanche cerclée
+     * de bleu, un triangle bleu pointé vers l'est, qu'osmdroid tourne dans le sens
+     * du segment.
+     */
+    private val iconeFleche: Bitmap by lazy {
+        val densite = resources.displayMetrics.density
+        val cote = dp(FLECHE_DP)
+        val image = Bitmap.createBitmap(cote, cote, Bitmap.Config.ARGB_8888)
+        val toile = Canvas(image)
+        val pinceau = Paint(Paint.ANTI_ALIAS_FLAG)
+        val r = cote / 2f
+        pinceau.color = 0xffffffff.toInt()
+        toile.drawCircle(r, r, r - densite / 2, pinceau)
+        pinceau.color = COULEUR_ITINERAIRE
+        pinceau.style = Paint.Style.STROKE
+        pinceau.strokeWidth = densite
+        toile.drawCircle(r, r, r - densite / 2, pinceau)
+        // Le chemin SVG « M4 4 14 9 4 14 6 9Z » (boîte de 18), réduit à 11 dp au centre.
+        fun x(v: Float) = (1.5f + v * 11f / 18f) * densite
+        pinceau.style = Paint.Style.FILL
+        toile.drawPath(android.graphics.Path().apply {
+            moveTo(x(4f), x(4f)); lineTo(x(14f), x(9f)); lineTo(x(4f), x(14f)); lineTo(x(6f), x(9f)); close()
+        }, pinceau)
+        image
     }
 
     // ------------------------------------------------------------------ calques du lot
@@ -3260,6 +3311,8 @@ class MainActivity : Activity() {
         private const val VOILE = 0xe6ffffff.toInt()
         /** Le bleu de l'itinéraire, celui de la page du PC. */
         private const val COULEUR_ITINERAIRE = 0xff1565c0.toInt()
+        private const val FLECHE_DP = 14          // la pastille de la page, 14 px
+        private const val ZOOM_FLECHES = 12.0     // afficherFleches sur la page
         /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */
         private val CLE_IGN = Regex("[A-Za-z0-9_-]{0,100}")
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */

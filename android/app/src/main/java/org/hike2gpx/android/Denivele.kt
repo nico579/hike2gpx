@@ -149,6 +149,18 @@ object Denivele {
     }
 
     /**
+     * Où poser les flèches du sens de marche, en mètres depuis le départ :
+     * le calcul de preparerFleches sur la page, un écart de longueur / 9
+     * (300 m au moins), la première flèche à un demi-écart du départ.
+     */
+    fun distancesFleches(longueurM: Double): DoubleArray {
+        if (longueurM <= 0) return DoubleArray(0)
+        val ecart = maxOf(300.0, longueurM / 9)
+        val cibles = generateSequence(ecart / 2) { it + ecart }.takeWhile { it < longueurM - ecart / 2 }.toList()
+        return if (cibles.isEmpty()) doubleArrayOf(longueurM / 2) else cibles.toDoubleArray()
+    }
+
+    /**
      * La position (longitude, latitude) à une fraction de la longueur du
      * tracé, comme positionSurProfil de la page : la fraction vient de la
      * courbe, la position est interpolée entre les points du tracé.
