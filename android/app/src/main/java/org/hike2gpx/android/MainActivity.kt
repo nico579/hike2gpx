@@ -120,9 +120,12 @@ class MainActivity : Activity() {
     private var rechercheVille: LinearLayout? = null
     private var sequenceVille = 0
     private var legende: LinearLayout? = null
-    /** La ligne « chemin officiel » de la légende : son réseau dépend du pays. */
-    private var ligneOfficiel: LinearLayout? = null
+    /** Les lignes de la légende, par identifiant (legende.json) ; chacune n'est montrée que si son objet est sur la carte. */
+    private val lignesLegende = mutableMapOf<String, LinearLayout>()
+    /** Le texte de la ligne « chemin IGN » : le réseau dépend du lot qui couvre la vue. */
     private var texteOfficiel: TextView? = null
+    /** Vrai tant qu'aucune ligne de la légende n'est montrée : le panneau disparaît alors. */
+    private var legendeVide = true
     private var courbe: CourbeDenivele? = null
     private var repereProfil: RepereProfil? = null
     private var coordonneesProfil: List<DoubleArray> = emptyList()
@@ -246,7 +249,7 @@ class MainActivity : Activity() {
         paysAffiche = pays.de(vue.first, vue.second)
         // La légende a été construite avant cette lecture : sa ligne « chemin
         // officiel » attend le pays enregistré.
-        majLegendeOfficiel()
+        majLegende()
         appliquerFond(reglages.fond)
         lireLien(intent)
         actualiser()
@@ -539,14 +542,11 @@ class MainActivity : Activity() {
         }
         for (entree in LegendeGeneree.ENTREES) {
             val rangee = ligne(entree)
-            if (entree.id == "chemins_officiels") {
-                // Sa ligne n'existe que là où un lot du pays est installé (majLegendeOfficiel).
-                ligneOfficiel = rangee
-                texteOfficiel = rangee.getChildAt(1) as TextView
-                rangee.visibility = View.GONE
-            }
+            lignesLegende[entree.id] = rangee
+            if (entree.id == "chemins_officiels") texteOfficiel = rangee.getChildAt(1) as TextView
+            rangee.visibility = View.GONE           // montrée par majLegende, quand son objet est sur la carte
         }
-        majLegendeOfficiel()
+        majLegende()
         return boite
     }
 
@@ -571,16 +571,33 @@ class MainActivity : Activity() {
     }
 
     /**
-     * La ligne des chemins officiels est liée au lot : s'il n'y en a pas d'installé
-     * pour la vue, pas de ligne. Quand il y en a un, elle nomme son réseau (IGN,
-     * ATKIS, swissTLM3D…), ou les deux d'une case frontalière. Même règle que les
-     * coches de superposition (fournisseursVisibles).
+     * La légende ne montre que ce qui est sur la carte : chaque ligne suit son
+     * objet (chemins OSM, chemins du lot, tracé, clôtures, franchissements,
+     * chemins non raccordés), lu dans les calques affichés et le tracé. La ligne
+     * des chemins officiels nomme le réseau du lot qui couvre la vue (IGN,
+     * ATKIS, swissTLM3D…), ou les deux d'une case frontalière. Sans aucune
+     * ligne, le panneau disparaît.
      */
-    private fun majLegendeOfficiel() {
+    private fun majLegende() {
+        if (!::overlayCalques.isInitialized) return     // appelée avant la création des calques
+        val d = overlayCalques.donnees
         val reseaux = fournisseursVisibles().joinToString(" / ") { it.court }
-        ligneOfficiel?.visibility = if (reseaux.isEmpty()) View.GONE else View.VISIBLE
-        if (reseaux.isNotEmpty())
-            texteOfficiel?.text = getString(R.string.legende_chemins_officiels, reseaux)
+        val presentes = buildSet {
+            if (d.voies.isNotEmpty()) add("osm")
+            if (d.troncons.isNotEmpty() && reseaux.isNotEmpty()) add("chemins_officiels")
+            if (trace != null) add("itineraire")
+            if (d.barrieres.isNotEmpty()) add("barriere")
+            if (d.franchissements.any { it.statut == "blocked" }) add("bloque")
+            if (d.franchissements.any { it.statut != "blocked" }) add("verifier")
+            if (d.jonctions.isNotEmpty()) add("jonction")
+        }
+        for ((id, rangee) in lignesLegende) rangee.visibility = if (id in presentes) View.VISIBLE else View.GONE
+        if (reseaux.isNotEmpty()) texteOfficiel?.text = getString(R.string.legende_chemins_officiels, reseaux)
+        val vide = presentes.isEmpty()
+        if (vide != legendeVide) {
+            legendeVide = vide
+            if (legende != null) appliquerAffichage()
+        }
     }
 
     /**
@@ -600,7 +617,7 @@ class MainActivity : Activity() {
             if (!enregistre && modeRecherche) View.VISIBLE else View.GONE
         etat.visibility = if (modePlan || enregistre || tacheAffichee) View.VISIBLE else View.GONE
         // La légende suit la coche des réglages ; le double tap la cache avec les bandeaux.
-        legende?.visibility = if (!bandeauxMasques && reglages.legende) View.VISIBLE else View.GONE
+        legende?.visibility = if (!bandeauxMasques && reglages.legende && !legendeVide) View.VISIBLE else View.GONE
         bandeauBas.visibility = if (!bandeauxMasques && modePlan) View.VISIBLE else View.GONE
         afficherCourbe()
         placerCommandes()
@@ -754,6 +771,7 @@ class MainActivity : Activity() {
     private fun effacerTrace() {
         trace?.let { carte.overlays.remove(it) }
         trace = null
+        majLegende()
         dernier = null
         sequenceDenivele += 1
         bilanItineraire = ""
@@ -872,6 +890,7 @@ class MainActivity : Activity() {
             outlinePaint.strokeWidth = 8f
         }
         carte.overlays.add(1, trace)        // sous les touches et les repères
+        majLegende()
         // Jamais de recadrage : les points sont posés à l'écran, et la carte reste
         // là où on l'a mise pour poser le suivant.
         carte.invalidate()
@@ -907,6 +926,7 @@ class MainActivity : Activity() {
             carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
+            majLegende()
             carte.invalidate()
             return
         }
@@ -949,12 +969,12 @@ class MainActivity : Activity() {
     /** Lit les tuiles de la vue en arrière-plan ; une lecture à la fois. */
     private fun rafraichirCalques() {
         if (isDestroyed) return
-        majLegendeOfficiel()
         val osm = reglages.calqueOsm
         val officiels = reglages.calquesOfficiels
         if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
+            majLegende()
             carte.invalidate()
             return
         }
@@ -976,6 +996,7 @@ class MainActivity : Activity() {
                 if (isDestroyed) return@runOnUiThread
                 if (sequence == sequenceCalques) {
                     overlayCalques.donnees = donnees
+                    majLegende()
                     carte.invalidate()
                     if (calqueCoche) {
                         calqueCoche = false
@@ -1568,7 +1589,7 @@ class MainActivity : Activity() {
         val nouveau = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
         if (nouveau == paysAffiche) return
         paysAffiche = nouveau
-        majLegendeOfficiel()
+        majLegende()
         if (Fonds.sourceDeCle(reglages.fond) == null &&
             CartesEnLigne.parCle(reglages.fond)?.pays != null)
             appliquerFond(CartesEnLigne.defaut(nouveau))

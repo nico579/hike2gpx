@@ -85,15 +85,14 @@ dd { margin: 0; font-weight: 600; }
 .pastille { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff;
             box-shadow: 0 0 0 1px #0004; }
 /* DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main */
-.trait.gpx { border-top: 4px dashed #ffe14a; filter:drop-shadow(0 0 1px #344132); }
+.trait.osm { border-top: 3px dashed #7b1fa2; }
+.trait.officiel { border-top: 3px dashed #00897b; }
 .trait.itineraire { border-top: 4px solid #1565c0; }
-.trait.ign { border-top: 4px dashed #ef6c00; }
-.trait.naif { border-top: 3px dashed #555555; }
+.trait.gpx { border-top: 4px dashed #ffe14a; filter:drop-shadow(0 0 1px #344132); }
+.trait.barriere { border-top: 3px solid #e53935; }
 .pastille.bloque { background: #d32f2f; }
 .pastille.verifier { background: #ef6c00; }
 .pastille.jonction { background: #fdd835; border-color: #4e342e; }
-.trait.osm { border-top: 3px dashed #7b1fa2; }
-.trait.barriere { border-top: 3px solid #e53935; }
 /* FIN LEGENDE */
 
 #reglages { margin-top: 14px; }
