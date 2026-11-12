@@ -176,9 +176,11 @@ class Handler(serveweb.Handler):
             if reste:                   # envoi coupé : rien à importer
                 self.close_connection = True
                 return
-            self.send_json(self.application.importer_archive(provisoire))
+            resultat = self.application.importer_archive(provisoire)
         finally:
             provisoire.unlink(missing_ok=True)
+        # Répondre après l'effacement : la page qui relit le dossier n'y trouve plus le zip.
+        self.send_json(resultat)
 
     def envoyer_tuile(self, chemin: str) -> None:
         """/fonds/<nom>/<z>/<x>/<y> : une tuile d'un fond de carte installé
