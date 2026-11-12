@@ -1,4 +1,4 @@
-:root{--fond:#fff;--texte:#182a3c;--discret:#65768a;--bordure:#e2e9f1;--accent:#2367d1;--panneau:var(--largeur-panneau,392px);--band-opacity:.55}
+:root{--fond:#fff;--texte:#182a3c;--discret:#65768a;--bordure:#e2e9f1;--accent:#2367d1;--accent-fonce:#1854b1;--panneau:var(--largeur-panneau,392px);--band-opacity:.55}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{overflow:hidden;color:var(--texte);background:#f7f9fc;font:14px/1.5 "Segoe UI",system-ui,sans-serif}
@@ -9,12 +9,12 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid
 .city-search:focus-within{border-color:#4d8ded;box-shadow:0 0 0 2px #4d8ded33}
 .city-search input{width:100%;min-width:0;height:100%;padding:0 10px;border:0;outline:0;background:transparent;color:var(--texte);font-size:12px}
 .city-search input:focus-visible{outline:0}
-.city-search>button{height:100%;padding:0 12px;border:0;border-left:1px solid #d9e5f1;border-radius:0 7px 7px 0;background:#edf5ff;color:#1854b1;font-size:12px;cursor:pointer}
+.city-search>button{height:100%;padding:0 12px;border:0;border-left:1px solid #d9e5f1;border-radius:0 7px 7px 0;background:#edf5ff;color:var(--accent-fonce);font-size:12px;cursor:pointer}
 .city-search>button:disabled{opacity:.55;cursor:default}
 .city-results{position:absolute;top:calc(100% + 6px);left:0;right:0;max-height:260px;overflow-y:auto;padding:6px;border:1px solid #d9e5f1;border-radius:9px;background:#fff;box-shadow:0 10px 28px #1b354533;color:#52677e;font-size:12px}
 .city-results:not(:has(button)){padding:10px 12px}
 .city-results button{display:block;width:100%;padding:8px 9px;border:0;border-radius:5px;background:transparent;color:#294762;text-align:left;font-size:12px;cursor:pointer}
-.city-results button:hover,.city-results button:focus-visible{background:#eaf2ff;color:#1854b1}
+.city-results button:hover,.city-results button:focus-visible{background:#eaf2ff;color:var(--accent-fonce)}
 .brand{display:flex;align-items:center;gap:9px;font-size:22px;letter-spacing:-.8px}
 .brand>strong{font-weight:750}.brand>strong span{color:var(--accent)}
 .brand-icon{display:block;width:35px;height:35px;flex:none;object-fit:contain}
@@ -24,8 +24,8 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid
 .map-coordinates-menu{display:grid;gap:7px;min-width:230px;color:#294762;font-size:12px}
 .map-coordinates-menu label{display:grid;gap:4px;font-weight:650}
 .map-coordinates-menu input{width:100%;padding:7px 8px;border:1px solid #cbd9e8;border-radius:6px;background:#f8fbff;color:#182a3c;font:12px/1.4 ui-monospace,Consolas,monospace}
-.map-coordinates-menu button{justify-self:start;padding:6px 10px;border:1px solid #2367d1;border-radius:6px;background:#2367d1;color:#fff;font-size:12px;cursor:pointer}
-.map-coordinates-menu button:hover{background:#1854b1}
+.map-coordinates-menu button{justify-self:start;padding:6px 10px;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;font-size:12px;cursor:pointer}
+.map-coordinates-menu button:hover{background:var(--accent-fonce)}
 .map-coordinates-menu [role=status]:empty{display:none}
 .map-coordinates-menu [role=status]{color:#52677e;font-size:11px}
 /* À un zoom Chrome fractionnaire (80 % notamment), les tuiles de 256 px
@@ -54,13 +54,13 @@ body.redimensionne *{transition:none!important}
 .route-summary dl>div:nth-child(even){border-left:1px solid var(--bordure);padding-left:11px}
 .route-summary dl>.summary-relief{border-top:1px solid var(--bordure);padding-top:7px}
 .route-summary dt{font-size:10px;color:#65768a;margin:0}
-.route-summary dd{font-size:17px;line-height:1.25;font-weight:700;color:#2367d1;margin:3px 0 0}
+.route-summary dd{font-size:17px;line-height:1.25;font-weight:700;color:var(--accent);margin:3px 0 0}
 .route-summary .summary-values{font-size:clamp(11px,3.5vw,13px);white-space:nowrap}
 .route-summary .summary-values>span{display:inline}
 #pointHaut:empty + .altitude-separator{display:none}
 .langues{align-self:center;gap:4px}
 .bouton-langue{padding:4px 7px;font-size:11px;color:#728093;background:#f7f9fc;border-radius:6px}
-.bouton-langue.active{background:#eaf2ff;color:#1854b1;border-color:#cddff7}
+.bouton-langue.active{background:#eaf2ff;color:var(--accent-fonce);border-color:#cddff7}
 .panel-scroll{overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:#ced8e5 transparent}
 .pane{padding:19px 23px 25px}
 .pane-title{font-size:19px;line-height:1.25;margin:0 0 6px}
@@ -77,8 +77,8 @@ body.redimensionne *{transition:none!important}
 .action-control:first-child .action-tooltip{left:0;transform:none}
 .action-control:last-child .action-tooltip{left:auto;right:0;transform:none}
 .action-control:hover .action-tooltip,.action-control:focus-within .action-tooltip{opacity:1;visibility:visible}
-.boutons #exporter{background:var(--accent);border-color:var(--accent);color:#fff;min-height:44px;font-size:13px;font-weight:650;box-shadow:0 3px 8px #2367d123}
-.boutons #exporter:hover:not(:disabled){background:#1854b1;color:#fff}
+.boutons #exporter{background:var(--accent);border-color:var(--accent);color:#fff;min-height:44px;font-size:13px;font-weight:650;box-shadow:0 3px 8px var(--accent)23}
+.boutons #exporter:hover:not(:disabled){background:var(--accent-fonce);color:#fff}
 .gpx-import{display:grid;gap:7px;padding-top:8px;border-top:1px solid var(--bordure)}
 .gpx-import #chargerGpx{width:100%;background:#ffe14a;border-color:#d6b52a;color:#344132;font-weight:700}
 .gpx-import #chargerGpx:hover:not(:disabled){background:#f5d030;color:#344132}
@@ -138,7 +138,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 .profile-area{fill:#d9e8fa;fill-opacity:.5}
 .profile-line{fill:none;stroke:#2870cb;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
 .profile-cursor{stroke:#315f91;stroke-width:1.2;stroke-dasharray:3 3}
-.profile-cursor-point{fill:#fff;stroke:#2367d1;stroke-width:2}
+.profile-cursor-point{fill:#fff;stroke:var(--accent);stroke-width:2}
 #reglages summary,#journal summary{font-size:13px;font-weight:700;color:#2e455d}
 .ign-key-label{display:flex;align-items:center;gap:7px}
 #reglages .ign-key-label{margin:0}
@@ -195,7 +195,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 /* « Télécharger », l'action principale, en bleu plein comme « Exporter le GPX » ;
    « Supprimer » en rouge, pour qu'on ne le prenne pas pour un autre. */
 #hlTelecharger{background:var(--accent);border-color:var(--accent);color:#fff}
-#hlTelecharger:hover:not(:disabled){background:#1854b1}
+#hlTelecharger:hover:not(:disabled){background:var(--accent-fonce)}
 #hlTelecharger:disabled{background:#fff;border-color:#b9c9dc;color:#7b8ca0;box-shadow:none}
 #hlSupprimer{border-color:#d9827a;color:#b3261e}
 #hlSupprimer:hover:not(:disabled){background:#fdf0ef}
@@ -248,7 +248,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 #progressionBarre{background:var(--accent)}
 .note .piste{height:5px;margin-top:7px}
 .point{box-shadow:0 2px 8px #193c5d45}
-.point.depart{background:#2367d1}.point.arrivee{background:#245ca2}
+.point.depart{background:var(--accent)}.point.arrivee{background:#245ca2}
 .route-direction-icon{display:grid;place-items:center;border:1px solid #1565c0;border-radius:50%;background:#fff;box-shadow:0 1px 3px #173a6380;pointer-events:none}
 .route-direction-icon svg{width:11px;height:11px;fill:#1565c0}
 .leaflet-control-layers{border-radius:9px!important;box-shadow:0 3px 18px #23395025!important;border:1px solid #e4eaf2!important}
@@ -285,8 +285,8 @@ body.plein-ecran .map-top{display:none}
 .menu-head .brand-icon{width:30px;height:30px}
 .menu-etat{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 10px 12px;margin-bottom:6px;border-bottom:1px solid #d5dee8}
 .menu-principal .menu-entry{display:flex;align-items:center;gap:18px;width:100%;padding:12px 12px;border:0;border-radius:10px;background:transparent;color:#263238;font-size:15px;line-height:1.3;text-align:left;text-decoration:none;cursor:pointer}
-.menu-principal .menu-entry:hover,.menu-principal .menu-entry:focus-visible{background:#e3edf9;color:#1854b1}
-.menu-principal .menu-entry[aria-current=page],.menu-principal .menu-entry[aria-pressed=true]{color:#1854b1;font-weight:650}
+.menu-principal .menu-entry:hover,.menu-principal .menu-entry:focus-visible{background:#e3edf9;color:var(--accent-fonce)}
+.menu-principal .menu-entry[aria-current=page],.menu-principal .menu-entry[aria-pressed=true]{color:var(--accent-fonce);font-weight:650}
 body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran .menu-fond{display:none}
 /* Une page du menu dans le panneau : son titre, une croix pour revenir à la carte seule. */
 .page-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 12px 12px 23px;border-bottom:1px solid #cfdaea;background:#fff;flex-shrink:0}
@@ -299,8 +299,8 @@ body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran 
 .pane>.note{margin:0 0 10px;font-size:12px;line-height:1.5;color:#546a80}
 .page-action{padding:9px 12px;border:1px solid #d5e5fa;border-radius:8px;background:#eef5ff;color:#1959b5;font-size:12px;cursor:pointer}
 .page-action:hover:not(:disabled){background:#e1efff}
-.page-action[aria-expanded=true]{background:#2367d1;border-color:#2367d1;color:#fff}
-.page-action[aria-expanded=true]:hover:not(:disabled){background:#1854b1}
+.page-action[aria-expanded=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.page-action[aria-expanded=true]:hover:not(:disabled){background:var(--accent-fonce)}
 /* Le contrôle Leaflet des fonds et des calques, sorti de la carte pour la page
    « Gestion des cartes » : une simple liste, sans cadre ni ombre. */
 .cartes-calques .leaflet-control-layers{float:none;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent;color:#42566d}

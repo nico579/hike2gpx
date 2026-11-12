@@ -1122,7 +1122,7 @@ test("« Zones stockées localement » liste les lots installés, comme le tél�
   await tic();
   repondre(requetes.findLast((r) => r.url === "/api/hors_ligne"), { lots: [], fonds: [] });
   await tic();
-  assert.equal(elements.get("zonesLocales").enfants[0].textContent, "Aucun lot installé.");
+  assert.equal(elements.get("zonesLocales").enfants[0].textContent, "Aucune zone de routage installée.");
 });
 
 test("une recherche aboutie referme le champ, comme sur le téléphone", () => {
@@ -1196,6 +1196,8 @@ test("en anglais, la page traduit ses textes et les erreurs du serveur", async (
   assert.equal(elements.get("entree-reglages").textContent, "Settings");
   assert.equal(elements.get("menuPrincipal")["aria-label"], "Menu");
   assert.match(page.ts("Chemin ATKIS absent d'OpenStreetMap : existence et accès à vérifier"), /ATKIS path missing/);
+  assert.match(page.ts("Chemin IGN absent d'OpenStreetMap : existence et accès à vérifier"), /^IGN path missing/);
+  assert.match(page.ts("Chemin swissTLM3D absent d'OpenStreetMap : existence et accès à vérifier"), /^swissTLM3D path missing/);
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   await page.calculer();
   assert.equal(elements.get("statut").textContent, "Place a second point.");
@@ -1470,7 +1472,7 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
   bouton = elements.get("donnees").enfants[0].enfants[0];
   assert.equal(bouton.disabled, false);
   bouton.ecouteurs.click[0]();
-  assert.match(confirmations[0], /les lots et les fonds hors ligne/);
+  assert.match(confirmations[0], /les zones de routage et les fonds hors ligne/);
   assert.equal(requetes.filter((r) => r.url === "/api/donnees").length, 0);
   confirmations.reponse = true;
   bouton.ecouteurs.click[0]();

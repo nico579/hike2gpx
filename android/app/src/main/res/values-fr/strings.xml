@@ -2,7 +2,6 @@
     <string name="etat_pret">Touchez la carte pour poser le départ, puis l’arrivée.</string>
     <string name="etat_depart_pose">Départ posé : touchez l’arrivée.</string>
     <string name="arreter">Arrêter</string>
-    <string name="fond">Fond</string>
     <string name="retirer">Retirer</string>
     <string name="revenir">Revenir</string>
     <string name="effacer">Effacer</string>
@@ -54,7 +53,6 @@
     <string name="cartes_supprimer_titre">Supprimer le fond</string>
     <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier sera effacé.</string>
 
-    <string name="titre_itineraire">Itinéraire</string>
     <string name="strict">Inclure les blocages à vérifier</string>
     <string name="officiels">Inclure les chemins %1$s</string>
     <string name="officiels_aucun">Inclure les chemins officiels</string>
@@ -104,7 +102,7 @@
     <string name="recuperer_rien">Le %1$s ne partage rien qui manque au téléphone. L’ajouter quand même comme source ?</string>
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
-    <string name="aucun_lot">Aucun lot installé.</string>
+    <string name="aucun_lot">Aucune zone de routage installée.</string>
     <string name="itineraires_modes">Mode de calcul</string>
     <string name="itineraires_pc">Télécharger des zones depuis l’ordinateur</string>
     <string name="itineraires_lot">Télécharger %1$s · %2$s · %3$s, depuis %4$s</string>
@@ -113,29 +111,29 @@
     <string name="plus_tard">Plus tard</string>
     <string name="mettre_a_jour">Mettre à jour</string>
     <string name="supprimer">Supprimer</string>
-    <string name="confirmer_suppression">Retirer ce lot du téléphone ? Il ne reviendra pas de lui-même avant le prochain lancement.</string>
+    <string name="confirmer_suppression">Retirer cette zone de routage du téléphone ? Elle ne reviendra pas d’elle-même avant le prochain lancement.</string>
     <string name="confirmer_telechargement">%1$s depuis %2$s. Préférez le Wi-Fi.</string>
-    <string name="confirmer_donnees_mobiles">Le lot de la case %1$s (%2$s, %3$s) couvre ce parcours. Le télécharger sur les données mobiles ?</string>
+    <string name="confirmer_donnees_mobiles">La zone de routage de la case %1$s (%2$s, %3$s) couvre ce parcours. La télécharger sur les données mobiles ?</string>
 
     <string name="titre_cache">Cache</string>
     <string name="vider_cache">Vider le cache (%1$s)</string>
     <string name="vider">Vider</string>
-    <string name="confirmer_vider_cache">Effacer les lots et les fonds hors ligne, les téléchargements interrompus et les tuiles gardées, %1$s en tout ? Les lots du serveur se retéléchargeront d’eux-mêmes quand un parcours en aura besoin ; les fonds viennent du PC.</string>
+    <string name="confirmer_vider_cache">Effacer les zones de routage et les fonds hors ligne, les téléchargements interrompus et les tuiles gardées, %1$s en tout ? Les zones de routage du serveur se retéléchargeront d’elles-mêmes quand un parcours en aura besoin ; les fonds viennent du PC.</string>
     <string name="etat_cache_vide">Cache vidé : %1$s libérés.</string>
     <string name="etat_occupe_cache">Un téléchargement ou un calcul est en cours. Réessayez après sa fin.</string>
 
     <string name="etat_catalogue">Lecture des catalogues…</string>
     <string name="etat_catalogue_lu">%1$d case(s) au catalogue.</string>
     <string name="etat_pc">Lecture des catalogues des PC…</string>
-    <string name="etat_pc_lus">%1$d fond(s) de carte et %2$d lot(s) partagés par les PC.</string>
+    <string name="etat_pc_lus">%1$d fond(s) de carte et %2$d zone(s) de routage partagée(s) par les PC.</string>
     <string name="etat_telechargement">Téléchargement…</string>
-    <string name="etat_telechargement_lot">Téléchargement du lot %1$s (%2$s)…</string>
+    <string name="etat_telechargement_lot">Téléchargement de la zone de routage %1$s (%2$s)…</string>
     <string name="etat_zone_routage">Zone de routage %1$s</string>
     <string name="etat_zone_carte">Zone de carte %1$s</string>
     <string name="etat_progression">%1$s · %2$s sur %3$s · %4$s/s · reste %5$s</string>
     <string name="etat_progression_debut">%1$s · %2$s sur %3$s</string>
-    <string name="etat_installe">Lot %1$s installé.</string>
-    <string name="etat_supprime">Lot %1$s retiré, %2$s libérés.</string>
+    <string name="etat_installe">Zone de routage %1$s installée.</string>
+    <string name="etat_supprime">Zone de routage %1$s retirée, %2$s libérés.</string>
     <string name="etat_interrompu">Téléchargement interrompu : il reprendra là où il s’est arrêté.</string>
     <string name="etat_calcul">Calcul en cours…</string>
     <string name="etat_itineraire">Distance : %1$.1f km</string>
@@ -149,8 +147,8 @@
     <string name="duree_minutes">%1$d min</string>
 
     <!-- Les erreurs du code métier (ErreurTexte). -->
-    <string name="err_catalogue_format">Catalogue des lots d’un format inconnu.</string>
-    <string name="err_catalogue_illisible">Catalogue des lots illisible (%1$s).</string>
+    <string name="err_catalogue_format">Catalogue des zones de routage d’un format inconnu.</string>
+    <string name="err_catalogue_illisible">Catalogue des zones de routage illisible (%1$s).</string>
     <string name="err_case_invalide">Nom de case invalide : %1$s</string>
     <string name="err_sha256">Empreinte SHA-256 invalide : %1$s</string>
     <string name="err_taille">Taille invalide : %1$s</string>
@@ -164,13 +162,13 @@
     <string name="err_altere">%1$s : téléchargement impossible ou altéré.</string>
     <string name="err_http_fichier">%1$s : réponse HTTP %2$d.</string>
     <string name="err_manifeste_illisible">Manifeste illisible : %1$s</string>
-    <string name="err_format_lot">Format de lot %1$d inconnu (attendu : %2$d).</string>
+    <string name="err_format_lot">Format de zone de routage %1$d inconnu (attendu : %2$d).</string>
     <string name="err_manifeste_invalide">Manifeste invalide : %1$s</string>
     <string name="err_fichier_taille">%1$s manquant ou de taille inattendue.</string>
     <string name="err_fichier_empreinte">%1$s ne correspond pas à son empreinte SHA-256.</string>
-    <string name="err_sans_rd5">Le lot ne contient pas %1$s.</string>
-    <string name="err_ranger">Impossible de ranger le lot %1$s.</string>
-    <string name="err_aucun_lot">Aucun lot ne couvre ce parcours : rapprochez les points, ou attendez le lot de la case.</string>
+    <string name="err_sans_rd5">La zone de routage ne contient pas %1$s.</string>
+    <string name="err_ranger">Impossible de ranger la zone de routage %1$s.</string>
+    <string name="err_aucun_lot">Aucune zone de routage ne couvre ce parcours : rapprochez les points, ou attendez la zone de la case.</string>
     <string name="err_franchit_bloquant">Itinéraire refusé : le tracé passe un franchissement bloquant.</string>
     <string name="err_franchit_strict">Itinéraire refusé : le tracé passe un franchissement à vérifier, en mode strict.</string>
     <string name="err_zone">Le tracé sort sans cesse de la zone examinée : rapprochez les points.</string>
@@ -197,7 +195,7 @@
     <string name="maj_verifier">Vérifier les mises à jour</string>
     <string name="maj_verification">Recherche d’une mise à jour…</string>
     <string name="maj_a_jour">hike2gpx %1$s est à jour.</string>
-    <string name="maj_disponible">hike2gpx %1$s est disponible (installée : %2$s, téléchargement de %3$s). L’installer maintenant ? Vos lots et vos fonds de carte sont gardés.</string>
+    <string name="maj_disponible">hike2gpx %1$s est disponible (installée : %2$s, téléchargement de %3$s). L’installer maintenant ? Vos zones de routage et vos fonds de carte sont gardés.</string>
     <string name="maj_installer">Installer</string>
     <string name="maj_telechargement">Téléchargement de la mise à jour…</string>
     <string name="maj_prete">Version %1$s téléchargée et vérifiée.</string>
@@ -235,7 +233,6 @@
     <string name="trace_notification_texte">Touchez pour ouvrir hike2gpx. Les points sont gardés même écran éteint.</string>
     <string name="trace_recuperee">Trace interrompue récupérée : %1$s</string>
     <string name="trace_titre">Trace GPS enregistrée</string>
-    <string name="trace_resume">%1$s, %2$s, %3$s.</string>
     <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m.</string>
     <string name="trace_etat_debut">Trace GPS : %1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
     <string name="trace_etat_sans_denivele">Trace GPS : %1$s, %2$s, %3$s. Dénivelé indisponible : les données d’altitude ne couvrent pas encore le parcours.</string>

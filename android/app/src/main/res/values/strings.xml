@@ -4,7 +4,6 @@
     <string name="etat_pret">Tap the map to set the start, then the finish.</string>
     <string name="etat_depart_pose">Start set: tap the finish.</string>
     <string name="arreter">Stop</string>
-    <string name="fond">Map</string>
     <string name="retirer">Remove</string>
     <string name="revenir">Return</string>
     <string name="effacer">Clear</string>
@@ -56,7 +55,6 @@
     <string name="cartes_supprimer_titre">Delete the base map</string>
     <string name="cartes_supprimer_message">Delete %1$s from the phone? The file will be erased.</string>
 
-    <string name="titre_itineraire">Route</string>
     <string name="strict">Include crossings to check</string>
     <string name="officiels">Include %1$s paths</string>
     <string name="officiels_aucun">Include the official paths</string>
@@ -106,7 +104,7 @@
     <string name="recuperer_rien">The %1$s shares nothing the phone lacks. Add it as a source anyway?</string>
     <string name="ligne_installe">%1$s · %2$s · %3$s</string>
     <string name="ligne_fond">%1$s · %2$s</string>
-    <string name="aucun_lot">No bundle installed.</string>
+    <string name="aucun_lot">No routing area installed.</string>
     <string name="itineraires_modes">Calculation mode</string>
     <string name="itineraires_pc">Download areas from the computer</string>
     <string name="itineraires_lot">Download %1$s · %2$s · %3$s, from %4$s</string>
@@ -115,29 +113,29 @@
     <string name="plus_tard">Later</string>
     <string name="mettre_a_jour">Update</string>
     <string name="supprimer">Delete</string>
-    <string name="confirmer_suppression">Remove this bundle from the phone? It will not come back on its own before the next launch.</string>
+    <string name="confirmer_suppression">Remove this routing area from the phone? It will not come back on its own before the next launch.</string>
     <string name="confirmer_telechargement">%1$s from %2$s. Wi-Fi is better.</string>
-    <string name="confirmer_donnees_mobiles">The bundle of area %1$s (%2$s, %3$s) covers this route. Download it over mobile data?</string>
+    <string name="confirmer_donnees_mobiles">The routing area of cell %1$s (%2$s, %3$s) covers this route. Download it over mobile data?</string>
 
     <string name="titre_cache">Cache</string>
     <string name="vider_cache">Clear the cache (%1$s)</string>
     <string name="vider">Clear</string>
-    <string name="confirmer_vider_cache">Delete the offline bundles and base maps, the interrupted downloads and the kept tiles, %1$s in all? Server bundles will download again on their own when a route needs them; base maps come from the PC.</string>
+    <string name="confirmer_vider_cache">Delete the offline routing areas and base maps, the interrupted downloads and the kept tiles, %1$s in all? Server routing areas will download again on their own when a route needs them; base maps come from the PC.</string>
     <string name="etat_cache_vide">Cache cleared: %1$s freed.</string>
     <string name="etat_occupe_cache">A download or a calculation is running. Try again when it is done.</string>
 
     <string name="etat_catalogue">Reading the catalogues…</string>
     <string name="etat_catalogue_lu">%1$d area(s) in the catalogue.</string>
     <string name="etat_pc">Reading the PC catalogues…</string>
-    <string name="etat_pc_lus">%1$d base map(s) and %2$d bundle(s) shared by the PCs.</string>
+    <string name="etat_pc_lus">%1$d base map(s) and %2$d routing area(s) shared by the PCs.</string>
     <string name="etat_telechargement">Downloading…</string>
-    <string name="etat_telechargement_lot">Downloading bundle %1$s (%2$s)…</string>
+    <string name="etat_telechargement_lot">Downloading routing area %1$s (%2$s)…</string>
     <string name="etat_zone_routage">Routing zone %1$s</string>
     <string name="etat_zone_carte">Map zone %1$s</string>
     <string name="etat_progression">%1$s · %2$s of %3$s · %4$s/s · %5$s left</string>
     <string name="etat_progression_debut">%1$s · %2$s of %3$s</string>
-    <string name="etat_installe">Bundle %1$s installed.</string>
-    <string name="etat_supprime">Bundle %1$s removed, %2$s freed.</string>
+    <string name="etat_installe">Routing area %1$s installed.</string>
+    <string name="etat_supprime">Routing area %1$s removed, %2$s freed.</string>
     <string name="etat_interrompu">Download interrupted: it will resume where it stopped.</string>
     <string name="etat_calcul">Calculating…</string>
     <string name="etat_itineraire">Distance: %1$.1f km</string>
@@ -151,8 +149,8 @@
     <string name="duree_minutes">%1$d min</string>
 
     <!-- Errors from the core code (ErreurTexte). -->
-    <string name="err_catalogue_format">Bundle catalogue in an unknown format.</string>
-    <string name="err_catalogue_illisible">Unreadable bundle catalogue (%1$s).</string>
+    <string name="err_catalogue_format">Routing-area catalogue in an unknown format.</string>
+    <string name="err_catalogue_illisible">Unreadable routing-area catalogue (%1$s).</string>
     <string name="err_case_invalide">Invalid area name: %1$s</string>
     <string name="err_sha256">Invalid SHA-256 hash: %1$s</string>
     <string name="err_taille">Invalid size: %1$s</string>
@@ -166,13 +164,13 @@
     <string name="err_altere">%1$s: download failed or corrupted.</string>
     <string name="err_http_fichier">%1$s: HTTP response %2$d.</string>
     <string name="err_manifeste_illisible">Unreadable manifest: %1$s</string>
-    <string name="err_format_lot">Unknown bundle format %1$d (expected: %2$d).</string>
+    <string name="err_format_lot">Unknown routing-area format %1$d (expected: %2$d).</string>
     <string name="err_manifeste_invalide">Invalid manifest: %1$s</string>
     <string name="err_fichier_taille">%1$s missing or of unexpected size.</string>
     <string name="err_fichier_empreinte">%1$s does not match its SHA-256 hash.</string>
-    <string name="err_sans_rd5">The bundle does not contain %1$s.</string>
-    <string name="err_ranger">Cannot store bundle %1$s.</string>
-    <string name="err_aucun_lot">No bundle covers this route: move the points closer, or wait for the area’s bundle.</string>
+    <string name="err_sans_rd5">The routing area does not contain %1$s.</string>
+    <string name="err_ranger">Cannot store routing area %1$s.</string>
+    <string name="err_aucun_lot">No routing area covers this route: move the points closer, or wait for the cell’s routing area.</string>
     <string name="err_franchit_bloquant">Route refused: the track goes through a blocking crossing.</string>
     <string name="err_franchit_strict">Route refused: the track goes through a crossing to check, in strict mode.</string>
     <string name="err_zone">The track keeps leaving the area examined: move the points closer.</string>
@@ -199,7 +197,7 @@
     <string name="maj_verifier">Check for updates</string>
     <string name="maj_verification">Checking for updates…</string>
     <string name="maj_a_jour">hike2gpx %1$s is up to date.</string>
-    <string name="maj_disponible">hike2gpx %1$s is available (installed: %2$s, download %3$s). Install it now? Your bundles and base maps are kept.</string>
+    <string name="maj_disponible">hike2gpx %1$s is available (installed: %2$s, download %3$s). Install it now? Your routing areas and base maps are kept.</string>
     <string name="maj_installer">Install</string>
     <string name="maj_telechargement">Downloading the update…</string>
     <string name="maj_prete">Version %1$s downloaded and checked.</string>
@@ -237,7 +235,6 @@
     <string name="trace_notification_texte">Tap to open hike2gpx. Points are kept even with the screen off.</string>
     <string name="trace_recuperee">Interrupted track recovered: %1$s</string>
     <string name="trace_titre">GPS track recorded</string>
-    <string name="trace_resume">%1$s, %2$s, %3$s.</string>
     <string name="trace_etat">GPS track: %1$s, %2$s, %3$s, ascent %4$d m / descent %5$d m.</string>
     <string name="trace_etat_debut">GPS track: %1$s, %2$s, %3$s. Elevation is computed from the second point on.</string>
     <string name="trace_etat_sans_denivele">GPS track: %1$s, %2$s, %3$s. Elevation unavailable: the elevation data does not cover the route yet.</string>

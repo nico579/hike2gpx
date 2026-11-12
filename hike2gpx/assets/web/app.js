@@ -154,7 +154,7 @@ const TEXTES = {
     "disponibilite.info.titre": "Sources du prochain calcul",
     "disponibilite.info.verification": "Vérification des données en cours…",
     "disponibilite.info.overpass": "Overpass",
-    "disponibilite.info.lot": "Lot hors ligne",
+    "disponibilite.info.lot": "Zone de routage hors ligne",
     "disponibilite.info.local": "Extrait OSM local",
     "disponibilite.info.regional": "Extrait OSM régional",
     "disponibilite.info.brouter": "BRouter",
@@ -179,7 +179,7 @@ const TEXTES = {
     "donnees.vider": "Vider",
     "donnees.actualiser": "Actualiser",
     "donnees.supprimer": "Supprimer",
-    "zones.aucune": "Aucun lot installé.",
+    "zones.aucune": "Aucune zone de routage installée.",
     "zones.enrichi": "enrichi {sources}",
     "zones.confirmer": "Supprimer de ce PC la zone {nom} ({taille}) ? Celle du serveur se retéléchargera si un parcours y passe.",
     "zones.supprimee": "Zone {nom} supprimée, {taille} libérés.",
@@ -191,8 +191,8 @@ const TEXTES = {
     "donnees.viderTout": "Vider le cache",
     "donnees.aideCache": "Détail des caches vidés",
     "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins officiels, les extraits OSM téléchargés, les données BRouter et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte, conservées dans le cache du navigateur, ne sont pas effacées.",
-    "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter, ainsi que les lots et les fonds hors ligne ? Les données en ligne et les lots du serveur seront retéléchargés au besoin ; les lots et les fonds préparés sur cet ordinateur seront à refaire. Les tuiles de fond de carte affichées restent dans le cache du navigateur.",
-    "donnees.vide": "Cache local vidé, lots et fonds hors ligne compris. Les tuiles du fond de carte affiché restent gérées par le navigateur.",
+    "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter, ainsi que les zones de routage et les fonds hors ligne ? Les données en ligne et les zones de routage du serveur seront retéléchargées au besoin ; les zones de routage et les fonds préparés sur cet ordinateur seront à refaire. Les tuiles de fond de carte affichées restent dans le cache du navigateur.",
+    "donnees.vide": "Cache local vidé, zones de routage et fonds hors ligne compris. Les tuiles du fond de carte affiché restent gérées par le navigateur.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
     "unite.mo": "Mo",
     "unite.go": "Go",
@@ -241,11 +241,11 @@ const TEXTES = {
     "horsLigne.mettreAJour": "Mettre à jour",
     "horsLigne.arreter": "Arrêter",
     "horsLigne.avancement": "Préparation hors ligne de {nom} : {etape}{compte}, depuis {duree}",
-    "horsLigne.attenteCalques": "Chemins de la carte : en attente du lot hors ligne de la zone, qui se télécharge.",
-    "horsLigne.attenteCalcul": "Le lot hors ligne de la zone se télécharge : le calcul reprendra dès son arrivée.",
-    "horsLigne.automatique": "Lot de la case {nom}, téléchargé de lui-même depuis le serveur :{compte}, depuis {duree}. Il prendra le relais du mode à la volée.",
+    "horsLigne.attenteCalques": "Chemins de la carte : en attente de la zone de routage hors ligne, qui se télécharge.",
+    "horsLigne.attenteCalcul": "La zone de routage hors ligne se télécharge : le calcul reprendra dès son arrivée.",
+    "horsLigne.automatique": "Zone de routage de la case {nom}, téléchargée d'elle-même depuis le serveur :{compte}, depuis {duree}. Elle prendra le relais du mode à la volée.",
     "horsLigne.fini": "Case {nom} prête hors ligne.",
-    "horsLigne.perime": "Le lot hors ligne de {nom} date du {date}, au-delà du délai de renouvellement. Le mettre à jour ?",
+    "horsLigne.perime": "La zone de routage hors ligne de {nom} date du {date}, au-delà du délai de renouvellement. La mettre à jour ?",
     "horsLigne.plusTard": "Plus tard",
     "horsLigne.erreur": "Préparation de {nom} interrompue : {erreur}",
     "horsLigne.etape.debut": "démarrage",
@@ -428,7 +428,7 @@ const TEXTES = {
     "disponibilite.info.titre": "Sources for the next route",
     "disponibilite.info.verification": "Checking data…",
     "disponibilite.info.overpass": "Overpass",
-    "disponibilite.info.lot": "Offline bundle",
+    "disponibilite.info.lot": "Offline routing area",
     "disponibilite.info.local": "Local OSM extract",
     "disponibilite.info.regional": "Regional OSM extract",
     "disponibilite.info.brouter": "BRouter",
@@ -453,7 +453,7 @@ const TEXTES = {
     "donnees.vider": "Clear",
     "donnees.actualiser": "Refresh",
     "donnees.supprimer": "Delete",
-    "zones.aucune": "No bundle installed.",
+    "zones.aucune": "No routing area installed.",
     "zones.enrichi": "enriched {sources}",
     "zones.confirmer": "Delete the {nom} zone ({taille}) from this PC? The server's will download again if a route goes there.",
     "zones.supprimee": "Zone {nom} deleted, {taille} freed.",
@@ -465,8 +465,8 @@ const TEXTES = {
     "donnees.viderTout": "Clear cache",
     "donnees.aideCache": "Details of cleared caches",
     "donnees.detailCache": "This clears Overpass responses and OSM crossings, official paths, downloaded OSM extracts, BRouter data and gpx2elev elevation models. They are downloaded again when needed. Background map tiles held in the browser cache are not cleared.",
-    "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data, and the offline bundles and maps? Online data and the server's bundles will download again when needed; bundles and maps prepared on this computer will have to be made again. Displayed background map tiles remain in the browser cache.",
-    "donnees.vide": "Local cache cleared, offline bundles and maps included. Displayed background map tiles remain managed by the browser.",
+    "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data, and the offline routing areas and maps? Online data and the server's routing areas will download again when needed; routing areas and maps prepared on this computer will have to be made again. Displayed background map tiles remain in the browser cache.",
+    "donnees.vide": "Local cache cleared, offline routing areas and maps included. Displayed background map tiles remain managed by the browser.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
     "unite.mo": "MB",
     "unite.go": "GB",
@@ -515,9 +515,9 @@ const TEXTES = {
     "horsLigne.mettreAJour": "Update",
     "horsLigne.arreter": "Stop",
     "horsLigne.avancement": "Preparing {nom} for offline use: {etape}{compte}, for {duree}",
-    "horsLigne.attenteCalques": "Map paths: waiting for the area's offline bundle, which is downloading.",
-    "horsLigne.attenteCalcul": "The area's offline bundle is downloading: the route will be computed as soon as it arrives.",
-    "horsLigne.automatique": "Bundle of the {nom} area, downloading by itself from the server:{compte}, for {duree}. It will take over from on-the-fly mode.",
+    "horsLigne.attenteCalques": "Map paths: waiting for the offline routing area, which is downloading.",
+    "horsLigne.attenteCalcul": "The offline routing area is downloading: the route will be computed as soon as it arrives.",
+    "horsLigne.automatique": "Routing area of the {nom} cell, downloading by itself from the server:{compte}, for {duree}. It will take over from on-the-fly mode.",
     "horsLigne.fini": "Area {nom} ready offline.",
     "horsLigne.perime": "The offline data of {nom} dates from {date}, past the refresh delay. Update it?",
     "horsLigne.plusTard": "Later",
@@ -638,7 +638,10 @@ function ts(texte) {
   if (langue !== "en") return texte;
   const traduit = Object.values(window.HIKE2GPX_MAP_PROVIDERS || {})
     .map((p) => p.serverTexts?.[texte]).find((s) => s !== undefined);
-  return traduit ?? SERVEUR_EN[texte] ?? texte;
+  if (traduit ?? SERVEUR_EN[texte]) return traduit ?? SERVEUR_EN[texte];
+  // « Chemin IGN absent d'OpenStreetMap : ... » : le nom du réseau change selon le pays.
+  const officiel = /^Chemin (.+) absent d'OpenStreetMap : existence et accès à vérifier$/.exec(texte);
+  return officiel ? `${officiel[1]} path missing from OpenStreetMap: existence and access to check` : texte;
 }
 
 function decimal(valeur, chiffres) {

@@ -83,6 +83,8 @@ class ServiceTrace : Service() {
             gestionnaire.requestLocationUpdates(LocationManager.GPS_PROVIDER, intervalleGps(EnregistrementGps.trace?.dureeMin),
                 0f, nouvelle, Looper.getMainLooper())
             ecoute = nouvelle
+        } catch (e: SecurityException) {
+            // permission retirée : rien à enregistrer
         } catch (e: Exception) {
             // GPS absent ou permission retirée : rien à enregistrer
         }

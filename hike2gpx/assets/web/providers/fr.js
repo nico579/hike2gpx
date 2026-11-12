@@ -18,9 +18,7 @@ window.HIKE2GPX_MAP_PROVIDERS.fr = {
     fr: { "bdtopo.troncon": "Tronçon", "bdtopo.acces": "accès piéton : {valeur}", "bdtopo.prive": "privé" },
     en: { "bdtopo.troncon": "Section", "bdtopo.acces": "pedestrian access: {valeur}", "bdtopo.prive": "private" },
   },
-  serverTexts: { "Chemin de la BD TOPO absent d'OpenStreetMap : existence et accès à vérifier":
-    "BD TOPO path missing from OpenStreetMap: existence and access to check",
-    "Hors connexion : chemins BD TOPO de cette zone jamais chargés.":
+  serverTexts: { "Hors connexion : chemins BD TOPO de cette zone jamais chargés.":
     "Offline: the BD TOPO paths of this area were never loaded." },
   paths: {
     overlay: "bdtopo", source: "ign", label: "IGN",
