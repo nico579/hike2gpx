@@ -6,7 +6,6 @@
     <string name="retirer">Retirer</string>
     <string name="revenir">Revenir</string>
     <string name="effacer">Effacer</string>
-    <string name="exporter">GPX</string>
     <string name="reglages">Réglages</string>
     <string name="bulle_bloquant">bloquant</string>
     <string name="bulle_verifier">à vérifier</string>
@@ -19,7 +18,6 @@
 
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Recherche</string>
-    <string name="menu_bibliotheque">Ma bibliothèque</string>
     <string name="menu_cartes">Gestion des cartes</string>
     <string name="menu_itineraires">Gestion des itinéraires</string>
     <string name="menu_aide">Aide</string>
@@ -238,8 +236,6 @@
     <string name="trace_recuperee">Trace interrompue récupérée : %1$s</string>
     <string name="trace_titre">Trace GPS enregistrée</string>
     <string name="trace_resume">%1$s, %2$s, %3$s.</string>
-    <string name="trace_fichier">Fichier : %1$s</string>
-    <string name="trace_exporter">Exporter le GPX</string>
     <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m.</string>
     <string name="trace_etat_debut">Trace GPS : %1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
     <string name="trace_etat_sans_denivele">Trace GPS : %1$s, %2$s, %3$s. Dénivelé indisponible : les données d’altitude ne couvrent pas encore le parcours.</string>
@@ -249,13 +245,7 @@
     <string name="trace_denivele_calcul">Calcul du dénivelé avant l’export…</string>
     <string name="trace_gpx_desc">D+ %1$d m / D− %2$d m (gpx2elev)</string>
     <string name="trace_export_annule">Export annulé.</string>
-    <string name="titre_traces">Traces enregistrées</string>
-    <string name="traces_aucune">Aucune trace enregistrée pour le moment.</string>
-    <string name="trace_supprimer_titre">Supprimer la trace</string>
-    <string name="trace_supprimer_message">Supprimer %1$s ? Le fichier GPX sera effacé du téléphone.</string>
-    <string name="traces_supprimer_message">Supprimer %1$d traces ? Les fichiers GPX seront effacés du téléphone.</string>
-    <string name="traces_supprimer_selection">Supprimer la sélection</string>
-    <string name="traces_selection_vide">Cochez au moins une trace.</string>
+    <string name="trace_dans_telechargements">Exportée dans Téléchargements : %1$s</string>
     <plurals name="trace_points">
         <item quantity="one">%1$d point</item>
         <item quantity="other">%1$d points</item>

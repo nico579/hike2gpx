@@ -8,7 +8,6 @@
     <string name="retirer">Remove</string>
     <string name="revenir">Return</string>
     <string name="effacer">Clear</string>
-    <string name="exporter">GPX</string>
     <string name="reglages">Settings</string>
     <string name="bulle_bloquant">blocking</string>
     <string name="bulle_verifier">to check</string>
@@ -21,7 +20,6 @@
 
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Search</string>
-    <string name="menu_bibliotheque">My library</string>
     <string name="menu_cartes">Map management</string>
     <string name="menu_itineraires">Route management</string>
     <string name="menu_aide">Help</string>
@@ -240,8 +238,6 @@
     <string name="trace_recuperee">Interrupted track recovered: %1$s</string>
     <string name="trace_titre">GPS track recorded</string>
     <string name="trace_resume">%1$s, %2$s, %3$s.</string>
-    <string name="trace_fichier">File: %1$s</string>
-    <string name="trace_exporter">Export the GPX</string>
     <string name="trace_etat">GPS track: %1$s, %2$s, %3$s, ascent %4$d m / descent %5$d m.</string>
     <string name="trace_etat_debut">GPS track: %1$s, %2$s, %3$s. Elevation is computed from the second point on.</string>
     <string name="trace_etat_sans_denivele">GPS track: %1$s, %2$s, %3$s. Elevation unavailable: the elevation data does not cover the route yet.</string>
@@ -251,13 +247,7 @@
     <string name="trace_denivele_calcul">Computing elevation before export…</string>
     <string name="trace_gpx_desc">ascent %1$d m / descent %2$d m (gpx2elev)</string>
     <string name="trace_export_annule">Export cancelled.</string>
-    <string name="titre_traces">Recorded tracks</string>
-    <string name="traces_aucune">No recorded track yet.</string>
-    <string name="trace_supprimer_titre">Delete the track</string>
-    <string name="trace_supprimer_message">Delete %1$s? The GPX file will be removed from the phone.</string>
-    <string name="traces_supprimer_message">Delete %1$d tracks? The GPX files will be removed from the phone.</string>
-    <string name="traces_supprimer_selection">Delete the selection</string>
-    <string name="traces_selection_vide">Check at least one track.</string>
+    <string name="trace_dans_telechargements">Exported to Downloads: %1$s</string>
     <plurals name="trace_points">
         <item quantity="one">%1$d point</item>
         <item quantity="other">%1$d points</item>
