@@ -37,13 +37,14 @@ def bloc_html(donnees: dict) -> str:
               f'aria-label="{donnees["fermer"]["fr"]}">×</button></div><ul id="legendRows">']
     for e in entrees(donnees, "pc"):
         pc = e["pc"]
-        attributs = (f' id="{pc["idLigne"]}"' if pc.get("idLigne") else "") + (" hidden" if pc.get("masquee") else "")
         forme = "pastille" if e["forme"] == "pastille" else "trait"
-        if pc.get("idTexte"):
-            corps = f'<span id="{pc["idTexte"]}">{e["fr"].format(reseau=pc["reseauParDefaut"])}</span>'
+        # Toutes les lignes naissent masquées : la page montre celles dont l'objet est sur la carte.
+        if "{reseau}" in e["fr"]:
+            # Le nom des réseaux cochés (IGN, ATKIS...) est posé par la page : pas de data-i18n.
+            corps = f'<span id="legendOfficielTexte">{e["fr"].format(reseau=donnees["reseauParDefaut"])}</span>'
         else:
             corps = f'<span data-i18n="legende.{e["id"]}">{e["fr"]}</span>'
-        lignes.append(f'        <li{attributs}><span class="{forme} {pc["classe"]}"></span> {corps}</li>')
+        lignes.append(f'        <li data-legende="{e["id"]}" hidden><span class="{forme} {pc["classe"]}"></span> {corps}</li>')
     lignes.append("      </ul>")
     return "\n".join(lignes)
 
@@ -60,6 +61,11 @@ def bloc_css(donnees: dict) -> str:
             style = "dashed" if e["forme"] == "tirets" else "solid"
             regles.append(f".trait.{pc['classe']} {{ border-top: {e['epaisseur']}px {style} {e['couleur']};{supplement} }}")
     return "\n".join(regles)
+
+
+def bloc_couleur(donnees: dict) -> str:
+    officiel = next(e for e in donnees["entrees"] if e["id"] == "chemins_officiels")
+    return f'const COULEUR_CHEMINS_OFFICIELS = "{officiel["couleur"]}";   // chemins de toutes les cartographies nationales'
 
 
 def bloc_js(donnees: dict, langue: str) -> str:
@@ -154,7 +160,8 @@ def fichiers(donnees: dict) -> dict:
 
     partiel(WEB / "index.html", [(*balises("html"), bloc_html(donnees))])
     partiel(WEB / "style.css", [(*balises("css"), bloc_css(donnees))])
-    partiel(WEB / "app.js", [(*balises("js", f" {langue}"), bloc_js(donnees, langue)) for langue in ("fr", "en")])
+    partiel(WEB / "app.js", [(*balises("js", f" {langue}"), bloc_js(donnees, langue)) for langue in ("fr", "en")]
+            + [(*balises("js", " couleur"), bloc_couleur(donnees))])
     partiel(ANDROID / "res" / "values-fr" / "strings.xml", [(*balises("html"), bloc_strings(donnees, "fr"))])
     partiel(ANDROID / "res" / "values" / "strings.xml", [(*balises("html"), bloc_strings(donnees, "en"))])
     sorties[ANDROID / "java" / "org" / "hike2gpx" / "android" / "LegendeGeneree.kt"] = kotlin(donnees)

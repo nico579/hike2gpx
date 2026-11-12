@@ -3,16 +3,13 @@ window.HIKE2GPX_MAP_PROVIDERS.cz = {
   infoBase: { fr: "Carte ZTM (ČÚZK)", en: "ZTM map (ČÚZK)" },
   baseNames: { tchequie: { fr: "Carte topographique (ČÚZK)", en: "Topographic map (ČÚZK)" } },
   paths: {
-    legendStyle: { borderTop: "3px dashed #aa6b13" },
     overlay: "zabaged", source: "zabaged", label: "ZABAGED",
     name: { fr: "chemins ZABAGED (Tchéquie)", en: "ZABAGED paths (Czechia)" },
-    legend: { fr: "portion sur un chemin ZABAGED absent d'OSM, à vérifier",
-              en: "section on a ZABAGED path missing from OSM, to check" },
     gpx: { fr: ", chemins ZABAGED © ČÚZK", en: ", ZABAGED paths © ČÚZK" },
     attribution: '© <a href="https://www.cuzk.gov.cz/">ČÚZK</a>',
-    draw({ L, groupe, donnees, rendu, texte }) {
+    draw({ couleur, L, groupe, donnees, rendu, texte }) {
       for (const troncon of donnees.troncons) {
-        L.polyline(troncon.pts, { color: "#aa6b13", weight: 3, dashArray: "5 4", renderer: rendu })
+        L.polyline(troncon.pts, { color: couleur, weight: 3, dashArray: "5 4", renderer: rendu })
           .bindTooltip(texte(`${troncon.nature} (ZABAGED)`), { sticky: true }).addTo(groupe);
       }
     },

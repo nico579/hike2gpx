@@ -24,17 +24,14 @@ window.HIKE2GPX_MAP_PROVIDERS.fr = {
     "Offline: the BD TOPO paths of this area were never loaded." },
   paths: {
     overlay: "bdtopo", source: "ign", label: "IGN",
-    legendStyle: { borderTop: "3px dashed #00897b" },
     name: { fr: "Chemins BD TOPO (IGN)", en: "BD TOPO paths (IGN)" },
     routeName: { fr: "chemins BD TOPO (IGN)", en: "BD TOPO paths (IGN)" },
-    legend: { fr: "portion sur un chemin IGN absent d'OSM, à vérifier",
-              en: "section on an IGN path missing from OSM, to check" },
     gpx: { fr: ", chemins BD TOPO © IGN", en: ", BD TOPO paths © IGN" },
-    draw({ L, groupe, donnees, rendu, texte, t }) {
+    draw({ couleur, L, groupe, donnees, rendu, texte, t }) {
       function style(nature) {
-        if (["Sentier", "Chemin", "Escalier"].includes(nature)) return { color: "#00897b", weight: 3, dashArray: "4 4" };
-        if (nature === "Route empierrée") return { color: "#00897b", weight: 3 };
-        return { color: "#00897b", weight: 2, opacity: 0.45 };
+        if (["Sentier", "Chemin", "Escalier"].includes(nature)) return { color: couleur, weight: 3, dashArray: "4 4" };
+        if (nature === "Route empierrée") return { color: couleur, weight: 3 };
+        return { color: couleur, weight: 2, opacity: 0.45 };
       }
       for (const troncon of donnees.troncons) {
         const details = [troncon.nature || t("bdtopo.troncon")];
