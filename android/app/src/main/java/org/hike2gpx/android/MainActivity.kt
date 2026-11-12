@@ -2850,6 +2850,8 @@ class MainActivity : Activity() {
             dureeMin = reglages.dureeMin * 1_000L
             precisionMax = reglages.precisionMax
         }
+        // Le service demande le GPS au rythme du filtre : il reprend sa demande.
+        if (EnregistrementGps.actif) ServiceTrace.demarrer(this)
     }
 
     /** Une icône de 18 dp avant le texte du bouton, comme sur la page du PC ; rouge pour ce qui supprime. */

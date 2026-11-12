@@ -15,6 +15,15 @@ import kotlin.math.sqrt
 data class PointTrace(val lat: Double, val lon: Double, val altitude: Double?, val instant: Long)
 
 /** La distance en mètres entre deux points, formule de haversine (rayon terrestre moyen). */
+/**
+ * L'intervalle à demander au GPS, en millisecondes, pour un filtre de trace de
+ * [dureeMin] ms : une seconde de moins, car une position arrivée à 9,99 s serait
+ * refusée par un filtre de 10 s et la suivante ne viendrait qu'à 20 s. Jamais
+ * moins d'une seconde. Demander plus souvent que le filtre ne garde réveillerait
+ * le processeur pour rien, écran éteint.
+ */
+fun intervalleGps(dureeMin: Long?): Long = maxOf(1_000L, (dureeMin ?: 1_000L) - 1_000L)
+
 fun distanceMetres(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
     val rayon = 6_371_000.0
     val dLat = Math.toRadians(lat2 - lat1)
