@@ -305,8 +305,9 @@ body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran 
 .cartes-calques .leaflet-control-layers-toggle{display:none!important}
 .cartes-calques .leaflet-control-layers label{padding:5px 0;font-size:12px;line-height:1.35;cursor:pointer}
 .cartes-calques .leaflet-control-layers-separator{display:none}
-/* En planification, le curseur en croix dit qu'un clic posera un point. */
-body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
+/* En planification, le doigt dit qu'un clic posera un point : le même que Leaflet
+   met sur le tracé et les points, pour que le curseur ne change pas en chemin. */
+body.planification:not(.calcul) .leaflet-grab{cursor:pointer}
 /* « Zones stockées localement » : une ligne par zone, ses boutons à droite. */
 .zones-locales{list-style:none;margin:0 0 12px;padding:0}
 .zones-locales li{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:12px;color:#42566d}
