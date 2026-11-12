@@ -55,8 +55,8 @@ const TEXTES = {
     "horsLigne.legendeSelection": "sélectionné",
     "horsLigne.legendeEnCours": "en cours",
     "horsLigne.legendeServeur": "sur le serveur",
-    "horsLigne.aideRoutage": "Cliquez les cases de 5° à télécharger ou à supprimer ; un second clic les désélectionne.",
-    "horsLigne.aideFond": "Cliquez les cases de 1° à télécharger ou à supprimer ; un second clic les désélectionne.",
+    "horsLigne.aideRoutage": "Cliquez les cases de 5° à télécharger, partager ou exporter ; un second clic les désélectionne.",
+    "horsLigne.aideFond": "Cliquez les cases de 1° à télécharger, partager ou exporter ; un second clic les désélectionne.",
     "horsLigne.aideZoom": "Rapprochez-vous pour voir les cases de 1° du fond de carte.",
     "horsLigne.infoInstalle": "sur ce PC, {taille}",
     "horsLigne.infoServeur": "sur le serveur, {taille}",
@@ -69,15 +69,18 @@ const TEXTES = {
     "horsLigne.selFonds": "{n} case(s) : environ {taille} et {duree}.",
     "horsLigne.selInstallees": "{n} déjà sur ce PC ({taille}).",
     "horsLigne.telecharger": "Télécharger",
-    "horsLigne.supprimerSelection": "Supprimer",
     "horsLigne.partager": "Partager",
+    "horsLigne.exporter": "Exporter",
+    "horsLigne.infoExporter": "Enregistre dans une archive zip ce que la sélection a sur ce PC, à copier sur un autre PC qui l'importe.",
+    "horsLigne.importer": "Importer",
+    "horsLigne.infoImporter": "Installe sur ce PC les cartes et les zones d'une archive zip exportée par un autre hike2gpx.",
+    "horsLigne.importEnCours": "Import de {nom} ({taille}) en cours…",
+    "horsLigne.importFini": "{nom} importée : {n} carte(s) et {z} zone(s) de routage.",
+    "horsLigne.importErreur": "{nom} non importée : {erreur}",
     "horsLigne.infoTelechargerFond": "Télécharge sur ce PC le fond choisi en haut, pour les cases sélectionnées, afin de le partager au téléphone.",
     "horsLigne.infoTelechargerRoutage": "Télécharge du serveur les zones sélectionnées, ou les fabrique sur ce PC quand le serveur ne les publie pas.",
     "horsLigne.infoPartager": "Partage au téléphone ce que la sélection a sur ce PC : un QR code s'affiche, à scanner avec hike2gpx sur le téléphone, qui récupère tout d'un coup.",
-    "horsLigne.infoSupprimer": "Supprime de ce PC ce que la sélection y a, après une confirmation qui le détaille.",
     "horsLigne.enAttente": "({n} en attente)",
-    "horsLigne.confirmerSuppressionN": "Supprimer de ce PC :\n{liste}\n\n{taille} en tout. Ce qui vient du serveur se retéléchargera si besoin ; un fond ou une zone fabriqué ici serait à refaire.",
-    "horsLigne.supprimees": "{n} case(s) retirée(s), {taille} libérés.",
     "aide": "Cliquez sur la carte pour poser le départ, puis les étapes et l'arrivée. Faites glisser un point pour le déplacer ; « Revenir au départ » ferme une boucle.",
     "bouton.retirerDernier": "Retirer",
     "bouton.retirerDernierInfo": "Retire le dernier point ajouté au parcours.",
@@ -339,8 +342,8 @@ const TEXTES = {
     "horsLigne.legendeSelection": "selected",
     "horsLigne.legendeEnCours": "in progress",
     "horsLigne.legendeServeur": "on the server",
-    "horsLigne.aideRoutage": "Click the 5° cells to download or delete; a second click deselects them.",
-    "horsLigne.aideFond": "Click the 1° cells to download or delete; a second click deselects them.",
+    "horsLigne.aideRoutage": "Click the 5° cells to download, share or export; a second click deselects them.",
+    "horsLigne.aideFond": "Click the 1° cells to download, share or export; a second click deselects them.",
     "horsLigne.aideZoom": "Zoom in to see the 1° cells of the base map.",
     "horsLigne.infoInstalle": "on this PC, {taille}",
     "horsLigne.infoServeur": "on the server, {taille}",
@@ -353,15 +356,18 @@ const TEXTES = {
     "horsLigne.selFonds": "{n} cell(s): about {taille} and {duree}.",
     "horsLigne.selInstallees": "{n} already on this PC ({taille}).",
     "horsLigne.telecharger": "Download",
-    "horsLigne.supprimerSelection": "Delete",
     "horsLigne.partager": "Share",
+    "horsLigne.exporter": "Export",
+    "horsLigne.infoExporter": "Saves what the selection has on this PC to a zip archive, to copy to another PC that imports it.",
+    "horsLigne.importer": "Import",
+    "horsLigne.infoImporter": "Installs on this PC the maps and areas of a zip archive exported by another hike2gpx.",
+    "horsLigne.importEnCours": "Importing {nom} ({taille})…",
+    "horsLigne.importFini": "{nom} imported: {n} map(s) and {z} routing area(s).",
+    "horsLigne.importErreur": "{nom} not imported: {erreur}",
     "horsLigne.infoTelechargerFond": "Downloads to this PC the base map chosen above, for the selected cells, to share it with the phone.",
     "horsLigne.infoTelechargerRoutage": "Downloads the selected zones from the server, or builds them on this PC when the server does not publish them.",
     "horsLigne.infoPartager": "Shares with the phone what the selection has on this PC: a QR code shows, to scan with hike2gpx on the phone, which gets everything at once.",
-    "horsLigne.infoSupprimer": "Deletes from this PC what the selection has there, after a confirmation that lists it.",
     "horsLigne.enAttente": "({n} waiting)",
-    "horsLigne.confirmerSuppressionN": "Delete from this PC:\n{liste}\n\n{taille} in all. What comes from the server will download again if needed; a base map or zone built here would have to be built again.",
-    "horsLigne.supprimees": "{n} cell(s) removed, {taille} freed.",
     "aide": "Click the map to place the start, then the waypoints and the finish. Drag a point to move it; “Back to start” closes a loop.",
     "bouton.retirerDernier": "Remove",
     "bouton.retirerDernierInfo": "Removes the last point added to the route.",
@@ -1944,7 +1950,7 @@ function afficherSelection() {
   $("hlTelechargerInfo").textContent = t(routage ? "horsLigne.infoTelechargerRoutage" : "horsLigne.infoTelechargerFond");
   // Ce qui est sur ce PC dans la sélection se partage au téléphone, seul.
   $("hlPartager").hidden = !b.installees.length;
-  $("hlSupprimer").hidden = !b.installees.length;
+  $("hlExporter").hidden = !b.installees.length;
 }
 
 // Télécharger : la sélection rejoint la file, qui part tout de suite si rien ne se prépare.
@@ -1989,29 +1995,6 @@ function afficherFile(message) {
   $("hlEnCours").textContent = [horsLigne.message, attente].filter(Boolean).join(" ");
   $("hlFile").hidden = !$("hlEnCours").textContent;
   $("hlArreter").hidden = !(lotEnCours.actif || horsLigne.file.length);
-}
-
-async function supprimerSelection() {
-  const b = bilanSelection();
-  if (!b.installees.length) return;
-  // La confirmation nomme ce qui part : chaque zone ou case, le fond et la taille.
-  const routage = horsLigne.mode === "routage";
-  const titre = (etat.fondsHorsLigne || {})[sourceFond()] || sourceFond();
-  const liste = b.installees.map((nom) => routage
-    ? `• ${nom} · ${tailleTexte(lotsInstalles.find((l) => l.case === nom)?.octets || 0)}`
-    : `• ${nom} · ${titre} · ${tailleTexte(fondDuCarre(nom)?.octets || 0)}`).join("\n");
-  if (!confirm(t("horsLigne.confirmerSuppressionN", { liste, taille: tailleTexte(b.octetsInstalles) }))) return;
-  let octets = 0;
-  for (const nom of b.installees) {
-    const r = horsLigne.mode === "routage" ? await api("supprimer_case", { case: nom, fonds: false })
-      : await api("supprimer_fond", { carre: nom, source: sourceFond() });
-    if (r.erreur) afficherLot({ case: nom, erreur: r.erreur });
-    else octets += r.octets || 0;
-  }
-  horsLigne.selection.clear();
-  afficherFile(t("horsLigne.supprimees", { n: b.installees.length, taille: tailleTexte(octets) }));
-  await chargerLots();
-  chargerFonds();
 }
 
 function changerMode(mode) {
@@ -2107,7 +2090,6 @@ function afficherEntreeHorsLigne() {
 $("hlRoutage").addEventListener("change", () => changerMode("routage"));
 $("hlFond").addEventListener("change", () => changerMode("fond"));
 $("hlTelecharger").addEventListener("click", telechargerSelection);
-$("hlSupprimer").addEventListener("click", supprimerSelection);
 $("hlArreter").addEventListener("click", () => { horsLigne.file = []; arreterLot(); });
 carte.on("moveend", dessinerCases);
 // La grille suit le volet « Hors ligne », que presentation.js ouvre depuis
@@ -2168,10 +2150,45 @@ async function basculerPartage(ouvrir, selection = null) {
     afficherPartage({ ouvert: false, erreur: e.message });
   }
 }
-$("hlPartager").addEventListener("click", () => {
+// Ce que la sélection a sur ce PC, tel que le prennent le partage et l'archive.
+function selectionGrille() {
   const b = bilanSelection();
-  basculerPartage(true, horsLigne.mode === "routage" ? { lots: b.installees, carres: [] }
-    : { lots: [], carres: b.installees, source: sourceFond() });
+  return horsLigne.mode === "routage" ? { lots: b.installees, carres: [] }
+    : { lots: [], carres: b.installees, source: sourceFond() };
+}
+$("hlPartager").addEventListener("click", () => basculerPartage(true, selectionGrille()));
+// Exporter : le navigateur enregistre l'archive, que le serveur écrit au fil de l'envoi.
+function adresseArchive(s) {
+  const parametres = { lots: s.lots.join(","), carres: s.carres.join(",") };
+  if (s.source) parametres.source = s.source;
+  return `/archive.zip?${new URLSearchParams(parametres)}`;
+}
+$("hlExporter").addEventListener("click", () => {
+  const lien = document.createElement("a");
+  lien.href = adresseArchive(selectionGrille());
+  lien.download = "";
+  lien.click();
+});
+// Importer : le zip part tel quel au serveur, qui vérifie chaque fichier avant de l'installer.
+$("hlImporter").addEventListener("click", () => $("fichierArchive").click());
+$("fichierArchive").addEventListener("change", async (e) => {
+  const fichier = e.target.files?.[0];
+  e.target.value = "";
+  if (!fichier) return;
+  afficherFile(t("horsLigne.importEnCours", { nom: fichier.name, taille: tailleTexte(fichier.size) }));
+  let r;
+  try {
+    const reponse = await fetch("/api/importer_archive",
+      { method: "POST", headers: { "Content-Type": "application/zip" }, body: fichier });
+    r = await reponse.json().catch(() => ({}));
+    if (!reponse.ok) r = { erreur: r.error || `HTTP ${reponse.status}` };
+  } catch (err) {
+    r = { erreur: err.message };
+  }
+  afficherFile(r.erreur ? t("horsLigne.importErreur", { nom: fichier.name, erreur: r.erreur })
+    : t("horsLigne.importFini", { nom: fichier.name, n: r.importe.fonds.length, z: r.importe.lots.length }));
+  await chargerLots();
+  chargerFonds();
 });
 $("hlPartageArreter").addEventListener("click", () => basculerPartage(false));
 $("hlPartageQr").addEventListener("click", () => { if (etat.partage?.ouvert) $("partageFenetre").hidden = false; });

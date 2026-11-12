@@ -15,6 +15,7 @@ import android.content.ContentValues
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
@@ -93,6 +94,9 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
+import org.osmdroid.views.overlay.milestones.MilestoneBitmapDisplayer
+import org.osmdroid.views.overlay.milestones.MilestoneManager
+import org.osmdroid.views.overlay.milestones.MilestoneMeterDistanceLister
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -103,6 +107,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.log2
 import kotlin.math.roundToInt
 
 /**
@@ -181,11 +186,15 @@ class MainActivity : Activity() {
     private val traceOccupe = AtomicBoolean(false)
     @Volatile private var traceARefaire = false
     private var contenuExport: ByteArray? = null
+    // Les zones et les cartes cochées pour l'archive, en attendant le choix du fichier.
+    private var archiveAEcrire: Pair<List<Lot>, List<File>>? = null
     private var echelle: ScaleBarOverlay? = null
     private var droits: CopyrightOverlay? = null
     private val points = mutableListOf<Point>()
     private val reperes = mutableListOf<Marker>()
     private var trace: Polyline? = null
+    // Les flèches du sens de marche, posées par osmdroid le long du tracé (ses « milestones »).
+    private var flechesTrace: List<MilestoneManager> = emptyList()
     /** Les traces importées (GPX, KML), dessinées sur la carte, et le nom du fichier : null sans import. */
     private val tracesImportees = mutableListOf<Polyline>()
     private var nomImport: String? = null
@@ -356,7 +365,7 @@ class MainActivity : Activity() {
                 }
 
                 override fun onZoom(event: ZoomEvent): Boolean {
-                    planifierCalques(); planifierPays(); return false
+                    majFleches(); planifierCalques(); planifierPays(); return false
                 }
             })
         }
@@ -965,11 +974,55 @@ class MainActivity : Activity() {
             outlinePaint.color = COULEUR_ITINERAIRE
             outlinePaint.strokeWidth = 8f
         }
+        val demi = dp(FLECHE_DP) / 2
+        flechesTrace = listOf(MilestoneManager(
+            MilestoneMeterDistanceLister(Denivele.distancesFleches(distancesProfil.lastOrNull() ?: 0.0)),
+            MilestoneBitmapDisplayer(0.0, true, iconeFleche, demi, demi),
+        ))
+        majFleches()
         carte.overlays.add(1 + tracesImportees.size, trace)   // sur les traces importées, sous les touches et les repères
         majLegende()
         // Jamais de recadrage : les points sont posés à l'écran, et la carte reste
         // là où on l'a mise pour poser le suivant.
         carte.invalidate()
+    }
+
+    /**
+     * Comme la page : pas de flèches sous le zoom 12, où elles s'entasseraient
+     * sur le tracé. Le zoom de Leaflet se compte en pixels CSS, celui d'osmdroid
+     * en pixels de l'écran : sur un écran de densité 2,6, la même échelle porte
+     * un zoom plus grand de log2(2,6), soit 1,4.
+     */
+    private fun majFleches() {
+        val zoomPage = carte.zoomLevelDouble - log2(resources.displayMetrics.density.toDouble())
+        trace?.setMilestoneManagers(if (zoomPage >= ZOOM_FLECHES) flechesTrace else emptyList())
+    }
+
+    /**
+     * La flèche de la page (.route-direction-icon) : une pastille blanche cerclée
+     * de bleu, un triangle bleu pointé vers l'est, qu'osmdroid tourne dans le sens
+     * du segment.
+     */
+    private val iconeFleche: Bitmap by lazy {
+        val densite = resources.displayMetrics.density
+        val cote = dp(FLECHE_DP)
+        val image = Bitmap.createBitmap(cote, cote, Bitmap.Config.ARGB_8888)
+        val toile = Canvas(image)
+        val pinceau = Paint(Paint.ANTI_ALIAS_FLAG)
+        val r = cote / 2f
+        pinceau.color = 0xffffffff.toInt()
+        toile.drawCircle(r, r, r - densite / 2, pinceau)
+        pinceau.color = COULEUR_ITINERAIRE
+        pinceau.style = Paint.Style.STROKE
+        pinceau.strokeWidth = densite
+        toile.drawCircle(r, r, r - densite / 2, pinceau)
+        // Le chemin SVG « M4 4 14 9 4 14 6 9Z » (boîte de 18), réduit à 11 dp au centre.
+        fun x(v: Float) = (1.5f + v * 11f / 18f) * densite
+        pinceau.style = Paint.Style.FILL
+        toile.drawPath(android.graphics.Path().apply {
+            moveTo(x(4f), x(4f)); lineTo(x(14f), x(9f)); lineTo(x(4f), x(14f)); lineTo(x(6f), x(9f)); close()
+        }, pinceau)
+        image
     }
 
     // ------------------------------------------------------------------ calques du lot
@@ -1273,6 +1326,7 @@ class MainActivity : Activity() {
         }
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } }
             .avecIcone(R.drawable.ic_btn_qr))
+        boutonsArchive(colonne, emptyList(), installes)
 
         // Les calques du lot, comme dans la page du PC : la coche OSM reste
         // toujours, celle d'un fournisseur national n'apparaît que si le lot
@@ -1395,6 +1449,83 @@ class MainActivity : Activity() {
         })
     }
 
+    // ------------------------------------------------------------------ archive zip
+
+    /**
+     * Les deux boutons d'archive d'une page (Archive.kt) : exporter ce qu'elle
+     * liste vers un fichier choisi (clé USB, Drive, Téléchargements), et
+     * importer une archive, d'un PC ou d'un téléphone. Une case longue à
+     * préparer (une heure pour un SCAN 25) s'y sauvegarde aussi.
+     */
+    private fun boutonsArchive(colonne: LinearLayout, lots: List<Lot>, cartes: List<File>) {
+        if (lots.isNotEmpty() || cartes.isNotEmpty())
+            colonne.addView(Button(this).apply {
+                setText(R.string.archive_exporter); setOnClickListener { choisirExport(lots, cartes) }
+            }.avecIcone(R.drawable.ic_btn_telecharger))
+        colonne.addView(Button(this).apply {
+            setText(R.string.archive_importer)
+            setOnClickListener {
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    // Un Drive livre souvent un zip en application/octet-stream.
+                    type = "*/*"
+                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/zip", "application/octet-stream"))
+                }, IMPORT_ARCHIVE)
+            }
+        }.avecIcone(R.drawable.ic_btn_actualiser))
+    }
+
+    /** Les zones ou les cartes à mettre dans l'archive, toutes cochées d'abord, puis le fichier où l'écrire. */
+    private fun choisirExport(lots: List<Lot>, cartes: List<File>) {
+        val noms = lots.map { it.case } + cartes.map { it.nameWithoutExtension }
+        val coches = BooleanArray(noms.size) { true }
+        AlertDialog.Builder(this)
+            .setTitle(if (lots.isNotEmpty()) R.string.archive_choix_zones else R.string.archive_choix_cartes)
+            .setMultiChoiceItems(noms.toTypedArray(), coches) { _, i, v -> coches[i] = v }
+            .setPositiveButton(R.string.archive_exporter) { _, _ ->
+                val lotsChoisis = lots.filterIndexed { i, _ -> coches[i] }
+                val cartesChoisies = cartes.filterIndexed { i, _ -> coches[lots.size + i] }
+                if (lotsChoisis.isEmpty() && cartesChoisies.isEmpty()) {
+                    etat.setText(R.string.archive_rien); return@setPositiveButton
+                }
+                archiveAEcrire = lotsChoisis to cartesChoisies
+                startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_TITLE, Archive.nomPropose(
+                        lotsChoisis.map { it.case } + cartesChoisies.map { it.nameWithoutExtension }))
+                }, EXPORT_ARCHIVE)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun ecrireArchive(adresse: Uri, lots: List<Lot>, cartes: List<File>) {
+        val nom = nomAffiche(adresse)
+        tache(R.string.etat_archive_ecriture, true, { continuer ->
+            val sortie = contentResolver.openOutputStream(adresse) ?: throw IOException(nom)
+            sortie.use { Archive.ecrire(it, lots, horsLigne, cartes, suiviTelechargement(nom), continuer) }
+            getString(R.string.etat_archive_ecrite, nom)
+        })
+    }
+
+    private fun lireArchive(adresse: Uri) {
+        val nom = nomAffiche(adresse)
+        tache(R.string.etat_archive_lecture, true, { continuer ->
+            routeur.annuler()
+            val entree = contentResolver.openInputStream(adresse) ?: throw IOException(nom)
+            val r = entree.use {
+                Archive.importer(it, horsLigne, fonds, File(filesDir, "archive"), suiviTelechargement(nom), continuer)
+            }
+            retirees.removeAll(r.lots.toSet())
+            getString(R.string.etat_archive_importee, r.fonds.size, r.lots.size)
+        }, ensuite = {
+            remplirCartes()
+            remplirItineraires()
+            planifierCalques()
+        })
+    }
+
     // ------------------------------------------------------------------ itinéraires
 
     /**
@@ -1454,6 +1585,7 @@ class MainActivity : Activity() {
         }
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } }
             .avecIcone(R.drawable.ic_btn_qr))
+        boutonsArchive(colonne, installes, emptyList())
 
         // L'enregistrement de trace de Locus Map, appliqué au prochain point
         // même quand un enregistrement est en cours.
@@ -2941,6 +3073,16 @@ class MainActivity : Activity() {
             if (resultat == RESULT_OK) donnees?.data?.let { importer(it) }
             return
         }
+        if (requete == EXPORT_ARCHIVE) {
+            val choix = archiveAEcrire
+            archiveAEcrire = null
+            if (resultat == RESULT_OK && choix != null) donnees?.data?.let { ecrireArchive(it, choix.first, choix.second) }
+            return
+        }
+        if (requete == IMPORT_ARCHIVE) {
+            if (resultat == RESULT_OK) donnees?.data?.let { lireArchive(it) }
+            return
+        }
         if (requete == EXPORT_TRACE) {
             if (resultat != RESULT_OK) {
                 contenuExport = null
@@ -3249,6 +3391,8 @@ class MainActivity : Activity() {
         private const val EXPORT = 1
         private const val EXPORT_TRACE = 2
         private const val IMPORT = 5
+        private const val EXPORT_ARCHIVE = 6
+        private const val IMPORT_ARCHIVE = 7
         /** Le jaune du GPX importé et son liseré, ceux de la page du PC. */
         private const val COULEUR_GPX = 0xffffe14a.toInt()
         private const val COULEUR_GPX_BORD = 0xff344132.toInt()
@@ -3260,6 +3404,8 @@ class MainActivity : Activity() {
         private const val VOILE = 0xe6ffffff.toInt()
         /** Le bleu de l'itinéraire, celui de la page du PC. */
         private const val COULEUR_ITINERAIRE = 0xff1565c0.toInt()
+        private const val FLECHE_DP = 14          // la pastille de la page, 14 px
+        private const val ZOOM_FLECHES = 12.0     // afficherFleches sur la page
         /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */
         private val CLE_IGN = Regex("[A-Za-z0-9_-]{0,100}")
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */

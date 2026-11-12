@@ -150,7 +150,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
-    + " basculerPartage, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
+    + " basculerPartage, selectionGrille, adresseArchive, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -206,7 +206,6 @@ test("l'onglet « Hors ligne » : la grille du routage, la sélection, le bilan 
   assert.equal(cadre.options.color, "#1565c0", "bleu : sélectionnée");
   assert.equal(elements.get("hlSelection").textContent, "1 à télécharger : 247 Mo. 1 déjà sur ce PC (135 Mo).");
   assert.equal(elements.get("hlTelecharger").disabled, false);
-  assert.equal(elements.get("hlSupprimer").hidden, false);
   // Une case que le serveur ne publie pas se fabrique sur le PC.
   carte.vue = { s: 42.5, w: 2.5, n: 42.7, e: 2.8 };
   page.dessinerCases();
@@ -300,14 +299,7 @@ test("un fond de carte installé ne s'ajoute pas aux fonds en ligne, et se retir
   page.grilleCases.layers[0].handlers.click();
   assert.equal(elements.get("hlSelection").textContent, "1 déjà sur ce PC (600 Mo).");
   assert.equal(elements.get("hlTelecharger").disabled, true, "rien à télécharger : le Plan IGN est déjà là");
-  assert.equal(elements.get("hlSupprimer").hidden, false, "« Supprimer », libellé fixe");
-  confirmations.reponse = true;
-  elements.get("hlSupprimer").click();
-  await tic();
-  assert.match(confirmations.at(-1), /^Supprimer de ce PC :\n• N43E006 · Plan IGN · 600 Mo\n\n600 Mo en tout/,
-    "la confirmation nomme la case, le fond et la taille");
-  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_fond").options.body),
-    { carre: "N43E006", source: "plan" }, "le fond choisi seul, pas les autres de la case");
+  assert.equal(elements.get("hlPartager").hidden, false, "ce qui est là se partage");
 });
 
 test("une case qui n'a qu'un autre fond n'est pas « déjà là » pour le fond choisi", async () => {
@@ -326,19 +318,7 @@ test("une case qui n'a qu'un autre fond n'est pas « déjà là » pour le fond 
   page.grilleCases.layers[0].handlers.click();
   assert.equal(elements.get("hlSelection").textContent, "1 case(s) : environ 1 Go et 35 min.");
   assert.equal(elements.get("hlTelecharger").disabled, false, "le Plan IGN est à télécharger");
-  assert.equal(elements.get("hlSupprimer").hidden, true, "rien à supprimer en Plan IGN");
   assert.equal(elements.get("hlPartager").hidden, true, "rien à partager en Plan IGN");
-});
-
-test("supprimer une case depuis l'onglet retire le routage seul, pas les fonds", async () => {
-  const { page, elements, requetes, confirmations } = charger();
-  await ouvrirHorsLigne(page, requetes, [{ case: "E5_N40", octets: 135e6 }], []);
-  page.grilleCases.layers[0].handlers.click();
-  confirmations.reponse = true;
-  elements.get("hlSupprimer").click();
-  await tic();
-  assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/supprimer_case").options.body),
-    { case: "E5_N40", fonds: false });
 });
 
 test("le partage s'ouvre depuis le volet : son QR code, son état dans le volet, de quoi l'arrêter", async () => {
@@ -443,6 +423,26 @@ test("le volet de la grille partage sa sélection seule au téléphone", async (
   elements.get("hlPartager").click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/partage").options.body),
     { ouvrir: true, lots: ["E5_N40"], carres: [] }, "la zone choisie, pas tout le PC");
+});
+
+test("l'archive zip : « Exporter » prend la sélection, « Importer » envoie le zip tel quel", async () => {
+  const { page, elements, requetes } = charger();
+  await ouvrirHorsLigne(page, requetes, [{ case: "E5_N40", octets: 135e6 }], []);
+  assert.equal(elements.get("hlExporter").hidden, true, "rien de sélectionné");
+  page.grilleCases.layers[0].handlers.click();
+  assert.equal(elements.get("hlExporter").hidden, false);
+  assert.equal(page.adresseArchive(page.selectionGrille()), "/archive.zip?lots=E5_N40&carres=");
+  assert.equal(page.adresseArchive({ lots: [], carres: ["N43E006", "N44E006"], source: "scan25" }),
+    "/archive.zip?lots=&carres=N43E006%2CN44E006&source=scan25");
+  const fichier = { name: "ami.zip", size: 248e6 };
+  elements.get("fichierArchive").ecouteurs.change[0]({ target: { files: [fichier], value: "ami.zip" } });
+  assert.equal(elements.get("hlEnCours").textContent, "Import de ami.zip (248 Mo) en cours…");
+  const envoi = requetes.findLast((r) => r.url === "/api/importer_archive");
+  assert.equal(envoi.options.body, fichier, "le zip part tel quel, sans JSON");
+  repondre(envoi, { importe: { lots: ["E5_N40"], fonds: ["N43E006-scan25"] }, lots: [], fonds: [] });
+  await tic();
+  await tic();
+  assert.equal(elements.get("hlEnCours").textContent, "ami.zip importée : 1 carte(s) et 1 zone(s) de routage.");
 });
 
 test("la note suit la préparation hors ligne, puis la case est prête", async () => {

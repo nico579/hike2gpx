@@ -271,4 +271,14 @@
     <string name="distance_metres">%1$d m</string>
     <string name="distance_km">%1$.1f km</string>
     <string name="duree_secondes">%1$d s</string>
+    <string name="archive_exporter">Exporter vers une archive (zip)</string>
+    <string name="archive_importer">Importer depuis une archive (zip)</string>
+    <string name="archive_choix_cartes">Cartes à exporter</string>
+    <string name="archive_choix_zones">Zones à exporter</string>
+    <string name="archive_rien">Rien de coché.</string>
+    <string name="etat_archive_ecriture">Écriture de l’archive…</string>
+    <string name="etat_archive_ecrite">Archive enregistrée : %1$s.</string>
+    <string name="etat_archive_lecture">Import de l’archive…</string>
+    <string name="etat_archive_importee">Archive importée : %1$d carte(s) et %2$d zone(s) de routage.</string>
+    <string name="err_archive_catalogue">Ce zip n’est pas une archive de hike2gpx (catalog.json manque en tête).</string>
 </resources>

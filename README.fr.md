@@ -359,6 +359,26 @@ au premier partage, la règle de pare-feu qui laisse entrer le téléphone, apr�
 une seule demande d'autorisation administrateur. Le détail du protocole
 est dans [docs/architecture/partage-telephone.md](docs/architecture/partage-telephone.md).
 
+### Exporter et importer une archive zip
+
+Sans Wi-Fi commun, les cases voyagent dans une archive zip, par une clé USB,
+un Drive ou une pièce jointe. Sur le PC, sélectionnez des cases présentes (en
+vert) et cliquez « Exporter » : le navigateur enregistre l'archive. Sur le
+téléphone, « Exporter vers une archive (zip) », dans « Gestion des cartes » ou
+« Gestion des itinéraires », laisse cocher les cartes ou les zones, puis
+choisir où l'enregistrer. Dans l'autre sens, « Importer », sur le PC comme sur
+le téléphone, installe tout ce que l'archive contient.
+
+L'archive passe ainsi d'un PC à un autre, d'un PC à un téléphone, ou d'un
+téléphone à l'autre. Un ami au PC moins puissant reçoit vos cartes sans les
+refaire, puis les partage à son téléphone. C'est aussi une sauvegarde : une
+case SCAN 25 demande plus d'une heure de téléchargement, son archive se
+réimporte en quelques minutes.
+
+L'archive reprend le partage au téléphone mis dans un zip : le même catalogue,
+où chaque fichier porte sa taille et son empreinte SHA-256, vérifiées avant
+l'installation. Un fichier altéré est refusé.
+
 ### Les règles des franchissements
 
 Chaque croisement entre un chemin et une barrière est jugé avec les règles de

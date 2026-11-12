@@ -186,7 +186,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 /* Les boutons du volet : un par ligne, chacun avec son icône. */
 /* Les boutons du volet sur une ligne ; leur bulle au survol, comme ceux du tracé.
    Un bouton masqué emporte sa bulle. */
-.hl-actions{display:flex;flex-wrap:nowrap;gap:6px;margin:8px 0}
+.hl-actions{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .hl-actions .action-control{display:inline-block}
 .hl-actions .action-control:has(>button[hidden]){display:none}
 .hl-actions button{display:inline-flex;align-items:center;gap:5px;padding:7px 9px;white-space:nowrap;border:1.5px solid #6f9bd6;border-radius:8px;background:#fff;color:#1d4f96;font-size:12px;font-weight:600;box-shadow:0 1px 3px #1b354526;cursor:pointer}
@@ -196,8 +196,6 @@ body.profile-collapsed .map-activity{bottom:81px}
 #hlTelecharger{background:var(--accent);border-color:var(--accent);color:#fff}
 #hlTelecharger:hover:not(:disabled){background:var(--accent-fonce)}
 #hlTelecharger:disabled{background:#fff;border-color:#b9c9dc;color:#7b8ca0;box-shadow:none}
-#hlSupprimer{border-color:#d9827a;color:#b3261e}
-#hlSupprimer:hover:not(:disabled){background:#fdf0ef}
 .hl-actions button svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .hl-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .hl-file[hidden]{display:none}
@@ -307,8 +305,9 @@ body.plein-ecran .menu-button,body.plein-ecran .menu-principal,body.plein-ecran 
 .cartes-calques .leaflet-control-layers-toggle{display:none!important}
 .cartes-calques .leaflet-control-layers label{padding:5px 0;font-size:12px;line-height:1.35;cursor:pointer}
 .cartes-calques .leaflet-control-layers-separator{display:none}
-/* En planification, le curseur en croix dit qu'un clic posera un point. */
-body.planification:not(.calcul) .leaflet-grab{cursor:crosshair}
+/* En planification, le doigt dit qu'un clic posera un point : le même que Leaflet
+   met sur le tracé et les points, pour que le curseur ne change pas en chemin. */
+body.planification:not(.calcul) .leaflet-grab{cursor:pointer}
 /* « Zones stockées localement » : une ligne par zone, ses boutons à droite. */
 .zones-locales{list-style:none;margin:0 0 12px;padding:0}
 .zones-locales li{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:12px;color:#42566d}

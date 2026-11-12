@@ -28,6 +28,17 @@ class DeniveleTest {
         assertEquals(Denivele.RAYON_TERRE * Math.toRadians(0.001) / 2, d[1], 1e-6)
     }
 
+    @Test fun les_fleches_se_posent_comme_sur_la_page() {
+        // 9 km : un écart de 1 km, la première à 500 m, aucune sur l'arrivée.
+        assertEquals(listOf(500.0, 1500.0, 2500.0, 3500.0, 4500.0, 5500.0, 6500.0, 7500.0),
+            Denivele.distancesFleches(9000.0).toList())
+        // 1 km : l'écart plancher de 300 m.
+        assertEquals(listOf(150.0, 450.0, 750.0), Denivele.distancesFleches(1000.0).toList())
+        // Trop court pour l'écart : une flèche au milieu ; sans longueur, aucune.
+        assertEquals(listOf(100.0), Denivele.distancesFleches(200.0).toList())
+        assertEquals(emptyList<Double>(), Denivele.distancesFleches(0.0).toList())
+    }
+
     @Test fun un_terrain_plat_n_a_ni_montee_ni_descente() {
         val profil = Denivele.calculer(trace(), pente(0.0))
         assertEquals(0, profil.monteeM)
