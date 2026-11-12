@@ -2,13 +2,12 @@
 
 # hike2gpx
 
-hike2gpx planifie des randonnées et exporte l'itinéraire en GPX, avec son
-dénivelé et sa durée. Il existe en deux versions qui se complètent : une
-application pour ordinateur (Windows, macOS, Linux) et une application
-Android. L'ordinateur prépare ce que le téléphone emporte : il fabrique des
-fonds de carte et des zones de routage, puis les partage en Wi-Fi par QR code.
-Le téléphone calcule alors ses itinéraires hors ligne, en pleine randonnée,
-sans réseau.
+hike2gpx planifie des randonnées et exporte l'itinéraire en GPX. Il existe en
+deux versions qui se complètent : une application pour ordinateur (Windows,
+macOS, Linux) et une application Android. L'ordinateur prépare ce que le
+téléphone emporte : il fabrique des fonds de carte et des zones de routage,
+puis les partage en Wi-Fi par QR code. Le téléphone calcule alors ses
+itinéraires hors ligne, en pleine randonnée, sans réseau.
 
 Trois choses le distinguent des planificateurs courants (Visorando, Locus Map,
 brouter-web).
@@ -18,9 +17,7 @@ OpenStreetMap.** Ces planificateurs ne les voient pas : leurs moteurs de calcul
 ne lisent que les étiquettes posées sur les nœuds du chemin, et une clôture est
 une ligne à part. hike2gpx examine d'avance le réseau de la zone, repère chaque
 croisement entre un chemin et une barrière, le juge, puis interdit ou décourage
-son passage. À Garéoult (Var), le profil Randonnée standard de BRouter franchit
-une clôture en béton pour un trajet de 69 m ; hike2gpx la contourne par un
-détour de 435 m.
+son passage. [Un exemple à Garéoult](#les-clôtures-et-les-barrières).
 
 **Il combine OpenStreetMap et les cartes nationales.** Un sentier que l'IGN
 connaît et qu'OpenStreetMap ignore n'existe pas pour un moteur qui ne lit que
@@ -28,12 +25,7 @@ ce dernier. hike2gpx y ajoute la BD TOPO de l'IGN (France), l'ATKIS
 (Allemagne), le swissTLM3D (Suisse), le ZABAGED (Tchéquie) et le BDOT10k
 (Pologne, Basse-Silésie seulement). Ce ne sont pas tous les pays, à dessein :
 on ne retient que ceux où la carte nationale apporte une part sensible de
-chemins nouveaux. Sur les zones étudiées, la BD TOPO ajoute de 18 % à 100 % de
-longueur de chemins candidats, l'ATKIS de 12 % à 127 %, le ZABAGED de 40 % à
-66 %, alors que les États-Unis et les Pays-Bas restent entre 0 % et 12 %. Ces
-pourcentages mesurent des longueurs possibles, pas un gain garanti : la
-méthode et les réserves sont dans
-[RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+chemins nouveaux. [Les chiffres pays par pays](#les-cartes-nationales).
 
 **Il calcule le dénivelé sur le terrain, pas sur la cime des arbres.** Sous une
 forêt, un modèle de surface comme SRTM ou Copernicus, tirés d'un radar, mesure
@@ -41,12 +33,91 @@ plutôt le haut de la canopée, et fausse les pentes. Le LiDAR, lui, envoie des
 impulsions laser dont certaines traversent le feuillage jusqu'au sol : on en
 tire un vrai modèle numérique de terrain (MNT), le sol nu. hike2gpx prend le
 meilleur modèle de terrain qui couvre tout le parcours : en France le LiDAR HD
-de l'IGN ; ailleurs Mapterhorn, qui prend le LiDAR national dès qu'il en existe un :
-environ deux cents modèles nationaux et régionaux, de 0,25 m à 10 m de
-résolution, pour presque toute l'Europe, les États-Unis, le Canada, le Japon,
-l'Australie et la Nouvelle-Zélande. Hors de ces zones, il retombe sur le modèle
-mondial de 30 m de Copernicus, moins précis, et SRTM reste le tout dernier
-recours. Le détail pays par pays se lit dans le
+de l'IGN ; ailleurs Mapterhorn, qui reprend le LiDAR national dès qu'il en
+existe un. [Les sources et leur précision](#le-relief).
+
+![La page de l'ordinateur : un parcours tracé à Garéoult, son relief et sa légende](docs/images/pc-tracer.png)
+
+## Mode d'emploi
+
+Les deux applications se téléchargent dans les
+[releases](https://github.com/nico579/hike2gpx/releases) : une archive par
+système pour l'ordinateur, `hike2gpx-android.apk` pour le téléphone. Installées
+depuis une release, elles se mettent à jour d'elles-mêmes ([détail](#installation)).
+
+### Sur l'ordinateur
+
+**Tracer un parcours.** Ouvrez le menu (le bouton à trois traits, en bas à
+gauche) puis « Planifier un itinéraire ». Chaque clic sur la carte pose un
+point : le départ, les étapes, l'arrivée. L'itinéraire se calcule aussitôt,
+avec sa distance, sa durée et son relief ; un point se déplace en le faisant
+glisser. « Revenir » referme la boucle sur le départ, « Exporter le GPX »
+l'enregistre. [Tout sur le tracé](#ce-que-fait-hike2gpx).
+
+**Télécharger une zone de carte.** Dans « Gestion des cartes », choisissez le
+fond à emporter (SCAN 25, Plan IGN, OpenStreetMap…), puis cliquez sur la carte
+les cases de 1° voulues et « Télécharger ». Les zones de routage, elles, se
+prennent dans « Gestion des itinéraires », par cases de 5° ; en France, elles
+viennent toutes faites du serveur. [Le détail des fonds et des
+lots](#lots-hors-ligne).
+
+![Gestion des cartes : la case du Var sélectionnée, prête à télécharger](docs/images/pc-zone-carte.png)
+
+**La partager sur le téléphone.** Sélectionnez les cases déjà présentes sur
+l'ordinateur (en vert) et cliquez « Partager » : un QR code s'affiche. Le
+téléphone doit être sur le même Wi-Fi. « Arrêter le partage » le referme, et
+le code change à chaque ouverture. [Comment le partage est
+protégé](#partager-au-téléphone).
+
+![Le QR code du partage, à scanner avec le téléphone](docs/images/pc-partager.png)
+
+### Sur le téléphone
+
+<img src="docs/images/telephone-recuperer.png" alt="Le téléphone propose de récupérer les zones partagées par le PC" width="260" align="right">
+
+**Récupérer la carte.** Dans « Gestion des cartes », touchez « Scanner le QR
+code de l'ordinateur » et visez le QR code du PC. Le téléphone dit ce qu'il
+lui manque et sa taille, puis télécharge les fonds et les zones de routage,
+chaque fichier vérifié à l'arrivée. Les zones publiées par le serveur
+(la France) se téléchargent aussi d'elles-mêmes, sans PC.
+
+**Tracer un parcours.** Menu, puis « Planifier un itinéraire » : chaque
+toucher sur la carte pose un point, comme sur l'ordinateur, et le calcul se
+fait sur le téléphone, sans réseau dès que la zone est installée. Le bandeau
+du relief se replie d'un toucher sur son titre ; un toucher sur un
+franchissement en ouvre la fiche. [Tout sur
+l'application Android](android/README.md).
+
+<img src="docs/images/telephone-tracer.png" alt="Un parcours tracé sur le téléphone, avec son relief" width="260">
+
+<br clear="right">
+
+## Pourquoi hike2gpx, en détail
+
+### Les clôtures et les barrières
+
+À Garéoult (Var), le profil Randonnée standard de BRouter franchit une clôture
+en béton pour un trajet de 69 m ; hike2gpx la contourne par un détour de 435 m.
+L'option « Montrer le tracé qui ignore les barrières » de la page superpose ce
+tracé standard, pour comparer. La méthode est décrite plus bas, dans
+[Comment ça marche](#comment-ça-marche).
+
+### Les cartes nationales
+
+Sur les zones étudiées, la BD TOPO ajoute de 18 % à 100 % de longueur de
+chemins candidats, l'ATKIS de 12 % à 127 %, le ZABAGED de 40 % à 66 %, alors
+que les États-Unis et les Pays-Bas restent entre 0 % et 12 %. Ces pourcentages
+mesurent des longueurs possibles, pas un gain garanti : la méthode et les
+réserves sont dans
+[RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+
+### Le relief
+
+Mapterhorn rassemble environ deux cents modèles nationaux et régionaux, de
+0,25 m à 10 m de résolution, pour presque toute l'Europe, les États-Unis, le
+Canada, le Japon, l'Australie et la Nouvelle-Zélande. Hors de ces zones,
+hike2gpx retombe sur le modèle mondial de 30 m de Copernicus, moins précis, et
+SRTM reste le tout dernier recours. Le détail pays par pays se lit dans le
 [catalogue des fournisseurs](https://github.com/nico579/lidar2map/blob/main/docs/providers.md)
 de lidar2map, le projet jumeau, qui interroge directement ces sources LiDAR
 nationales, que Mapterhorn rassemble aussi. Comparé au LiDAR natif, Mapterhorn
@@ -56,17 +127,10 @@ un dénivelé, que le lissage sur 20 m moyenne de toute façon. Ces mesures, ave
 leurs limites, sont dans
 [l'évaluation de lidar2map](https://github.com/nico579/lidar2map/blob/main/docs/mapterhorn-evaluation.fr.md).
 
-Les deux applications se téléchargent dans les releases : une archive par
-système pour l'ordinateur (Windows, macOS, Linux), `hike2gpx-android.apk` pour
-le téléphone.
-
-Installé depuis une release, hike2gpx se met à jour tout seul, comme les
-autres applications de nico579 : quand une version plus récente est publiée,
-un bandeau de la page et le menu de son icône proposent de l'installer ; il
-la télécharge, la vérifie, puis redémarre dessus. Le bouton « Vérifier les
-mises à jour » du panneau Réglages pose la question tout de suite, sans
-attendre la vérification périodique. Lancé depuis les sources, hike2gpx se
-contente d'ouvrir la page de la nouvelle version.
+Le relief sert aussi au calcul de l'itinéraire, qui pénalise les pentes. Dans
+les zones de routage que hike2gpx fabrique (les cinq pays à carte nationale),
+BRouter lit le relief Mapterhorn, rééchantillonné à une seconde d'arc
+(environ 30 m) ; ailleurs, il garde celui de ses propres tuiles, tiré de SRTM.
 
 ## Ce que fait hike2gpx
 
@@ -166,8 +230,8 @@ retire ce tracé de la carte sans toucher au fichier sur l'ordinateur. Le tracé
 chargé reste affiché jusqu'à la fermeture ou au rechargement de la page.
 
 **Les réglages.** La clé IGN du SCAN 25, le délai de renouvellement des
-données téléchargées (30 jours par défaut), la transparence des bandeaux, le
-masquage du profil et un bouton qui vide tous les caches locaux. Ils
+données téléchargées (30 jours par défaut), la transparence des bandeaux et un
+bouton qui vide tous les caches locaux. Ils
 s'enregistrent à la fermeture du panneau, sans bouton. Un bouton ouvre
 le dossier `logs`, qui contient les journaux de l'application et de BRouter ;
 un autre affiche la version installée et vérifie s'il en existe une plus
@@ -437,6 +501,14 @@ macOS), le décompresser, par exemple sous Windows dans
 `%LOCALAPPDATA%\Programs\hike2gpx`, et lancer `hike2gpx`. Il embarque son
 Java et se met à jour tout seul ; « Créer un raccourci sur le Bureau », dans
 le menu de son icône, pose le raccourci.
+
+Installé depuis une release, hike2gpx se met à jour tout seul, comme les
+autres applications de nico579 : quand une version plus récente est publiée,
+un bandeau de la page et le menu de son icône proposent de l'installer ; il
+la télécharge, la vérifie, puis redémarre dessus. Le bouton « Vérifier les
+mises à jour » du panneau Réglages pose la question tout de suite, sans
+attendre la vérification périodique. Lancé depuis les sources, hike2gpx se
+contente d'ouvrir la page de la nouvelle version.
 
 Depuis les sources, il faut Python 3.12, [uv](https://docs.astral.sh/uv/) et
 Java 11 ou plus pour BRouter.
