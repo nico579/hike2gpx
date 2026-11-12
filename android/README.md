@@ -7,8 +7,8 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 ## Ce qu'elle fait
 
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. Un
-bouton à trois traits, en bas à gauche, ouvre le menu : « Recherche », « Ma
-bibliothèque », « Gestion des cartes », « Gestion des itinéraires »,
+bouton à trois traits, en bas à gauche, ouvre le menu : « Recherche », « Gestion
+des cartes », « Gestion des itinéraires »,
 « Enregistrer un parcours », « Planifier un itinéraire », « Réglages » et
 « Aide ». La carte reste seule tant qu'on n'a pas choisi un mode ; « Aide »
 ouvre ce mode d'emploi sur GitHub. Le panneau laisse voir la carte derrière, et
@@ -115,11 +115,11 @@ complet, le fichier part tel qu'il a été enregistré. Le D+ du bandeau, lu
 hors ligne sur Mapterhorn, peut donc différer de quelques mètres de celui de
 l'export. La description du GPX porte alors le D+ et le D− du relief.
 
-« Ma bibliothèque », dans le menu, liste l'historique des traces : chaque
-fichier de `traces/` affiche sa date et sa taille réelle, avec un bouton
-« GPX » pour le réexporter et un bouton « Supprimer ». Les cases à cocher et
-« Supprimer la sélection » effacent plusieurs traces d'un coup, après
-confirmation. « Vider le cache » ne touche pas à cet historique.
+À l'arrêt de l'enregistrement, la trace part d'elle-même dans
+« Téléchargements », comme un itinéraire planifié, et une boîte en donne le
+résumé. Une trace interrompue (application tuée, batterie vide) est refaite
+au lancement suivant et y part de même. L'application en garde une copie
+dans son dossier `traces/`, que « Vider le cache » ne touche pas.
 
 Les lots du serveur se téléchargent d'eux-mêmes : l'application lit les
 catalogues à son lancement, et quand un parcours touche une case dont le lot

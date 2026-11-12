@@ -160,7 +160,6 @@ class MainActivity : Activity() {
      * une tâche à la fois, la suivante à la fin de la précédente (tache).
      */
     private val recuperations = ArrayDeque<() -> Unit>()
-    private var fenetreBibliotheque: LinearLayout? = null
     private var ecoutePosition: LocationListener? = null
     private var apresPermission: (() -> Unit)? = null
     private var centrerDesQuePosition = false
@@ -487,12 +486,14 @@ class MainActivity : Activity() {
 
     /**
      * Une trace que le processus n'a pas pu finir (tué par Android, batterie
-     * vide) a laissé son journal : il redevient un GPX de la bibliothèque.
+     * vide) a laissé son journal : il redevient un GPX, exporté dans
+     * Téléchargements comme une trace terminée normalement.
      */
     private fun recupererTraces() {
         val refaites = EnregistrementGps.recuperer(dossierTraces())
         if (refaites.isEmpty()) return
         fichierTrace = refaites.last()
+        refaites.forEach { exporterTrace(it) }
         Toast.makeText(this, getString(R.string.trace_recuperee,
             refaites.joinToString(", ") { it.name }), Toast.LENGTH_LONG).show()
     }
@@ -1673,7 +1674,6 @@ class MainActivity : Activity() {
         val enregistre = EnregistrementGps.actif
         val entrees = listOf(
             Triple(R.drawable.ic_recherche, R.string.menu_recherche, ::ouvrirRecherche),
-            Triple(R.drawable.ic_bibliotheque, R.string.menu_bibliotheque, ::ouvrirBibliotheque),
             Triple(R.drawable.ic_carte, R.string.menu_cartes, ::ouvrirCartes),
             Triple(R.drawable.ic_itineraires, R.string.menu_itineraires, ::ouvrirItineraires),
             Triple(R.drawable.ic_enregistrer,
@@ -1828,64 +1828,6 @@ class MainActivity : Activity() {
      */
     private fun renduALaCarte() {
         if (!enCours.get()) tacheAffichee = false
-    }
-
-    // ------------------------------------------------------------------ bibliothèque
-
-    /** L'historique des parcours enregistrés, rangé dans « Ma bibliothèque ». */
-    private fun ouvrirBibliotheque() {
-        val colonne = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(8))
-        }
-        fenetreBibliotheque = colonne
-        remplirBibliotheque()
-        AlertDialog.Builder(this)
-            .setTitle(R.string.menu_bibliotheque)
-            .setView(ScrollView(this).apply { addView(colonne) })
-            .setPositiveButton(R.string.fermer, null)
-            .setOnDismissListener { fenetreBibliotheque = null }
-            .show()
-    }
-
-    private fun remplirBibliotheque() {
-        val colonne = fenetreBibliotheque ?: return
-        colonne.removeAllViews()
-        titre(colonne, R.string.titre_traces)
-        val traces = tracesEnregistrees()
-        if (traces.isEmpty()) {
-            colonne.addView(TextView(this).apply { setText(R.string.traces_aucune) })
-            return
-        }
-        val cases = linkedMapOf<File, CheckBox>()
-        val date = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
-        for (f in traces) {
-            val ligne = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            val selection = CheckBox(this)
-            cases[f] = selection
-            ligne.addView(selection, LinearLayout.LayoutParams(-2, -2))
-            ligne.addView(TextView(this).apply {
-                text = "${date.format(Date(f.lastModified()))} · " +
-                    Formatter.formatShortFileSize(this@MainActivity, f.length())
-                textSize = 13f
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-            ligne.addView(boutonPetit(R.string.exporter, R.drawable.ic_btn_telecharger) { exporterTrace(f) })
-            ligne.addView(boutonPetit(R.string.supprimer, R.drawable.ic_btn_supprimer, rouge = true) { confirmerSuppression(listOf(f)) })
-            colonne.addView(ligne)
-        }
-        colonne.addView(Button(this).apply {
-            setText(R.string.traces_supprimer_selection)
-            setOnClickListener {
-                val choisies = cases.filterValues { it.isChecked }.keys.toList()
-                if (choisies.isEmpty())
-                    Toast.makeText(this@MainActivity, R.string.traces_selection_vide,
-                        Toast.LENGTH_SHORT).show()
-                else confirmerSuppression(choisies)
-            }
-        }.avecIcone(R.drawable.ic_btn_supprimer, rouge = true))
     }
 
     // ------------------------------------------------------------------ réglages
@@ -2451,12 +2393,13 @@ class MainActivity : Activity() {
         appliquerAffichage()
         val resume = resumeTrace(trace)
         etat.text = resume
+        // Comme un tracé planifié : directement dans Téléchargements, sans rien demander.
+        exporterTrace(fichier)
         AlertDialog.Builder(this)
             .setTitle(R.string.trace_titre)
-            .setMessage(listOf(resume, getString(R.string.trace_fichier, fichier?.name ?: ""))
+            .setMessage(listOf(resume, getString(R.string.trace_dans_telechargements, fichier?.name ?: ""))
                 .joinToString("\n"))
-            .setPositiveButton(R.string.trace_exporter) { _, _ -> exporterTrace(fichier) }
-            .setNegativeButton(R.string.fermer, null)
+            .setPositiveButton(R.string.fermer, null)
             .show()
     }
 
@@ -2979,25 +2922,6 @@ class MainActivity : Activity() {
         setPadding(dp(8), paddingTop, dp(8), paddingBottom)
         setOnClickListener { action() }
     }.avecIcone(icone, rouge)
-
-    private fun confirmerSuppression(fichiers: List<File>) {
-        if (fichiers.isEmpty()) return
-        val message = if (fichiers.size == 1)
-            getString(R.string.trace_supprimer_message, fichiers.first().name)
-        else getString(R.string.traces_supprimer_message, fichiers.size)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.trace_supprimer_titre)
-            .setMessage(message)
-            .setPositiveButton(R.string.supprimer) { _, _ ->
-                fichiers.forEach { it.delete() }
-                if (fichiers.any { it == fichierTrace }) fichierTrace = null
-                contenuExport = null
-                remplirBibliotheque()
-                remplirReglages()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
 
     /** Retour : d'abord quitter le mode (planification ou recherche), ensuite l'application. */
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
