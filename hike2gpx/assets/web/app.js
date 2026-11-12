@@ -48,6 +48,9 @@ const TEXTES = {
     "horsLigne.modeFond": "Fond de carte (cases de 1°)",
     "horsLigne.fondAucun": "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : {liste}.",
     "reglages.afficherLegende": "Afficher la légende",
+    "reglages.zonesAuto": "Télécharger automatiquement les zones de routage (une question par zone)",
+    "zones.question": "Pour calculer sans réseau, avec les chemins de la carte nationale, hike2gpx peut télécharger la zone de routage de cette région (case {nom}, {taille}). La télécharger maintenant ?",
+    "zones.refusee": "Zone {nom} non téléchargée. Vous pourrez la télécharger à tout moment depuis « Gestion des itinéraires ».",
     "horsLigne.legendeInstalle": "sur ce PC",
     "horsLigne.legendeSelection": "sélectionné",
     "horsLigne.legendeEnCours": "en cours",
@@ -83,10 +86,15 @@ const TEXTES = {
     "bouton.boucler": "Revenir",
     "bouton.bouclerInfo": "Ajoute le point de départ à la fin du parcours pour fermer la boucle.",
     "bouton.exporter": "Exporter le GPX",
-    "bouton.chargerGpx": "Charger un GPX",
-    "bouton.supprimerGpx": "Supprimer le GPX",
-    "gpx.erreur": "Impossible de charger ce GPX : {message}",
-    "gpx.invalide": "fichier GPX invalide ou sans tracé.",
+    "bouton.chargerGpx": "Importer un GPX ou un KML",
+    "bouton.supprimerGpx": "Retirer l'import",
+    "gpx.erreur": "Impossible de charger ce fichier : {message}",
+    "gpx.invalide": "fichier GPX ou KML invalide, ou sans tracé.",
+    "trace.date": "Date : {date}",
+    "trace.distance": "Distance : {km}",
+    "trace.denivele": "Dénivelé : + {plus} m / − {moins} m ({modele})",
+    "trace.deniveleNom": "Dénivelé : + {plus} m",
+    "trace.duree": "Durée : {duree}",
     "gpx.tropGrand": "fichier trop volumineux (20 Mo maximum).",
     "option.strict": "Inclure les blocages à vérifier",
     "option.cheminsRoutables": "Inclure les chemins {nom}",
@@ -240,7 +248,9 @@ const TEXTES = {
     "aide.titre": "Aide : le mode d'emploi (README)",
     "horsLigne.mettreAJour": "Mettre à jour",
     "horsLigne.arreter": "Arrêter",
-    "horsLigne.avancement": "Préparation hors ligne de {nom} : {etape}{compte}, depuis {duree}",
+    "horsLigne.avancement": "Préparation de la case {nom} : {etape}{compte}, depuis {duree}",
+    "horsLigne.titreCarte": "Carte hors ligne « {fond} »",
+    "horsLigne.titreZone": "Zone de routage",
     "horsLigne.attenteCalques": "Chemins de la carte : en attente de la zone de routage hors ligne, qui se télécharge.",
     "horsLigne.attenteCalcul": "La zone de routage hors ligne se télécharge : le calcul reprendra dès son arrivée.",
     "horsLigne.automatique": "Zone de routage de la case {nom}, téléchargée d'elle-même depuis le serveur :{compte}, depuis {duree}. Elle prendra le relais du mode à la volée.",
@@ -258,7 +268,7 @@ const TEXTES = {
     "horsLigne.etape.fusion": "fusion des chemins officiels",
     "horsLigne.etape.relief": "relief",
     "horsLigne.etape.compilation": "itinéraires BRouter",
-    "horsLigne.etape.fond": "fond de carte",
+    "horsLigne.etape.fond": "téléchargement des tuiles",
     "horsLigne.etape.outils": "installation des outils de carte",
     "horsLigne.etape.carte": "carte OpenStreetMap",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
@@ -322,6 +332,9 @@ const TEXTES = {
     "horsLigne.modeFond": "Base map (1° cells)",
     "horsLigne.fondAucun": "The base map shown cannot be kept offline. Choose in the list above: {liste}.",
     "reglages.afficherLegende": "Show the legend",
+    "reglages.zonesAuto": "Download routing areas automatically (one question per area)",
+    "zones.question": "To compute with no network, with the paths of the national map, hike2gpx can download the routing area of this region (cell {nom}, {taille}). Download it now?",
+    "zones.refusee": "Area {nom} not downloaded. You can download it at any time from “Route management”.",
     "horsLigne.legendeInstalle": "on this PC",
     "horsLigne.legendeSelection": "selected",
     "horsLigne.legendeEnCours": "in progress",
@@ -357,10 +370,15 @@ const TEXTES = {
     "bouton.boucler": "Return",
     "bouton.bouclerInfo": "Adds the starting point to the end of the route to close the loop.",
     "bouton.exporter": "Export GPX",
-    "bouton.chargerGpx": "Load a GPX",
-    "bouton.supprimerGpx": "Remove GPX",
-    "gpx.erreur": "Unable to load this GPX: {message}",
-    "gpx.invalide": "invalid GPX file or no track found.",
+    "bouton.chargerGpx": "Import a GPX or KML",
+    "bouton.supprimerGpx": "Remove the import",
+    "gpx.erreur": "Unable to load this file: {message}",
+    "gpx.invalide": "invalid GPX or KML file, or no track found.",
+    "trace.date": "Date: {date}",
+    "trace.distance": "Distance: {km}",
+    "trace.denivele": "Elevation: + {plus} m / − {moins} m ({modele})",
+    "trace.deniveleNom": "Elevation gain: + {plus} m",
+    "trace.duree": "Time: {duree}",
     "gpx.tropGrand": "file too large (20 MB maximum).",
     "option.strict": "Include crossings to check",
     "option.cheminsRoutables": "Include {nom} paths",
@@ -514,7 +532,9 @@ const TEXTES = {
     "aide.titre": "Help: the user guide (README)",
     "horsLigne.mettreAJour": "Update",
     "horsLigne.arreter": "Stop",
-    "horsLigne.avancement": "Preparing {nom} for offline use: {etape}{compte}, for {duree}",
+    "horsLigne.avancement": "Preparing cell {nom}: {etape}{compte}, for {duree}",
+    "horsLigne.titreCarte": "Offline map “{fond}”",
+    "horsLigne.titreZone": "Routing area",
     "horsLigne.attenteCalques": "Map paths: waiting for the offline routing area, which is downloading.",
     "horsLigne.attenteCalcul": "The offline routing area is downloading: the route will be computed as soon as it arrives.",
     "horsLigne.automatique": "Routing area of the {nom} cell, downloading by itself from the server:{compte}, for {duree}. It will take over from on-the-fly mode.",
@@ -532,7 +552,7 @@ const TEXTES = {
     "horsLigne.etape.fusion": "merging official paths",
     "horsLigne.etape.relief": "elevation",
     "horsLigne.etape.compilation": "BRouter routing data",
-    "horsLigne.etape.fond": "base map",
+    "horsLigne.etape.fond": "downloading tiles",
     "horsLigne.etape.outils": "installing the map tools",
     "horsLigne.etape.carte": "OpenStreetMap map",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
@@ -734,7 +754,27 @@ async function api(route, corps, signal) {
   // Un calcul ou un calque a lancé de lui-même le lot du serveur de la zone :
   // la page suit son avancement, comme celui d'un lot demandé à la main.
   if (donnees.lot_en_cours?.auto && donnees.lot_en_cours.actif && !minuterieLot) suivreLot();
+  // Une zone que le serveur téléchargerait de lui-même : la page demande d'abord, une fois par case.
+  if (donnees.zone_a_proposer) proposerZone(donnees.zone_a_proposer);
   return donnees;
+}
+
+// Une zone de routage pèse plusieurs centaines de Mo : la première fois qu'un
+// calcul ou un calque en a besoin, la page demande (le serveur retient la
+// réponse). Un refus rappelle où la télécharger à la main.
+const zonesDemandees = new Set();
+async function proposerZone(zone) {
+  if (!zone?.case || zonesDemandees.has(zone.case)) return;
+  zonesDemandees.add(zone.case);
+  const accepter = confirm(t("zones.question", { nom: zone.case, taille: tailleTexte(zone.octets) }));
+  try {
+    const r = await api("zone_reponse", { case: zone.case, accepter });
+    if (accepter && r.lot_en_cours?.actif && !minuterieLot) suivreLot();
+  } catch (e) {
+    zonesDemandees.delete(zone.case);     // la question reviendra au prochain calcul
+    return;
+  }
+  if (!accepter) afficherStatut(() => t("zones.refusee", { nom: zone.case }));
 }
 
 // Le statut se réécrit au changement de langue : on garde de quoi le refaire,
@@ -998,6 +1038,8 @@ carte.createPane("sensTrace").style.zIndex = 451;
 carte.createPane("gpxImporte").style.zIndex = 449;
 carte.createPane("obstaclesOsm").style.zIndex = 452;
 const traceGpxImporte = L.layerGroup();
+// Un KML porte souvent des centaines de traces : un seul canevas, une marge de clic de 6 px.
+const renduImport = L.canvas({ pane: "gpxImporte", tolerance: 6 });
 let nomGpxImporte = null;
 let sequenceImportGpx = 0;
 const rendu = L.canvas({ padding: 0.2 });
@@ -2154,6 +2196,10 @@ function afficherLot(r) {
     message = r.fond ? t("horsLigne.fondFini", { nom: r.fond }) : t("horsLigne.fini", { nom });
   }
   $("lotHorsLigneTexte").textContent = message;
+  // Le titre de la ligne d'activité sur la carte : la carte en cours ou la zone de routage.
+  $("lotHorsLigne").dataset.titre = r.source
+    ? t("horsLigne.titreCarte", { fond: (etat.fondsHorsLigne || {})[r.source] || r.source })
+    : t("horsLigne.titreZone");
   $("lotHorsLigne").hidden = !message;
   afficherFile(message);    // le même message dans le volet « Hors ligne », avec la file
   $("arreterLot").hidden = !r.actif;
@@ -2809,26 +2855,132 @@ function lireTracesGpx(source) {
   return segments;
 }
 
+// KML (Google Earth, Géoportail, gpx2dash…) : une trace par Placemark, avec la
+// couleur et l'épaisseur de son style, et ses données (ExtendedData, en JSON
+// quand elles viennent de gpx2elev).
+function couleurKml(texte) {
+  // KML écrit aabbggrr : alpha, puis bleu, vert, rouge.
+  const m = /^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec((texte || "").trim());
+  return m ? { couleur: `#${m[4]}${m[3]}${m[2]}`, opacite: parseInt(m[1], 16) / 255 } : {};
+}
+
+function enfant(element, nom) {
+  return Array.from(element.children).find((e) => e.localName === nom);
+}
+
+function lireTracesKml(source) {
+  const xml = new DOMParser().parseFromString(source, "application/xml");
+  if (xml.documentElement?.localName !== "kml" || xml.getElementsByTagName("parsererror").length) {
+    throw new Error(t("gpx.invalide"));
+  }
+  const styles = new Map();
+  for (const style of xml.getElementsByTagNameNS("*", "Style")) {
+    const ligne = style.getElementsByTagNameNS("*", "LineStyle")[0];
+    if (!style.getAttribute("id") || !ligne) continue;
+    const valeur = (nom) => ligne.getElementsByTagNameNS("*", nom)[0]?.textContent;
+    styles.set(style.getAttribute("id"), { ...couleurKml(valeur("color")), epaisseur: Number(valeur("width")) || null });
+  }
+  const traces = [];
+  for (const repere of xml.getElementsByTagNameNS("*", "Placemark")) {
+    const segments = [];
+    for (const ligne of repere.getElementsByTagNameNS("*", "LineString")) {
+      const points = [];
+      const brut = ligne.getElementsByTagNameNS("*", "coordinates")[0]?.textContent || "";
+      for (const triplet of brut.trim().split(/\s+/)) {
+        const [lon, lat] = triplet.split(",").map(Number);
+        if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) points.push([lat, lon]);
+      }
+      if (points.length > 1) segments.push(points);
+    }
+    if (!segments.length) continue;
+    const infos = {};
+    for (const donnee of repere.getElementsByTagNameNS("*", "Data")) {
+      const valeur = donnee.getElementsByTagNameNS("*", "value")[0]?.textContent ?? "";
+      try { infos[donnee.getAttribute("name")] = JSON.parse(valeur); } catch { infos[donnee.getAttribute("name")] = valeur; }
+    }
+    const lien = (enfant(repere, "styleUrl")?.textContent || "").trim().replace(/^#/, "");
+    traces.push({ nom: (enfant(repere, "name")?.textContent || "").trim(), segments, style: styles.get(lien) || {}, infos });
+  }
+  if (!traces.length) throw new Error(t("gpx.invalide"));
+  return traces;
+}
+
+// gpx2dash nomme ses traces « 2020-12-13_LA ROQUEBRUSSANNE_8.7KM_D+350M_2H18 » :
+// la date, le lieu, la distance, le D+ et la durée ; les plus récentes ajoutent
+// l'heure de départ devant le lieu (« 2026-04-27_12-14 La Roquebrussanne_… »).
+// Un autre nom reste tel quel.
+function lireNomTrace(nom) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})_(?:(\d{1,2})-(\d{2})\s+)?(.+?)(?:_([\d.]+)km)?(?:_D\+(\d+)m)?(?:_(\d+)h(\d+))?$/i.exec(nom);
+  if (!m) return { titre: nom };
+  return { titre: m[6].replace(/_/g, " "), date: new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])),
+    heure: m[4] ? `${Number(m[4])} h ${m[5]}` : null,
+    km: m[7] ? Number(m[7]) : null, dplus: m[8] ? Number(m[8]) : null, minutes: m[9] ? Number(m[9]) * 60 + Number(m[10]) : null };
+}
+
+function longueurTrace(segments) {
+  let metres = 0;
+  for (const points of segments) {
+    for (let i = 1; i < points.length; i++) metres += L.latLng(points[i - 1]).distanceTo(L.latLng(points[i]));
+  }
+  return metres;
+}
+
+// La bulle d'une trace importée : son nom, sa date, sa distance, son dénivelé, sa durée.
+function bulleTraceImportee(trace) {
+  const div = document.createElement("div");
+  div.className = "bulle";
+  const lu = lireNomTrace(trace.nom);
+  const lignes = [];
+  if (lu.date) {
+    const jour = lu.date.toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR",
+      { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+    lignes.push(t("trace.date", { date: lu.heure ? `${jour}, ${lu.heure}` : jour }));
+  }
+  // La distance du nom vient du GPX complet ; la géométrie d'un KML est souvent simplifiée.
+  lignes.push(t("trace.distance", { km: km(lu.km != null ? lu.km * 1000 : longueurTrace(trace.segments)) }));
+  const d = trace.infos.denivele_exact;
+  if (d && Number.isFinite(d.Dplus_m) && Number.isFinite(d.Dmoins_m)) {
+    const modele = typeof trace.infos.modele === "string" ? trace.infos.modele : "gpx2elev";
+    lignes.push(t("trace.denivele", { plus: Math.round(d.Dplus_m), moins: Math.round(d.Dmoins_m), modele }));
+  } else if (lu.dplus != null) {
+    lignes.push(t("trace.deniveleNom", { plus: lu.dplus }));
+  }
+  if (lu.minutes != null) lignes.push(t("trace.duree", { duree: dureeLongue(lu.minutes * 60) }));
+  div.append(paragraphe(lu.titre || trace.nom, true), ...lignes.map((l) => paragraphe(l)));
+  return div;
+}
+
 async function chargerGpx(fichier) {
   const sequence = ++sequenceImportGpx;
   $("erreurGpx").hidden = true;
   try {
     if (fichier.size > 20_000_000) throw new Error(t("gpx.tropGrand"));
-    const segments = lireTracesGpx(await fichier.text());
+    const texte = await fichier.text();
+    const kml = /\.kml$/i.test(fichier.name) || /<kml[\s>]/.test(texte.slice(0, 1000));
+    const traces = kml ? lireTracesKml(texte) : [{ segments: lireTracesGpx(texte) }];
     if (sequence !== sequenceImportGpx) return;
     traceGpxImporte.clearLayers();
     let minLat = 90, minLon = 180, maxLat = -90, maxLon = -180;
-    for (const points of segments) {
-      L.polyline(points, { pane: "gpxImporte", color: "#344132", weight: 7, opacity: 0.9,
-        dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
-      L.polyline(points, { pane: "gpxImporte", color: "#ffe14a", weight: 4, opacity: 1,
-        dashArray: "9 6", interactive: false, leg: "gpx" }).addTo(traceGpxImporte);
-      for (const [lat, lon] of points) {
-        minLat = Math.min(minLat, lat); minLon = Math.min(minLon, lon);
-        maxLat = Math.max(maxLat, lat); maxLon = Math.max(maxLon, lon);
+    for (const trace of traces) {
+      for (const points of trace.segments) {
+        if (kml) {
+          // Le rendu du fichier, comme Géoportail : sa couleur et son épaisseur ; un clic ouvre la bulle de la trace.
+          L.polyline(points, { pane: "gpxImporte", renderer: renduImport, color: trace.style.couleur || "#ffe14a",
+            opacity: trace.style.opacite ?? 1, weight: trace.style.epaisseur || 4, bubblingMouseEvents: false })
+            .bindPopup(() => bulleTraceImportee(trace)).addTo(traceGpxImporte);
+        } else {
+          L.polyline(points, { pane: "gpxImporte", color: "#344132", weight: 7, opacity: 0.9,
+            dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
+          L.polyline(points, { pane: "gpxImporte", color: "#ffe14a", weight: 4, opacity: 1,
+            dashArray: "9 6", interactive: false, leg: "gpx" }).addTo(traceGpxImporte);
+        }
+        for (const [lat, lon] of points) {
+          minLat = Math.min(minLat, lat); minLon = Math.min(minLon, lon);
+          maxLat = Math.max(maxLat, lat); maxLon = Math.max(maxLon, lon);
+        }
       }
     }
-    nomGpxImporte = fichier.name.replace(/\.gpx$/i, "") || fichier.name;
+    nomGpxImporte = fichier.name.replace(/\.(gpx|kml)$/i, "") || fichier.name;
     traceGpxImporte.addTo(carte);
     if (controleFonds) controleFonds.addOverlay(traceGpxImporte, echapper(nomGpxImporte));
     else construireFonds();
@@ -2943,6 +3095,7 @@ for (const id of ["strict", "ign", "comparer"]) {
 function restaurerChampsReglages() {
   $("cleIgn").value = etat.cleIgn;
   $("renouvellementJours").value = etat.renouvellementJours;
+  $("zonesAuto").checked = etat.zonesAuto;
 }
 
 // Les réglages s'enregistrent à la fermeture de leur page (presentation.js),
@@ -2952,16 +3105,21 @@ async function enregistrerReglages() {
   const cle = $("cleIgn").value;
   const saisie = Math.round(Number($("renouvellementJours").value));
   const jours = saisie >= 1 && saisie <= 365 ? saisie : etat.renouvellementJours;
-  if (cle === etat.cleIgn && jours === etat.renouvellementJours) { restaurerChampsReglages(); return; }
+  const zonesAuto = $("zonesAuto").checked;
+  if (cle === etat.cleIgn && jours === etat.renouvellementJours && zonesAuto === etat.zonesAuto) {
+    restaurerChampsReglages(); return;
+  }
+  const cleChangee = cle !== etat.cleIgn;
   try {
-    const r = await api("reglages", { cle_ign: cle, renouvellement_jours: jours });
+    const r = await api("reglages", { cle_ign: cle, renouvellement_jours: jours, zones_auto: zonesAuto });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); restaurerChampsReglages(); return; }
     etat.cleIgn = r.cle_ign;
     etat.renouvellementJours = r.renouvellement_jours;
+    etat.zonesAuto = r.zones_auto !== false;
     restaurerChampsReglages();
     afficherExtrait(etat.extrait);
     construireFonds();
-    afficherStatut(() => t(etat.cleIgn ? "cle.enregistree" : "cle.retiree"));
+    if (cleChangee) afficherStatut(() => t(etat.cleIgn ? "cle.enregistree" : "cle.retiree"));
     verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
@@ -3106,6 +3264,8 @@ async function demarrer() {
     $("cleIgn").value = etat.cleIgn;
     etat.renouvellementJours = reglages.renouvellement_jours ?? 30;
     $("renouvellementJours").value = etat.renouvellementJours;
+    etat.zonesAuto = reglages.zones_auto !== false;
+    $("zonesAuto").checked = etat.zonesAuto;
     await verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("serveur.injoignable", { message: e.message }), true);

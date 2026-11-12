@@ -27,6 +27,7 @@ import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.provider.Settings
 import android.text.Editable
 import android.text.InputType
@@ -66,6 +67,7 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import com.google.zxing.integration.android.IntentIntegrator
+import kotlin.concurrent.thread
 import org.json.JSONArray
 import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.osmdroid.config.Configuration
@@ -94,6 +96,9 @@ import org.osmdroid.views.overlay.ScaleBarOverlay
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -181,6 +186,11 @@ class MainActivity : Activity() {
     private val points = mutableListOf<Point>()
     private val reperes = mutableListOf<Marker>()
     private var trace: Polyline? = null
+    /** Les traces importées (GPX, KML), dessinées sur la carte, et le nom du fichier : null sans import. */
+    private val tracesImportees = mutableListOf<Polyline>()
+    private var nomImport: String? = null
+    /** Vrai pour un GPX (trait jaune de la légende) ; un KML garde les couleurs de son fichier. */
+    private var importGpx = false
     private var dernier: Resultat? = null
     /** Les catalogues des PC, pour leurs fonds seulement ; null tant qu'ils n'ont pas été lus. */
     private var cataloguesPc: List<Pair<Source, Catalogue>>? = null
@@ -264,7 +274,9 @@ class MainActivity : Activity() {
         calques = Calques(horsLigne)
         relief = Mapterhorn(filesDir)
         reliefTrace = Mapterhorn(filesDir, reseau = false)
+        val premierLancement = !reglages.vueConnue
         construire()
+        if (premierLancement) centrerSurIp()
         // Avant la première mise en page, la carte n'a pas encore son centre
         // (0, 0) : le pays se lit sur la vue enregistrée, sinon une carte
         // nationale serait prise pour une carte du monde et remplacée par OSM.
@@ -316,7 +328,16 @@ class MainActivity : Activity() {
                         afficherFranchissement(it)
                         return true
                     }
-                    if (modePlan) ajouterPoint(Point(p.latitude, p.longitude))
+                    // Une trace importée touchée ouvre sa fiche, comme sa bulle sur le PC (même en planification).
+                    traceImporteeToucheeA(p)?.let {
+                        afficherTraceImportee(it)
+                        return true
+                    }
+                    if (modePlan) {
+                        if (lotAuPoint(horsLigne.lots(), p.latitude, p.longitude) == null)
+                            Toast.makeText(this@MainActivity, R.string.plan_point_sans_zone, Toast.LENGTH_SHORT).show()
+                        else ajouterPoint(Point(p.latitude, p.longitude))
+                    }
                     return true
                 }
                 override fun longPressHelper(p: GeoPoint) = false
@@ -633,6 +654,7 @@ class MainActivity : Activity() {
             if (d.voies.isNotEmpty()) add("osm")
             if (d.troncons.isNotEmpty() && reseaux.isNotEmpty()) add("chemins_officiels")
             if (trace != null) add("itineraire")
+            if (importGpx) add("gpx")
             if (d.barrieres.isNotEmpty()) add("barriere")
             if (d.franchissements.any { it.statut == "blocked" }) add("bloque")
             if (d.franchissements.any { it.statut != "blocked" }) add("verifier")
@@ -848,9 +870,9 @@ class MainActivity : Activity() {
             aReprendre = true; return
         }
         val maintenant = SystemClock.elapsedRealtime()
-        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
+        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees + reglages.zonesRefusees
         val aFaire = lotsATelecharger(offres, horsLigne.lots(), Zone.autour(points), exclu)
-        if (aFaire.isNotEmpty()) {
+        if (reglages.zonesAuto && aFaire.isNotEmpty()) {
             autoLotDemande = aFaire.first().lot.case
             telechargerAuto(aFaire.first()); return
         }
@@ -943,7 +965,7 @@ class MainActivity : Activity() {
             outlinePaint.color = COULEUR_ITINERAIRE
             outlinePaint.strokeWidth = 8f
         }
-        carte.overlays.add(1, trace)        // sous les touches et les repères
+        carte.overlays.add(1 + tracesImportees.size, trace)   // sur les traces importées, sous les touches et les repères
         majLegende()
         // Jamais de recadrage : les points sont posés à l'écran, et la carte reste
         // là où on l'a mise pour poser le suivant.
@@ -999,6 +1021,7 @@ class MainActivity : Activity() {
      * un geste sur la carte. Une case refusée ou en échec attend une heure.
      */
     private fun proposerLotZone(attendreCatalogue: Boolean = false) {
+        if (!reglages.zonesAuto) return         // réglage : les zones se prennent dans « Gestion des itinéraires »
         if (enCours.get() || autoLotDemande != null) {
             // Une tâche occupe le téléchargement : la demande attend son tour.
             if (attendreCatalogue) lotDeZoneEnAttente = true
@@ -1013,7 +1036,7 @@ class MainActivity : Activity() {
         lotDeZoneEnAttente = false
         val boite = carte.boundingBox ?: return
         val maintenant = SystemClock.elapsedRealtime()
-        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees
+        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees + reglages.zonesRefusees
         val zone = Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast)
         val offre = offreAuCentre(offres, horsLigne.lots(), zone, exclu) ?: return
         autoLotDemande = offre.lot.case
@@ -1098,6 +1121,9 @@ class MainActivity : Activity() {
             if (points.size < 2) exclues[offre.lot.case] = SystemClock.elapsedRealtime()
             if (points.size >= 2) calculer()
             return
+        }
+        if (offre.lot.case !in reglages.zonesProposees) {
+            demanderZone(offre); return
         }
         if (!reseau.isActiveNetworkMetered) {
             autoLotDemande = null
@@ -1696,6 +1722,9 @@ class MainActivity : Activity() {
             Triple(R.drawable.ic_recherche, R.string.menu_recherche, ::ouvrirRecherche),
             Triple(R.drawable.ic_carte, R.string.menu_cartes, ::ouvrirCartes),
             Triple(R.drawable.ic_itineraires, R.string.menu_itineraires, ::ouvrirItineraires),
+            Triple(R.drawable.ic_importer,
+                if (nomImport == null) R.string.menu_importer else R.string.menu_retirer_import,
+                ::basculerImport),
             Triple(R.drawable.ic_enregistrer,
                 if (enregistre) R.string.menu_arreter else R.string.menu_enregistrer,
                 ::basculerEnregistrement),
@@ -1725,6 +1754,8 @@ class MainActivity : Activity() {
                 setTextColor(0xff263238.toInt())
                 setPadding(dp(18), 0, 0, 0)
             }, LinearLayout.LayoutParams(0, -2, 1f))
+            // Sans zone de routage au centre, la planification ne peut rien calculer : grisée.
+            if (texte == R.string.menu_planifier && !zoneAuCentre()) ligne.alpha = 0.4f
             ligne.setOnClickListener {
                 dialogue.dismiss()
                 action()
@@ -1773,9 +1804,15 @@ class MainActivity : Activity() {
     }
 
     /** Le mode d'emploi de l'application : le README Android, sur GitHub. */
+    /**
+     * L'aide est le mode d'emploi général, comme sur le PC : le README de la
+     * version installée (son tag ; celui de main peut avoir pris de l'avance),
+     * dans la langue du téléphone. Il renvoie au README propre à Android.
+     */
     private fun ouvrirAide() {
+        val fichier = if (Locale.getDefault().language == "fr") "README.fr.md" else "README.md"
         startActivity(Intent(Intent.ACTION_VIEW,
-            Uri.parse("https://github.com/nico579/hike2gpx/blob/main/android/README.md")))
+            Uri.parse("https://github.com/nico579/hike2gpx/blob/v${versionInstallee()}/$fichier")))
     }
 
     /** Le champ de recherche ne s'affiche qu'à la demande, depuis le menu. */
@@ -1820,6 +1857,9 @@ class MainActivity : Activity() {
         if (!modePlan && EnregistrementGps.actif) {
             Toast.makeText(this, R.string.plan_trace_en_cours, Toast.LENGTH_LONG).show()
             return
+        }
+        if (!modePlan && !zoneAuCentre()) {
+            expliquerSansZone(); return
         }
         modePlan = !modePlan
         modeRecherche = false
@@ -1873,6 +1913,10 @@ class MainActivity : Activity() {
         colonne.addView(CheckBox(this).apply {
             setText(R.string.afficher_legende); isChecked = reglages.legende
             setOnCheckedChangeListener { _, v -> reglages.legende = v; appliquerAffichage() }
+        })
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.reglage_zones_auto); isChecked = reglages.zonesAuto
+            setOnCheckedChangeListener { _, v -> reglages.zonesAuto = v }
         })
         // Les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
         // téléphone a moins à tracer.
@@ -2216,6 +2260,191 @@ class MainActivity : Activity() {
                 if (!enCours.get()) recuperations.removeFirstOrNull()?.invoke()
             }
             .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    // ------------------------------------------------------------------ premier lancement et zones
+
+    /**
+     * Au tout premier lancement, la carte s'ouvre sur la ville de l'adresse IP
+     * (PositionIp) plutôt que sur un point fixe ; sans réponse, elle reste où
+     * elle est. La zone de routage de la ville se propose ensuite (une fois).
+     */
+    private fun centrerSurIp() {
+        thread(isDaemon = true) {
+            val position = PositionIp.demander() ?: return@thread
+            runOnUiThread {
+                if (isDestroyed || reglages.vueConnue) return@runOnUiThread
+                carte.controller.setZoom(12.0)
+                carte.controller.setCenter(GeoPoint(position.first, position.second))
+                reglages.vue = Triple(position.first, position.second, 12.0)
+                proposerLotZone(attendreCatalogue = true)
+            }
+        }
+    }
+
+    /** Une zone de routage installée couvre-t-elle le centre de la carte ? */
+    private fun zoneAuCentre(): Boolean {
+        val centre = carte.mapCenter
+        return lotAuPoint(horsLigne.lots(), centre.latitude, centre.longitude) != null
+    }
+
+    /** Sans zone de routage, la planification ne mènerait à rien : on le dit, et où la prendre. */
+    private fun expliquerSansZone() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.plan_sans_zone_titre)
+            .setMessage(R.string.plan_sans_zone_message)
+            .setPositiveButton(R.string.menu_itineraires) { _, _ -> ouvrirItineraires() }
+            .setNegativeButton(R.string.fermer, null)
+            .show()
+    }
+
+    /**
+     * Le premier téléchargement automatique d'une case demande d'abord, même
+     * sur Wi-Fi : une zone pèse plusieurs centaines de Mo, et recentrer la
+     * carte sur une ville ne doit pas suffire à la télécharger. La question
+     * n'est posée qu'une fois par case ; un refus est retenu, la zone restant
+     * disponible dans « Gestion des itinéraires ». Une zone acceptée se
+     * renouvelle ensuite d'elle-même.
+     */
+    private fun demanderZone(offre: Offre) {
+        reglages.zonesProposees = reglages.zonesProposees + offre.lot.case
+        AlertDialog.Builder(this)
+            .setTitle(R.string.zone_initiale_titre)
+            .setMessage(getString(R.string.zone_initiale_message, offre.lot.case,
+                Formatter.formatShortFileSize(this, offre.lot.octets)))
+            .setPositiveButton(R.string.telecharger) { _, _ ->
+                autoLotDemande = null
+                telecharger(offre)
+            }
+            .setNegativeButton(R.string.zone_refuser) { _, _ ->
+                autoLotDemande = null
+                reglages.zonesRefusees = reglages.zonesRefusees + offre.lot.case
+                Toast.makeText(this, getString(R.string.zone_refusee, offre.lot.case), Toast.LENGTH_LONG).show()
+                avancer()
+                planifierCalques()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    // ------------------------------------------------------------------ import GPX et KML
+
+    /**
+     * Importer un GPX ou un KML, ou retirer celui qui est affiché, depuis le menu
+     * principal, comme sur la page du PC : importer n'est pas tracer.
+     */
+    private fun basculerImport() {
+        if (nomImport != null) {
+            retirerImport(); return
+        }
+        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            // Un GPX arrive souvent en application/octet-stream : le tri se fait à la lecture.
+            type = "*/*"
+        }, IMPORT)
+    }
+
+    private fun nomAffiche(adresse: Uri): String = try {
+        contentResolver.query(adresse, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        } ?: "import"
+    } catch (e: Exception) {
+        "import"
+    }
+
+    private fun importer(adresse: Uri) {
+        etat.setText(R.string.import_lecture)
+        EXECUTEUR_TRACE.execute {
+            val nom = nomAffiche(adresse)
+            val traces = try {
+                val octets = contentResolver.openInputStream(adresse)?.use { it.readBytes() } ?: ByteArray(0)
+                if (octets.size > IMPORT_MAX_OCTETS) null else TracesImportees.lire(String(octets, Charsets.UTF_8), nom)
+            } catch (e: Exception) {
+                null
+            }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                if (traces.isNullOrEmpty()) etat.setText(R.string.import_invalide) else afficherImport(traces, nom)
+            }
+        }
+    }
+
+    /** Chaque trace dans la couleur de son fichier (un GPX en jaune, comme sur le PC) ; un toucher ouvre sa fiche. */
+    private fun afficherImport(traces: List<TraceImportee>, fichier: String) {
+        retirerImport()
+        val densite = resources.displayMetrics.density
+        val gpx = fichier.endsWith(".gpx", true) || traces.all { it.couleur == null }
+        var sud = 90.0; var nord = -90.0; var ouest = 180.0; var est = -180.0
+        fun ajouter(ligne: Polyline) {
+            carte.overlays.add(1 + tracesImportees.size, ligne)        // au-dessus des calques, sous le tracé
+            tracesImportees.add(ligne)
+        }
+        for (t in traces) for (segment in t.segments) {
+            val points = segment.map { GeoPoint(it.first, it.second) }
+            if (gpx) ajouter(Polyline(carte).apply {
+                setPoints(points)
+                outlinePaint.color = COULEUR_GPX_BORD; outlinePaint.strokeWidth = 7 * densite
+                outlinePaint.pathEffect = DashPathEffect(floatArrayOf(9 * densite, 6 * densite), 0f)
+                relatedObject = t
+            })
+            ajouter(Polyline(carte).apply {
+                setPoints(points)
+                outlinePaint.color = t.couleur ?: COULEUR_GPX
+                outlinePaint.strokeWidth = (if (gpx) 4f else (t.epaisseur ?: 4f) * 0.8f) * densite
+                outlinePaint.strokeCap = Paint.Cap.ROUND
+                if (gpx) outlinePaint.pathEffect = DashPathEffect(floatArrayOf(9 * densite, 6 * densite), 0f)
+                relatedObject = t
+            })
+            for ((lat, lon) in segment) {
+                sud = minOf(sud, lat); nord = maxOf(nord, lat); ouest = minOf(ouest, lon); est = maxOf(est, lon)
+            }
+        }
+        nomImport = fichier.substringBeforeLast('.')
+        importGpx = gpx
+        etat.text = ""
+        majLegende()
+        carte.zoomToBoundingBox(BoundingBox(nord, est, sud, ouest), true, dp(30))
+        carte.invalidate()
+    }
+
+    /** La trace importée la plus haute à moins de 16 dp du doigt, ou null. */
+    private fun traceImporteeToucheeA(p: GeoPoint): TraceImportee? {
+        val tolerance = 16.0 * resources.displayMetrics.density
+        return tracesImportees.asReversed().firstOrNull { it.isCloseTo(p, tolerance, carte) }
+            ?.relatedObject as? TraceImportee
+    }
+
+    private fun retirerImport() {
+        tracesImportees.forEach { carte.overlays.remove(it) }
+        tracesImportees.clear()
+        nomImport = null
+        importGpx = false
+        majLegende()
+        carte.invalidate()
+    }
+
+    /** La fiche d'une trace importée, comme la bulle du PC : lieu, date, distance, dénivelé, durée. */
+    private fun afficherTraceImportee(t: TraceImportee) {
+        val lu = TracesImportees.lireNom(t.nom)
+        val lignes = mutableListOf<String>()
+        lu.date?.let { iso ->
+            runCatching { LocalDate.parse(iso).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)) }
+                .getOrNull()?.let { jour -> lignes += getString(R.string.import_date, lu.heure?.let { "$jour, $it" } ?: jour) }
+        }
+        // La distance du nom vient du GPX complet ; la géométrie d'un KML est souvent simplifiée.
+        val km = lu.km ?: (TracesImportees.longueur(t.segments) / 1000)
+        lignes += getString(R.string.import_distance, String.format(Locale.getDefault(), "%.2f km", km))
+        val denivele = TracesImportees.denivele(t)
+        if (denivele != null) lignes += getString(R.string.import_denivele, denivele.first, denivele.second, denivele.third)
+        else lu.dplus?.let { lignes += getString(R.string.import_denivele_nom, it) }
+        lu.minutes?.let { m ->
+            lignes += getString(R.string.import_duree, if (m < 60) "$m min" else String.format(Locale.getDefault(), "%d h %02d", m / 60, m % 60))
+        }
+        AlertDialog.Builder(this)
+            .setTitle(lu.titre.ifEmpty { t.nom.ifEmpty { nomImport ?: "" } })
+            .setMessage(lignes.joinToString("\n"))
+            .setPositiveButton(R.string.fermer, null)
             .show()
     }
 
@@ -2708,6 +2937,10 @@ class MainActivity : Activity() {
             scan.contents?.let { lienScanne(it) }       // null : scan annulé
             return
         }
+        if (requete == IMPORT) {
+            if (resultat == RESULT_OK) donnees?.data?.let { importer(it) }
+            return
+        }
         if (requete == EXPORT_TRACE) {
             if (resultat != RESULT_OK) {
                 contenuExport = null
@@ -3015,6 +3248,11 @@ class MainActivity : Activity() {
         private const val ECHELLE_RENDU = 1f
         private const val EXPORT = 1
         private const val EXPORT_TRACE = 2
+        private const val IMPORT = 5
+        /** Le jaune du GPX importé et son liseré, ceux de la page du PC. */
+        private const val COULEUR_GPX = 0xffffe14a.toInt()
+        private const val COULEUR_GPX_BORD = 0xff344132.toInt()
+        private const val IMPORT_MAX_OCTETS = 20_000_000
         private const val PERMISSION_POSITION = 3
         private const val PERMISSION_NOTIFICATIONS = 4
         private const val CANAL_EXPORT = "export"

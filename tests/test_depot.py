@@ -153,7 +153,11 @@ def test_le_lot_du_serveur_se_telecharge_de_lui_meme(tmp_path, monkeypatch):
     # la page sait déjà qu'un lot existe, et ne lance pas d'extrait.
     assert a._lot_automatique(ailleurs, "essai") is False, "rien au catalogue pour cette zone"
     assert a._catalogue is not None
-    assert a._lot_automatique(zone, "essai") is True
+    # Une zone pèse plusieurs centaines de Mo : la première fois, la page demande d'abord.
+    assert a._lot_automatique(zone, "essai") is False
+    assert a._avec_lot_automatique({})["zone_a_proposer"]["case"] == "E5_N40"
+    assert a.repondre_zone({"case": "E5_N40", "accepter": True})["ok"] is True
+    assert "zone_a_proposer" not in a._avec_lot_automatique({})
     assert a._avec_lot_automatique({})["lot_en_cours"]["auto"] is True, "la page suit l'avancement"
     a._fil_lot.join(10)
     assert a.lot_en_cours()["etape"] == "fini" and a.hors_ligne.origine("E5_N40") == {"depot": a.depot_lots}
@@ -205,3 +209,31 @@ def test_une_edition_illisible_est_signalee_sans_passer_pour_absente():
     assert lignes == [("E0_N40", "?", None)]
     assert problemes == ["E0_N40 : édition OSM illisible (None)"]
     assert "| E0_N40 | ? | ? (!) |" in depot.tableau_fraicheur(lignes, problemes, 14)
+
+
+def test_une_zone_refusee_ou_le_reglage_decoche_ne_se_telecharge_plus(tmp_path, monkeypatch):
+    # Demande de Nico du 2026-11-12 : une question par zone, un refus retenu, et une
+    # coche des réglages pour couper le téléchargement automatique.
+    from hike2gpx import application as appli
+    fabriquer_lot(tmp_path / "lots" / "E5_N40")
+    depot.ecrire_catalogue(tmp_path / "lots", tmp_path / "publication")
+    ouvrir, _ = servir(tmp_path / "publication")
+    monkeypatch.setattr(depot.urllib.request, "urlopen", ouvrir)
+    a = appli.Application(tmp_path / "donnees")
+    zone = (43.30, 5.50, 43.31, 5.51)
+    assert a._lot_automatique(zone, "essai") is False
+    assert a._avec_lot_automatique({})["zone_a_proposer"]["case"] == "E5_N40"
+    a.repondre_zone({"case": "E5_N40", "accepter": False})
+    assert a._lot_automatique(zone, "essai") is False
+    assert "zone_a_proposer" not in a._avec_lot_automatique({}), "refusée : plus de question"
+    assert a._fil_lot is None, "rien ne se télécharge"
+    # Le réglage décoché : plus rien d'automatique, même pour une case acceptée avant.
+    a.repondre_zone({"case": "E5_N40", "accepter": True})
+    a._fil_lot.join(10)
+    a.supprimer_case({"case": "E5_N40"})
+    a._lots_retires.clear()
+    assert a.reglages()["zones_auto"] is True
+    a.enregistrer_reglages({"cle_ign": "", "zones_auto": False})
+    assert a.reglages()["zones_auto"] is False
+    assert a._lot_automatique(zone, "essai") is False
+    assert not a.lots_hors_ligne()["lots"]

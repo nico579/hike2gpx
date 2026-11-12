@@ -8,10 +8,11 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. Un
 bouton à trois traits, en bas à gauche, ouvre le menu : « Recherche », « Gestion
-des cartes », « Gestion des itinéraires »,
+des cartes », « Gestion des itinéraires », « Importer un GPX ou un KML »,
 « Enregistrer un parcours », « Planifier un itinéraire », « Réglages » et
 « Aide ». La carte reste seule tant qu'on n'a pas choisi un mode ; « Aide »
-ouvre ce mode d'emploi sur GitHub. Le panneau laisse voir la carte derrière, et
+ouvre sur GitHub le mode d'emploi général, celui du PC, pour la version installée et
+dans la langue du téléphone ; il renvoie à celui-ci. Le panneau laisse voir la carte derrière, et
 sa poignée du haut se glisse vers le bas pour le refermer. En planification, on
 touche la carte pour poser le départ, puis l'arrivée et d'éventuelles étapes ; « Retirer » retire le
 dernier point, « Effacer » les retire tous, et « Revenir » ajoute le départ en

@@ -92,6 +92,15 @@ prennent dans « Gestion des itinéraires », par cases de 5° ; dans les cinq p
 
 ![Gestion des cartes : la case du Var sélectionnée, prête à télécharger](docs/images/pc-zone-carte.png)
 
+**Importer un GPX ou un KML.** L'entrée « Importer un GPX ou un KML » du menu
+principal affiche un fichier sur la carte, comme repère, sans toucher au
+parcours. Un GPX se dessine en tirets jaunes. Un KML garde les couleurs et les
+épaisseurs de son fichier, comme dans Géoportail : celui que fabrique
+[gpx2dash](https://github.com/nico579/gpx2dash) avec des centaines de traces
+s'affiche d'un coup. Un clic sur une trace ouvre sa bulle : son lieu, sa date,
+sa distance, son dénivelé (celui de gpx2elev, avec son modèle de terrain) et
+sa durée. La même entrée, devenue « Retirer l'import », l'efface.
+
 **La partager sur le téléphone.** Sélectionnez les cases déjà présentes sur
 l'ordinateur (en vert) et cliquez « Partager » : un QR code s'affiche. Le
 téléphone doit être sur le même Wi-Fi. « Arrêter le partage » le referme, et
@@ -107,14 +116,19 @@ le code change à chaque ouverture ([détail](#partager-au-téléphone)).
 code de l'ordinateur » et visez le QR code du PC. Le téléphone dit ce qu'il
 lui manque et sa taille, puis télécharge les fonds et les zones de routage,
 chaque fichier vérifié à l'arrivée. Les zones publiées par le serveur (France,
-Suisse, Allemagne, Tchéquie, Pologne) se téléchargent aussi d'elles-mêmes, sans
-PC.
+Suisse, Allemagne, Tchéquie, Pologne) se proposent aussi d'elles-mêmes, sans PC.
+Au tout premier lancement, la carte s'ouvre sur la ville que donne l'adresse IP
+(approximative : celle du point de raccordement de l'opérateur). Tant qu'aucune
+zone de routage ne couvre la carte, « Planifier un itinéraire » reste grisé : le
+téléphone ne calcule qu'avec une zone, et le dit plutôt que d'échouer.
 
 **Tracer un parcours.** Menu, puis « Planifier un itinéraire » : chaque
 toucher sur la carte pose un point, comme sur l'ordinateur, et le calcul se
 fait sur le téléphone, sans réseau dès que la zone est installée. Le bandeau
 du relief se replie d'un toucher sur son titre. Un toucher sur une pastille
-rouge ou orange en ouvre la fiche, avec le lien vers OpenStreetMap.
+rouge ou orange en ouvre la fiche, avec le lien vers OpenStreetMap. Le menu
+importe aussi un GPX ou un KML, comme sur l'ordinateur ; un toucher sur une
+trace en ouvre la fiche.
 
 **Enregistrer une trace.** « Enregistrer un parcours » suit votre position
 pendant la randonnée, écran éteint compris. À l'arrêt, la trace part d'elle-même
@@ -185,10 +199,15 @@ carte ; sinon, le calcul se fait [à la volée](#sans-zone-de-routage--le-calcul
 Il y a deux façons d'en obtenir une.
 
 - **Du serveur**, pour la France, la Suisse, l'Allemagne, la Tchéquie et la
-  Pologne. Pas besoin de cliquer : dès qu'un calcul ou les chemins de la carte
-  touchent une case publiée, sa zone se télécharge d'elle-même, reprise après
-  une coupure, et se renouvelle quand le serveur en publie une plus récente.
-  La case du Var, 247 Mo, arrive en quelques dizaines de secondes.
+  Pologne. La première fois qu'un calcul ou les chemins de la carte touchent
+  une case publiée, hike2gpx demande s'il faut télécharger sa zone (une
+  question par zone : elle pèse plusieurs centaines de Mo). Acceptée, elle se
+  télécharge, reprise après une coupure, puis se renouvelle d'elle-même quand
+  le serveur en publie une plus récente ; la case du Var, 247 Mo, arrive en
+  quelques dizaines de secondes. Refusée, elle ne se propose plus et reste
+  disponible dans « Gestion des itinéraires ». La coche « Télécharger
+  automatiquement les zones de routage » des réglages, sur le PC comme sur le
+  téléphone, coupe tout téléchargement automatique.
 - **Du PC**, partout ailleurs : « Gestion des itinéraires » montre la grille
   des cases ; cliquez celles qu'il vous faut, puis « Télécharger ». Le PC
   prépare la vue affichée ou la case entière.
@@ -369,7 +388,7 @@ sur la pondérée.
 La page de l'ordinateur et l'application Android ont le même écran : la carte
 d'abord, en plein écran, et un bouton à trois traits, en bas à gauche, qui
 ouvre le menu (« Recherche », « Gestion des cartes », « Gestion des
-itinéraires », « Planifier un itinéraire », « Réglages », « Aide » ; sur le
+itinéraires », « Importer un GPX ou un KML », « Planifier un itinéraire », « Réglages », « Aide » ; sur le
 téléphone, en plus, « Enregistrer un parcours »). Sur l'ordinateur, chaque
 entrée ouvre un panneau à gauche, que sa croix referme ; le menu porte aussi le
 choix FR/EN et un voyant qui dit si le prochain calcul a ce qu'il lui faut. «
@@ -400,8 +419,8 @@ les altitudes extrêmes. Le profil d'altitude se déplie en bas de la carte, ave
 le nom du modèle de terrain ; le survoler montre le point sur l'itinéraire. Les
 franchissements à vérifier sont listés, chacun avec un lien vers OpenStreetMap.
 « Exporter le GPX » enregistre l'itinéraire, avec ces points en points de
-passage. « Charger un GPX » affiche en jaune un tracé existant, comme repère,
-sans toucher au parcours ni à l'export.
+passage. Un GPX ou un KML importé depuis le menu s'affiche comme repère, sans
+toucher au parcours ni à l'export.
 
 **Les réglages.** La clé IGN du SCAN 25 (sans elle, le Plan IGN, sous Licence
 Ouverte), le délai de renouvellement des données (30 jours par défaut), le zoom

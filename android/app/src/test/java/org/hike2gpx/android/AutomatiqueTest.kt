@@ -20,6 +20,20 @@ class AutomatiqueTest {
     private val e0n40 = listOf(40.0, 0.0, 45.0, 5.0)
     private val gareoult = Zone(43.45, 6.03, 43.47, 6.06)
 
+    @Test fun une_zone_installee_couvre_le_point_ou_pas() {
+        val installes = listOf(lot("E5_N40", e5n40, "2026-11-01"))
+        assertEquals("E5_N40", lotAuPoint(installes, 43.46, 6.04)?.case)
+        assertNull(lotAuPoint(installes, 48.85, 2.35))           // Paris : rien d'installé
+        assertNull(lotAuPoint(emptyList(), 43.46, 6.04))
+    }
+
+    @Test fun la_position_d_ipapi_se_lit_et_un_zero_zero_est_refuse() {
+        assertEquals(Triple(43.12, 5.93, "Toulon"),
+            PositionIp.lire("""{"city": "Toulon", "latitude": 43.12, "longitude": 5.93}"""))
+        assertNull(PositionIp.lire("""{"error": true, "reason": "RateLimited"}"""))
+        assertNull(PositionIp.lire("""{"latitude": 0, "longitude": 0}"""))
+    }
+
     @Test fun le_lot_de_la_case_du_parcours_quand_il_manque() {
         val offres = listOf(Offre(Source.GITHUB, lot("E0_N40", e0n40, "2026-11-01")),
             Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-01")))

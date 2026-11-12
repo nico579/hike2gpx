@@ -86,6 +86,14 @@ server ([details](#routing-areas)).
 
 ![Map management: the Var cell selected, ready to download](docs/images/en/pc-zone-carte.png)
 
+**Import a GPX or KML.** The "Import a GPX or KML" entry of the main menu
+shows a file on the map, as a landmark, without touching the route. A GPX is
+drawn as yellow dashes. A KML keeps the colours and widths of its file, as in
+Géoportail: the one [gpx2dash](https://github.com/nico579/gpx2dash) builds with
+hundreds of tracks shows at once. A click on a track opens its bubble: its
+place, date, distance, elevation gain (gpx2elev's, with its terrain model) and
+walking time. The same entry, now "Remove the import", clears it.
+
 **Share it with the phone.** Select the cells already on the computer (in
 green) and click "Share": a QR code appears. The phone must be on the same
 Wi-Fi. "Stop sharing" closes it, and the code changes every time
@@ -101,13 +109,18 @@ Wi-Fi. "Stop sharing" closes it, and the code changes every time
 aim at the PC's QR code. The phone says what it is missing and how big it is,
 then downloads the base maps and routing areas, each file checked on arrival.
 Areas published by the server (France, Switzerland, Germany, Czechia, Poland)
-also download by themselves, with no PC.
+are also offered by themselves, with no PC. On the very first launch, the map
+opens on the town given by the IP address (approximate: that of the operator's
+connection point). As long as no routing area covers the map, "Plan a route"
+stays greyed out: the phone only computes with an area, and says so rather
+than failing.
 
 **Plan a route.** Menu, then "Plan a route": each tap on the map places a
 point, as on the computer, and the route is computed on the phone, with no
 network once the area is installed. The profile panel folds with a tap on its
 title. A tap on a red or orange dot opens its details, with the link to
-OpenStreetMap.
+OpenStreetMap. The menu also imports a GPX or KML, as on the computer; a tap
+on a track opens its details.
 
 **Record a track.** "Record a track" follows your position during the hike,
 screen off included. When you stop, the track goes by itself to Downloads, like
@@ -172,11 +185,15 @@ routing runs [on the fly](#without-a-routing-area-routing-on-the-fly).
 
 There are two ways to get one.
 
-- **From the server**, for France, Switzerland, Germany, Czechia and Poland. No
-  click needed: as soon as a route or the map's paths touch a published cell,
-  its area downloads by itself, resumed after a cut, and renews itself when
-  the server publishes a newer one. The Var cell, 247 MB, arrives in a few tens
-  of seconds.
+- **From the server**, for France, Switzerland, Germany, Czechia and Poland.
+  The first time a route or the map's paths touch a published cell, hike2gpx
+  asks whether to download its area (one question per area: it weighs several
+  hundred MB). Accepted, it downloads, resumed after a cut, then renews itself
+  when the server publishes a newer one; the Var cell, 247 MB, arrives in a few
+  tens of seconds. Refused, it is no longer offered and stays available in
+  "Route management". The "Download routing areas automatically" box in the
+  settings, on the computer as on the phone, turns off all automatic
+  downloads.
 - **From the PC**, everywhere else: "Route management" shows the grid of
   cells; click the ones you need, then "Download". The PC prepares the view on
   screen or the whole cell.
@@ -352,7 +369,7 @@ weighted one.
 
 The desktop page and the Android app have the same screen: the map first, full
 screen, and a three-line button, bottom left, that opens the menu ("Search",
-"Map management", "Route management", "Plan a route", "Settings", "Help"; on
+"Map management", "Route management", "Import a GPX or KML", "Plan a route", "Settings", "Help"; on
 the phone, also "Record a track"). On the computer, each entry opens a panel on
 the left, which its cross closes; the menu also holds the FR/EN choice and a
 light that says whether the next routing has what it needs. "Help" opens this
@@ -382,8 +399,8 @@ elevation gain and the extreme altitudes. The elevation profile unfolds at the
 bottom of the map, with the name of the terrain model; hovering it shows the
 point on the route. The crossings to check are listed, each with a link to
 OpenStreetMap. "Export GPX" saves the route, with these points as waypoints.
-"Load a GPX" shows an existing track in yellow, as a landmark, without touching
-the route or the export.
+A GPX or KML imported from the menu shows as a landmark, without touching the
+route or the export.
 
 **The settings.** The IGN key for the SCAN 25 (without it, Plan IGN, under the
 Open Licence), the renewal delay of the data (30 days by default), the zoom

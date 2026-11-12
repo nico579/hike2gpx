@@ -150,7 +150,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
-    + " basculerPartage, enregistrerReglages, majLegende, coucheCalque,"
+    + " basculerPartage, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -407,8 +407,10 @@ test("les réglages s'enregistrent à la fermeture de leur page, seulement s'ils
   const { page, document, requetes } = charger();
   page.etat.cleIgn = "ancienne";
   page.etat.renouvellementJours = 30;
+  page.etat.zonesAuto = true;
   document.getElementById("cleIgn").value = "ancienne";
   document.getElementById("renouvellementJours").value = "30";
+  document.getElementById("zonesAuto").checked = true;
   const avant = requetes.length;
   const envois = () => requetes.filter((r) => r.url === "/api/reglages").length;
   const initiaux = envois();
@@ -419,8 +421,8 @@ test("les réglages s'enregistrent à la fermeture de leur page, seulement s'ils
   document.getElementById("renouvellementJours").value = "45";
   const envoi = page.enregistrerReglages();
   const requete = requetes.findLast((r) => r.url === "/api/reglages");
-  assert.deepEqual(JSON.parse(requete.options.body), { cle_ign: "nouvelle", renouvellement_jours: 45 });
-  repondre(requete, { cle_ign: "nouvelle", renouvellement_jours: 45 });
+  assert.deepEqual(JSON.parse(requete.options.body), { cle_ign: "nouvelle", renouvellement_jours: 45, zones_auto: true });
+  repondre(requete, { cle_ign: "nouvelle", renouvellement_jours: 45, zones_auto: true });
   await envoi;
   assert.equal(page.etat.cleIgn, "nouvelle");
   assert.equal(page.etat.renouvellementJours, 45);
@@ -450,7 +452,7 @@ test("la note suit la préparation hors ligne, puis la case est prête", async (
     { actif: true, case: "E5_N40", etape: "calques", faites: 4, total: 16, duree_s: 125 });
   await suivi;
   assert.equal(elements.get("lotHorsLigneTexte").textContent,
-    "Préparation hors ligne de E5_N40 : chemins et franchissements 4/16, depuis 2 min");
+    "Préparation de la case E5_N40 : chemins et franchissements 4/16, depuis 2 min");
   assert.equal(elements.get("arreterLot").hidden, false);
   assert.equal(elements.get("lotHorsLigneBarre").style.width, "25%");
   assert.equal(minuteurs.at(-1).ms, 2000, "relu toutes les deux secondes");
@@ -459,6 +461,23 @@ test("la note suit la préparation hors ligne, puis la case est prête", async (
   await fin;
   assert.equal(elements.get("lotHorsLigneTexte").textContent, "Case E5_N40 prête hors ligne.");
   assert.equal(elements.get("arreterLot").hidden, true);
+});
+
+test("une case de fond de carte se nomme par sa carte, une zone de routage par son nom", async () => {
+  const { page, requetes, elements } = charger();
+  page.etat.fondsHorsLigne = { scan25: "SCAN 25 (IGN)" };
+  const suivi = page.suivreLot();
+  repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"),
+    { actif: true, case: "N43E006", source: "scan25", etape: "fond", faites: 30, total: 600, duree_s: 60 });
+  await suivi;
+  assert.equal(elements.get("lotHorsLigne").dataset.titre, "Carte hors ligne « SCAN 25 (IGN) »");
+  assert.equal(elements.get("lotHorsLigneTexte").textContent,
+    "Préparation de la case N43E006 : téléchargement des tuiles 30/600, depuis 1 min");
+  const zone = page.suivreLot();
+  repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"),
+    { actif: true, case: "E5_N40", etape: "calques", faites: 4, total: 16, duree_s: 125 });
+  await zone;
+  assert.equal(elements.get("lotHorsLigne").dataset.titre, "Zone de routage");
 });
 
 test("un clic droit affiche les coordonnées et permet de les copier sans ajouter de point", async () => {
@@ -501,7 +520,7 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   page.traceGpxImporte.addTo(carte);
   page.construireFonds();
   assert.equal(page.controle().calques["2026-09-20_09-03"], page.traceGpxImporte);
-  assert.equal(elements.get("chargerGpxTexte").textContent, "Supprimer le GPX");
+  assert.equal(elements.get("chargerGpxTexte").textContent, "Retirer l'import");
   assert.equal(page.etat.points.length, 0);
   assert.equal(stockage.has("hike2gpx.points"), false);
   elements.get("chargerGpx").click();
@@ -509,7 +528,7 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   assert.equal(page.controle().calques["2026-09-20_09-03"], undefined);
   page.majLegende();
   assert.equal(ligneLegende(elements, "gpx").hidden, true);
-  assert.equal(elements.get("chargerGpxTexte").textContent, "Charger un GPX");
+  assert.equal(elements.get("chargerGpxTexte").textContent, "Importer un GPX ou un KML");
 });
 
 test("un GPX invalide conserve le tracé précédemment chargé", async () => {
@@ -1513,4 +1532,45 @@ test("les couches d'affichage seul (Espagne, États-Unis) n'ont pas de ligne de 
   page.coucheCalque("bdtopo").layers.push({ options: {} });
   page.majLegende();
   assert.equal(elements.get("legendOfficielTexte").textContent, "chemin IGN");
+});
+
+test("un KML de gpx2dash : nom, date, D+ et durée lus dans le nom, couleur KML convertie", () => {
+  const { page } = charger();
+  const lu = page.lireNomTrace("2020-12-13_LA ROQUEBRUSSANNE_8.7KM_D+350M_2H18");
+  assert.equal(lu.titre, "LA ROQUEBRUSSANNE");
+  assert.equal(lu.date.toISOString().slice(0, 10), "2020-12-13");
+  assert.equal(lu.km, 8.7);
+  assert.equal(lu.dplus, 350);
+  assert.equal(lu.minutes, 138);
+  const autre = page.lireNomTrace("2015-04-24_Tourris10_Le Revest-les-Eaux_11.5km_D+514m_2h21");
+  assert.equal(autre.titre, "Tourris10 Le Revest-les-Eaux");
+  assert.equal(autre.minutes, 141);
+  const recente = page.lireNomTrace("2026-04-27_12-14 La Roquebrussanne_17.8km_D+690m_3h49");
+  assert.equal(recente.titre, "La Roquebrussanne");
+  assert.equal(recente.heure, "12 h 14");
+  assert.equal(JSON.stringify(page.lireNomTrace("Sortie du dimanche")), JSON.stringify({ titre: "Sortie du dimanche" }));
+  // KML : aabbggrr. ff5622e5 = opaque, rouge e5, vert 22, bleu 56.
+  assert.equal(JSON.stringify(page.couleurKml("ff5622e5")), JSON.stringify({ couleur: "#e52256", opacite: 1 }));
+  assert.equal(JSON.stringify(page.couleurKml("pas une couleur")), "{}");
+});
+
+test("décocher le téléchargement automatique des zones s'enregistre ; une zone proposée est demandée une fois", async () => {
+  const { page, document, requetes, confirmations } = charger();
+  page.etat.cleIgn = ""; page.etat.renouvellementJours = 30; page.etat.zonesAuto = true;
+  document.getElementById("cleIgn").value = ""; document.getElementById("renouvellementJours").value = "30";
+  document.getElementById("zonesAuto").checked = false;
+  const envoi = page.enregistrerReglages();
+  const requete = requetes.findLast((r) => r.url === "/api/reglages");
+  assert.equal(JSON.parse(requete.options.body).zones_auto, false);
+  repondre(requete, { cle_ign: "", renouvellement_jours: 30, zones_auto: false });
+  await envoi;
+  assert.equal(page.etat.zonesAuto, false);
+  // Le serveur signale une zone à proposer : une seule question, même si la réponse revient deux fois.
+  confirmations.reponse = false;
+  page.proposerZone({ case: "E5_N40", octets: 250_000_000 });
+  page.proposerZone({ case: "E5_N40", octets: 250_000_000 });
+  assert.equal(confirmations.length, 1);
+  assert.match(confirmations[0], /E5_N40/);
+  const reponse = requetes.findLast((r) => r.url === "/api/zone_reponse");
+  assert.deepEqual(JSON.parse(reponse.options.body), { case: "E5_N40", accepter: false });
 });
