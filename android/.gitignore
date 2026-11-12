@@ -6,3 +6,4 @@ local.properties
 # La clé de signature ne quitte jamais le secret du dépôt.
 *.keystore
 *.jks
+.kotlin/
