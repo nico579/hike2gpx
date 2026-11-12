@@ -86,14 +86,13 @@ class Depot(private val pause: (Long) -> Unit = { Thread.sleep(it) }) {
     }
 
     /**
-     * Le fichier d'un fond de carte dans travail (.mbtiles en images, .map
-     * Mapsforge), repris par Range et contrôlé par son SHA-256 comme un
-     * fichier de lot ; rend le fichier reçu.
+     * Le fichier MBTiles d'un fond de carte dans travail, repris par Range et
+     * contrôlé par son SHA-256 comme un fichier de lot ; rend le fichier reçu.
      */
     fun telechargerFond(fond: Fond, source: Source, travail: File,
                         suivi: (Long, Long) -> Unit = { _, _ -> }, continuer: () -> Boolean = { true }): File {
         travail.mkdirs()
-        val f = Fichier("${Catalogue.nomSur(fond.nom)}${fond.extension}", fond.octets, fond.sha256, fond.url)
+        val f = Fichier("${Catalogue.nomSur(fond.nom)}.mbtiles", fond.octets, fond.sha256, fond.url)
         val cible = File(travail, f.nom)
         val deja = if (cible.exists()) minOf(cible.length(), f.octets) else 0L
         if (travail.usableSpace < f.octets - deja + MARGE_DISQUE)

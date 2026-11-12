@@ -173,16 +173,6 @@ class DepotTest {
         }
     }
 
-    @Test fun telecharge_un_fond_map() {
-        fichiers["/depot/fonds/E5_N40-osm.map"] = donnees
-        val fond = Fond("E5_N40-osm", null, "[0,21]", "osm", donnees.size.toLong(), sha(donnees),
-            "fonds/E5_N40-osm.map", "map")
-        val travail = dossier.newFolder()
-        val recu = Depot { }.telechargerFond(fond, Source("$base/depot/catalog.json"), travail)
-        assertEquals("E5_N40-osm.map", recu.name)
-        assertArrayEquals(donnees, recu.readBytes())
-    }
-
     @Test fun adresses_relatives_au_catalogue() {
         val depot = Depot()
         assertEquals("https://github.com/nico579/hike2gpx-bundles/releases/download/bundles/E5_N40.E5_N40.rd5",

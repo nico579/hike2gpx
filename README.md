@@ -109,7 +109,7 @@ BDOT10k). That directory's registry links countries to path sources; area
 loading and display then use the shared machinery.
 
 The base map and the layers are chosen in "Map management"; the legend sits
-at the top right of the map, and "Show the legend", in the settings, hides it. "Search" unfolds a field at the top of the map that recenters it on a town:
+on the map, and "Show the legend", in the settings, hides it. "Search" unfolds a field at the top of the map that recenters it on a town:
 French municipalities through the French government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
 search engine. The same field accepts GPS coordinates such as `50.725, 10.275`
 or `50,725 ; 10,275` (latitude first). A button switches the map to full screen. In the menu, an indicator tells

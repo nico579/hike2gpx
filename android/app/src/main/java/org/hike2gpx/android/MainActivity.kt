@@ -62,16 +62,11 @@ import android.widget.TextView
 import android.widget.Toast
 import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
-import org.mapsforge.map.android.graphics.AndroidGraphicFactory
-import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
 import org.osmdroid.events.MapEventsReceiver
-import org.osmdroid.mapsforge.MapsForgeTileProvider
-import org.osmdroid.mapsforge.MapsForgeTileSource
-import org.osmdroid.tileprovider.MapTileProviderBase
 import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.modules.OfflineTileProvider
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -120,9 +115,6 @@ class MainActivity : Activity() {
     private var rechercheVille: LinearLayout? = null
     private var sequenceVille = 0
     private var legende: LinearLayout? = null
-    /** La ligne « chemin officiel » de la légende : son réseau dépend du pays. */
-    private var ligneOfficiel: LinearLayout? = null
-    private var texteOfficiel: TextView? = null
     private var courbe: CourbeDenivele? = null
     private var repereProfil: RepereProfil? = null
     private var coordonneesProfil: List<DoubleArray> = emptyList()
@@ -160,7 +152,6 @@ class MainActivity : Activity() {
     private var traceEnregistree: Polyline? = null
     private var fichierTrace: File? = null
     private var insetBas = 0
-    private var insetHaut = 0
     /** Le relief de la trace : cache gpx2elev seulement, sans réseau. */
     private lateinit var reliefTrace: Mapterhorn
     private val traceOccupe = AtomicBoolean(false)
@@ -210,21 +201,12 @@ class MainActivity : Activity() {
     private val verifierPays = Runnable { majPays() }
     /** Un calcul de relief plus récent remplace celui qui tourne encore. */
     private var sequenceDenivele = 0
-    /**
-     * Le rendu Mapsforge affiché (cartes vectorielles .map d'un PC), libéré
-     * quand un autre fond prend sa place : osmdroid détache le fournisseur,
-     * mais les fichiers .map resteraient ouverts.
-     */
-    private var sourceMapsforge: MapsForgeTileSource? = null
 
     override fun onCreate(etatSauve: Bundle?) {
         super.onCreate(etatSauve)
         Configuration.getInstance().userAgentValue = "${Depot.AGENT} (+https://github.com/nico579/hike2gpx)"
         Configuration.getInstance().osmdroidBasePath = File(cacheDir, "osmdroid")
         Configuration.getInstance().osmdroidTileCache = File(cacheDir, "osmdroid/tiles")
-        // Mapsforge dessine les cartes vectorielles (.map) reçues d'un PC ;
-        // son usine graphique se crée une fois, avant toute source.
-        if (AndroidGraphicFactory.INSTANCE == null) MapsForgeTileSource.createInstance(application)
         reglages = Reglages(this)
         reglages.oublierPcs()                   // un PC ne se contacte qu'au scan de son QR code
         horsLigne = HorsLigne(filesDir)
@@ -240,9 +222,6 @@ class MainActivity : Activity() {
         // nationale serait prise pour une carte du monde et remplacée par OSM.
         val vue = reglages.vue
         paysAffiche = pays.de(vue.first, vue.second)
-        // La légende a été construite avant cette lecture : sa ligne « chemin
-        // officiel » attend le pays enregistré.
-        majLegendeOfficiel()
         appliquerFond(reglages.fond)
         lireLien(intent)
         actualiser()
@@ -349,13 +328,13 @@ class MainActivity : Activity() {
         arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }.avecIcone(R.drawable.ic_btn_arreter)
         bandeauHaut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
         racine.addView(bandeauHaut, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-        // La légende est une surcouche de la carte, comme sur la page du PC :
-        // en haut à droite, sous le bandeau quand il est là.
+        // La légende est une surcouche de la carte, comme sur la page du PC : au bord droit,
+        // à mi-hauteur, loin du bandeau du haut, des boutons et de la courbe.
         legende = construireLegende().apply {
             setBackgroundColor(VOILE); setPadding(marge, marge, marge, marge)
         }
-        racine.addView(legende, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.TOP)
-            .apply { marginEnd = marge; topMargin = marge })
+        racine.addView(legende, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL)
+            .apply { marginEnd = marge })
 
         bandeauBas = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         courbe = CourbeDenivele(this).apply {
@@ -423,7 +402,6 @@ class MainActivity : Activity() {
         })
         majBoutonTrace()
         bandeauBas.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placerCommandes() }
-        bandeauHaut.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placerLegende() }
 
         // Android 15 dessine l'application sous les barres du système : les bandeaux s'en écartent.
         racine.setOnApplyWindowInsetsListener { _, insets ->
@@ -432,10 +410,8 @@ class MainActivity : Activity() {
             else @Suppress("DEPRECATION") (insets.systemWindowInsetTop to insets.systemWindowInsetBottom)
             bandeauHaut.setPadding(marge, marge + dessus, marge, marge)
             bandeauBas.setPadding(0, 0, 0, dessous)
-            insetHaut = dessus
             insetBas = dessous
             placerCommandes()
-            placerLegende()
             insets
         }
         setContentView(racine)
@@ -461,11 +437,10 @@ class MainActivity : Activity() {
     }
 
     /**
-     * La légende de la page, au bord droit sous le bandeau : le même ordre et
-     * les mêmes mots que la page du PC. Les couleurs viennent des overlays,
-     * pour qu'une légende ne mente jamais sur ce que la carte montre. Les deux
-     * lignes propres au PC (GPX chargé, tracé standard) manquent : le
-     * téléphone ne les dessine pas.
+     * La légende de la page, sous le bandeau d'état : les mêmes symboles que
+     * ceux dessinés par CalquesOverlay et par le tracé de l'itinéraire. Les
+     * couleurs viennent des overlays, pour qu'une légende ne mente jamais sur
+     * ce que la carte montre.
      */
     private fun construireLegende(): LinearLayout {
         val boite = LinearLayout(this).apply {
@@ -478,7 +453,7 @@ class MainActivity : Activity() {
             setTextColor(0xff202020.toInt())
         })
         fun ligne(texte: Int, couleur: Int, pastille: Boolean = false, tirets: Boolean = false,
-                  cercle: Int = 0xffffffff.toInt(), epaisseur: Float = 3f): LinearLayout {
+                  cercle: Int = 0xffffffff.toInt()) {
             val rangee = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             }
@@ -502,7 +477,7 @@ class MainActivity : Activity() {
                         canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
                     } else {
                         pinceau.style = Paint.Style.STROKE
-                        pinceau.strokeWidth = epaisseur * densite
+                        pinceau.strokeWidth = 3 * densite
                         pinceau.color = couleur
                         pinceau.pathEffect = if (tirets)
                             DashPathEffect(floatArrayOf(4 * densite, 3 * densite), 0f) else null
@@ -514,34 +489,16 @@ class MainActivity : Activity() {
                 setText(texte); textSize = 11f; setTextColor(0xff404040.toInt())
             })
             boite.addView(rangee)
-            return rangee
         }
-        // Le même ordre que la page du PC : le tracé de l'itinéraire, le chemin
-        // officiel du pays, les franchissements, puis les calques OSM.
-        ligne(R.string.legende_itineraire, COULEUR_ITINERAIRE, epaisseur = 4f)
-        val officiel = ligne(R.string.legende_officiel, CalquesOverlay.COULEUR_OFFICIEL, tirets = true)
-        ligneOfficiel = officiel
-        texteOfficiel = officiel.getChildAt(1) as TextView
-        ligne(R.string.legende_bloque, CalquesOverlay.COULEUR_BLOQUE, true)
-        ligne(R.string.legende_verifier, CalquesOverlay.COULEUR_A_VERIFIER, true)
-        ligne(R.string.legende_jonction, CalquesOverlay.COULEUR_JONCTION, true,
-            cercle = CalquesOverlay.CONTOUR_JONCTION)
+        // Le tracé de l'itinéraire, puis les calques du lot.
+        ligne(R.string.legende_itineraire, 0xff175dcb.toInt())
+        ligne(R.string.legende_officiel, CalquesOverlay.COULEUR_OFFICIEL, tirets = true)
         ligne(R.string.legende_osm, CalquesOverlay.COULEUR_OSM, tirets = true)
         ligne(R.string.legende_barriere, CalquesOverlay.COULEUR_BARRIERE)
-        majLegendeOfficiel()
+        ligne(R.string.legende_bloque, CalquesOverlay.COULEUR_BLOQUE, true)
+        ligne(R.string.legende_verifier, CalquesOverlay.COULEUR_A_VERIFIER, true)
+        ligne(R.string.legende_jonction, CalquesOverlay.COULEUR_JONCTION, true, cercle = CalquesOverlay.CONTOUR_JONCTION)
         return boite
-    }
-
-    /**
-     * La ligne « chemin officiel » suit le pays affiché, comme la page : elle
-     * nomme le réseau du pays (IGN, ATKIS, swissTLM3D…) et disparaît là où
-     * aucun n'existe.
-     */
-    private fun majLegendeOfficiel() {
-        val fournisseur = Fournisseurs.TOUS.firstOrNull { it.pays == paysAffiche }
-        ligneOfficiel?.visibility = if (fournisseur == null) View.GONE else View.VISIBLE
-        if (fournisseur != null)
-            texteOfficiel?.text = getString(R.string.legende_officiel, fournisseur.court)
     }
 
     /**
@@ -565,7 +522,6 @@ class MainActivity : Activity() {
         bandeauBas.visibility = if (!bandeauxMasques && modePlan) View.VISIBLE else View.GONE
         afficherCourbe()
         placerCommandes()
-        placerLegende()
     }
 
     /**
@@ -602,21 +558,6 @@ class MainActivity : Activity() {
         // comme sur Locus Map ; la courbe du dénivelé les remonte avec eux.
         droits?.setOffset(dp(8), hauteur + dp(84))
         echelle?.setScaleBarOffset(dp(8), hauteur + dp(104))
-    }
-
-    /**
-     * La légende reste en haut à droite, sous le bandeau quand il est visible :
-     * sans cela elle passerait dessous, ou sous la barre d'état quand le
-     * bandeau est caché.
-     */
-    private fun placerLegende() {
-        val vue = legende ?: return
-        val parametres = vue.layoutParams as? FrameLayout.LayoutParams ?: return
-        val dessus = if (!bandeauxMasques && bandeauHaut.visibility == View.VISIBLE)
-            bandeauHaut.height + dp(8) else insetHaut + dp(8)
-        if (parametres.topMargin == dessus) return
-        parametres.topMargin = dessus
-        vue.layoutParams = parametres
     }
 
     /**
@@ -829,7 +770,7 @@ class MainActivity : Activity() {
         distancesProfil = Denivele.distances(coordonneesProfil)
         trace = Polyline(carte).apply {
             setPoints(geo)
-            outlinePaint.color = COULEUR_ITINERAIRE
+            outlinePaint.color = 0xff175dcb.toInt()
             outlinePaint.strokeWidth = 8f
         }
         carte.overlays.add(1, trace)        // sous les touches et les repères
@@ -1103,8 +1044,8 @@ class MainActivity : Activity() {
         if (recus.isNotEmpty()) {
             titre(colonne, R.string.titre_fonds)
             for (source in recus.keys)
-                fondChoisi(horsLigne, Fonds.cle(source), Fonds.titre(source)) {
-                    appliquerFond(Fonds.cle(source))
+                fondChoisi(horsLigne, source, Fonds.titre(source)) {
+                    appliquerFond(source)
                     cadrerSur(recus.getValue(source))
                 }
             colonne.addView(horsLigne)
@@ -1214,7 +1155,7 @@ class MainActivity : Activity() {
             .setPositiveButton(R.string.supprimer) { _, _ ->
                 val source = Fonds.source(f.nameWithoutExtension)
                 f.delete()
-                if (reglages.fond == Fonds.cle(source) && fonds.parSource()[source] == null)
+                if (reglages.fond == source && fonds.parSource()[source] == null)
                     appliquerFond(CartesEnLigne.defaut(paysAffiche))
                 remplirCartes()
             }
@@ -1242,7 +1183,7 @@ class MainActivity : Activity() {
             getString(R.string.etat_fond_installe, fond.nom)
         }, ensuite = { reussi ->
             if (reussi) {
-                appliquerFond(Fonds.cle(Fonds.source(fond.nom)))
+                appliquerFond(Fonds.source(fond.nom))
                 remplirCartes()
             }
         })
@@ -1388,38 +1329,19 @@ class MainActivity : Activity() {
      * zoom où il a des tuiles (cadrer le carré entier dézoomerait sous son minzoom).
      */
     private fun cadrerSur(fichiers: List<File>) {
-        // Une carte vectorielle connaît ses bornes par son moteur Mapsforge ;
-        // un MBTiles les donne dans sa table metadata.
-        val vectorielles = fichiers.filter { it.extension.equals("map", true) }
-        val source = sourceMapsforge?.takeIf { vectorielles.isNotEmpty() && vectorielles.size == fichiers.size }
-        val boites = if (source != null) listOf(source.boundsOsmdroid) else fichiers.mapNotNull { f ->
+        val boites = fichiers.mapNotNull { f ->
             metadonnees(f)["bounds"]?.split(',')?.mapNotNull { it.trim().toDoubleOrNull() }?.takeIf { it.size == 4 }
                 ?.let { (o, s, e, n) -> BoundingBox(n, e, s, o) }
         }
         if (boites.isEmpty() || boites.any { it.contains(carte.mapCenter) }) return
-        val minimum = source?.minimumZoomLevel?.toDouble() ?: zoomMin(fichiers).toDouble()
-        carte.controller.setZoom(maxOf(carte.zoomLevelDouble, minimum))
+        carte.controller.setZoom(maxOf(carte.zoomLevelDouble, zoomMin(fichiers).toDouble()))
         carte.controller.setCenter(boites.first().centerWithDateLine)
     }
 
     /**
-     * Remplace le fournisseur de tuiles, puis libère le rendu Mapsforge
-     * précédent : osmdroid détache l'ancien fournisseur, mais les .map
-     * resteraient ouverts. [source] est le rendu du nouveau fournisseur, ou
-     * null pour une carte en ligne ou un MBTiles.
-     */
-    private fun poserFournisseur(fournisseur: MapTileProviderBase, source: MapsForgeTileSource? = null) {
-        val ancienne = sourceMapsforge
-        sourceMapsforge = source
-        carte.setTileProvider(fournisseur)
-        ancienne?.dispose()
-    }
-
-    /**
-     * Le fond de la carte. Un fond hors ligne réunit tous les fichiers de sa
-     * source, MBTiles d'images ou cartes vectorielles .map (Mapsforge) ; la
-     * carte ne demande rien au réseau. Un MBTiles agrandit au-delà de son zoom
-     * le plus fin, comme la page (maxNativeZoom), et la carte ne descend pas
+     * Le fond de la carte. Un fond hors ligne réunit tous les MBTiles de sa
+     * source ; osmdroid agrandit au-delà de leur zoom le plus fin, comme la page
+     * (maxNativeZoom), et ne demande rien au réseau. La carte ne descend pas
      * sous son zoom le plus bas, où elle n'aurait rien à montrer.
      *
      * Une carte nationale ne sert que dans son pays : si le centre de la carte
@@ -1427,77 +1349,35 @@ class MainActivity : Activity() {
      * n'y en a pas. Un fond du monde ou hors ligne reste tel quel.
      */
     private fun appliquerFond(cle: String) {
-        // Un fond reçu d'un PC porte la clé « pc:<source> » : même si une carte
-        // en ligne a le même nom (SCAN 25, OpenStreetMap), les deux restent
-        // distinctes et une seule est cochée. Ses fichiers disparus, le pays reprend.
-        val sourcePc = Fonds.sourceDeCle(cle)
-        if (sourcePc != null) {
-            val fichiers = fonds.parSource()[sourcePc]
-            if (fichiers == null) {
-                appliquerFond(CartesEnLigne.defaut(paysAffiche))
-                return
-            }
-            // Les .map d'un PC se dessinent avec Mapsforge, les .mbtiles avec
-            // le lecteur hors ligne d'osmdroid. Une source mélangée prend ses
-            // images, seules lisibles par le lecteur commun.
-            val vectorielles = fichiers.filter { it.extension.equals("map", true) }
-            val images = fichiers.filter { it.extension.equals("mbtiles", true) }
-            when {
-                images.isEmpty() && vectorielles.isNotEmpty() -> {
-                    // Le cache des tuiles rendues porte le nom de la source :
-                    // l'empreinte des fichiers y entre, pour qu'une carte mise à
-                    // jour ne réaffiche pas les tuiles de l'ancienne.
-                    val empreinte = vectorielles.joinToString("|") { "${it.name}:${it.length()}:${it.lastModified()}" }
-                    val source = try {
-                        MapsForgeTileSource.createFromFiles(vectorielles.toTypedArray(),
-                            InternalRenderTheme.OSMARENDER,
-                            "mapsforge-$sourcePc-${Integer.toHexString(empreinte.hashCode())}")
-                    } catch (e: Exception) {
-                        // Fichier illisible ou format Mapsforge inconnu : mieux
-                        // vaut une carte en ligne qu'un écran vide.
-                        appliquerFond(CartesEnLigne.defaut(paysAffiche))
-                        return
-                    }
-                    poserFournisseur(MapsForgeTileProvider(SimpleRegisterReceiver(this), source, null), source)
-                    val minimum = source.minimumZoomLevel.toDouble()
-                    carte.setMinZoomLevel(minimum)
-                    if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum)
-                }
-                images.isNotEmpty() -> {
-                    val minimum = zoomMin(images)
-                    poserFournisseur(OfflineTileProvider(SimpleRegisterReceiver(this), images.toTypedArray()))
-                    carte.setTileSource(XYTileSource("hors-ligne-$sourcePc", minimum, 19, 256, "", arrayOf<String>(),
-                        "© ${Fonds.titre(sourcePc)}"))
-                    carte.setMinZoomLevel(minimum.toDouble())
-                    if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum.toDouble())
-                }
-                else -> {                       // fichiers illisibles : la carte revient en ligne
-                    appliquerFond(CartesEnLigne.defaut(paysAffiche))
-                    return
-                }
-            }
-            reglages.fond = cle
-            carte.invalidate()
-            return
-        }
+        val horsLigne = fonds.parSource()[cle]
         val national = CartesEnLigne.parCle(cle)?.pays != null
-        val choix = if (national && !CartesEnLigne.disponible(cle, paysAffiche, reglages.cleIgn))
+        val choix = if (horsLigne == null && national &&
+            !CartesEnLigne.disponible(cle, paysAffiche, reglages.cleIgn))
             CartesEnLigne.defaut(paysAffiche) else cle
+        val fichiers = fonds.parSource()[choix]
         val enLigne = CartesEnLigne.parCle(choix)
         val servi = CartesEnLigne.disponible(choix, paysAffiche, reglages.cleIgn)
         when {
+            fichiers != null -> {
+                val minimum = zoomMin(fichiers)
+                carte.setTileProvider(OfflineTileProvider(SimpleRegisterReceiver(this), fichiers.toTypedArray()))
+                carte.setTileSource(XYTileSource("hors-ligne-$choix", minimum, 19, 256, "", arrayOf<String>(),
+                    "© ${Fonds.titre(choix)}"))
+                carte.setMinZoomLevel(minimum.toDouble())
+                if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum.toDouble())
+            }
             servi && enLigne != null -> {
-                poserFournisseur(MapTileProviderBasic(applicationContext))
+                carte.setTileProvider(MapTileProviderBasic(applicationContext))
                 carte.setTileSource(CartesEnLigne.tuile(enLigne, reglages.cleIgn))
                 carte.setMinZoomLevel(null)         // le zoom le plus bas de la source en ligne
             }
             else -> {
-                poserFournisseur(MapTileProviderBasic(applicationContext))
+                carte.setTileProvider(MapTileProviderBasic(applicationContext))
                 carte.setTileSource(TileSourceFactory.MAPNIK)
                 carte.setMinZoomLevel(null)
             }
         }
-        reglages.fond = if (servi && enLigne != null) choix else "osm"
+        reglages.fond = if (fichiers != null || (servi && enLigne != null)) choix else "osm"
         carte.invalidate()
     }
 
@@ -1516,8 +1396,7 @@ class MainActivity : Activity() {
         val nouveau = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
         if (nouveau == paysAffiche) return
         paysAffiche = nouveau
-        majLegendeOfficiel()
-        if (Fonds.sourceDeCle(reglages.fond) == null &&
+        if (fonds.parSource()[reglages.fond] == null &&
             CartesEnLigne.parCle(reglages.fond)?.pays != null)
             appliquerFond(CartesEnLigne.defaut(nouveau))
         if (fenetreCartes != null) remplirCartes()
@@ -2120,7 +1999,7 @@ class MainActivity : Activity() {
     private fun ajouterPc(source: Source) = tache(R.string.etat_pc, false, { _ ->
         val catalogue = Depot().lireCatalogue(source)
         runOnUiThread { proposerRecuperation(source, catalogue) }
-        getString(R.string.etat_pc_lus, catalogue.fonds.size + catalogue.cartes.size, catalogue.lots.size)
+        getString(R.string.etat_pc_lus, catalogue.fonds.size, catalogue.lots.size)
     })
 
     private fun proposerRecuperation(source: Source, catalogue: Catalogue) {
@@ -2939,8 +2818,6 @@ class MainActivity : Activity() {
         planificateur.removeCallbacksAndMessages(null)
         routeur.annuler()
         carte.onDetach()
-        sourceMapsforge?.dispose()
-        sourceMapsforge = null
         super.onDestroy()
     }
 
@@ -2952,8 +2829,6 @@ class MainActivity : Activity() {
         private const val CANAL_EXPORT = "export"
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
-        /** Le bleu de l'itinéraire, celui de la page du PC. */
-        private const val COULEUR_ITINERAIRE = 0xff1565c0.toInt()
         /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */
         private val CLE_IGN = Regex("[A-Za-z0-9_-]{0,100}")
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */

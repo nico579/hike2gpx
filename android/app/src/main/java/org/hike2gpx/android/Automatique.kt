@@ -42,24 +42,20 @@ fun Zone.touche(boite: List<Double>): Boolean =
     sud < boite[2] && boite[0] < nord && ouest < boite[3] && boite[1] < est
 
 /**
- * Les fonds de carte d'un PC (les listes « fonds » et « cartes » de son
- * catalogue), rangés comme sur le PC (hors_ligne.dossier_fonds) :
+ * Les fonds de carte d'un PC (la liste « fonds » de son catalogue), rangés
+ * comme sur le PC (hors_ligne.dossier_fonds) :
  *
- *   hors-ligne/fonds/E5_N40-scan25.mbtiles, E5_N40-scan25-vue-3fa2c1.mbtiles,
- *   E5_N40-osm.map
+ *   hors-ligne/fonds/E5_N40-scan25.mbtiles, E5_N40-scan25-vue-3fa2c1.mbtiles
  *
  * Le nom suit le contrat du partage (docs/architecture/partage-telephone.md) :
  * <case>-<source>, et -vue-<empreinte> pour une vue ; la source se lit donc
- * dans le nom, sans ouvrir le fichier. Un .map est une carte vectorielle
- * Mapsforge, un .mbtiles un fond en images.
+ * dans le nom, sans ouvrir la base.
  */
 class Fonds(horsLigne: File) {
     val dossier = File(horsLigne, "fonds")
 
     fun installes(): List<File> =
-        (dossier.listFiles() ?: emptyArray())
-            .filter { it.isFile && (it.name.endsWith(".mbtiles") || it.name.endsWith(".map")) }
-            .sortedBy { it.name }
+        (dossier.listFiles() ?: emptyArray()).filter { it.isFile && it.name.endsWith(".mbtiles") }.sortedBy { it.name }
 
     /** Les fonds installés, groupés par source : un seul fond affiché par source, toutes cases confondues. */
     fun parSource(): Map<String, List<File>> = installes().groupBy { source(it.nameWithoutExtension) }
@@ -67,7 +63,7 @@ class Fonds(horsLigne: File) {
     /** Range un fond téléchargé, déjà vérifié par son SHA-256. */
     fun installer(telecharge: File, fond: Fond): File {
         dossier.mkdirs()
-        val cible = File(dossier, "${Catalogue.nomSur(fond.nom)}${fond.extension}")
+        val cible = File(dossier, "${Catalogue.nomSur(fond.nom)}.mbtiles")
         cible.delete()
         if (!telecharge.renameTo(cible)) {
             telecharge.copyTo(cible, overwrite = true)
@@ -77,15 +73,6 @@ class Fonds(horsLigne: File) {
     }
 
     companion object {
-        /** La clé d'un fond reçu d'un PC, distincte de la carte en ligne du même nom. */
-        fun cle(source: String): String = PREFIXE + source
-
-        /** La source d'un fond reçu d'un PC, ou null pour une carte en ligne. */
-        fun sourceDeCle(cle: String): String? =
-            if (cle.startsWith(PREFIXE)) cle.removePrefix(PREFIXE).takeIf { it.isNotEmpty() } else null
-
-        private const val PREFIXE = "pc:"
-
         /** E5_N40-scan25-vue-3fa2c1 -> scan25 ; un nom hors contrat est sa propre source. */
         fun source(nom: String): String = nom.split('-').getOrNull(1)?.takeIf { it.isNotEmpty() } ?: nom
 
@@ -93,7 +80,6 @@ class Fonds(horsLigne: File) {
         fun titre(source: String): String = TITRES[source] ?: source
 
         private val TITRES = mapOf(
-            "osm" to "OpenStreetMap",
             "scan25" to "SCAN 25 (IGN)",
             "plan" to "Plan IGN",
             "allemagne" to "TopPlusOpen (BKG)",
@@ -106,15 +92,13 @@ class Fonds(horsLigne: File) {
 
 /**
  * Les fonds que proposent les PC et qui manquent sur le téléphone, un par nom
- * (le premier PC qui le sert). Fonds en images (« fonds ») et cartes
- * vectorielles (« cartes ») se mélangent ici : le nom et l'URL disent le
- * format au moment du téléchargement. Un fond ne vient jamais de GitHub : une
- * publication n'a ni « fonds » ni « cartes ».
+ * (le premier PC qui le sert). Un fond ne vient jamais de GitHub : une
+ * publication n'a pas de liste « fonds ».
  */
 fun fondsProposes(catalogues: List<Pair<Source, Catalogue>>, installes: Set<String>): List<Pair<Source, Fond>> {
     val vus = LinkedHashMap<String, Pair<Source, Fond>>()
     for ((source, catalogue) in catalogues)
-        for (fond in catalogue.fonds + catalogue.cartes)
+        for (fond in catalogue.fonds)
             if (fond.nom !in installes && fond.nom !in vus) vus[fond.nom] = source to fond
     return vus.values.sortedBy { it.second.nom }
 }
