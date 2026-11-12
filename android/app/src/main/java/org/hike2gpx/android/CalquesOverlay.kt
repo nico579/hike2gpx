@@ -33,6 +33,22 @@ class CalquesOverlay(context: Context) : Overlay() {
     }
     private val point = android.graphics.Point()
 
+    /**
+     * Le franchissement le plus proche d'un toucher, s'il tombe dans la zone
+     * tactile (bien plus large que la pastille : un doigt n'est pas une souris).
+     */
+    fun franchissementToucheA(vue: MapView, p: GeoPoint): PointFranchissement? {
+        val liste = donnees.franchissements
+        if (liste.isEmpty()) return null
+        val toucher = vue.projection.toPixels(p, null)
+        val pixels = liste.map { f ->
+            val q = vue.projection.toPixels(GeoPoint(f.lat, f.lon), null)
+            q.x.toFloat() to q.y.toFloat()
+        }
+        return ToucheCalque.plusProche(pixels, toucher.x.toFloat(), toucher.y.toFloat(), RAYON_TACTILE_DP * densite)
+            ?.let { liste[it] }
+    }
+
     override fun draw(canvas: Canvas, vue: MapView, ombre: Boolean) {
         if (ombre || donnees.vide) return
         for (troncon in donnees.troncons) {
@@ -92,6 +108,8 @@ class CalquesOverlay(context: Context) : Overlay() {
     companion object {
         const val COULEUR_OSM = 0xff7b1fa2.toInt()
         const val COULEUR_BARRIERE = 0xffe53935.toInt()
+        /** Zone tactile d'une pastille de franchissement, en dp. */
+        const val RAYON_TACTILE_DP = 24f
         const val COULEUR_OFFICIEL = 0xff00897b.toInt()
         const val COULEUR_BLOQUE = 0xffd32f2f.toInt()
         const val COULEUR_A_VERIFIER = 0xffef6c00.toInt()

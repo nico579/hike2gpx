@@ -11,6 +11,7 @@ import android.app.PendingIntent
 import android.app.Dialog
 import android.Manifest
 import android.content.ContentValues
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
@@ -288,6 +289,10 @@ class MainActivity : Activity() {
                 override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
                     // Un tap sur la carte referme aussi le bandeau de recherche.
                     fermerRecherche()
+                    overlayCalques.franchissementToucheA(this@apply, p)?.let {
+                        afficherFranchissement(it)
+                        return true
+                    }
                     if (modePlan) ajouterPoint(Point(p.latitude, p.longitude))
                     return true
                 }
@@ -543,6 +548,26 @@ class MainActivity : Activity() {
         }
         majLegende()
         return boite
+    }
+
+    /**
+     * La fiche d'un franchissement touché, comme la bulle de la page du PC : sa
+     * nature et son état, la raison du classement, et le lien vers l'objet dans OSM.
+     */
+    private fun afficherFranchissement(f: PointFranchissement) {
+        val etat = getString(if (f.statut == "blocked") R.string.bulle_bloquant else R.string.bulle_verifier)
+        val fiche = AlertDialog.Builder(this)
+            .setTitle("${f.nature.ifEmpty { getString(R.string.bulle_franchissement) }} : $etat")
+            .setMessage(f.raison)
+            .setNegativeButton(R.string.fermer, null)
+        if (f.osm.isNotEmpty()) fiche.setPositiveButton(R.string.bulle_osm) { _, _ ->
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.openstreetmap.org/${f.osm}")))
+            } catch (e: ActivityNotFoundException) {
+                // pas de navigateur : la fiche se ferme, rien d'autre à faire
+            }
+        }
+        fiche.show()
     }
 
     /**
