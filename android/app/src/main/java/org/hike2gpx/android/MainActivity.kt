@@ -12,6 +12,7 @@ import android.app.PendingIntent
 import android.app.Dialog
 import android.Manifest
 import android.content.ContentValues
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
@@ -123,10 +124,17 @@ class MainActivity : Activity() {
     private var rechercheVille: LinearLayout? = null
     private var sequenceVille = 0
     private var legende: LinearLayout? = null
-    /** La ligne « chemin officiel » de la légende : son réseau dépend du pays. */
-    private var ligneOfficiel: LinearLayout? = null
+    /** Les lignes de la légende, par identifiant (legende.json) ; chacune n'est montrée que si son objet est sur la carte. */
+    private val lignesLegende = mutableMapOf<String, LinearLayout>()
+    /** Le texte de la ligne « chemin IGN » : le réseau dépend du lot qui couvre la vue. */
     private var texteOfficiel: TextView? = null
+    /** Vrai tant qu'aucune ligne de la légende n'est montrée : le panneau disparaît alors. */
+    private var legendeVide = true
     private var courbe: CourbeDenivele? = null
+    /** L'en-tête de la courbe : titre, résumé quand elle est repliée, chevron. Un toucher la replie ou la déplie. */
+    private var enteteCourbe: LinearLayout? = null
+    private var resumeCourbe: TextView? = null
+    private var chevronCourbe: TextView? = null
     private var repereProfil: RepereProfil? = null
     private var coordonneesProfil: List<DoubleArray> = emptyList()
     private var distancesProfil: DoubleArray = DoubleArray(0)
@@ -156,7 +164,6 @@ class MainActivity : Activity() {
      * une tâche à la fois, la suivante à la fin de la précédente (tache).
      */
     private val recuperations = ArrayDeque<() -> Unit>()
-    private var fenetreBibliotheque: LinearLayout? = null
     private var ecoutePosition: LocationListener? = null
     private var apresPermission: (() -> Unit)? = null
     private var centrerDesQuePosition = false
@@ -265,7 +272,7 @@ class MainActivity : Activity() {
         paysAffiche = pays.de(vue.first, vue.second)
         // La légende a été construite avant cette lecture : sa ligne « chemin
         // officiel » attend le pays enregistré.
-        majLegendeOfficiel()
+        majLegende()
         appliquerFond(reglages.fond)
         lireLien(intent)
         actualiser()
@@ -305,6 +312,10 @@ class MainActivity : Activity() {
                 override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
                     // Un tap sur la carte referme aussi le bandeau de recherche.
                     fermerRecherche()
+                    overlayCalques.franchissementToucheA(this@apply, p)?.let {
+                        afficherFranchissement(it)
+                        return true
+                    }
                     if (modePlan) ajouterPoint(Point(p.latitude, p.longitude))
                     return true
                 }
@@ -387,6 +398,28 @@ class MainActivity : Activity() {
             contentDescription = getString(R.string.courbe_aide)
             onPosition = ::montrerPositionProfil
         }
+        enteteCourbe = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+            setBackgroundColor(0xf7ffffff.toInt())
+            setPadding(marge, 0, marge, 0)
+            minimumHeight = dp(40)                          // une cible tactile, pas un simple filet
+            setOnClickListener { reglages.courbeReduite = !reglages.courbeReduite; afficherCourbe() }
+        }
+        enteteCourbe?.addView(TextView(this).apply {
+            setText(R.string.courbe_titre); textSize = 12f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xff305574.toInt())
+        })
+        resumeCourbe = TextView(this).apply {
+            textSize = 12f; setTextColor(0xff305574.toInt()); gravity = Gravity.END
+        }
+        enteteCourbe?.addView(resumeCourbe, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = marge })
+        chevronCourbe = TextView(this).apply {
+            textSize = 18f; setTextColor(0xff305574.toInt()); setPadding(marge, 0, 0, 0)
+        }
+        enteteCourbe?.addView(chevronCourbe)
+        bandeauBas.addView(enteteCourbe, LinearLayout.LayoutParams(-1, -2))
         bandeauBas.addView(courbe, LinearLayout.LayoutParams(-1, dp(96)))
         val bas = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; setBackgroundColor(VOILE); setPadding(marge / 2, marge / 2, marge / 2, marge / 2)
@@ -473,12 +506,14 @@ class MainActivity : Activity() {
 
     /**
      * Une trace que le processus n'a pas pu finir (tué par Android, batterie
-     * vide) a laissé son journal : il redevient un GPX de la bibliothèque.
+     * vide) a laissé son journal : il redevient un GPX, exporté dans
+     * Téléchargements comme une trace terminée normalement.
      */
     private fun recupererTraces() {
         val refaites = EnregistrementGps.recuperer(dossierTraces())
         if (refaites.isEmpty()) return
         fichierTrace = refaites.last()
+        refaites.forEach { exporterTrace(it) }
         Toast.makeText(this, getString(R.string.trace_recuperee,
             refaites.joinToString(", ") { it.name }), Toast.LENGTH_LONG).show()
     }
@@ -554,28 +589,62 @@ class MainActivity : Activity() {
         }
         for (entree in LegendeGeneree.ENTREES) {
             val rangee = ligne(entree)
-            if (entree.id == "chemins_officiels") {
-                // Sa ligne n'existe que là où un lot du pays est installé (majLegendeOfficiel).
-                ligneOfficiel = rangee
-                texteOfficiel = rangee.getChildAt(1) as TextView
-                rangee.visibility = View.GONE
-            }
+            lignesLegende[entree.id] = rangee
+            if (entree.id == "chemins_officiels") texteOfficiel = rangee.getChildAt(1) as TextView
+            rangee.visibility = View.GONE           // montrée par majLegende, quand son objet est sur la carte
         }
-        majLegendeOfficiel()
+        majLegende()
         return boite
     }
 
     /**
-     * La ligne des chemins officiels est liée au lot : s'il n'y en a pas d'installé
-     * pour la vue, pas de ligne. Quand il y en a un, elle nomme son réseau (IGN,
-     * ATKIS, swissTLM3D…), ou les deux d'une case frontalière. Même règle que les
-     * coches de superposition (fournisseursVisibles).
+     * La fiche d'un franchissement touché, comme la bulle de la page du PC : sa
+     * nature et son état, la raison du classement, et le lien vers l'objet dans OSM.
      */
-    private fun majLegendeOfficiel() {
+    private fun afficherFranchissement(f: PointFranchissement) {
+        val etat = getString(if (f.statut == "blocked") R.string.bulle_bloquant else R.string.bulle_verifier)
+        val fiche = AlertDialog.Builder(this)
+            .setTitle("${f.nature.ifEmpty { getString(R.string.bulle_franchissement) }} : $etat")
+            .setMessage(f.raison)
+            .setNegativeButton(R.string.fermer, null)
+        if (f.osm.isNotEmpty()) fiche.setPositiveButton(R.string.bulle_osm) { _, _ ->
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.openstreetmap.org/${f.osm}")))
+            } catch (e: ActivityNotFoundException) {
+                // pas de navigateur : la fiche se ferme, rien d'autre à faire
+            }
+        }
+        fiche.show()
+    }
+
+    /**
+     * La légende ne montre que ce qui est sur la carte : chaque ligne suit son
+     * objet (chemins OSM, chemins du lot, tracé, clôtures, franchissements,
+     * chemins non raccordés), lu dans les calques affichés et le tracé. La ligne
+     * des chemins officiels nomme le réseau du lot qui couvre la vue (IGN,
+     * ATKIS, swissTLM3D…), ou les deux d'une case frontalière. Sans aucune
+     * ligne, le panneau disparaît.
+     */
+    private fun majLegende() {
+        if (!::overlayCalques.isInitialized) return     // appelée avant la création des calques
+        val d = overlayCalques.donnees
         val reseaux = fournisseursVisibles().joinToString(" / ") { it.court }
-        ligneOfficiel?.visibility = if (reseaux.isEmpty()) View.GONE else View.VISIBLE
-        if (reseaux.isNotEmpty())
-            texteOfficiel?.text = getString(R.string.legende_chemins_officiels, reseaux)
+        val presentes = buildSet {
+            if (d.voies.isNotEmpty()) add("osm")
+            if (d.troncons.isNotEmpty() && reseaux.isNotEmpty()) add("chemins_officiels")
+            if (trace != null) add("itineraire")
+            if (d.barrieres.isNotEmpty()) add("barriere")
+            if (d.franchissements.any { it.statut == "blocked" }) add("bloque")
+            if (d.franchissements.any { it.statut != "blocked" }) add("verifier")
+            if (d.jonctions.isNotEmpty()) add("jonction")
+        }
+        for ((id, rangee) in lignesLegende) rangee.visibility = if (id in presentes) View.VISIBLE else View.GONE
+        if (reseaux.isNotEmpty()) texteOfficiel?.text = getString(R.string.legende_chemins_officiels, reseaux)
+        val vide = presentes.isEmpty()
+        if (vide != legendeVide) {
+            legendeVide = vide
+            if (legende != null) appliquerAffichage()
+        }
     }
 
     /**
@@ -595,7 +664,7 @@ class MainActivity : Activity() {
             if (!enregistre && modeRecherche) View.VISIBLE else View.GONE
         etat.visibility = if (modePlan || enregistre || tacheAffichee) View.VISIBLE else View.GONE
         // La légende suit la coche des réglages ; le double tap la cache avec les bandeaux.
-        legende?.visibility = if (!bandeauxMasques && reglages.legende) View.VISIBLE else View.GONE
+        legende?.visibility = if (!bandeauxMasques && reglages.legende && !legendeVide) View.VISIBLE else View.GONE
         bandeauBas.visibility = if (!bandeauxMasques && modePlan) View.VISIBLE else View.GONE
         afficherCourbe()
         placerCommandes()
@@ -660,9 +729,16 @@ class MainActivity : Activity() {
      */
     private fun afficherCourbe() {
         val vue = courbe ?: return
-        val montre = reglages.courbeDenivele && vue.profil != null && modePlan && !bandeauxMasques
-        vue.visibility = if (montre) View.VISIBLE else View.GONE
-        if (!montre) cacherRepereProfil()
+        val montre = vue.profil != null && modePlan && !bandeauxMasques
+        val reduite = reglages.courbeReduite
+        enteteCourbe?.visibility = if (montre) View.VISIBLE else View.GONE
+        vue.visibility = if (montre && !reduite) View.VISIBLE else View.GONE
+        // Repliée, l'en-tête garde les chiffres du parcours ; dépliée, la courbe les montre déjà.
+        resumeCourbe?.text = vue.profil?.takeIf { reduite }
+            ?.let { getString(R.string.courbe_resume, it.monteeM, it.descenteM) } ?: ""
+        chevronCourbe?.text = if (reduite) "⌃" else "⌄"
+        enteteCourbe?.contentDescription = getString(if (reduite) R.string.courbe_deplier else R.string.courbe_replier)
+        if (!montre || reduite) cacherRepereProfil()
     }
 
     /** Le point du tracé sous le doigt, comme le circleMarker du profil de la page. */
@@ -749,6 +825,7 @@ class MainActivity : Activity() {
     private fun effacerTrace() {
         trace?.let { carte.overlays.remove(it) }
         trace = null
+        majLegende()
         dernier = null
         sequenceDenivele += 1
         bilanItineraire = ""
@@ -867,6 +944,7 @@ class MainActivity : Activity() {
             outlinePaint.strokeWidth = 8f
         }
         carte.overlays.add(1, trace)        // sous les touches et les repères
+        majLegende()
         // Jamais de recadrage : les points sont posés à l'écran, et la carte reste
         // là où on l'a mise pour poser le suivant.
         carte.invalidate()
@@ -902,6 +980,7 @@ class MainActivity : Activity() {
             carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
+            majLegende()
             carte.invalidate()
             return
         }
@@ -944,12 +1023,12 @@ class MainActivity : Activity() {
     /** Lit les tuiles de la vue en arrière-plan ; une lecture à la fois. */
     private fun rafraichirCalques() {
         if (isDestroyed) return
-        majLegendeOfficiel()
         val osm = reglages.calqueOsm
         val officiels = reglages.calquesOfficiels
         if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
+            majLegende()
             carte.invalidate()
             return
         }
@@ -971,6 +1050,7 @@ class MainActivity : Activity() {
                 if (isDestroyed) return@runOnUiThread
                 if (sequence == sequenceCalques) {
                     overlayCalques.donnees = donnees
+                    majLegende()
                     carte.invalidate()
                     if (calqueCoche) {
                         calqueCoche = false
@@ -1563,7 +1643,7 @@ class MainActivity : Activity() {
         val nouveau = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
         if (nouveau == paysAffiche) return
         paysAffiche = nouveau
-        majLegendeOfficiel()
+        majLegende()
         if (Fonds.sourceDeCle(reglages.fond) == null &&
             CartesEnLigne.parCle(reglages.fond)?.pays != null)
             appliquerFond(CartesEnLigne.defaut(nouveau))
@@ -1614,7 +1694,6 @@ class MainActivity : Activity() {
         val enregistre = EnregistrementGps.actif
         val entrees = listOf(
             Triple(R.drawable.ic_recherche, R.string.menu_recherche, ::ouvrirRecherche),
-            Triple(R.drawable.ic_bibliotheque, R.string.menu_bibliotheque, ::ouvrirBibliotheque),
             Triple(R.drawable.ic_carte, R.string.menu_cartes, ::ouvrirCartes),
             Triple(R.drawable.ic_itineraires, R.string.menu_itineraires, ::ouvrirItineraires),
             Triple(R.drawable.ic_enregistrer,
@@ -1771,64 +1850,6 @@ class MainActivity : Activity() {
         if (!enCours.get()) tacheAffichee = false
     }
 
-    // ------------------------------------------------------------------ bibliothèque
-
-    /** L'historique des parcours enregistrés, rangé dans « Ma bibliothèque ». */
-    private fun ouvrirBibliotheque() {
-        val colonne = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(8))
-        }
-        fenetreBibliotheque = colonne
-        remplirBibliotheque()
-        AlertDialog.Builder(this)
-            .setTitle(R.string.menu_bibliotheque)
-            .setView(ScrollView(this).apply { addView(colonne) })
-            .setPositiveButton(R.string.fermer, null)
-            .setOnDismissListener { fenetreBibliotheque = null }
-            .show()
-    }
-
-    private fun remplirBibliotheque() {
-        val colonne = fenetreBibliotheque ?: return
-        colonne.removeAllViews()
-        titre(colonne, R.string.titre_traces)
-        val traces = tracesEnregistrees()
-        if (traces.isEmpty()) {
-            colonne.addView(TextView(this).apply { setText(R.string.traces_aucune) })
-            return
-        }
-        val cases = linkedMapOf<File, CheckBox>()
-        val date = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
-        for (f in traces) {
-            val ligne = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            val selection = CheckBox(this)
-            cases[f] = selection
-            ligne.addView(selection, LinearLayout.LayoutParams(-2, -2))
-            ligne.addView(TextView(this).apply {
-                text = "${date.format(Date(f.lastModified()))} · " +
-                    Formatter.formatShortFileSize(this@MainActivity, f.length())
-                textSize = 13f
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-            ligne.addView(boutonPetit(R.string.exporter, R.drawable.ic_btn_telecharger) { exporterTrace(f) })
-            ligne.addView(boutonPetit(R.string.supprimer, R.drawable.ic_btn_supprimer, rouge = true) { confirmerSuppression(listOf(f)) })
-            colonne.addView(ligne)
-        }
-        colonne.addView(Button(this).apply {
-            setText(R.string.traces_supprimer_selection)
-            setOnClickListener {
-                val choisies = cases.filterValues { it.isChecked }.keys.toList()
-                if (choisies.isEmpty())
-                    Toast.makeText(this@MainActivity, R.string.traces_selection_vide,
-                        Toast.LENGTH_SHORT).show()
-                else confirmerSuppression(choisies)
-            }
-        }.avecIcone(R.drawable.ic_btn_supprimer, rouge = true))
-    }
-
     // ------------------------------------------------------------------ réglages
 
     private fun ouvrirReglages() {
@@ -1852,10 +1873,6 @@ class MainActivity : Activity() {
         colonne.addView(CheckBox(this).apply {
             setText(R.string.afficher_legende); isChecked = reglages.legende
             setOnCheckedChangeListener { _, v -> reglages.legende = v; appliquerAffichage() }
-        })
-        colonne.addView(CheckBox(this).apply {
-            setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
-            setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
         })
         // Les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
         // téléphone a moins à tracer.
@@ -2400,12 +2417,13 @@ class MainActivity : Activity() {
         appliquerAffichage()
         val resume = resumeTrace(trace)
         etat.text = resume
+        // Comme un tracé planifié : directement dans Téléchargements, sans rien demander.
+        exporterTrace(fichier)
         AlertDialog.Builder(this)
             .setTitle(R.string.trace_titre)
-            .setMessage(listOf(resume, getString(R.string.trace_fichier, fichier?.name ?: ""))
+            .setMessage(listOf(resume, getString(R.string.trace_dans_telechargements, fichier?.name ?: ""))
                 .joinToString("\n"))
-            .setPositiveButton(R.string.trace_exporter) { _, _ -> exporterTrace(fichier) }
-            .setNegativeButton(R.string.fermer, null)
+            .setPositiveButton(R.string.fermer, null)
             .show()
     }
 
@@ -2927,25 +2945,6 @@ class MainActivity : Activity() {
         setPadding(dp(8), paddingTop, dp(8), paddingBottom)
         setOnClickListener { action() }
     }.avecIcone(icone, rouge)
-
-    private fun confirmerSuppression(fichiers: List<File>) {
-        if (fichiers.isEmpty()) return
-        val message = if (fichiers.size == 1)
-            getString(R.string.trace_supprimer_message, fichiers.first().name)
-        else getString(R.string.traces_supprimer_message, fichiers.size)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.trace_supprimer_titre)
-            .setMessage(message)
-            .setPositiveButton(R.string.supprimer) { _, _ ->
-                fichiers.forEach { it.delete() }
-                if (fichiers.any { it == fichierTrace }) fichierTrace = null
-                contenuExport = null
-                remplirBibliotheque()
-                remplirReglages()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
 
     /** Quitte la planification ou la recherche ; faux s'il n'y en avait pas. */
     private fun quitterModes(): Boolean {

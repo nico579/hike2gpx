@@ -98,6 +98,7 @@ body.redimensionne *{transition:none!important}
 #resultat h2{font-size:13px}
 #aVerifier li{margin:8px 0;line-height:1.45}
 .legende{margin-top:8px;border-top:1px solid var(--bordure);padding-top:8px;color:#65768a}
+.legende.vide{display:none}
 .legende h3{font-size:11px;font-weight:700;color:#4e6074;margin:0}
 .legende-tete{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .legende-fermer{flex:none;width:22px;height:22px;margin:-4px -6px -4px 0;padding:0;border:0;border-radius:6px;background:transparent;color:#4e6074;font-size:17px;line-height:1;cursor:pointer}
@@ -221,7 +222,6 @@ body.profile-collapsed .map-activity{bottom:81px}
 .journal-settings button{padding:9px 12px;border:1px solid #8fb0d8;border-radius:8px;background:#e3eefc;color:#1959b5;font-size:12px;cursor:pointer}
 .journal-settings button:hover:not(:disabled){background:#d2e4fa}
 .journal-settings .note{margin:8px 0 0;color:#bc3944}
-body.hide-elevation .elevation-panel{display:none!important}
 #noteCalques,#extraitOsm,#brouterEnCours{display:none!important}
 #resultat #sourceDenivele,#resultat #comparaison,#resultat #aucunAVerifier{display:none!important}
 #resultat.empty{display:none!important}

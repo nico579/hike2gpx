@@ -7,8 +7,11 @@
     <string name="retirer">Remove</string>
     <string name="revenir">Return</string>
     <string name="effacer">Clear</string>
-    <string name="exporter">GPX</string>
     <string name="reglages">Settings</string>
+    <string name="bulle_bloquant">blocking</string>
+    <string name="bulle_verifier">to check</string>
+    <string name="bulle_osm">View on OpenStreetMap</string>
+    <string name="bulle_franchissement">Crossing</string>
     <string name="fermer">Close</string>
     <string name="depart">Start</string>
     <string name="arrivee">Finish</string>
@@ -16,7 +19,6 @@
 
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Search</string>
-    <string name="menu_bibliotheque">My library</string>
     <string name="menu_cartes">Map management</string>
     <string name="menu_itineraires">Route management</string>
     <string name="menu_aide">Help</string>
@@ -75,19 +77,22 @@
     <string name="reglages_cle_note">SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.</string>
     <string name="reglages_cle_afficher">Show the key</string>
     <string name="afficher_legende">Show the legend</string>
-    <string name="afficher_courbe">Show elevation profile</string>
     <string name="reglages_zoom_calques">Minimum zoom for layers (14 to 19)</string>
+    <string name="courbe_titre">Route elevation</string>
+    <string name="courbe_resume">+%1$d m, −%2$d m</string>
+    <string name="courbe_replier">Collapse the elevation profile</string>
+    <string name="courbe_deplier">Expand the elevation profile</string>
     <string name="courbe_aide">Touch the profile to see the matching point on the route.</string>
     <!-- DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main -->
     <string name="legende_titre">Legend</string>
     <string name="legende_fermer">Hide the legend</string>
-    <string name="legende_itineraire">hike2gpx route</string>
-    <string name="legende_chemins_officiels">%1$s paths (dashed: footpaths)</string>
+    <string name="legende_osm">OSM path</string>
+    <string name="legende_chemins_officiels">%1$s path</string>
+    <string name="legende_itineraire">route</string>
+    <string name="legende_barriere">fence and wall</string>
     <string name="legende_bloque">blocking crossing</string>
     <string name="legende_verifier">crossing to check</string>
     <string name="legende_jonction">unconnected path (to check)</string>
-    <string name="legende_osm">OSM paths (dashed: footpaths)</string>
-    <string name="legende_barriere">fences and walls known to OSM</string>
     <!-- FIN LEGENDE -->
 
     <string name="titre_lots">Zones stored locally</string>
@@ -230,8 +235,6 @@
     <string name="trace_notification_texte">Tap to open hike2gpx. Points are kept even with the screen off.</string>
     <string name="trace_recuperee">Interrupted track recovered: %1$s</string>
     <string name="trace_titre">GPS track recorded</string>
-    <string name="trace_fichier">File: %1$s</string>
-    <string name="trace_exporter">Export the GPX</string>
     <string name="trace_etat">GPS track: %1$s, %2$s, %3$s, ascent %4$d m / descent %5$d m.</string>
     <string name="trace_etat_debut">GPS track: %1$s, %2$s, %3$s. Elevation is computed from the second point on.</string>
     <string name="trace_etat_sans_denivele">GPS track: %1$s, %2$s, %3$s. Elevation unavailable: the elevation data does not cover the route yet.</string>
@@ -241,13 +244,7 @@
     <string name="trace_denivele_calcul">Computing elevation before export…</string>
     <string name="trace_gpx_desc">ascent %1$d m / descent %2$d m (gpx2elev)</string>
     <string name="trace_export_annule">Export cancelled.</string>
-    <string name="titre_traces">Recorded tracks</string>
-    <string name="traces_aucune">No recorded track yet.</string>
-    <string name="trace_supprimer_titre">Delete the track</string>
-    <string name="trace_supprimer_message">Delete %1$s? The GPX file will be removed from the phone.</string>
-    <string name="traces_supprimer_message">Delete %1$d tracks? The GPX files will be removed from the phone.</string>
-    <string name="traces_supprimer_selection">Delete the selection</string>
-    <string name="traces_selection_vide">Check at least one track.</string>
+    <string name="trace_dans_telechargements">Exported to Downloads: %1$s</string>
     <plurals name="trace_points">
         <item quantity="one">%1$d point</item>
         <item quantity="other">%1$d points</item>

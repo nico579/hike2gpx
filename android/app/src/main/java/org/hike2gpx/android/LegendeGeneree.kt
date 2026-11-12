@@ -19,12 +19,12 @@ data class EntreeLegende(
 
 object LegendeGeneree {
     val ENTREES = listOf(
-        EntreeLegende("itineraire", FormeLegende.TRAIT, 0xff1565c0.toInt(), null, 4f, R.string.legende_itineraire),
+        EntreeLegende("osm", FormeLegende.TIRETS, 0xff7b1fa2.toInt(), null, 3f, R.string.legende_osm),
         EntreeLegende("chemins_officiels", FormeLegende.TIRETS, 0xff00897b.toInt(), null, 3f, R.string.legende_chemins_officiels),
+        EntreeLegende("itineraire", FormeLegende.TRAIT, 0xff1565c0.toInt(), null, 4f, R.string.legende_itineraire),
+        EntreeLegende("barriere", FormeLegende.TRAIT, 0xffe53935.toInt(), null, 3f, R.string.legende_barriere),
         EntreeLegende("bloque", FormeLegende.PASTILLE, 0xffd32f2f.toInt(), null, 0f, R.string.legende_bloque),
         EntreeLegende("verifier", FormeLegende.PASTILLE, 0xffef6c00.toInt(), null, 0f, R.string.legende_verifier),
         EntreeLegende("jonction", FormeLegende.PASTILLE, 0xfffdd835.toInt(), 0xff4e342e.toInt(), 0f, R.string.legende_jonction),
-        EntreeLegende("osm", FormeLegende.TIRETS, 0xff7b1fa2.toInt(), null, 3f, R.string.legende_osm),
-        EntreeLegende("barriere", FormeLegende.TRAIT, 0xffe53935.toInt(), null, 3f, R.string.legende_barriere),
     )
 }

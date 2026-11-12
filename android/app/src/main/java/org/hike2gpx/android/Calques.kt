@@ -18,8 +18,13 @@ data class Voie(val genre: String, val points: List<Point>)
 /** Une barrière linéaire gênant un piéton (clôture, mur, haie…). */
 data class Barriere(val nature: String, val points: List<Point>)
 
-/** Un franchissement bloquant ou à vérifier, posé sur la carte. */
-data class PointFranchissement(val lat: Double, val lon: Double, val statut: String, val nature: String)
+/**
+ * Un franchissement bloquant ou à vérifier, posé sur la carte. [raison] et [osm]
+ * (« node/123 », « way/45 ») alimentent la fiche qu'ouvre un toucher, comme la
+ * bulle de la page du PC.
+ */
+data class PointFranchissement(val lat: Double, val lon: Double, val statut: String, val nature: String,
+    val raison: String = "", val osm: String = "")
 
 /**
  * Le bout d'un chemin qui s'arrête tout près d'un autre sans le toucher dans
@@ -100,6 +105,8 @@ class Calques(private val horsLigne: HorsLigne) {
                                     point.lat, point.lon,
                                     objet.attributs["statut"]?.toString() ?: "uncertain",
                                     objet.attributs["nature"]?.toString() ?: "",
+                                    objet.attributs["raison"]?.toString() ?: "",
+                                    objet.attributs["osm"]?.toString() ?: "",
                                 ))
                             }
                         }

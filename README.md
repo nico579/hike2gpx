@@ -2,12 +2,12 @@
 
 # hike2gpx
 
-hike2gpx plans hikes and exports the route as GPX, with its elevation gain
-and its walking time. It comes in two versions that complement each other: a
-desktop application (Windows, macOS, Linux) and an Android application. The
-computer prepares what the phone carries: it builds base maps and routing
-areas, then shares them over Wi-Fi with a QR code. The phone then computes its
-routes offline, in the middle of a hike, with no network.
+hike2gpx plans hikes and exports the route as GPX. It comes in two versions
+that complement each other: a desktop application (Windows, macOS, Linux) and
+an Android application. The computer prepares what the phone carries: it
+builds base maps and routing areas, then shares them over Wi-Fi with a QR
+code. The phone then computes its routes offline, in the middle of a hike,
+with no network.
 
 Three things set it apart from the usual planners (Visorando, Locus Map,
 brouter-web).
@@ -16,21 +16,17 @@ brouter-web).
 These planners do not see them: their routing engines only read the tags on
 the nodes of the path, and a fence is a separate line. hike2gpx examines the
 network of the area beforehand, finds every crossing between a path and a
-barrier, judges it, then forbids or discourages the passage. In Garéoult (Var,
-France), BRouter's standard hiking profile goes through a concrete fence on a
-69 m stretch; hike2gpx goes around it with a 435 m detour.
+barrier, judges it, then forbids or discourages the passage.
+([How](#routing-brouter-and-crossings), [a measured example](#the-figures).)
 
 **It combines OpenStreetMap with national maps.** A path that IGN (the French
 national mapping agency) knows and OpenStreetMap does not does not exist for an
 engine that reads only the latter. hike2gpx adds IGN's BD TOPO (France), ATKIS
-(Germany), swissTLM3D (Switzerland), ZABAGED (Czechia) and BDOT10k (Poland,
-Lower Silesia only). This is not every country, on purpose: only those where
-the national map brings a significant share of new paths are kept. On the
-areas studied, BD TOPO adds 18% to 100% in length of candidate paths, ATKIS
-12% to 127%, ZABAGED 40% to 66%, while the United States and the Netherlands
-stay between 0% and 12%. These percentages measure possible lengths, not a
-guaranteed gain: the method and its caveats are in
-[RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+(Germany), swissTLM3D (Switzerland), ZABAGED (Czechia) and BDOT10k (Poland).
+This is not every country, on purpose: only those where the national map
+brings a significant share of new paths are kept.
+([How](#what-a-routing-area-holds), [the figures country by
+country](#the-figures).)
 
 **It computes elevation on the ground, not on the treetops.** Under a forest, a
 surface model such as SRTM or Copernicus, both derived from radar, rather
@@ -38,361 +34,431 @@ measures the top of the canopy, and distorts the slopes. LiDAR sends laser
 pulses, some of which pass through the foliage to the ground: from them one
 builds a true digital terrain model (DTM), the bare ground. hike2gpx takes the
 best terrain model that covers the whole route: in France, IGN's LiDAR HD;
-elsewhere Mapterhorn, which takes the national LiDAR whenever one exists:
-about two hundred national and regional models, at 0.25 m to 10 m resolution,
-for almost all of Europe, the United States, Canada, Japan, Australia and New
-Zealand. Outside these areas it falls back on Copernicus' 30 m global model,
-which is less precise, and SRTM remains the very last resort. The country by
-country detail is in the
-[provider catalog](https://github.com/nico579/lidar2map/blob/main/docs/providers.md)
-of lidar2map, the sister project, which queries these national LiDAR sources
-directly, and which Mapterhorn gathers too. Compared with the native LiDAR,
-Mapterhorn differs by 1.6 to 3 cm (RMSE) from IGN's LiDAR HD terrain model on
-three French areas, and by 10 cm from the DGM1 on one Saxon site: negligible for
-an elevation gain, which the 20 m smoothing averages out anyway. These
-measurements, with their limits, are in
-[lidar2map's evaluation](https://github.com/nico579/lidar2map/blob/main/docs/mapterhorn-evaluation.fr.md).
+elsewhere Mapterhorn, which takes the national LiDAR whenever one exists.
+([How](#elevation-recomputed-by-gpx2elev), [the measured
+accuracy](#the-figures).)
 
-Both applications are downloaded from the releases: one archive per system for
-the computer (Windows, macOS, Linux), `hike2gpx-android.apk` for the phone.
+![The desktop page: a route, an imported GPX, and the whole legend](docs/images/en/pc-tracer.png)
 
-Installed from a release, hike2gpx updates itself, like the other nico579
-applications: when a newer version is published, a banner on the page and the
-menu of its tray icon offer to install it; it downloads it, checks it, then
-restarts on it. The "Check for updates" button in the Settings panel asks
-right away, without waiting for the periodic check. Run from source,
-hike2gpx simply opens the page of the new version.
+## How to use it
 
-## What hike2gpx does
+### Install and relaunch
 
-Everything happens in a local page, opened in the browser, and in the menu of
-a tray icon. The page is that of the Android app: the map first, full screen,
-and a three-bar button, bottom left, that opens the menu: "Search", "Map
-management", "Route management", "Plan a route", "Settings" and "Help". Each
-entry opens its page in a panel on the left, which its cross closes to leave
-the map alone (a handle on its right edge resizes it, and the page remembers
-the width); the menu also holds the FR/EN choice and the routing
-indicator. "Help" opens this guide in the language of the page, for the
-installed version.
+**On the computer**, download the archive for your system from the
+[releases](https://github.com/nico579/hike2gpx/releases), unzip it and run
+`hike2gpx`: the page opens in the browser. On the very first launch, hike2gpx
+puts an icon on the Desktop; that icon is what relaunches it afterwards, after
+the computer restarts for instance.
 
-**The map.** It follows the country at its center, including when you move it
-by hand, and offers that country's base maps; each country remembers the last
-base map you chose.
+While it runs, hike2gpx lives in the notification area (near the clock on
+Windows, in the menu bar on macOS). Closing the browser tab does not stop it: a
+double-click on its icon opens the page again. Its menu offers "Open", "Update
+to x.y" when a newer version exists, "Restart", "Stop", and "Create a Desktop
+shortcut" to bring the icon back if you deleted it. It updates itself: when a
+newer version is published, a banner on the page and that menu offer to
+install it; it downloads it, checks it, then restarts on it.
 
-- **Everywhere**: OpenStreetMap, OSM hiking (OpenTopoMap), and a satellite
-  view (Esri). A layer you can tick, from zoom 14,
-  shows OpenStreetMap's paths (footpaths dashed), plus mapped fences, walls,
-  blocked crossings and crossings to check. These remain visible without a
-  planned route. A yellow marker also flags an unconnected path: it ends less
-  than 15 m from another one without touching it in OpenStreetMap, so routing
-  cannot go from one to the other; its popup gives the distance and opens the
-  OpenStreetMap editor.
-- **In France**: IGN's base maps, SCAN 25 (with an IGN key, see below), IGN
-  Plan, aerial photos, and the LiDAR HD relief wherever IGN has published it.
-  A second layer shows the paths of IGN's BD TOPO; next to OpenStreetMap's, it
-  shows at a glance the paths one source is missing.
-- **In ten other countries**: maps of Spain, Switzerland, Germany (BKG
-  TopPlusOpen), Austria, the Netherlands, Luxembourg, Norway, the United
-  States, Czechia and Poland (Geoportal topographic map). Germany has an ATKIS path layer in all sixteen
-  states; Czechia has ZABAGED, Switzerland swissTLM3D and Poland BDOT10k.
-  Spain and the United States have display-only trail layers.
-  The ⓘ link next to the base map selector opens the
-  [country coverage table](COUNTRY_COVERAGE.md#supported-countries)
-  on GitHub. Its base map, path layer and routing columns are generated from
-  the provider files with `node tools/generer_couverture_pays.cjs`, in both
-  English and French.
+**On the phone**, install `hike2gpx-android.apk`, from the same releases
+(Android asks you to allow installs from that source). The app relaunches like
+any other, from its icon.
 
-The `hike2gpx/assets/web/providers/<country>.js` files hold each country's
-maps, overlays, styles and labels. Official paths used by BRouter also have
-a reader in `hike2gpx/providers/` (BD TOPO, ATKIS, ZABAGED, swissTLM3D or
-BDOT10k). That directory's registry links countries to path sources; area
-loading and display then use the shared machinery.
+### On the computer
 
-The base map and the layers are chosen in "Map management"; the legend sits
-at the top right of the map, and "Show the legend", in the settings, hides it. "Search" unfolds a field at the top of the map that recenters it on a town:
-French municipalities through the French government's Géo API, the rest of the world through Nominatim, OpenStreetMap's
-search engine. The same field accepts GPS coordinates such as `50.725, 10.275`
-or `50,725 ; 10,275` (latitude first). A button switches the map to full screen. In the menu, an indicator tells
-whether the next route has BRouter and its tiles plus OSM data for the area
-(an extract, cached data or Overpass). Its yellow “i” shows the state of
-Overpass and the local and regional OSM extracts.
-Right-click the map to show and copy the clicked point's GPS coordinates.
+**Plan a route.** Open the menu (the three-line button, bottom left), then
+"Plan a route". Each click on the map places a point: the start, the
+waypoints, the finish. The route is computed right away, with its distance,
+walking time and profile; drag a point to move it. "Return" closes the loop on
+the start, "Export GPX" saves it to the Downloads folder.
 
-**The route.** As on the phone, routes are planned in "Plan a route": while
-that page is open, the cursor is a cross and a click sets the start, then the
-waypoints and the finish; elsewhere, a click places nothing. A point moves by
-dragging it and is removed from its popup. Closing the page keeps the points
-and the route. "Return" closes the loop on the start,
-"Remove" takes off the last point, "Clear" starts over. The routing is
-BRouter's, run locally, with OpenStreetMap's barriers laid across the paths
-(see below). Three options, in "Route management", tune it:
+The dots on the map can be clicked. A red dot (blocking crossing) or an orange
+one (to check) opens a bubble that tells what bars the path, a gate, a fence, a
+barrier, why hike2gpx judged it so ("access forbidden or private", "locked
+gate"…), and a link to the object on OpenStreetMap. A yellow dot marks an
+unconnected path: it stops very close to another one without touching it, so
+the routing does not pass from one to the other; its bubble gives the gap and
+opens the OpenStreetMap editor to fix it.
 
-- **Include crossings to check**: also avoid the passages "to check", not only the blocking
-  ones;
-- **Include IGN paths** (ATKIS in Germany, and so on; France, Germany, Czechia,
-  Switzerland and Poland):
-  let BRouter use official paths missing from OpenStreetMap in the selected
-  area. They show as dashes and join the points to check, since their presence
-  and access must be verified on site. The Polish source is regional; outside
-  its coverage routing uses OSM alone. Spain and the United States offer
-  display-only trail layers;
-- **Comparison**: show, dotted, the standard route that ignores the barriers,
-  with its length and the blocking crossings it would go through.
+**Download a map area.** In "Map management", choose the base map to take
+along (SCAN 25, Plan IGN, OpenStreetMap…), then click the 1° cells you want on
+the map and "Download". Routing areas are taken in "Route management", by 5°
+cells; in the five countries with a national map they come ready-made from the
+server ([details](#routing-areas)).
 
-**The result.** A summary gives the distance, the estimated time (Tobler's
-model, applied to the slope of the profile), the elevation gain and loss, and
-the highest and lowest points. The elevation profile unfolds at the bottom of
-the map, with the name of the terrain model used; hovering over it shows the
-matching point on the route. The crossings to check are listed, each with a
-link that centers the map on it and another to the object in OpenStreetMap.
-"Export GPX" saves the route, with those points as waypoints.
+![Map management: the Var cell selected, ready to download](docs/images/en/pc-zone-carte.png)
 
-"Load a GPX" shows an existing track (GPX tracks and routes) in yellow on the
-map and centers the view on it. Its name, without the extension, appears in
-the layers: the checkbox hides or shows the track without removing it, and the
-legend shows its yellow line while it is loaded. It serves as a guide while
-you prepare the route: it changes neither the waypoints nor the export. Once
-loaded, the button becomes "Remove GPX" and takes the track off the map
-without touching the file on the computer. The loaded track stays on screen
-until the page is closed or reloaded.
+**Share it with the phone.** Select the cells already on the computer (in
+green) and click "Share": a QR code appears. The phone must be on the same
+Wi-Fi. "Stop sharing" closes it, and the code changes every time
+([details](#sharing-with-the-phone)).
 
-**The settings.** The IGN key for the SCAN 25, how long downloaded data is
-kept before being renewed (30 days by default), the transparency of the panels,
-whether to hide the profile, and a button that empties all local caches.
-They are saved when the panel closes, with no button. One
-button opens the `logs` folder, which holds the logs of the application and of
-BRouter; another shows the installed version and checks whether a newer one
-exists. The page speaks French or English, and when reopened it restores the
-view, the base map, the layers and the options of the previous session.
-Downloads, imports and computations in progress appear in a banner at the
-bottom of the map.
+![The sharing QR code, to scan with the phone](docs/images/en/pc-partager.png)
+
+### On the phone
+
+<img src="docs/images/en/telephone-recuperer.png" alt="The phone offers to fetch the areas shared by the PC" width="260" align="right">
+
+**Get the map.** In "Map management", tap "Scan the computer's QR code" and
+aim at the PC's QR code. The phone says what it is missing and how big it is,
+then downloads the base maps and routing areas, each file checked on arrival.
+Areas published by the server (France, Switzerland, Germany, Czechia, Poland)
+also download by themselves, with no PC.
+
+**Plan a route.** Menu, then "Plan a route": each tap on the map places a
+point, as on the computer, and the route is computed on the phone, with no
+network once the area is installed. The profile panel folds with a tap on its
+title. A tap on a red or orange dot opens its details, with the link to
+OpenStreetMap.
+
+**Record a track.** "Record a track" follows your position during the hike,
+screen off included. When you stop, the track goes by itself to Downloads, like
+a planned route. [All about the Android app](android/README.md).
+
+<img src="docs/images/en/telephone-tracer.png" alt="A route planned on the phone, with its profile and legend" width="260">
+
+<br clear="right">
 
 ## How it works
 
-The routing relies on five pieces.
+A route goes through four steps.
 
-1. **The crossings.** For the area of the route, hike2gpx reads from
-   OpenStreetMap (from an installed extract, or through Overpass, in 0.05°
-   tiles kept for seven days) the paths you can walk, the barriers drawn as
-   lines, the barrier nodes and the waymarked hiking routes. Each crossing is
-   judged **blocking**, **to check** or **passable**, with the rules of
-   [gpx2elev](https://github.com/nico579/gpx2elev), copied as they are into
-   `regles.py`: a fence crossed with no mapped opening blocks, a gate with no
-   access information is to check, `foot=yes` wins over `access=private`,
-   opening hours or conditions leave a doubt.
-2. **The engine.** [BRouter](https://github.com/abrensch/brouter), the one
-   Locus uses, computes the route locally. Each crossing reaches it as a small
-   one-meter line laid across the path: without a weight, it removes the
-   stretch from the routing; with a weight, it makes it costly, so that a
-   detour of less than about 300 m avoids it. The profile is BRouter's hiking
-   profile, corrected so that a pedestrian ban (`foot=no` or `foot=private`)
-   is respected even where a bicycle could pass or a sidewalk is tagged. When
-   two cuts fall on the same stretch, the forbidden one always wins over the
-   weighted one; and if the route returned by BRouter still went through a
-   forbidden cut, hike2gpx would reject it instead of showing it.
-3. **The page.** A local page, served by the shared library
-   [nico579-commons](https://pypi.org/project/nico579-commons/), which the
-   other nico579 applications share for the tray icon, the language and the
-   updates. Each computation leaves its trace in the session log
-   (`logs/hike2gpx-<date>.log`, in the data folder; the last ten sessions are
-   kept), with the time of each step, its errors and its slow spots.
-4. **The elevation.** Once the route is displayed, the
-   [gpx2elev](https://pypi.org/project/gpx2elev/) engine recomputes its
-   elevation gain: track sampled every 5 m, 20 m Gaussian smoothing, 2 m
-   hysteresis. It takes the best terrain model covering the whole route: IGN
-   LiDAR HD in France, otherwise Mapterhorn, FABDEM, Copernicus GLO-30 or SRTM.
-   BRouter's figure, taken from a coarser worldwide model, is only an estimate
-   in the meantime; if no model covers the route, the elevation is reported as
-   unavailable rather than replaced by that figure.
-5. **Official paths by provider and area.** A path that the BD TOPO knows and
-   OpenStreetMap does not is invisible to BRouter, which only sees its own
-   tiles. So hike2gpx builds its own BRouter tile from the data it has already
-   read: the OpenStreetMap ways, plus the BD TOPO sections that duplicate none
-   of them, connected to the network. The tile grows with the areas you visit,
-   up to 25 tiles of 0.05° before starting again from the requested area, and
-   is rebuilt only for a new area or reread data, in about six seconds for nine
-   tiles. The crossings are then looked for on the merged network: an OSM path
-   and an IGN path stopping on either side of a fence, once connected, cross
-   it. These paths cost a little more than the others, show as orange dashes
-   on the route and join the points to check, since nothing says they still
-   exist or that you may walk them; a restricted pedestrian access in the
-   BD TOPO closes them. A checkbox lets you do without them, and if building
-   the tile fails, the route is computed on OpenStreetMap alone, with a
-   warning. In Germany, the ATKIS layer and routing load the same small areas
-   on demand. Bavaria and Thuringia use their native WFS; the other fourteen
-   states use [basemap.de's](https://basemap.de/produkte-und-dienste/web-vektor/)
-   official vector tiles derived from ATKIS Basis-DLM. Those presentation
-   geometries may have less precise connections. ATKIS additions carry a
-   penalty and are marked for checking. In the tile containing Rosa, 76.6 km of the examined
-   ATKIS ways pass the missing-from-OSM test, compared with 96.8 km of OSM
-   ways; this potential gain does not prove pedestrian access. BD TOPO adds
-   18 to 100 % in the French areas measured. ZABAGED adds 40 to 66 % on four
-   Czech test areas; BDOT10k adds 26 to 44 % in two Lower Silesian areas, and
-   swissTLM3D adds 35 % in Val Onsernone, though most Swiss areas tested are
-   below 20 %. The provider declares its base map, path layer and BRouter
-   source separately; each official source loads only the small areas requested.
-   The
-   measurement and the analysis are in
-   [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md)
-   (in French).
+1. **Prepare**: gather for a region a *routing area*, that is everything the
+   routing reads, the path network (OpenStreetMap and national map), the
+   terrain and the barriers. A GitHub server builds them every week for the
+   five countries with a national map; elsewhere, your PC builds them.
+2. **Route**: the BRouter engine searches for the route, with a cut laid across
+   every path where a barrier bars it.
+3. **Measure**: gpx2elev recomputes the elevation gain and the walking time on
+   the best terrain model available.
+4. **Carry**: the PC shares routing areas and base maps with the phone, which
+   repeats steps 2 and 3 with no network.
 
-What hike2gpx adds to the gpx2elev rules, because it examines a whole network
-rather than a single track:
+The sections below follow these steps, from the routing towards what feeds it.
 
-- a barrier that stops on a path, or touches it and leaves on the same side,
-  does not cross it; nor does a path on a bridge or in a tunnel;
-- a barrier that ends less than 2 m from the path can be walked around;
-- a gate set in the fence very close to the path, without being carried by it,
-  is judged as if it were: locked or private, it does not make the fence
-  passable;
-- two different levels (`layer`) make the crossing "to check";
-- a waymarked trail has to go through somewhere: a barrier that would block it
-  becomes "to check" there.
+### Routing: BRouter and crossings
 
-If OpenStreetMap does not answer, the computation stops: an unknown barrier
-never proves that a passage is free. And if no route exists, the page says so,
-without joining the points in a straight line.
+[BRouter](https://github.com/abrensch/brouter), the one Locus Map uses,
+computes the route locally, on the computer as on the phone, which embeds it.
+hike2gpx does not modify it. The profile is BRouter's hiking one
+("hiking-mountain", the one of brouter-web), corrected on one point: a
+pedestrian ban (`foot=no` or `foot=private`) is respected even where a bicycle
+could pass or a sidewalk is tagged.
 
-### Offline OSM data
+Barriers are not baked into the network: every computation lays them across
+the paths. hike2gpx reads from OpenStreetMap the paths usable on foot, the
+barriers drawn as lines, the barrier nodes and the waymarked hiking routes,
+then judges each crossing **blocking**, **to check** or **passable**
+([the rules](#crossing-rules)). Each crossing reaches BRouter as a small
+one-metre line laid across the path. Without a weight, it removes the stretch
+from the computation; with a weight, it makes it costly, so that a detour of
+less than about 300 m avoids it. A blocking crossing is forbidden; a crossing
+to check is weighted, or forbidden when "Include crossings to check" is on. If
+the route BRouter returns still went through a forbidden cut, hike2gpx would
+refuse it instead of showing it; and if there is no route at all, the page says
+so, without joining the points in a straight line.
 
-Overpass, the service that answers questions about OpenStreetMap, saturates at
-times and sometimes goes down. To stop depending on it, hike2gpx downloads by
-itself an OpenStreetMap extract around the place where you are working.
+### Routing areas
 
-Anywhere in the world, it is the smallest
-[Geofabrik](https://download.geofabrik.de/) extract that contains the whole
-area, among some 550: Liechtenstein for Vaduz (3 MB), a US state such as Utah
-rather than the whole United States. In France, hike2gpx works in two steps.
-First the département, taken from the
-[OSM France extracts](https://download.openstreetmap.fr/extracts/europe/france/):
-for Garéoult, the Var weighs 83 MB and is ready in about forty seconds,
-import included; you can work right away. Meanwhile, the Geofabrik region gets
-ready: Provence-Alpes-Côte d'Azur weighs 391 MB and takes more than three
-minutes. As soon as it is there, it takes over, because OSM France cuts the
-paths sharply at the edge of the département, where Geofabrik keeps them
-whole.
+A routing area covers a 5° by 5° cell (E5_N40, for instance, spans 5° to 10° E
+and 40° to 45° N: Provence and Corsica). It holds everything the routing needs,
+with no network, each file checked against the SHA-256 fingerprint of a
+manifest. One simple rule applies: when an installed area covers the whole
+route, it is used alone, for the routing as for the map layers; otherwise, the
+routing runs [on the fly](#without-a-routing-area-routing-on-the-fly).
 
-The download starts once the region is really in use, by a computation or the
-OSM paths layer, but not when the map merely flies over it; it stops if the
-map leaves the region. It runs in the background, checked against its MD5,
-while Overpass keeps serving; the panel follows its progress, and a
-computation that was waiting for it resumes by itself as soon as the extract
-is there. An extract over 2 GB, or one the disk could not hold, is not
-downloaded: Overpass then remains the source. The extract is read once and
-stored in a SQLite database per tile, in the data folder (`geofabrik/`), then
-the downloaded file is deleted.
+There are two ways to get one.
 
-Once installed, the extract is the source of the tiles it contains: instant
-reading, no quota, no outage, offline included. A tile comes out of it in the
-exact form of an Overpass answer, so the crossings are judged the same way.
-Overpass only serves outside the installed extracts: a tile straddling a
-border is read from the two neighbouring extracts, which cover it together;
-and a tile that was waiting for Overpass when an extract gets installed
-switches to it at once. OSM France and Geofabrik
-rebuild their extracts every day; once older than the delay chosen in the
-settings (30 days by default, from 1 to 365), the extract renews itself in the
-background, the old one serving until the switch. The BRouter tiles follow the
-same delay.
-
-### Offline bundles
-
-An extract spares Overpass, but a computation still needs the network for the
-official paths and the BRouter tiles. For a trip with no connection at all,
-hike2gpx works with bundles: everything one 5° BRouter cell needs (routing
-data, official paths, crossings, map layers), each file checked against the
-SHA-256 of a manifest.
-
-"Route management" shows the grid of 5° cells on the map while the page is
-open: click the ones you want, then "Download". A bundle comes in two ways:
-
-- **download it from the server.** The French cells are built every week and
-  published on [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles);
-  the grid shows them in blue. The Var cell, 247 MB, arrives in a few tens of
-  seconds, resumed after a cut, each file checked before installation. No
+- **From the server**, for France, Switzerland, Germany, Czechia and Poland. No
   click needed: as soon as a route or the map's paths touch a published cell,
-  its bundle downloads by itself, and on-the-fly mode serves meanwhile. A
-  bundle from the server also renews itself when the server publishes a newer
-  one.
-- **prepare it on this computer**, for the current view or the whole cell,
-  anywhere in the world. Where a national provider exists (IGN BD TOPO, ATKIS,
-  ZABAGED, swissTLM3D, BDOT10k), its paths are merged into OpenStreetMap and
-  the routing data compiled with Mapterhorn elevation; elsewhere, the bundle
-  takes the BRouter tiles published by brouter.de. A view of a few kilometres
-  is ready in about three minutes.
+  its area downloads by itself, resumed after a cut, and renews itself when
+  the server publishes a newer one. The Var cell, 247 MB, arrives in a few tens
+  of seconds.
+- **From the PC**, everywhere else: "Route management" shows the grid of
+  cells; click the ones you need, then "Download". The PC prepares the view on
+  screen or the whole cell.
 
-Then one rule applies: when an installed bundle covers the whole route, it is
-used alone, for routing and for the layers, with no network; otherwise
-everything runs on the fly as before. The "official paths" box keeps its
-meaning: unticked, the official paths stay in the bundle but routing may not
-use them. Caches renew themselves; a bundle older than the renewal delay asks
-first. A cell crossing a border takes every provider whose country it touches:
-E5_N45 merges IGN and swissTLM3D paths, each read on its own country only.
+A cell you no longer need is removed from its bubble: "Delete from this
+computer" erases its routing area and its base maps. An area from the server
+downloads again in a few seconds; an area prepared on the computer has to be
+built again.
 
-A cell you no longer need, after a trip for instance, is removed from its
-popup: "Remove from this computer" deletes its bundle and its base maps. The
-"Clear cache" button in the settings starts over from scratch: caches, offline
-bundles and maps included. A server bundle downloads again in seconds; a
-bundle or map prepared on the computer has to be made again.
+#### What a routing area holds
 
-That leaves the map itself. In France, "Map management" also prepares, in 1°
-cells chosen on the map, the **offline base map**: the tiles of the base map chosen in the list, stored
-on this computer in an MBTiles file. The base maps whose licence allows it can
-be kept this way: SCAN 25 (with an IGN key), Plan IGN, and IGN's aerial photos
-and LiDAR HD relief. OpenStreetMap can be kept too, in another way: its tile
-server forbids bulk copying, while its data is free. The PC therefore builds,
-from the region's Geofabrik extract, a vector map in the Mapsforge format
-(that of Locus Map and OpenAndroMaps), which the phone draws by itself; on
-the PC, OpenStreetMap stays online. The first time, hike2gpx downloads
-Osmosis and its Mapsforge plugin for this (20 MB). OSM hiking and the
-satellite view stay online: their servers forbid copying and their data is
-not free. A downloaded base map is not shown on the PC, which stays online:
-it is for the phone, with which the PC shares it. A screen view goes down to
-zoom 16, where trails show: around Garéoult, 631 tiles, 12 MB of SCAN 25
-(27 MB of Plan IGN), a little over a minute. A whole cell stops at zoom 13,
-for the overview: cell E5_N40 weighs 151 MB of SCAN 25 and takes about three
-quarters of an hour, because hike2gpx spares the IGN service (ten tiles per
-second at most). An interrupted base map resumes where it stopped. SCAN 25
-is not open data, so a base map stays on your computer: it is never
-published.
+Its core is an RD5 tile, the format BRouter reads: the path network and the
+terrain. The BRouter site publishes some every night, built from OpenStreetMap
+alone. Where a national map brings paths, hike2gpx compiles its own, with
+BRouter's own tile builder, from three ingredients.
+
+1. **OpenStreetMap**, read from the [Geofabrik](https://download.geofabrik.de/)
+   extract of the region.
+2. **The paths of the national map**, but only those that duplicate no
+   OpenStreetMap way, connected to the network by nodes inserted into the
+   neighbouring ways. A 5° cell does not fit in memory at once: the merge runs
+   over 0.25° meshes, and a shared register keeps the same nodes at the same
+   places from one mesh to the next. These paths cost one and a half times as
+   much as an equivalent OSM path, and the route shows them as orange dashes,
+   to check: nothing says they still exist or that one may walk them. "Include
+   IGN paths" forbids them without changing tiles.
+3. **The terrain** of [Mapterhorn](https://mapterhorn.com), the bare ground
+   derived from LiDAR where it exists, resampled to one arc second (about
+   30 m). The routing thus penalises the slopes of the real ground, not those
+   of the treetops in the SRTM that the BRouter site's tiles carry.
+
+Next to the RD5, the area keeps its crossings, judged on the merged network (an
+OSM trail and an IGN path that stop on either side of a fence cross it once
+connected), and the layers the map shows: paths, barriers, crossings,
+unconnected paths.
+
+#### The GitHub server
+
+Every Sunday at 02:17 UTC, GitHub Actions builds the routing areas of the
+fifteen cells that cover the five countries with a national map. Each cell has
+its own machine, in parallel; the Var cell takes about an hour and a half,
+6 GB of memory and 35 GB of disk. A cell whose editions have not changed (OSM
+extract, national map) is not rebuilt. A passing failure (Geofabrik
+overloaded, a cut) does not lose the cell: each step retries and only redoes
+what is missing.
+
+The areas go to the fixed "bundles" release of the
+[hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles) repository,
+with their `catalog.json` catalog, which the computer and the phone read. Each
+build leaves a timestamped report there in `rapports/`, cell by cell and step
+by step, with the cause of each failure. The logic lives in this repository
+([workflow](.github/workflows/bundles.yml)), next to the code it runs; it goes
+through the [command line](#command-line).
+
+#### Outside the server's countries: the PC builds
+
+For Spain, Italy, Norway or anywhere else, the server publishes nothing: your
+PC prepares the area. Without a national map there is nothing to compile: the
+RD5 is the BRouter site's, and the PC only adds the crossings and the layers,
+taken from the OpenStreetMap extract it downloaded. A view of a few kilometres
+is ready in about three minutes. The area is then shared with the phone like a
+base map.
+
+#### Without a routing area: routing on the fly
+
+With no area installed, the page still computes. It reads OpenStreetMap from an
+extract downloaded by itself around the place you work on: the smallest
+Geofabrik extract that contains the area, among some 550; in France, first the
+department from [OSM France](https://download.openstreetmap.fr/extracts/europe/france/)
+(the Var: 83 MB, ready in about forty seconds), then Geofabrik's region, which
+keeps whole the paths cut at the department border. The extract is stored in an
+SQLite database by tile: instant reading, with no quota or outage. Meanwhile,
+or outside the extracts, the Overpass service answers instead. In France and
+Germany, the page rebuilds, as the areas are viewed, a small BRouter tile with
+the paths of the national map. Extracts and tiles renew themselves after the
+delay chosen in the settings (30 days by default).
+
+If OpenStreetMap does not answer, the routing stops: an unknown barrier never
+proves that a passage is free.
+
+### Elevation, recomputed by gpx2elev
+
+The elevation gain BRouter gives comes from the terrain of its tiles. Once the
+route is drawn, hike2gpx recomputes it with the
+[gpx2elev](https://pypi.org/project/gpx2elev/) engine, following its published
+protocol:
+
+1. the track is sampled every 5 m;
+2. the altitude of each point is read from the best terrain model that covers
+   **the whole** route, in this order: IGN LiDAR HD, Mapterhorn, FABDEM,
+   Copernicus GLO-30, SRTM. One model for the whole track, never a mix, so that
+   a seam between two models does not create a step;
+3. the profile is smoothed by a 20 m Gaussian, which wipes out the model's
+   noise without flattening a real bump;
+4. ascents and descents are counted with a 2 m hysteresis: a change only enters
+   the total once it exceeds 2 m in the same direction. A path that undulates
+   by one metre over a kilometre therefore does not add a hundred metres of
+   imaginary climb.
+
+The walking time follows Tobler's model, applied to the profile in 20 m steps:
+the speed is 6 × e<sup>−3.5 × |slope + 0.05|</sup> km/h, about 5 km/h on the
+flat, a little more on a gentle descent, much less on steep slopes. While
+gpx2elev computes, BRouter's figure serves as an estimate; if no model covers
+the route, the elevation gain is reported as unavailable rather than replaced
+by that figure.
+
+### Maps
+
+**Online**, the map follows the country of its centre and offers its base
+maps: everywhere OpenStreetMap, OSM hiking and a satellite view; in France the
+SCAN 25 (with an IGN key), Plan IGN, aerial photos and the LiDAR HD relief;
+elsewhere the national map of ten other countries (Spain, Switzerland,
+Germany, Austria, the Netherlands, Luxembourg, Norway, Poland, Czechia, the
+United States). Each country has its file
+`hike2gpx/assets/web/providers/<country>.js`: base maps, layers, styles and
+labels. The five countries whose paths feed the routing also have a reader in
+`hike2gpx/providers/`: BD TOPO by region, ATKIS (the WFS of Bavaria and
+Thuringia, elsewhere the vector tiles of
+[basemap.de](https://basemap.de/produkte-und-dienste/web-vektor/)), swissTLM3D
+and ZABAGED in their national edition, BDOT10k by district. The
+[table of supported countries](RAPPORT_SOURCES_CHEMINS_BROUTER.md#pays-pris-en-charge)
+is generated from these files.
+
+**Offline**, for the phone, "Map management" prepares base maps by 1° cells.
+The tiles of the base maps whose licence allows it (SCAN 25, Plan IGN, photos,
+LiDAR relief) are stored as MBTiles: around Garéoult, a view at zoom 16 is 631
+tiles, 12 MB in SCAN 25; a whole cell stops at zoom 13 (151 MB in SCAN 25,
+about three quarters of an hour, because hike2gpx spares IGN's service).
+OpenStreetMap forbids bulk copying of its tiles: the PC therefore builds, from
+the Geofabrik extract, a vector map in the Mapsforge format (the one of Locus
+Map), which the phone draws itself. OSM hiking and the satellite view stay
+online. The SCAN 25 is not open data: a base map stays on your PC and your
+phone, it is never published.
 
 ### Sharing with the phone
 
-The phone takes the server's bundles from GitHub. What only your computer
-has, bundles prepared outside the server's countries and base maps, it gets
-from the computer, over Wi-Fi. In "Map management" and "Route management", the
-"Share" button shows a QR code: scan it with hike2gpx on the phone, on the same network. The
-computer then serves its bundles and base maps, each file checked against
-its hash on arrival and resumed after a cut. Sharing stays closed until you
-open it, listens on the local network only, and its code changes every time
-it opens; "Stop sharing" closes it. The protocol is described in
+The phone version automatically downloads the routing areas of the server on
+GitHub. The computer version builds the routing areas for the countries
+outside the server, and the base maps, then shares them with the phone over
+Wi-Fi.
+
+Sharing is closed until you open it. Open, it only listens on the local
+network, serves only what you selected, and its code changes every time; each
+file is checked against its fingerprint on arrival and resumed after a cut. On
+Windows, hike2gpx creates by itself, on the first share, the firewall rule
+that lets the phone in, after a single administrator authorisation request.
+The protocol is described in
 [docs/architecture/partage-telephone.md](docs/architecture/partage-telephone.md).
 
-### Building bundles from the command line
+### Crossing rules
 
-The page and the command line share the same code. The server works this way:
+Each crossing between a path and a barrier is judged with the rules of
+[gpx2elev](https://github.com/nico579/gpx2elev), copied as they are into
+`regles.py`: a fence crossed with no mapped opening blocks, a gate with no
+access information is to check, `foot=yes` wins over `access=private`, opening
+hours or conditions leave a doubt.
+
+hike2gpx adds what a whole network allows, which a single track does not show:
+
+- a barrier that ends on a path, or touches it and leaves on the same side,
+  does not cross it; nor does a path on a bridge or in a tunnel;
+- a barrier that ends less than 2 m from the path can be walked around;
+- a gate set on the fence close to the path, without being carried by it, is
+  judged as if it were: locked or private, it does not make the fence passable;
+- two different levels (`layer`) make the crossing "to check";
+- a waymarked trail necessarily goes through somewhere: a barrier that would
+  block it becomes "to check" there.
+
+When two cuts fall on the same stretch, the forbidden one always wins over the
+weighted one.
+
+## The application in detail
+
+The desktop page and the Android app have the same screen: the map first, full
+screen, and a three-line button, bottom left, that opens the menu ("Search",
+"Map management", "Route management", "Plan a route", "Settings", "Help"; on
+the phone, also "Record a track"). On the computer, each entry opens a panel on
+the left, which its cross closes; the menu also holds the FR/EN choice and a
+light that says whether the next routing has what it needs. "Help" opens this
+guide, in the page's language. What is specific to the phone is in
+[android/README.md](android/README.md).
+
+**The map and the legend.** The base map and the layers are chosen in "Map
+management". Two layers, from an adjustable zoom, show the paths: those of
+OpenStreetMap (trails as dashes), with the fences, walls and crossings it maps;
+and those of the national map. The legend, top right, only shows what is on
+screen; its cross hides it. "Search" centres the map on a town (the French
+state's Géo API in France, Nominatim elsewhere) or on GPS coordinates. A right
+click shows the coordinates of a point and lets you copy them.
+
+**The routing options**, in "Route management":
+
+- **Include crossings to check**: also avoid the passages "to check", not only
+  the blocking ones;
+- **Include IGN paths** (ATKIS in Germany…): let the routing use the paths of
+  the national map that OpenStreetMap lacks;
+- **Compare with the standard route (which ignores barriers)**: overlay, as a
+  grey dotted line, the route of BRouter's standard profile, with its length
+  and the blocking crossings it goes through. It is never exported.
+
+**The result.** A summary gives the distance, the estimated walking time, the
+elevation gain and the extreme altitudes. The elevation profile unfolds at the
+bottom of the map, with the name of the terrain model; hovering it shows the
+point on the route. The crossings to check are listed, each with a link to
+OpenStreetMap. "Export GPX" saves the route, with these points as waypoints.
+"Load a GPX" shows an existing track in yellow, as a landmark, without touching
+the route or the export.
+
+**The settings.** The IGN key for the SCAN 25 (without it, Plan IGN, under the
+Open Licence), the renewal delay of the data (30 days by default), the zoom
+from which the layers are drawn, the transparency of the panels, "Show the
+legend", a button that empties all caches, another that opens the logs, and
+the installed version with "Check for updates". They are saved when the panel
+closes. The page finds again, when reopened, the view, the base map, the
+layers, the options and the route of the previous time.
+
+## The figures
+
+**Barriers.** In Garéoult (Var, France), BRouter's standard hiking profile goes
+through a concrete fence on a 69 m stretch; hike2gpx goes around it with a
+435 m detour. The option "Compare with the standard route" shows that
+difference on the map. The full test is in [ESSAI.md](ESSAI.md).
+
+**National maps.** On the areas studied, BD TOPO adds 18% to 100% in length of
+candidate paths, ATKIS 12% to 127%, ZABAGED 40% to 66%, while the United States
+and the Netherlands stay between 0% and 12%: that is why these two countries
+have no enriched routing area. These percentages measure possible lengths, not
+a guaranteed gain: the method and its caveats are in
+[RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+
+**Terrain.** Mapterhorn gathers about two hundred national and regional models,
+at 0.25 m to 10 m resolution, for almost all of Europe, the United States,
+Canada, Japan, Australia and New Zealand. Outside these areas, hike2gpx falls
+back on Copernicus' 30 m global model, which is less precise, and SRTM remains
+the very last resort. Compared with the native LiDAR, Mapterhorn differs by 1.6
+to 3 cm (RMSE) from IGN's LiDAR HD terrain model on three French areas, and by
+10 cm from the DGM1 on one Saxon site: negligible for an elevation gain, which
+the 20 m smoothing averages out anyway. These measurements, with their limits,
+are in
+[lidar2map's evaluation](https://github.com/nico579/lidar2map/blob/main/docs/mapterhorn-evaluation.fr.md),
+the sister project, whose
+[provider catalog](https://github.com/nico579/lidar2map/blob/main/docs/providers.md)
+gives the detail country by country.
+
+## Command line
+
+The desktop version can also be driven from the command line; the page and the
+routing-area server go through the same code. Run without arguments,
+`hike2gpx` acts as `hike2gpx serve`.
+
+| Command | Role |
+|---|---|
+| `hike2gpx serve [--port N] [--sans-navigateur] [--sans-icone]` | Opens the page (default). Without browser nor icon, it only serves the page, for instance on a headless machine. |
+| `hike2gpx installer [CELLS…]` | Installs BRouter 1.7.10 (archive checked against its fingerprint) and the requested BRouter tiles, for instance `E5_N40`. |
+| `hike2gpx analyser SOUTH WEST NORTH EAST` | Counts and judges the crossings of an area, without routing. |
+| `hike2gpx bundles CELLS… --output FOLDER` | Builds the routing area of each cell, like the page. See below. |
+| `hike2gpx catalog FOLDER [--publish-dir PUB]` | Writes the `catalog.json` of the built areas (size, SHA-256, address of each file); with `--publish-dir`, prepares a GitHub release. |
+| `hike2gpx cells [--provider P] [--bulk-only]` | Lists the 5° cells that the countries of the national maps touch: the ones the server builds. |
+| `hike2gpx freshness CATALOG [--cells C] [--max-age D]` | Checks the age of the areas of a catalog; fails if a cell is missing or an area is older than `D` days (14 by default). |
+| `hike2gpx report JOBS [--catalog C] [--cells C] [--run-url U] [--ref R]` | Writes, in Markdown, the report of a server build. |
+| `hike2gpx firewall --program EXE` | Opens the Windows firewall to sharing with the phone (as administrator; the page does it by itself on the first share). |
+
+The options of `bundles`:
+
+- `--provider P` (repeatable): the national map to merge, among `ign`,
+  `atkis`, `swisstlm3d`, `zabaged`, `bdot10k_ds`; by default, every one whose
+  country touches the cell;
+- `--osm-only`: an OpenStreetMap-only area, without any national map;
+- `--bulk`: read each national map from its bulk download (BD TOPO regional
+  GeoPackages, needs the `7z` command) rather than its web service, the only
+  reasonable way to build a whole cell;
+- `--gpkg FILE` and `--department 83`: read BD TOPO from an already downloaded
+  GeoPackage, limited to one department;
+- `--zone SOUTH WEST NORTH EAST`: limit every cell to an area;
+- `--force`: rebuild up-to-date areas too (after a change of build rules);
+- `--stage data|compute|layers|finish` and `--part I/K`: split a build over
+  several machines, like the server.
+
+An up-to-date area is skipped, and a failing cell does not stop the others. The
+server chains:
 
 ```
-hike2gpx cells --bulk-only                      # the cells to build
-hike2gpx bundles E5_N40 E5_N45 --bulk --output bundles/
-hike2gpx catalog bundles/ --publish-dir publication/
+hike2gpx cells --bulk-only                          # the cells to build
+hike2gpx bundles E5_N40 E5_N45 --bulk --output areas/
+hike2gpx catalog areas/ --publish-dir release/
+hike2gpx freshness release/catalog.json --cells "E5_N40 E5_N45"
 ```
-
-`cells` lists the cells that the providers' countries touch. `bundles --bulk`
-reads each provider from its bulk download (the BD TOPO regional archives)
-rather than its web service: a whole cell would otherwise take thousands of
-requests. A bundle that is up to date is skipped, and a failing cell does not
-stop the others. `catalog` writes the catalog the application reads. The
-weekly server is a [reusable workflow](.github/workflows/bundles.yml) that the
-bundles repository calls: one GitHub Actions machine per cell, about an hour
-and a half for a whole cell.
-
-A passing outage (Geofabrik overloaded, a cut) no longer loses a cell: each
-stage is retried, and only redoes what is missing. At the end of every run,
-`freshness` checks the published catalog: a missing cell, or a bundle older
-than 14 days, fails the run. `report` then writes its report, cell by cell and
-stage by stage, with the cause of each failure. It is kept, timestamped, in the
-`rapports/` folder of the bundles repository: the history of the builds can be
-read there long after the run logs are gone.
 
 ## Limits
 
@@ -411,14 +477,7 @@ A computation examines at most 100 tiles of 0.05°, about 55 × 40 km: the first
 reading of a larger area would take tens of minutes. A long route is split
 into stages.
 
-## Installation
-
-The simplest way: download the program for your system from the
-[releases](https://github.com/nico579/hike2gpx/releases) (Windows, Linux,
-macOS), unzip it, for instance on Windows into
-`%LOCALAPPDATA%\Programs\hike2gpx`, and run `hike2gpx`. It ships its own Java
-and updates itself; "Create a Desktop shortcut", in the menu of its tray icon,
-adds the shortcut.
+## Installing from source
 
 From source, you need Python 3.12, [uv](https://docs.astral.sh/uv/) and
 Java 11 or later for BRouter.

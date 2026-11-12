@@ -5,8 +5,11 @@
     <string name="retirer">Retirer</string>
     <string name="revenir">Revenir</string>
     <string name="effacer">Effacer</string>
-    <string name="exporter">GPX</string>
     <string name="reglages">Réglages</string>
+    <string name="bulle_bloquant">bloquant</string>
+    <string name="bulle_verifier">à vérifier</string>
+    <string name="bulle_osm">Voir dans OpenStreetMap</string>
+    <string name="bulle_franchissement">Franchissement</string>
     <string name="fermer">Fermer</string>
     <string name="depart">Départ</string>
     <string name="arrivee">Arrivée</string>
@@ -14,7 +17,6 @@
 
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Recherche</string>
-    <string name="menu_bibliotheque">Ma bibliothèque</string>
     <string name="menu_cartes">Gestion des cartes</string>
     <string name="menu_itineraires">Gestion des itinéraires</string>
     <string name="menu_aide">Aide</string>
@@ -73,19 +75,22 @@
     <string name="reglages_cle_note">Le SCAN 25 n’est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</string>
     <string name="reglages_cle_afficher">Afficher la clé</string>
     <string name="afficher_legende">Afficher la légende</string>
-    <string name="afficher_courbe">Afficher courbe du dénivelé</string>
     <string name="reglages_zoom_calques">Zoom minimal des calques (14 à 19)</string>
+    <string name="courbe_titre">Relief du parcours</string>
+    <string name="courbe_resume">+%1$d m, −%2$d m</string>
+    <string name="courbe_replier">Replier la courbe du dénivelé</string>
+    <string name="courbe_deplier">Déplier la courbe du dénivelé</string>
     <string name="courbe_aide">Touchez la courbe pour voir le point correspondant sur le tracé.</string>
     <!-- DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main -->
     <string name="legende_titre">Légende</string>
     <string name="legende_fermer">Masquer la légende</string>
-    <string name="legende_itineraire">itinéraire hike2gpx</string>
-    <string name="legende_chemins_officiels">chemins %1$s (tirets : sentiers)</string>
+    <string name="legende_osm">chemin OSM</string>
+    <string name="legende_chemins_officiels">chemin %1$s</string>
+    <string name="legende_itineraire">tracé itinéraire</string>
+    <string name="legende_barriere">clôture et mur</string>
     <string name="legende_bloque">franchissement bloquant</string>
     <string name="legende_verifier">franchissement à vérifier</string>
     <string name="legende_jonction">chemin non raccordé (à vérifier)</string>
-    <string name="legende_osm">chemins OSM (tirets : sentiers)</string>
-    <string name="legende_barriere">clôtures et murs connus d’OSM</string>
     <!-- FIN LEGENDE -->
 
     <string name="titre_lots">Zones stockées localement</string>
@@ -228,8 +233,6 @@
     <string name="trace_notification_texte">Touchez pour ouvrir hike2gpx. Les points sont gardés même écran éteint.</string>
     <string name="trace_recuperee">Trace interrompue récupérée : %1$s</string>
     <string name="trace_titre">Trace GPS enregistrée</string>
-    <string name="trace_fichier">Fichier : %1$s</string>
-    <string name="trace_exporter">Exporter le GPX</string>
     <string name="trace_etat">Trace GPS : %1$s, %2$s, %3$s, D+ %4$d m / D− %5$d m.</string>
     <string name="trace_etat_debut">Trace GPS : %1$s, %2$s, %3$s. Le dénivelé se calcule dès le deuxième point.</string>
     <string name="trace_etat_sans_denivele">Trace GPS : %1$s, %2$s, %3$s. Dénivelé indisponible : les données d’altitude ne couvrent pas encore le parcours.</string>
@@ -239,13 +242,7 @@
     <string name="trace_denivele_calcul">Calcul du dénivelé avant l’export…</string>
     <string name="trace_gpx_desc">D+ %1$d m / D− %2$d m (gpx2elev)</string>
     <string name="trace_export_annule">Export annulé.</string>
-    <string name="titre_traces">Traces enregistrées</string>
-    <string name="traces_aucune">Aucune trace enregistrée pour le moment.</string>
-    <string name="trace_supprimer_titre">Supprimer la trace</string>
-    <string name="trace_supprimer_message">Supprimer %1$s ? Le fichier GPX sera effacé du téléphone.</string>
-    <string name="traces_supprimer_message">Supprimer %1$d traces ? Les fichiers GPX seront effacés du téléphone.</string>
-    <string name="traces_supprimer_selection">Supprimer la sélection</string>
-    <string name="traces_selection_vide">Cochez au moins une trace.</string>
+    <string name="trace_dans_telechargements">Exportée dans Téléchargements : %1$s</string>
     <plurals name="trace_points">
         <item quantity="one">%1$d point</item>
         <item quantity="other">%1$d points</item>
