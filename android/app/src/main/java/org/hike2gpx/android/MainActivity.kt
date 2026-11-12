@@ -860,7 +860,10 @@ class MainActivity : Activity() {
      */
     private fun planifierCalques() {
         sequenceCalques += 1
-        planificateur.removeCallbacksAndMessages(null)
+        // Seule la lecture des calques déjà prévue s'annule : vider tout le
+        // planificateur emportait aussi l'effacement du bilan d'une tâche, et
+        // « Lot … installé » restait affiché pour de bon dès que la carte bougeait.
+        planificateur.removeCallbacks(lectureCalques)
         if ((!reglages.calqueOsm && reglages.calquesOfficiels.isEmpty()) ||
             carte.zoomLevelDouble < ZOOM_CALQUES) {
             calqueCoche = false
@@ -869,8 +872,11 @@ class MainActivity : Activity() {
             return
         }
         proposerLotZone()
-        planificateur.postDelayed({ rafraichirCalques() }, 350)
+        planificateur.postDelayed(lectureCalques, 350)
     }
+
+    /** La lecture des calques, différée le temps que la carte s'arrête (planifierCalques). */
+    private val lectureCalques = Runnable { rafraichirCalques() }
 
     /**
      * Comme la page, s'arrêter sur une région est un usage réel : le lot de la
