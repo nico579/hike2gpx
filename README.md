@@ -109,7 +109,11 @@ Wi-Fi. "Stop sharing" closes it, and the code changes every time
 aim at the PC's QR code. The phone says what it is missing and how big it is,
 then downloads the base maps and routing areas, each file checked on arrival.
 Areas published by the server (France, Switzerland, Germany, Czechia, Poland)
-also download by themselves, with no PC.
+are also offered by themselves, with no PC. On the very first launch, the map
+opens on the town given by the IP address (approximate: that of the operator's
+connection point). As long as no routing area covers the map, "Plan a route"
+stays greyed out: the phone only computes with an area, and says so rather
+than failing.
 
 **Plan a route.** Menu, then "Plan a route": each tap on the map places a
 point, as on the computer, and the route is computed on the phone, with no
@@ -181,11 +185,15 @@ routing runs [on the fly](#without-a-routing-area-routing-on-the-fly).
 
 There are two ways to get one.
 
-- **From the server**, for France, Switzerland, Germany, Czechia and Poland. No
-  click needed: as soon as a route or the map's paths touch a published cell,
-  its area downloads by itself, resumed after a cut, and renews itself when
-  the server publishes a newer one. The Var cell, 247 MB, arrives in a few tens
-  of seconds.
+- **From the server**, for France, Switzerland, Germany, Czechia and Poland.
+  The first time a route or the map's paths touch a published cell, hike2gpx
+  asks whether to download its area (one question per area: it weighs several
+  hundred MB). Accepted, it downloads, resumed after a cut, then renews itself
+  when the server publishes a newer one; the Var cell, 247 MB, arrives in a few
+  tens of seconds. Refused, it is no longer offered and stays available in
+  "Route management". The "Download routing areas automatically" box in the
+  settings, on the computer as on the phone, turns off all automatic
+  downloads.
 - **From the PC**, everywhere else: "Route management" shows the grid of
   cells; click the ones you need, then "Download". The PC prepares the view on
   screen or the whole cell.

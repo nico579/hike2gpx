@@ -116,8 +116,11 @@ le code change à chaque ouverture ([détail](#partager-au-téléphone)).
 code de l'ordinateur » et visez le QR code du PC. Le téléphone dit ce qu'il
 lui manque et sa taille, puis télécharge les fonds et les zones de routage,
 chaque fichier vérifié à l'arrivée. Les zones publiées par le serveur (France,
-Suisse, Allemagne, Tchéquie, Pologne) se téléchargent aussi d'elles-mêmes, sans
-PC.
+Suisse, Allemagne, Tchéquie, Pologne) se proposent aussi d'elles-mêmes, sans PC.
+Au tout premier lancement, la carte s'ouvre sur la ville que donne l'adresse IP
+(approximative : celle du point de raccordement de l'opérateur). Tant qu'aucune
+zone de routage ne couvre la carte, « Planifier un itinéraire » reste grisé : le
+téléphone ne calcule qu'avec une zone, et le dit plutôt que d'échouer.
 
 **Tracer un parcours.** Menu, puis « Planifier un itinéraire » : chaque
 toucher sur la carte pose un point, comme sur l'ordinateur, et le calcul se
@@ -196,10 +199,15 @@ carte ; sinon, le calcul se fait [à la volée](#sans-zone-de-routage--le-calcul
 Il y a deux façons d'en obtenir une.
 
 - **Du serveur**, pour la France, la Suisse, l'Allemagne, la Tchéquie et la
-  Pologne. Pas besoin de cliquer : dès qu'un calcul ou les chemins de la carte
-  touchent une case publiée, sa zone se télécharge d'elle-même, reprise après
-  une coupure, et se renouvelle quand le serveur en publie une plus récente.
-  La case du Var, 247 Mo, arrive en quelques dizaines de secondes.
+  Pologne. La première fois qu'un calcul ou les chemins de la carte touchent
+  une case publiée, hike2gpx demande s'il faut télécharger sa zone (une
+  question par zone : elle pèse plusieurs centaines de Mo). Acceptée, elle se
+  télécharge, reprise après une coupure, puis se renouvelle d'elle-même quand
+  le serveur en publie une plus récente ; la case du Var, 247 Mo, arrive en
+  quelques dizaines de secondes. Refusée, elle ne se propose plus et reste
+  disponible dans « Gestion des itinéraires ». La coche « Télécharger
+  automatiquement les zones de routage » des réglages, sur le PC comme sur le
+  téléphone, coupe tout téléchargement automatique.
 - **Du PC**, partout ailleurs : « Gestion des itinéraires » montre la grille
   des cases ; cliquez celles qu'il vous faut, puis « Télécharger ». Le PC
   prépare la vue affichée ou la case entière.

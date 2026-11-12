@@ -150,7 +150,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
-    + " basculerPartage, enregistrerReglages, lireNomTrace, couleurKml, majLegende, coucheCalque,"
+    + " basculerPartage, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -407,8 +407,10 @@ test("les réglages s'enregistrent à la fermeture de leur page, seulement s'ils
   const { page, document, requetes } = charger();
   page.etat.cleIgn = "ancienne";
   page.etat.renouvellementJours = 30;
+  page.etat.zonesAuto = true;
   document.getElementById("cleIgn").value = "ancienne";
   document.getElementById("renouvellementJours").value = "30";
+  document.getElementById("zonesAuto").checked = true;
   const avant = requetes.length;
   const envois = () => requetes.filter((r) => r.url === "/api/reglages").length;
   const initiaux = envois();
@@ -419,8 +421,8 @@ test("les réglages s'enregistrent à la fermeture de leur page, seulement s'ils
   document.getElementById("renouvellementJours").value = "45";
   const envoi = page.enregistrerReglages();
   const requete = requetes.findLast((r) => r.url === "/api/reglages");
-  assert.deepEqual(JSON.parse(requete.options.body), { cle_ign: "nouvelle", renouvellement_jours: 45 });
-  repondre(requete, { cle_ign: "nouvelle", renouvellement_jours: 45 });
+  assert.deepEqual(JSON.parse(requete.options.body), { cle_ign: "nouvelle", renouvellement_jours: 45, zones_auto: true });
+  repondre(requete, { cle_ign: "nouvelle", renouvellement_jours: 45, zones_auto: true });
   await envoi;
   assert.equal(page.etat.cleIgn, "nouvelle");
   assert.equal(page.etat.renouvellementJours, 45);
@@ -1533,4 +1535,25 @@ test("un KML de gpx2dash : nom, date, D+ et durée lus dans le nom, couleur KML 
   // KML : aabbggrr. ff5622e5 = opaque, rouge e5, vert 22, bleu 56.
   assert.equal(JSON.stringify(page.couleurKml("ff5622e5")), JSON.stringify({ couleur: "#e52256", opacite: 1 }));
   assert.equal(JSON.stringify(page.couleurKml("pas une couleur")), "{}");
+});
+
+test("décocher le téléchargement automatique des zones s'enregistre ; une zone proposée est demandée une fois", async () => {
+  const { page, document, requetes, confirmations } = charger();
+  page.etat.cleIgn = ""; page.etat.renouvellementJours = 30; page.etat.zonesAuto = true;
+  document.getElementById("cleIgn").value = ""; document.getElementById("renouvellementJours").value = "30";
+  document.getElementById("zonesAuto").checked = false;
+  const envoi = page.enregistrerReglages();
+  const requete = requetes.findLast((r) => r.url === "/api/reglages");
+  assert.equal(JSON.parse(requete.options.body).zones_auto, false);
+  repondre(requete, { cle_ign: "", renouvellement_jours: 30, zones_auto: false });
+  await envoi;
+  assert.equal(page.etat.zonesAuto, false);
+  // Le serveur signale une zone à proposer : une seule question, même si la réponse revient deux fois.
+  confirmations.reponse = false;
+  page.proposerZone({ case: "E5_N40", octets: 250_000_000 });
+  page.proposerZone({ case: "E5_N40", octets: 250_000_000 });
+  assert.equal(confirmations.length, 1);
+  assert.match(confirmations[0], /E5_N40/);
+  const reponse = requetes.findLast((r) => r.url === "/api/zone_reponse");
+  assert.deepEqual(JSON.parse(reponse.options.body), { case: "E5_N40", accepter: false });
 });

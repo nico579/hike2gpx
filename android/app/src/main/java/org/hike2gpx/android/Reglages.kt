@@ -113,10 +113,19 @@ class Reglages(context: Context) {
     /** Vrai dès qu'une vue est enregistrée : faux au tout premier lancement. */
     val vueConnue: Boolean get() = preferences.contains(VUE)
 
-    /** La question « télécharger la zone de routage ? » a-t-elle déjà été posée ? Elle ne l'est qu'une fois. */
-    var zoneInitialeProposee: Boolean
-        get() = preferences.getBoolean(ZONE_INITIALE_PROPOSEE, false)
-        set(v) = preferences.edit().putBoolean(ZONE_INITIALE_PROPOSEE, v).apply()
+    /**
+     * Téléchargement automatique des zones de routage (une question par zone) :
+     * décoché, rien ne se télécharge de lui-même, renouvellements compris ; les
+     * zones se prennent alors dans « Gestion des itinéraires ».
+     */
+    var zonesAuto: Boolean
+        get() = preferences.getBoolean(ZONES_AUTO, true)
+        set(v) = preferences.edit().putBoolean(ZONES_AUTO, v).apply()
+
+    /** Les cases dont la zone de routage a déjà été proposée : la question n'est posée qu'une fois par case. */
+    var zonesProposees: Set<String>
+        get() = preferences.getStringSet(ZONES_PROPOSEES, null)?.toSet() ?: emptySet()
+        set(v) = preferences.edit().putStringSet(ZONES_PROPOSEES, v).apply()
 
     /** Les cases dont la zone de routage a été refusée : plus de téléchargement automatique pour elles. */
     var zonesRefusees: Set<String>
@@ -145,7 +154,8 @@ class Reglages(context: Context) {
         private const val DUREE_MIN = "trace_duree_min"
         private const val PRECISION_MAX = "trace_precision_max"
         private const val VUE = "vue"
-        private const val ZONE_INITIALE_PROPOSEE = "zone_initiale_proposee"
+        private const val ZONES_PROPOSEES = "zones_proposees"
+        private const val ZONES_AUTO = "zones_auto"
         private const val ZONES_REFUSEES = "zones_refusees"
 
         /**

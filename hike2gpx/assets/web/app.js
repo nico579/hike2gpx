@@ -48,6 +48,9 @@ const TEXTES = {
     "horsLigne.modeFond": "Fond de carte (cases de 1°)",
     "horsLigne.fondAucun": "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : {liste}.",
     "reglages.afficherLegende": "Afficher la légende",
+    "reglages.zonesAuto": "Télécharger automatiquement les zones de routage (une question par zone)",
+    "zones.question": "Pour calculer sans réseau, avec les chemins de la carte nationale, hike2gpx peut télécharger la zone de routage de cette région (case {nom}, {taille}). La télécharger maintenant ?",
+    "zones.refusee": "Zone {nom} non téléchargée. Vous pourrez la télécharger à tout moment depuis « Gestion des itinéraires ».",
     "horsLigne.legendeInstalle": "sur ce PC",
     "horsLigne.legendeSelection": "sélectionné",
     "horsLigne.legendeEnCours": "en cours",
@@ -327,6 +330,9 @@ const TEXTES = {
     "horsLigne.modeFond": "Base map (1° cells)",
     "horsLigne.fondAucun": "The base map shown cannot be kept offline. Choose in the list above: {liste}.",
     "reglages.afficherLegende": "Show the legend",
+    "reglages.zonesAuto": "Download routing areas automatically (one question per area)",
+    "zones.question": "To compute with no network, with the paths of the national map, hike2gpx can download the routing area of this region (cell {nom}, {taille}). Download it now?",
+    "zones.refusee": "Area {nom} not downloaded. You can download it at any time from “Route management”.",
     "horsLigne.legendeInstalle": "on this PC",
     "horsLigne.legendeSelection": "selected",
     "horsLigne.legendeEnCours": "in progress",
@@ -744,7 +750,27 @@ async function api(route, corps, signal) {
   // Un calcul ou un calque a lancé de lui-même le lot du serveur de la zone :
   // la page suit son avancement, comme celui d'un lot demandé à la main.
   if (donnees.lot_en_cours?.auto && donnees.lot_en_cours.actif && !minuterieLot) suivreLot();
+  // Une zone que le serveur téléchargerait de lui-même : la page demande d'abord, une fois par case.
+  if (donnees.zone_a_proposer) proposerZone(donnees.zone_a_proposer);
   return donnees;
+}
+
+// Une zone de routage pèse plusieurs centaines de Mo : la première fois qu'un
+// calcul ou un calque en a besoin, la page demande (le serveur retient la
+// réponse). Un refus rappelle où la télécharger à la main.
+const zonesDemandees = new Set();
+async function proposerZone(zone) {
+  if (!zone?.case || zonesDemandees.has(zone.case)) return;
+  zonesDemandees.add(zone.case);
+  const accepter = confirm(t("zones.question", { nom: zone.case, taille: tailleTexte(zone.octets) }));
+  try {
+    const r = await api("zone_reponse", { case: zone.case, accepter });
+    if (accepter && r.lot_en_cours?.actif && !minuterieLot) suivreLot();
+  } catch (e) {
+    zonesDemandees.delete(zone.case);     // la question reviendra au prochain calcul
+    return;
+  }
+  if (!accepter) afficherStatut(() => t("zones.refusee", { nom: zone.case }));
 }
 
 // Le statut se réécrit au changement de langue : on garde de quoi le refaire,
@@ -3061,6 +3087,7 @@ for (const id of ["strict", "ign", "comparer"]) {
 function restaurerChampsReglages() {
   $("cleIgn").value = etat.cleIgn;
   $("renouvellementJours").value = etat.renouvellementJours;
+  $("zonesAuto").checked = etat.zonesAuto;
 }
 
 // Les réglages s'enregistrent à la fermeture de leur page (presentation.js),
@@ -3070,16 +3097,21 @@ async function enregistrerReglages() {
   const cle = $("cleIgn").value;
   const saisie = Math.round(Number($("renouvellementJours").value));
   const jours = saisie >= 1 && saisie <= 365 ? saisie : etat.renouvellementJours;
-  if (cle === etat.cleIgn && jours === etat.renouvellementJours) { restaurerChampsReglages(); return; }
+  const zonesAuto = $("zonesAuto").checked;
+  if (cle === etat.cleIgn && jours === etat.renouvellementJours && zonesAuto === etat.zonesAuto) {
+    restaurerChampsReglages(); return;
+  }
+  const cleChangee = cle !== etat.cleIgn;
   try {
-    const r = await api("reglages", { cle_ign: cle, renouvellement_jours: jours });
+    const r = await api("reglages", { cle_ign: cle, renouvellement_jours: jours, zones_auto: zonesAuto });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); restaurerChampsReglages(); return; }
     etat.cleIgn = r.cle_ign;
     etat.renouvellementJours = r.renouvellement_jours;
+    etat.zonesAuto = r.zones_auto !== false;
     restaurerChampsReglages();
     afficherExtrait(etat.extrait);
     construireFonds();
-    afficherStatut(() => t(etat.cleIgn ? "cle.enregistree" : "cle.retiree"));
+    if (cleChangee) afficherStatut(() => t(etat.cleIgn ? "cle.enregistree" : "cle.retiree"));
     verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("statut.erreur", { message: e.message }), true);
@@ -3224,6 +3256,8 @@ async function demarrer() {
     $("cleIgn").value = etat.cleIgn;
     etat.renouvellementJours = reglages.renouvellement_jours ?? 30;
     $("renouvellementJours").value = etat.renouvellementJours;
+    etat.zonesAuto = reglages.zones_auto !== false;
+    $("zonesAuto").checked = etat.zonesAuto;
     await verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("serveur.injoignable", { message: e.message }), true);

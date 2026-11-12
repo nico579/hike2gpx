@@ -33,6 +33,8 @@
     <string name="plan_sans_zone_titre">Pas de zone de routage ici</string>
     <string name="plan_sans_zone_message">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage. Aucune n’est installée pour cette partie de la carte : téléchargez-la dans « Gestion des itinéraires », ou partagez-la depuis un PC.</string>
     <string name="plan_point_sans_zone">Pas de zone de routage ici : le point n’est pas posé.</string>
+    <string name="reglage_zones_auto">Télécharger automatiquement les zones de routage (une question par zone)</string>
+    <string name="zone_refusee">Zone %1$s non téléchargée. Vous pourrez la télécharger à tout moment depuis « Gestion des itinéraires ».</string>
     <string name="menu_itineraires">Gestion des itinéraires</string>
     <string name="menu_aide">Aide</string>
     <string name="menu_enregistrer">Enregistrer un parcours</string>

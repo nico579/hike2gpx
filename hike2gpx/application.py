@@ -237,6 +237,8 @@ class Application:
         # main pendant la séance, qui ne reviennent pas toutes seules.
         self._echecs_lots = {}
         self._lots_retires = set()
+        # La zone dont la page doit d'abord demander le téléchargement ({case, octets}), ou None.
+        self._zone_a_proposer = None
         # Le partage au téléphone (partage.py), fermé tant qu'on ne l'ouvre pas.
         self.partage = partage.Partage(self.hors_ligne)
         self.autoriser_pare_feu = pare_feu.autoriser       # remplaçable dans les tests
@@ -270,7 +272,18 @@ class Application:
         prefs = atomique.lire_json(self.preferences, {})
         cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
         return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
-                "renouvellement_jours": geofabrik.jours_renouvellement(self.dossier)}
+                "renouvellement_jours": geofabrik.jours_renouvellement(self.dossier),
+                "zones_auto": self._prefs_zones()[0]}
+
+    def _prefs_zones(self) -> tuple:
+        """(téléchargement automatique, cases déjà proposées, cases refusées) :
+        une question par zone, comme sur le téléphone ; un refus est retenu."""
+        prefs = atomique.lire_json(self.preferences, {})
+        prefs = prefs if isinstance(prefs, dict) else {}
+        def cases(cle):
+            valeur = prefs.get(cle)
+            return {c for c in valeur if isinstance(c, str)} if isinstance(valeur, list) else set()
+        return prefs.get("zones_auto", True) is not False, cases("zones_proposees"), cases("zones_refusees")
 
     def enregistrer_reglages(self, payload) -> dict:
         payload = payload or {}
@@ -284,6 +297,8 @@ class Application:
         prefs = prefs if isinstance(prefs, dict) else {}
         prefs["cle_ign"] = cle.strip()
         prefs["renouvellement_jours"] = jours
+        if isinstance(payload.get("zones_auto"), bool):
+            prefs["zones_auto"] = payload["zones_auto"]
         atomique.ecrire_json(self.preferences, prefs)
         return self.reglages()
 
@@ -1115,7 +1130,8 @@ class Application:
                 "installer_lot": self.installer_lot, "preparer_lot": self.preparer_lot,
                 "supprimer_case": self.supprimer_case, "supprimer_fond": self.supprimer_fond,
                 "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot,
-                "preparer_fond": self.preparer_fond, "partage": self.partager, **post_langue}
+                "preparer_fond": self.preparer_fond, "partage": self.partager,
+                "zone_reponse": self.repondre_zone, **post_langue}
         return get, post
 
     CATALOGUE_TTL_S = 600.0
@@ -1201,15 +1217,50 @@ class Application:
                 return bool(self._lot.get("auto"))
             cache = getattr(self, "_catalogue", None)
             a_faire = self._lots_a_telecharger(cache[1], zone) if cache else []
+            auto, proposees, refusees = self._prefs_zones()
+            a_faire = [e for e in a_faire if e["case"] not in refusees] if auto else []
             if not a_faire:
                 return False
-            self._lot = {"actif": True, "auto": True, "case": a_faire[0]["case"], "zone": a_faire[0].get("zone"),
-                         "etape": "telechargement", "faites": 0, "total": a_faire[0].get("octets", 0),
-                         "debut": time.time(), "arreter": False}
-            self._fil_lot = threading.Thread(target=self._telecharger_lots_auto, args=(a_faire, raison),
-                                             daemon=True, name="lot-automatique")
-            self._fil_lot.start()
+            if a_faire[0]["case"] not in proposees:
+                # Une zone pèse plusieurs centaines de Mo : la page demande d'abord, une fois par case.
+                self._zone_a_proposer = {"case": a_faire[0]["case"], "octets": a_faire[0].get("octets", 0)}
+                return False
+            self._lancer_lots_auto(a_faire, raison)
             return True
+
+    def _lancer_lots_auto(self, a_faire: list, raison: str) -> None:
+        """Lance en tâche de fond le téléchargement des lots ; sous self._verrou_lot."""
+        self._lot = {"actif": True, "auto": True, "case": a_faire[0]["case"], "zone": a_faire[0].get("zone"),
+                     "etape": "telechargement", "faites": 0, "total": a_faire[0].get("octets", 0),
+                     "debut": time.time(), "arreter": False}
+        self._fil_lot = threading.Thread(target=self._telecharger_lots_auto, args=(a_faire, raison),
+                                         daemon=True, name="lot-automatique")
+        self._fil_lot.start()
+
+    def repondre_zone(self, corps) -> dict:
+        """La réponse de la page à la question d'une zone : {"case", "accepter"}.
+        Oui : le téléchargement part aussitôt. Non : la case ne se télécharge
+        plus d'elle-même ; elle reste dans « Gestion des itinéraires »."""
+        corps = corps if isinstance(corps, dict) else {}
+        case = corps.get("case")
+        if not isinstance(case, str) or not case:
+            return {"erreur": "Case manquante."}
+        accepter = corps.get("accepter") is True
+        prefs = atomique.lire_json(self.preferences, {})
+        prefs = prefs if isinstance(prefs, dict) else {}
+        _, proposees, refusees = self._prefs_zones()
+        prefs["zones_proposees"] = sorted(proposees | {case})
+        prefs["zones_refusees"] = sorted(refusees - {case} if accepter else refusees | {case})
+        atomique.ecrire_json(self.preferences, prefs)
+        if getattr(self, "_zone_a_proposer", None) and self._zone_a_proposer.get("case") == case:
+            self._zone_a_proposer = None
+        if accepter:
+            cache = getattr(self, "_catalogue", None)
+            entrees = [e for e in (cache[1].get("lots", []) if cache else []) if e.get("case") == case]
+            with self._verrou_lot:
+                if entrees and not (self._fil_lot is not None and self._fil_lot.is_alive()):
+                    self._lancer_lots_auto(entrees, "zone acceptée dans la page")
+        return {"ok": True, "lot_en_cours": self.lot_en_cours() if self._lot.get("auto") else None}
 
     def _telecharger_lots_auto(self, a_faire: list, raison: str) -> None:
         for i, entree in enumerate(a_faire):
@@ -1228,6 +1279,8 @@ class Application:
     def _avec_lot_automatique(self, reponse: dict) -> dict:
         """La réponse d'un calcul ou d'un calque, avec l'état du lot qui se
         télécharge tout seul, pour que la page en suive l'avancement."""
+        if getattr(self, "_zone_a_proposer", None):
+            reponse = {**reponse, "zone_a_proposer": self._zone_a_proposer}
         if self._lot.get("actif") and self._lot.get("auto"):
             return {**reponse, "lot_en_cours": self.lot_en_cours()}
         return reponse

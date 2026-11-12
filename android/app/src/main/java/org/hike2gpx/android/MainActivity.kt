@@ -872,7 +872,7 @@ class MainActivity : Activity() {
         val maintenant = SystemClock.elapsedRealtime()
         val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees + reglages.zonesRefusees
         val aFaire = lotsATelecharger(offres, horsLigne.lots(), Zone.autour(points), exclu)
-        if (aFaire.isNotEmpty()) {
+        if (reglages.zonesAuto && aFaire.isNotEmpty()) {
             autoLotDemande = aFaire.first().lot.case
             telechargerAuto(aFaire.first()); return
         }
@@ -1021,6 +1021,7 @@ class MainActivity : Activity() {
      * un geste sur la carte. Une case refusée ou en échec attend une heure.
      */
     private fun proposerLotZone(attendreCatalogue: Boolean = false) {
+        if (!reglages.zonesAuto) return         // réglage : les zones se prennent dans « Gestion des itinéraires »
         if (enCours.get() || autoLotDemande != null) {
             // Une tâche occupe le téléchargement : la demande attend son tour.
             if (attendreCatalogue) lotDeZoneEnAttente = true
@@ -1121,8 +1122,8 @@ class MainActivity : Activity() {
             if (points.size >= 2) calculer()
             return
         }
-        if (!reglages.zoneInitialeProposee) {
-            demanderPremiereZone(offre); return
+        if (offre.lot.case !in reglages.zonesProposees) {
+            demanderZone(offre); return
         }
         if (!reseau.isActiveNetworkMetered) {
             autoLotDemande = null
@@ -1913,6 +1914,10 @@ class MainActivity : Activity() {
             setText(R.string.afficher_legende); isChecked = reglages.legende
             setOnCheckedChangeListener { _, v -> reglages.legende = v; appliquerAffichage() }
         })
+        colonne.addView(CheckBox(this).apply {
+            setText(R.string.reglage_zones_auto); isChecked = reglages.zonesAuto
+            setOnCheckedChangeListener { _, v -> reglages.zonesAuto = v }
+        })
         // Les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
         // téléphone a moins à tracer.
         champNombre(colonne, R.string.reglages_zoom_calques, reglages.zoomCalques.toDouble(), entier = true) {
@@ -2295,13 +2300,15 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Le tout premier téléchargement automatique demande d'abord, même sur
-     * Wi-Fi : une zone pèse plusieurs centaines de Mo. La question n'est posée
-     * qu'une fois ; un refus est retenu pour cette case, qui reste disponible
-     * dans « Gestion des itinéraires ».
+     * Le premier téléchargement automatique d'une case demande d'abord, même
+     * sur Wi-Fi : une zone pèse plusieurs centaines de Mo, et recentrer la
+     * carte sur une ville ne doit pas suffire à la télécharger. La question
+     * n'est posée qu'une fois par case ; un refus est retenu, la zone restant
+     * disponible dans « Gestion des itinéraires ». Une zone acceptée se
+     * renouvelle ensuite d'elle-même.
      */
-    private fun demanderPremiereZone(offre: Offre) {
-        reglages.zoneInitialeProposee = true
+    private fun demanderZone(offre: Offre) {
+        reglages.zonesProposees = reglages.zonesProposees + offre.lot.case
         AlertDialog.Builder(this)
             .setTitle(R.string.zone_initiale_titre)
             .setMessage(getString(R.string.zone_initiale_message, offre.lot.case,
@@ -2313,6 +2320,7 @@ class MainActivity : Activity() {
             .setNegativeButton(R.string.zone_refuser) { _, _ ->
                 autoLotDemande = null
                 reglages.zonesRefusees = reglages.zonesRefusees + offre.lot.case
+                Toast.makeText(this, getString(R.string.zone_refusee, offre.lot.case), Toast.LENGTH_LONG).show()
                 avancer()
                 planifierCalques()
             }
