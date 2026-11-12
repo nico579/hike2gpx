@@ -343,6 +343,25 @@ that lets the phone in, after a single administrator authorisation request.
 The protocol is described in
 [docs/architecture/partage-telephone.md](docs/architecture/partage-telephone.md).
 
+### Exporting and importing a zip archive
+
+Without a shared Wi-Fi, cells travel in a zip archive, on a USB stick, a
+Drive or as an attachment. On the PC, select cells that are present (in green)
+and click "Export": the browser saves the archive. On the phone, "Export to an
+archive (zip)", in "Map management" or "Route management", lets you tick the
+maps or areas, then choose where to save it. The other way, "Import", on the PC
+as on the phone, installs everything the archive holds.
+
+The archive thus goes from one PC to another, from a PC to a phone, or from
+one phone to another. A friend with a less powerful PC gets your maps without
+building them again, then shares them with their phone. It is also a backup: a
+SCAN 25 cell takes over an hour to download, its archive imports again in a few
+minutes.
+
+The archive is the phone share put in a zip: the same catalogue, where each
+file carries its size and SHA-256 fingerprint, checked before installing. A
+damaged file is refused.
+
 ### Crossing rules
 
 Each crossing between a path and a barrier is judged with the rules of

@@ -22,8 +22,8 @@ from pathlib import Path
 from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
-from . import (__version__, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik, hors_ligne,
-               journaux, maison, mapsforge, osmfr, pare_feu, partage, providers)
+from . import (__version__, archive, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik,
+               hors_ligne, journaux, maison, mapsforge, osmfr, pare_feu, partage, providers)
 
 journal = logging.getLogger(__name__)
 
@@ -1497,13 +1497,9 @@ class Application:
         # paraître la fenêtre d'autorisation du pare-feu pour rien.
         selection = None
         if "lots" in corps or "carres" in corps:
-            lots, carres, source = corps.get("lots") or [], corps.get("carres") or [], corps.get("source")
-            if not all(isinstance(c, str) and re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", c) for c in lots) \
-                    or not all(isinstance(c, str) and fonds.carre_valide(c) for c in carres):
+            selection = self.selection_cases(corps)
+            if selection is None:
                 return {"ouvert": False, "erreur": "Sélection de partage invalide."}
-            if source is not None and not (isinstance(source, str) and fonds.nom_valide(source)):
-                return {"ouvert": False, "erreur": "Sélection de partage invalide."}
-            selection = {"lots": lots, "carres": carres, "source": source}
         # Sous Windows, la règle du pare-feu (pare_feu.py), créée au besoin après
         # une demande UAC ; vérifiée une fois par séance quand elle est en place.
         if self._pare_feu not in ("ok", "creee", "inutile"):
@@ -1513,6 +1509,41 @@ class Application:
         except (partage.ErreurPartage, OSError) as exc:
             journal.warning("Partage : %s", exc)
             return {"ouvert": False, "erreur": str(exc)}
+
+    _verrou_archive = threading.Lock()
+
+    @staticmethod
+    def selection_cases(corps: dict) -> dict | None:
+        """La sélection de la grille, vérifiée, pour le partage et l'archive :
+        {"lots": [zones de 5°], "carres": [carrés de 1°], "source": fond} ;
+        None si un nom est invalide."""
+        lots, carres, source = corps.get("lots") or [], corps.get("carres") or [], corps.get("source")
+        if not isinstance(lots, list) or not isinstance(carres, list) \
+                or not all(isinstance(c, str) and re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", c) for c in lots) \
+                or not all(isinstance(c, str) and fonds.carre_valide(c) for c in carres):
+            return None
+        if source is not None and not (isinstance(source, str) and fonds.nom_valide(source)):
+            return None
+        return {"lots": lots, "carres": carres, "source": source}
+
+    def exporter_archive(self, flux, selection: dict) -> int:
+        """Écrit dans flux l'archive zip de la sélection (archive.py) ; les
+        empreintes des fonds se reprennent du partage, déjà calculées."""
+        n = archive.ecrire(self.hors_ligne, flux, selection, self.partage._empreintes)
+        journal.info("Archive exportée : %s fichiers (%s)", n, selection)
+        return n
+
+    def importer_archive(self, chemin) -> dict:
+        """Installe les zones et les cartes d'une archive zip reçue de la page,
+        une archive à la fois (elles partagent leur dossier de travail)."""
+        try:
+            with self._verrou_archive:
+                installe = archive.importer(self.hors_ligne, chemin)
+        except (archive.ErreurArchive, OSError) as exc:
+            journal.warning("Archive non importée : %s", exc)
+            return {"erreur": str(exc)}
+        journal.info("Archive importée : %s", installe)
+        return {"importe": installe, **self.lots_hors_ligne()}
 
     def lot_en_cours(self) -> dict:
         """État de la fabrication en cours ou de la dernière : étape, avancement, durée."""

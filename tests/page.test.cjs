@@ -150,7 +150,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
-    + " basculerPartage, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
+    + " basculerPartage, selectionGrille, adresseArchive, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -423,6 +423,26 @@ test("le volet de la grille partage sa sélection seule au téléphone", async (
   elements.get("hlPartager").click();
   assert.deepEqual(JSON.parse(requetes.findLast((r) => r.url === "/api/partage").options.body),
     { ouvrir: true, lots: ["E5_N40"], carres: [] }, "la zone choisie, pas tout le PC");
+});
+
+test("l'archive zip : « Exporter » prend la sélection, « Importer » envoie le zip tel quel", async () => {
+  const { page, elements, requetes } = charger();
+  await ouvrirHorsLigne(page, requetes, [{ case: "E5_N40", octets: 135e6 }], []);
+  assert.equal(elements.get("hlExporter").hidden, true, "rien de sélectionné");
+  page.grilleCases.layers[0].handlers.click();
+  assert.equal(elements.get("hlExporter").hidden, false);
+  assert.equal(page.adresseArchive(page.selectionGrille()), "/archive.zip?lots=E5_N40&carres=");
+  assert.equal(page.adresseArchive({ lots: [], carres: ["N43E006", "N44E006"], source: "scan25" }),
+    "/archive.zip?lots=&carres=N43E006%2CN44E006&source=scan25");
+  const fichier = { name: "ami.zip", size: 248e6 };
+  elements.get("fichierArchive").ecouteurs.change[0]({ target: { files: [fichier], value: "ami.zip" } });
+  assert.equal(elements.get("hlEnCours").textContent, "Import de ami.zip (248 Mo) en cours…");
+  const envoi = requetes.findLast((r) => r.url === "/api/importer_archive");
+  assert.equal(envoi.options.body, fichier, "le zip part tel quel, sans JSON");
+  repondre(envoi, { importe: { lots: ["E5_N40"], fonds: ["N43E006-scan25"] }, lots: [], fonds: [] });
+  await tic();
+  await tic();
+  assert.equal(elements.get("hlEnCours").textContent, "ami.zip importée : 1 carte(s) et 1 zone(s) de routage.");
 });
 
 test("la note suit la préparation hors ligne, puis la case est prête", async () => {

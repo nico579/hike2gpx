@@ -186,6 +186,8 @@ class MainActivity : Activity() {
     private val traceOccupe = AtomicBoolean(false)
     @Volatile private var traceARefaire = false
     private var contenuExport: ByteArray? = null
+    // Les zones et les cartes cochées pour l'archive, en attendant le choix du fichier.
+    private var archiveAEcrire: Pair<List<Lot>, List<File>>? = null
     private var echelle: ScaleBarOverlay? = null
     private var droits: CopyrightOverlay? = null
     private val points = mutableListOf<Point>()
@@ -1324,6 +1326,7 @@ class MainActivity : Activity() {
         }
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } }
             .avecIcone(R.drawable.ic_btn_qr))
+        boutonsArchive(colonne, emptyList(), installes)
 
         // Les calques du lot, comme dans la page du PC : la coche OSM reste
         // toujours, celle d'un fournisseur national n'apparaît que si le lot
@@ -1446,6 +1449,83 @@ class MainActivity : Activity() {
         })
     }
 
+    // ------------------------------------------------------------------ archive zip
+
+    /**
+     * Les deux boutons d'archive d'une page (Archive.kt) : exporter ce qu'elle
+     * liste vers un fichier choisi (clé USB, Drive, Téléchargements), et
+     * importer une archive, d'un PC ou d'un téléphone. Une case longue à
+     * préparer (une heure pour un SCAN 25) s'y sauvegarde aussi.
+     */
+    private fun boutonsArchive(colonne: LinearLayout, lots: List<Lot>, cartes: List<File>) {
+        if (lots.isNotEmpty() || cartes.isNotEmpty())
+            colonne.addView(Button(this).apply {
+                setText(R.string.archive_exporter); setOnClickListener { choisirExport(lots, cartes) }
+            }.avecIcone(R.drawable.ic_btn_telecharger))
+        colonne.addView(Button(this).apply {
+            setText(R.string.archive_importer)
+            setOnClickListener {
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    // Un Drive livre souvent un zip en application/octet-stream.
+                    type = "*/*"
+                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/zip", "application/octet-stream"))
+                }, IMPORT_ARCHIVE)
+            }
+        }.avecIcone(R.drawable.ic_btn_actualiser))
+    }
+
+    /** Les zones ou les cartes à mettre dans l'archive, toutes cochées d'abord, puis le fichier où l'écrire. */
+    private fun choisirExport(lots: List<Lot>, cartes: List<File>) {
+        val noms = lots.map { it.case } + cartes.map { it.nameWithoutExtension }
+        val coches = BooleanArray(noms.size) { true }
+        AlertDialog.Builder(this)
+            .setTitle(if (lots.isNotEmpty()) R.string.archive_choix_zones else R.string.archive_choix_cartes)
+            .setMultiChoiceItems(noms.toTypedArray(), coches) { _, i, v -> coches[i] = v }
+            .setPositiveButton(R.string.archive_exporter) { _, _ ->
+                val lotsChoisis = lots.filterIndexed { i, _ -> coches[i] }
+                val cartesChoisies = cartes.filterIndexed { i, _ -> coches[lots.size + i] }
+                if (lotsChoisis.isEmpty() && cartesChoisies.isEmpty()) {
+                    etat.setText(R.string.archive_rien); return@setPositiveButton
+                }
+                archiveAEcrire = lotsChoisis to cartesChoisies
+                startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_TITLE, Archive.nomPropose(
+                        lotsChoisis.map { it.case } + cartesChoisies.map { it.nameWithoutExtension }))
+                }, EXPORT_ARCHIVE)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun ecrireArchive(adresse: Uri, lots: List<Lot>, cartes: List<File>) {
+        val nom = nomAffiche(adresse)
+        tache(R.string.etat_archive_ecriture, true, { continuer ->
+            val sortie = contentResolver.openOutputStream(adresse) ?: throw IOException(nom)
+            sortie.use { Archive.ecrire(it, lots, horsLigne, cartes, suiviTelechargement(nom), continuer) }
+            getString(R.string.etat_archive_ecrite, nom)
+        })
+    }
+
+    private fun lireArchive(adresse: Uri) {
+        val nom = nomAffiche(adresse)
+        tache(R.string.etat_archive_lecture, true, { continuer ->
+            routeur.annuler()
+            val entree = contentResolver.openInputStream(adresse) ?: throw IOException(nom)
+            val r = entree.use {
+                Archive.importer(it, horsLigne, fonds, File(filesDir, "archive"), suiviTelechargement(nom), continuer)
+            }
+            retirees.removeAll(r.lots.toSet())
+            getString(R.string.etat_archive_importee, r.fonds.size, r.lots.size)
+        }, ensuite = {
+            remplirCartes()
+            remplirItineraires()
+            planifierCalques()
+        })
+    }
+
     // ------------------------------------------------------------------ itinéraires
 
     /**
@@ -1505,6 +1585,7 @@ class MainActivity : Activity() {
         }
         colonne.addView(Button(this).apply { setText(R.string.scanner_qr); setOnClickListener { scannerQr() } }
             .avecIcone(R.drawable.ic_btn_qr))
+        boutonsArchive(colonne, installes, emptyList())
 
         // L'enregistrement de trace de Locus Map, appliqué au prochain point
         // même quand un enregistrement est en cours.
@@ -2992,6 +3073,16 @@ class MainActivity : Activity() {
             if (resultat == RESULT_OK) donnees?.data?.let { importer(it) }
             return
         }
+        if (requete == EXPORT_ARCHIVE) {
+            val choix = archiveAEcrire
+            archiveAEcrire = null
+            if (resultat == RESULT_OK && choix != null) donnees?.data?.let { ecrireArchive(it, choix.first, choix.second) }
+            return
+        }
+        if (requete == IMPORT_ARCHIVE) {
+            if (resultat == RESULT_OK) donnees?.data?.let { lireArchive(it) }
+            return
+        }
         if (requete == EXPORT_TRACE) {
             if (resultat != RESULT_OK) {
                 contenuExport = null
@@ -3300,6 +3391,8 @@ class MainActivity : Activity() {
         private const val EXPORT = 1
         private const val EXPORT_TRACE = 2
         private const val IMPORT = 5
+        private const val EXPORT_ARCHIVE = 6
+        private const val IMPORT_ARCHIVE = 7
         /** Le jaune du GPX importé et son liseré, ceux de la page du PC. */
         private const val COULEUR_GPX = 0xffffe14a.toInt()
         private const val COULEUR_GPX_BORD = 0xff344132.toInt()

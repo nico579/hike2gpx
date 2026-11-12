@@ -4,8 +4,10 @@ des autres applications de nico579."""
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 import subprocess
+import tempfile
 import threading
 import webbrowser
 from pathlib import Path
@@ -94,6 +96,12 @@ class Handler(serveweb.Handler):
                 return
             self.envoyer_tuile(chemin)
             return
+        if chemin == "/archive.zip":
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            self.envoyer_archive()
+            return
         if self.path.split("?", 1)[0] == "/journal.txt":
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)
@@ -103,6 +111,74 @@ class Handler(serveweb.Handler):
         super().do_GET()
 
     hors_ligne = None       # posé par demarrer : les fonds de carte installés
+    application = None      # posée par demarrer : l'archive zip des cases (archive.py)
+
+    def envoyer_archive(self) -> None:
+        """/archive.zip?lots=E5_N40,…&carres=N43E006,…&source=scan25 : l'archive
+        de la sélection, que le navigateur enregistre. Elle s'écrit au fil de
+        l'envoi, sans fichier intermédiaire ni taille annoncée : la fin de la
+        connexion marque la fin du zip, comme en HTTP/1.0."""
+        requete = parse_qs(urlsplit(self.path).query)
+
+        def liste(cle):
+            return [n for n in requete.get(cle, [""])[0].split(",") if n]
+        selection = self.application.selection_cases(
+            {"lots": liste("lots"), "carres": liste("carres"), "source": requete.get("source", [None])[0]})
+        if selection is None or not (selection["lots"] or selection["carres"]):
+            self.send_error(400)
+            return
+        noms = selection["lots"] + [f"{c}-{selection['source']}" if selection["source"] else c
+                                    for c in selection["carres"]]
+        nom = f"hike2gpx-{noms[0]}{f'-et-{len(noms) - 1}' if len(noms) > 1 else ''}.zip"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Disposition", f'attachment; filename="{nom}"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        try:
+            self.application.exporter_archive(self.wfile, selection)
+        except OSError as exc:          # téléchargement annulé dans le navigateur
+            journal.info("Archive interrompue : %s", exc)
+
+    def do_POST(self):
+        if urlsplit(self.path).path == "/api/importer_archive":
+            self.recevoir_archive()
+            return
+        super().do_POST()
+
+    def recevoir_archive(self) -> None:
+        """POST /api/importer_archive, le zip brut en corps : posé dans un
+        fichier à côté des lots, morceau par morceau (il pèse souvent des Go),
+        puis importé. Le serveur commun n'accepte que du JSON, d'où cette
+        route à part."""
+        if not self.hote_autorise() or self.requete_inter_sites():
+            self._refuser(403)
+            return
+        try:
+            longueur = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            longueur = 0
+        if longueur <= 0:
+            self._refuser(400)
+            return
+        racine = self.application.hors_ligne.racine
+        racine.mkdir(parents=True, exist_ok=True)
+        descripteur, nom = tempfile.mkstemp(prefix=".archive-", suffix=".zip.part", dir=racine)
+        provisoire = Path(nom)
+        try:
+            reste = longueur
+            with os.fdopen(descripteur, "wb") as f:
+                while reste and (bloc := self.rfile.read(min(reste, 1 << 20))):
+                    f.write(bloc)
+                    reste -= len(bloc)
+            if reste:                   # envoi coupé : rien à importer
+                self.close_connection = True
+                return
+            self.send_json(self.application.importer_archive(provisoire))
+        finally:
+            provisoire.unlink(missing_ok=True)
 
     def envoyer_tuile(self, chemin: str) -> None:
         """/fonds/<nom>/<z>/<x>/<y> : une tuile d'un fond de carte installé
@@ -140,6 +216,7 @@ def demarrer(application: Application, port: int = PORT, plage: int = PLAGE, ins
     handler = type("Hike2gpxHandler", (Handler,), {})   # chaque serveur garde ses routes
     handler.journal_path = configurer_journal(application.dossier)
     handler.hors_ligne = application.hors_ligne
+    handler.application = application
     serveur, port = serveweb.premier_port_libre(HOST, port, plage, trusted_host="", gui_dir=GUI,
                                                 api_routes=get, post_routes=post, handler=handler,
                                                 favicon=bureau.ICONE)

@@ -186,7 +186,7 @@ body.profile-collapsed .map-activity{bottom:81px}
 /* Les boutons du volet : un par ligne, chacun avec son icône. */
 /* Les boutons du volet sur une ligne ; leur bulle au survol, comme ceux du tracé.
    Un bouton masqué emporte sa bulle. */
-.hl-actions{display:flex;flex-wrap:nowrap;gap:6px;margin:8px 0}
+.hl-actions{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .hl-actions .action-control{display:inline-block}
 .hl-actions .action-control:has(>button[hidden]){display:none}
 .hl-actions button{display:inline-flex;align-items:center;gap:5px;padding:7px 9px;white-space:nowrap;border:1.5px solid #6f9bd6;border-radius:8px;background:#fff;color:#1d4f96;font-size:12px;font-weight:600;box-shadow:0 1px 3px #1b354526;cursor:pointer}
