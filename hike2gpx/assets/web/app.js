@@ -221,6 +221,7 @@ const TEXTES = {
     "calque.avancement": "Chargement des {nom}… {faites} sur {total} tuiles · {duree} s",
     "liaison.et": " et ",
     "calque.zoom": "Zoomez davantage (niveau {niveau}) pour voir les chemins.",
+    "reglages.zoomCalques": "Zoom minimal des calques",
     "extrait.telechargement": "Données OSM hors ligne : téléchargement de l'extrait {nom}, {pourcent} %",
     "extrait.import": "Données OSM hors ligne : import de l'extrait {nom}, {voies} voies lues…",
     "extrait.relais.telechargement": "Données OSM hors ligne : extrait {nom} du {date} ; la région {region} se télécharge pour prendre le relais, {pourcent} %",
@@ -496,6 +497,7 @@ const TEXTES = {
     "calque.avancement": "Loading the {nom}… {faites} of {total} tiles · {duree} s",
     "liaison.et": " and ",
     "calque.zoom": "Zoom in further (level {niveau}) to see the paths.",
+    "reglages.zoomCalques": "Minimum zoom for layers",
     "extrait.telechargement": "Offline OSM data: downloading the {nom} extract, {pourcent} %",
     "extrait.import": "Offline OSM data: importing the {nom} extract, {voies} ways read…",
     "extrait.relais.telechargement": "Offline OSM data: {nom} extract of {date}; the {region} region is downloading to take over, {pourcent} %",
@@ -1020,7 +1022,22 @@ let nomGpxImporte = null;
 let sequenceImportGpx = 0;
 const rendu = L.canvas({ padding: 0.2 });
 const renduObstacles = L.canvas({ padding: 0.2, pane: "obstaclesOsm" });
-const ZOOM_CALQUES = 14;
+// Le zoom à partir duquel les calques se dessinent : réglable (Réglages), de 14, où
+// le lot et le serveur n'ont plus de tuile plus large, à 19. 14 par défaut au grand
+// écran du PC ; le téléphone, plus lent, en demande 16.
+const ZOOM_CALQUES_MIN = 14, ZOOM_CALQUES_MAX = 19, ZOOM_CALQUES_DEFAUT = 14;
+const CLE_ZOOM_CALQUES = "hike2gpx.zoomCalques";
+function borneZoomCalques(valeur) {
+  const n = Math.round(Number(valeur));
+  return Number.isFinite(n) ? Math.max(ZOOM_CALQUES_MIN, Math.min(ZOOM_CALQUES_MAX, n)) : ZOOM_CALQUES_DEFAUT;
+}
+let zoomCalques = ZOOM_CALQUES_DEFAUT;
+try { zoomCalques = borneZoomCalques(localStorage.getItem(CLE_ZOOM_CALQUES) ?? ZOOM_CALQUES_DEFAUT); } catch (erreur) {}
+function reglerZoomCalques(valeur) {
+  zoomCalques = borneZoomCalques(valeur);
+  try { localStorage.setItem(CLE_ZOOM_CALQUES, String(zoomCalques)); } catch (erreur) {}
+  rafraichirCalques();
+}
 const CLE_CALQUES = "hike2gpx.calques";
 // charge : bornes des tuiles déjà dessinées ; annulation : la requête en cours.
 const CALQUES = Object.fromEntries(["osm", ...Object.keys(CHEMINS_OFFICIELS)]
@@ -1252,7 +1269,7 @@ async function chargerCalque(cle, zone) {
 async function rafraichirCalques() {
   const actifs = Object.keys(CALQUES).filter((cle) => carte.hasLayer(CALQUES[cle].groupe));
   if (!actifs.length) { noteCalques(""); return; }
-  if (carte.getZoom() < ZOOM_CALQUES) {
+  if (carte.getZoom() < zoomCalques) {
     // Vider plutôt que garder un morceau de réseau : de loin, il ferait
     // croire que le reste de la carte n'a pas de chemins.
     const interrompus = actifs.filter((cle) => abandonner(CALQUES[cle]));
@@ -1261,7 +1278,7 @@ async function rafraichirCalques() {
       CALQUES[cle].charge = null;
     }
     arreterAuServeur(interrompus);
-    noteCalques(t("calque.zoom", { niveau: ZOOM_CALQUES }));
+    noteCalques(t("calque.zoom", { niveau: zoomCalques }));
     return;
   }
   const vue = zoneVue();
@@ -2844,6 +2861,13 @@ carte.on("click", (e) => {
   if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:carte-cliquee"));
   if (planification) ajouterPoint(e.latlng);
 });
+{
+  const champ = $("zoomCalques");
+  champ.value = String(zoomCalques);
+  // Chaque saisie valide s'applique ; un nombre hors bornes revient dans les bornes à la sortie du champ.
+  champ.addEventListener("input", () => { if (champ.value !== "") reglerZoomCalques(champ.value); });
+  champ.addEventListener("change", () => { champ.value = String(zoomCalques); });
+}
 $("retirerDernier").addEventListener("click", () => { const p = etat.points.at(-1); if (p) retirerPoint(p); });
 $("boucler").addEventListener("click", boucler);
 $("toutEffacer").addEventListener("click", () => {

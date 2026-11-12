@@ -76,6 +76,7 @@
     <string name="reglages_cle_afficher">Afficher la clé</string>
     <string name="afficher_legende">Afficher la légende</string>
     <string name="afficher_courbe">Afficher courbe du dénivelé</string>
+    <string name="reglages_zoom_calques">Zoom minimal des calques (14 à 19)</string>
     <string name="courbe_aide">Touchez la courbe pour voir le point correspondant sur le tracé.</string>
     <!-- DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main -->
     <string name="legende_titre">Légende</string>

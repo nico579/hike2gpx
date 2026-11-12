@@ -13,6 +13,16 @@ import org.junit.Test
  */
 class TraceGpsTest {
 
+    @Test fun le_gps_se_demande_au_rythme_du_filtre_avec_une_seconde_de_marge() {
+        // Locus : 10 s. Une seconde de marge, pour qu'une position à 9,99 s ne soit pas refusée.
+        assertEquals(9_000L, intervalleGps(10_000L))
+        assertEquals(29_000L, intervalleGps(30_000L))
+        // Jamais moins d'une seconde, ni sans trace en cours.
+        assertEquals(1_000L, intervalleGps(1_000L))
+        assertEquals(1_000L, intervalleGps(0L))
+        assertEquals(1_000L, intervalleGps(null))
+    }
+
     @Test fun le_premier_point_ne_respecte_que_la_precision() {
         val trace = TraceGps()
         assertFalse(trace.ajouter(43.0, 6.0, null, 0L, 150.0))

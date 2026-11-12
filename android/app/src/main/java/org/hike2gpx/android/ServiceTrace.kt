@@ -51,6 +51,9 @@ class ServiceTrace : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // Chaque demande reprend l'écoute au rythme du filtre en vigueur : un
+        // réglage de trace changé en route relance le service (MainActivity).
+        arreterPosition()
         demarrerPosition()
         return START_NOT_STICKY
     }
@@ -60,6 +63,13 @@ class ServiceTrace : Service() {
         super.onDestroy()
     }
 
+    /**
+     * Le GPS seul, au rythme du filtre de la trace plutôt que chaque seconde :
+     * écran éteint, chaque position reçue réveille le processeur, et le filtre
+     * (Locus : 10 s, 10 m) en rejetait neuf sur dix. Le réseau (Wi-Fi,
+     * antennes) n'est plus demandé : en randonnée, ses positions sont trop
+     * imprécises pour une trace et coûtent des balayages radio.
+     */
     private fun demarrerPosition() {
         if (ecoute != null) return
         val gestionnaire = getSystemService(LOCATION_SERVICE) as LocationManager
@@ -69,16 +79,13 @@ class ServiceTrace : Service() {
             override fun onProviderEnabled(provider: String) {}
             override fun onProviderDisabled(provider: String) {}
         }
-        var posee = false
-        for (fournisseur in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
-            try {
-                gestionnaire.requestLocationUpdates(fournisseur, 1_000L, 0f, nouvelle, Looper.getMainLooper())
-                posee = true
-            } catch (e: Exception) {
-                // fournisseur absent ou permission retirée : l'autre suffit
-            }
+        try {
+            gestionnaire.requestLocationUpdates(LocationManager.GPS_PROVIDER, intervalleGps(EnregistrementGps.trace?.dureeMin),
+                0f, nouvelle, Looper.getMainLooper())
+            ecoute = nouvelle
+        } catch (e: Exception) {
+            // GPS absent ou permission retirée : rien à enregistrer
         }
-        if (posee) ecoute = nouvelle
     }
 
     private fun arreterPosition() {

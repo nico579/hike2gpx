@@ -62,7 +62,6 @@ import android.widget.TextView
 import android.widget.Toast
 import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
-import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapListener
@@ -222,9 +221,13 @@ class MainActivity : Activity() {
         Configuration.getInstance().userAgentValue = "${Depot.AGENT} (+https://github.com/nico579/hike2gpx)"
         Configuration.getInstance().osmdroidBasePath = File(cacheDir, "osmdroid")
         Configuration.getInstance().osmdroidTileCache = File(cacheDir, "osmdroid/tiles")
-        // Mapsforge dessine les cartes vectorielles (.map) reçues d'un PC ;
-        // son usine graphique se crée une fois, avant toute source.
-        if (AndroidGraphicFactory.INSTANCE == null) MapsForgeTileSource.createInstance(application)
+        // Mapsforge dessine les cartes vectorielles (.map) reçues d'un PC ; son
+        // usine graphique doit recevoir le contexte avant toute source. Sans
+        // condition : Mapsforge 0.21 crée d'office AndroidGraphicFactory.INSTANCE
+        // SANS contexte (bloc statique), si bien qu'un test « INSTANCE == null »
+        // ne l'initialisait jamais, et chaque tuile échouait sur un contexte nul
+        // (carte blanche, 0.9.17).
+        MapsForgeTileSource.createInstance(application)
         reglages = Reglages(this)
         reglages.oublierPcs()                   // un PC ne se contacte qu'au scan de son QR code
         horsLigne = HorsLigne(filesDir)
@@ -857,7 +860,7 @@ class MainActivity : Activity() {
      * contient aucun chemin de calque.
      */
     private fun signalerCocheCalque() {
-        if (carte.zoomLevelDouble < ZOOM_CALQUES) {
+        if (carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             Toast.makeText(this, R.string.calque_zoom, Toast.LENGTH_LONG).show()
         } else {
@@ -871,17 +874,23 @@ class MainActivity : Activity() {
      */
     private fun planifierCalques() {
         sequenceCalques += 1
-        planificateur.removeCallbacksAndMessages(null)
+        // Seule la lecture des calques déjà prévue s'annule : vider tout le
+        // planificateur emportait aussi l'effacement du bilan d'une tâche, et
+        // « Lot … installé » restait affiché pour de bon dès que la carte bougeait.
+        planificateur.removeCallbacks(lectureCalques)
         if ((!reglages.calqueOsm && reglages.calquesOfficiels.isEmpty()) ||
-            carte.zoomLevelDouble < ZOOM_CALQUES) {
+            carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
             carte.invalidate()
             return
         }
         proposerLotZone()
-        planificateur.postDelayed({ rafraichirCalques() }, 350)
+        planificateur.postDelayed(lectureCalques, 350)
     }
+
+    /** La lecture des calques, différée le temps que la carte s'arrête (planifierCalques). */
+    private val lectureCalques = Runnable { rafraichirCalques() }
 
     /**
      * Comme la page, s'arrêter sur une région est un usage réel : le lot de la
@@ -918,7 +927,7 @@ class MainActivity : Activity() {
         majLegendeOfficiel()
         val osm = reglages.calqueOsm
         val officiels = reglages.calquesOfficiels
-        if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < ZOOM_CALQUES) {
+        if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < reglages.zoomCalques) {
             calqueCoche = false
             overlayCalques.donnees = DonneesCalques()
             carte.invalidate()
@@ -1460,10 +1469,16 @@ class MainActivity : Activity() {
                     // l'empreinte des fichiers y entre, pour qu'une carte mise à
                     // jour ne réaffiche pas les tuiles de l'ancienne.
                     val empreinte = vectorielles.joinToString("|") { "${it.name}:${it.length()}:${it.lastModified()}" }
+                    // Le thème par défaut de Mapsforge, dessiné à l'échelle des tuiles
+                    // en ligne (ECHELLE_RENDU) : Mapsforge multiplie par défaut traits
+                    // et textes par la densité de l'écran, et osmdroid, qui affiche
+                    // les tuiles pixel pour pixel, les rendait énormes. Le « v2 » du
+                    // nom écarte les tuiles de l'ancien rendu restées en cache.
                     val source = try {
                         MapsForgeTileSource.createFromFiles(vectorielles.toTypedArray(),
-                            InternalRenderTheme.OSMARENDER,
-                            "mapsforge-$sourcePc-${Integer.toHexString(empreinte.hashCode())}")
+                            InternalRenderTheme.DEFAULT,
+                            "mapsforge-v2-$sourcePc-${Integer.toHexString(empreinte.hashCode())}")
+                            .also { it.setUserScaleFactor(ECHELLE_RENDU / resources.displayMetrics.density) }
                     } catch (e: Exception) {
                         // Fichier illisible ou format Mapsforge inconnu : mieux
                         // vaut une carte en ligne qu'un écran vide.
@@ -1822,6 +1837,12 @@ class MainActivity : Activity() {
             setText(R.string.afficher_courbe); isChecked = reglages.courbeDenivele
             setOnCheckedChangeListener { _, v -> reglages.courbeDenivele = v; afficherCourbe() }
         })
+        // Les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
+        // téléphone a moins à tracer.
+        champNombre(colonne, R.string.reglages_zoom_calques, reglages.zoomCalques.toDouble(), entier = true) {
+            reglages.zoomCalques = it.roundToInt()
+            planifierCalques()
+        }
 
         // La clé IGN du SCAN 25, le même réglage que sur le PC.
         titreAvecInfo(colonne, R.string.reglages_cle_ign, R.string.reglages_cle_note)
@@ -2862,6 +2883,8 @@ class MainActivity : Activity() {
             dureeMin = reglages.dureeMin * 1_000L
             precisionMax = reglages.precisionMax
         }
+        // Le service demande le GPS au rythme du filtre : il reprend sa demande.
+        if (EnregistrementGps.actif) ServiceTrace.demarrer(this)
     }
 
     /** Une icône de 18 dp avant le texte du bouton, comme sur la page du PC ; rouge pour ce qui supprime. */
@@ -2957,6 +2980,8 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        /** Taille de dessin des cartes Mapsforge d'un PC, en pixels d'écran par pixel de la carte : celle des cartes en ligne. */
+        private const val ECHELLE_RENDU = 1f
         private const val EXPORT = 1
         private const val EXPORT_TRACE = 2
         private const val PERMISSION_POSITION = 3
@@ -2969,7 +2994,6 @@ class MainActivity : Activity() {
         /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */
         private val CLE_IGN = Regex("[A-Za-z0-9_-]{0,100}")
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */
-        private const val ZOOM_CALQUES = 14.0
         // Au niveau du processus : un téléchargement survit à l'écran qui l'a lancé.
         private val EXECUTEUR = Executors.newSingleThreadExecutor()
         // Les calques et le relief ne prennent pas la tâche unique : l'itinéraire

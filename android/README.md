@@ -94,7 +94,10 @@ La trace continue écran éteint, téléphone en poche ou application fermée : 
 service de premier plan (type `location`) tient le GPS, avec
 une notification « Trace GPS en cours » qui rouvre l'application. Sans lui,
 Android ne donne plus que quelques positions par heure à une application en
-arrière-plan. Chaque point retenu est aussi écrit aussitôt dans
+arrière-plan. Pour ménager la batterie, il ne demande que le GPS, sans le
+réseau, et au rythme des réglages de la trace (10 s par défaut) plutôt que
+chaque seconde : écran éteint, chaque position reçue réveille le processeur.
+Chaque point retenu est aussi écrit aussitôt dans
 `traces/<trace>.gpx.journal` et synchronisé sur disque : si Android tue
 l'application ou si la batterie lâche, le GPX est refait au lancement suivant,
 avec un message « Trace interrompue récupérée ». Sur Android 13 et plus, le
