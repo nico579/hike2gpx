@@ -8,6 +8,10 @@
     <string name="effacer">Effacer</string>
     <string name="exporter">GPX</string>
     <string name="reglages">Réglages</string>
+    <string name="bulle_bloquant">bloquant</string>
+    <string name="bulle_verifier">à vérifier</string>
+    <string name="bulle_osm">Voir dans OpenStreetMap</string>
+    <string name="bulle_franchissement">Franchissement</string>
     <string name="fermer">Fermer</string>
     <string name="depart">Départ</string>
     <string name="arrivee">Arrivée</string>
