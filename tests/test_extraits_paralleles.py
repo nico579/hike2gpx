@@ -44,18 +44,26 @@ def test_deux_extraits_a_la_fois_au_plus_et_tous_installes(monkeypatch):
 
 
 def test_les_archives_se_preparent_pendant_les_extraits(monkeypatch):
-    fenetre = []
+    # Pas de chronomètre : un seuil de 0,72 s échouait de justesse sur macOS
+    # (0,7239 s, 2026-11-11), sans rapport avec le code. Chaque côté attend que
+    # l'autre ait commencé : à la suite, ils s'attendraient en vain jusqu'au
+    # délai, et l'échec serait net ; ensemble, la rencontre est immédiate.
+    delai = 5
+    extrait_commence, preparation_commencee = threading.Event(), threading.Event()
+
+    def installer(dossier, region, continuer=None):
+        extrait_commence.set()
+        assert preparation_commencee.wait(delai), "la préparation n'a pas commencé pendant les extraits"
+        return {"id": region["id"]}
 
     def preparation():
-        fenetre.append(time.monotonic())
-        time.sleep(0.6)
-        fenetre.append(time.monotonic())
-    debut = time.monotonic()
-    _, etapes = lancer(monkeypatch, preparation=preparation)
-    duree = time.monotonic() - debut
-    # Les extraits deux à deux (3 × 0,05 s) puis la préparation (0,6 s)
-    # prendraient 0,75 s à la suite ; ensemble, la plus longue des deux.
-    assert duree < 0.72, duree
+        assert extrait_commence.wait(delai), "aucun extrait n'a commencé pendant la préparation"
+        preparation_commencee.set()
+
+    monkeypatch.setattr(geofabrik, "installer", installer)
+    etapes = []
+    fabrication._installer_extraits(None, "E0_N45", REGIONS, lambda e, f, t: etapes.append((e, f, t)),
+                                    lambda: True, preparation=preparation)
     assert etapes[-1] == ("extraits", 6, 6)
 
 
