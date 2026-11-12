@@ -111,19 +111,23 @@ const TEXTES = {
     "profil.indisponible": "Profil gpx2elev indisponible : {erreur}",
     "resultat.aVerifier": "Points à vérifier sur le tracé",
     "resultat.aucun": "Aucun franchissement connu sur ce tracé.",
+    // DEBUT LEGENDE fr : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main
     "legende.titre": "Légende",
+    "legende.fermer": "Masquer la légende",
+    "legende.gpx": "GPX chargé",
     "legende.itineraire": "itinéraire hike2gpx",
+    "legende.portion_officielle": "portion sur un chemin {reseau} absent d'OSM, à vérifier",
     "legende.naif": "tracé standard, qui ignore les barrières",
     "legende.bloque": "franchissement bloquant",
     "legende.verifier": "franchissement à vérifier",
     "legende.jonction": "chemin non raccordé (à vérifier)",
+    "legende.osm": "chemins OSM (tirets : sentiers)",
+    "legende.barriere": "clôtures et murs connus d'OSM",
+    // FIN LEGENDE fr
     "jonction.titre": "Chemin non raccordé",
     "jonction.detail": "Ce chemin s'arrête à {distance} m d'un autre sans le toucher dans OpenStreetMap : le calcul ne peut pas passer de l'un à l'autre. À vérifier sur place ou sur l'imagerie : il peut aussi s'agir d'un vrai cul-de-sac.",
     "jonction.isole": "Ce chemin n'est relié à aucun autre dans OpenStreetMap, et passe à {distance} m de l'un d'eux : le calcul ne peut pas l'emprunter. À vérifier sur place ou sur l'imagerie : il manque sans doute un raccord.",
     "jonction.corriger": "Corriger dans OpenStreetMap",
-    "legende.osm": "chemins OSM (tirets : sentiers)",
-    "legende.barriere": "clôtures et murs connus d'OSM",
-    "legende.gpx": "GPX chargé",
     "reglages.titre": "Réglages",
     "reglages.cle": "Clé IGN pour le SCAN 25",
     "reglages.note": "Le SCAN 25 n'est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.",
@@ -383,19 +387,23 @@ const TEXTES = {
     "profil.indisponible": "gpx2elev profile unavailable: {erreur}",
     "resultat.aVerifier": "Points to check along the route",
     "resultat.aucun": "No known crossing on this route.",
+    // DEBUT LEGENDE en : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main
     "legende.titre": "Legend",
+    "legende.fermer": "Hide the legend",
+    "legende.gpx": "Loaded GPX",
     "legende.itineraire": "hike2gpx route",
+    "legende.portion_officielle": "section on an {reseau} path missing from OSM, to check",
     "legende.naif": "standard route, ignoring barriers",
     "legende.bloque": "blocking crossing",
     "legende.verifier": "crossing to check",
     "legende.jonction": "unconnected path (to check)",
+    "legende.osm": "OSM paths (dashed: footpaths)",
+    "legende.barriere": "fences and walls known to OSM",
+    // FIN LEGENDE en
     "jonction.titre": "Unconnected path",
     "jonction.detail": "This path ends {distance} m from another one without touching it in OpenStreetMap: routing cannot go from one to the other. Check on site or on imagery: it may also be a real dead end.",
     "jonction.isole": "This path is connected to no other in OpenStreetMap, and passes {distance} m from one of them: routing cannot use it. Check on site or on imagery: a junction is probably missing.",
     "jonction.corriger": "Fix in OpenStreetMap",
-    "legende.osm": "OSM paths (dashed: footpaths)",
-    "legende.barriere": "fences and walls known to OSM",
-    "legende.gpx": "Loaded GPX",
     "reglages.titre": "Settings",
     "reglages.cle": "IGN key for SCAN 25",
     "reglages.note": "SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.",
@@ -675,6 +683,8 @@ function appliquerLangue(code) {
   for (const id of ["menuPrincipal", "menuButton"]) $(id).setAttribute("aria-label", t("menu.titre"));
   $("menuButton").title = t("menu.titre");
   $("pageFermer").title = t("menu.fermer");
+  $("legendFermer").title = t("legende.fermer");
+  $("legendFermer").setAttribute("aria-label", t("legende.fermer"));
   $("poigneePanneau").title = t("panneau.poignee");
   $("poigneePanneau").setAttribute("aria-label", t("panneau.poignee"));
   $("pageFermer").setAttribute("aria-label", t("menu.fermer"));

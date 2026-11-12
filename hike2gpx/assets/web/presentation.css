@@ -99,9 +99,12 @@ body.redimensionne *{transition:none!important}
 #aVerifier li{margin:8px 0;line-height:1.45}
 .legende{margin-top:8px;border-top:1px solid var(--bordure);padding-top:8px;color:#65768a}
 .legende h3{font-size:11px;font-weight:700;color:#4e6074;margin:0}
+.legende-tete{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.legende-fermer{flex:none;width:22px;height:22px;margin:-4px -6px -4px 0;padding:0;border:0;border-radius:6px;background:transparent;color:#4e6074;font-size:17px;line-height:1;cursor:pointer}
+.legende-fermer:hover{background:#e9f0f8;color:var(--accent)}
+.legende-fermer:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .legende ul{list-style:none;margin:6px 0 0;padding:0}.legende li{display:flex;align-items:center;gap:8px;font-size:11px;line-height:1.35;margin:5px 0}
 .legende .trait{flex:none;width:24px}.legende .pastille{flex:none}
-.legende .trait.gpx{border-top:4px dashed #ffe14a;filter:drop-shadow(0 0 1px #344132)}
 #reglages,#journal{display:block;margin:0;border:1px solid var(--bordure);border-radius:11px;padding:14px;background:transparent}
 .map-activity{position:absolute;left:calc(var(--panneau) + 78px);bottom:22px;z-index:1100;width:min(420px,calc(100% - var(--panneau) - 96px));max-height:min(42vh,330px);overflow-y:auto;border:1px solid #d9e5f18c;background:rgb(255 255 255 / var(--band-opacity));backdrop-filter:blur(2px);border-radius:10px;padding:11px 14px;box-shadow:0 7px 30px #1b354533;pointer-events:none;transition:left .24s ease,width .24s ease}
 .map-activity-row{padding:8px 0;border-top:1px solid #dce8f6}

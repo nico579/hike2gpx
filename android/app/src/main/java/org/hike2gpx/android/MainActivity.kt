@@ -464,29 +464,42 @@ class MainActivity : Activity() {
     }
 
     /**
-     * La légende de la page, au bord droit sous le bandeau : le même ordre et
-     * les mêmes mots que la page du PC. Les couleurs viennent des overlays,
-     * pour qu'une légende ne mente jamais sur ce que la carte montre. Les deux
-     * lignes propres au PC (GPX chargé, tracé standard) manquent : le
-     * téléphone ne les dessine pas.
+     * La légende de la page, en haut à droite sous le bandeau : les mêmes lignes
+     * que celle du PC, dans le même ordre, avec les mêmes mots et les mêmes
+     * couleurs, parce que les deux viennent d'un seul fichier
+     * (hike2gpx/assets/legende.json, via tools/generer_legende.py). Les lignes
+     * propres au PC (GPX chargé, tracé standard) n'y sont pas : le téléphone ne
+     * les dessine pas. La croix la masque, comme la coche des réglages.
      */
     private fun construireLegende(): LinearLayout {
         val boite = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(8), 0, 0)
         }
-        boite.addView(TextView(this).apply {
+        val tete = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        }
+        tete.addView(TextView(this).apply {
             setText(R.string.legende_titre); textSize = 12f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(0xff202020.toInt())
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        tete.addView(TextView(this).apply {
+            text = "×"; textSize = 22f; gravity = Gravity.CENTER
+            setTextColor(0xff404040.toInt())
+            contentDescription = getString(R.string.legende_fermer)
+            minWidth = dp(40); minHeight = dp(32)            // une cible tactile, pas seulement un signe
+            setOnClickListener { reglages.legende = false; appliquerAffichage() }
         })
-        fun ligne(texte: Int, couleur: Int, pastille: Boolean = false, tirets: Boolean = false,
-                  cercle: Int = 0xffffffff.toInt(), epaisseur: Float = 3f): LinearLayout {
+        boite.addView(tete)
+
+        fun ligne(entree: EntreeLegende): LinearLayout {
             val rangee = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             }
             val densite = resources.displayMetrics.density
-            // Le même trait que CalquesOverlay : plein, en tirets, ou une pastille cerclée de blanc.
+            val contour = entree.contour ?: 0xffffffff.toInt()
+            // Le même trait que CalquesOverlay : plein, en tirets, ou une pastille cerclée.
             rangee.addView(object : View(this) {
                 private val pinceau = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     style = Paint.Style.STROKE
@@ -495,56 +508,54 @@ class MainActivity : Activity() {
 
                 override fun onDraw(canvas: Canvas) {
                     val y = height / 2f
-                    if (pastille) {
+                    if (entree.forme == FormeLegende.PASTILLE) {
                         pinceau.style = Paint.Style.FILL
-                        pinceau.color = couleur
+                        pinceau.color = entree.couleur
                         canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
                         pinceau.style = Paint.Style.STROKE
                         pinceau.strokeWidth = 2 * densite
-                        pinceau.color = cercle
+                        pinceau.color = contour
                         canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
                     } else {
                         pinceau.style = Paint.Style.STROKE
-                        pinceau.strokeWidth = epaisseur * densite
-                        pinceau.color = couleur
-                        pinceau.pathEffect = if (tirets)
+                        pinceau.strokeWidth = entree.epaisseur * densite
+                        pinceau.color = entree.couleur
+                        pinceau.pathEffect = if (entree.forme == FormeLegende.TIRETS)
                             DashPathEffect(floatArrayOf(4 * densite, 3 * densite), 0f) else null
                         canvas.drawLine(2 * densite, y, width - 2 * densite, y, pinceau)
                     }
                 }
             }, LinearLayout.LayoutParams(dp(28), dp(16)))
             rangee.addView(TextView(this).apply {
-                setText(texte); textSize = 11f; setTextColor(0xff404040.toInt())
+                setText(entree.texte); textSize = 11f; setTextColor(0xff404040.toInt())
             })
             boite.addView(rangee)
             return rangee
         }
-        // Le même ordre que la page du PC : le tracé de l'itinéraire, le chemin
-        // officiel du pays, les franchissements, puis les calques OSM.
-        ligne(R.string.legende_itineraire, COULEUR_ITINERAIRE, epaisseur = 4f)
-        val officiel = ligne(R.string.legende_officiel, CalquesOverlay.COULEUR_OFFICIEL, tirets = true)
-        ligneOfficiel = officiel
-        texteOfficiel = officiel.getChildAt(1) as TextView
-        ligne(R.string.legende_bloque, CalquesOverlay.COULEUR_BLOQUE, true)
-        ligne(R.string.legende_verifier, CalquesOverlay.COULEUR_A_VERIFIER, true)
-        ligne(R.string.legende_jonction, CalquesOverlay.COULEUR_JONCTION, true,
-            cercle = CalquesOverlay.CONTOUR_JONCTION)
-        ligne(R.string.legende_osm, CalquesOverlay.COULEUR_OSM, tirets = true)
-        ligne(R.string.legende_barriere, CalquesOverlay.COULEUR_BARRIERE)
+        for (entree in LegendeGeneree.ENTREES) {
+            val rangee = ligne(entree)
+            if (entree.id == "chemins_officiels") {
+                // Sa ligne n'existe que là où un lot du pays est installé (majLegendeOfficiel).
+                ligneOfficiel = rangee
+                texteOfficiel = rangee.getChildAt(1) as TextView
+                rangee.visibility = View.GONE
+            }
+        }
         majLegendeOfficiel()
         return boite
     }
 
     /**
-     * La ligne « chemin officiel » suit le pays affiché, comme la page : elle
-     * nomme le réseau du pays (IGN, ATKIS, swissTLM3D…) et disparaît là où
-     * aucun n'existe.
+     * La ligne des chemins officiels est liée au lot : s'il n'y en a pas d'installé
+     * pour la vue, pas de ligne. Quand il y en a un, elle nomme son réseau (IGN,
+     * ATKIS, swissTLM3D…), ou les deux d'une case frontalière. Même règle que les
+     * coches de superposition (fournisseursVisibles).
      */
     private fun majLegendeOfficiel() {
-        val fournisseur = Fournisseurs.TOUS.firstOrNull { it.pays == paysAffiche }
-        ligneOfficiel?.visibility = if (fournisseur == null) View.GONE else View.VISIBLE
-        if (fournisseur != null)
-            texteOfficiel?.text = getString(R.string.legende_officiel, fournisseur.court)
+        val reseaux = fournisseursVisibles().joinToString(" / ") { it.court }
+        ligneOfficiel?.visibility = if (reseaux.isEmpty()) View.GONE else View.VISIBLE
+        if (reseaux.isNotEmpty())
+            texteOfficiel?.text = getString(R.string.legende_chemins_officiels, reseaux)
     }
 
     /**
@@ -913,6 +924,7 @@ class MainActivity : Activity() {
     /** Lit les tuiles de la vue en arrière-plan ; une lecture à la fois. */
     private fun rafraichirCalques() {
         if (isDestroyed) return
+        majLegendeOfficiel()
         val osm = reglages.calqueOsm
         val officiels = reglages.calquesOfficiels
         if ((!osm && officiels.isEmpty()) || carte.zoomLevelDouble < reglages.zoomCalques) {
