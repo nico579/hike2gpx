@@ -8,6 +8,10 @@ const DELAI_CALCUL_MS = 250;
 const CLE_VUE = "hike2gpx.vue";
 const CLE_POINTS = "hike2gpx.points";
 const COULEURS = { blocked: "#d32f2f", uncertain: "#ef6c00" };
+// DEBUT LEGENDE couleur : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main
+const COULEUR_CHEMINS_OFFICIELS = "#00897b";   // chemins de toutes les cartographies nationales
+// FIN LEGENDE couleur
+const LEGENDE_STATUT = { blocked: "bloque", uncertain: "verifier" };   // statut d'un franchissement -> ligne de légende
 
 const etat = { points: [], sequence: 0, minuterie: null, dernier: null, cleIgn: "", version: "", sequenceDenivele: 0,
   suivi: null, statut: ["", false], extrait: null, donneesAttendues: false };
@@ -114,15 +118,14 @@ const TEXTES = {
     // DEBUT LEGENDE fr : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main
     "legende.titre": "Légende",
     "legende.fermer": "Masquer la légende",
-    "legende.gpx": "GPX chargé",
-    "legende.itineraire": "itinéraire hike2gpx",
-    "legende.portion_officielle": "portion sur un chemin {reseau} absent d'OSM, à vérifier",
-    "legende.naif": "tracé standard, qui ignore les barrières",
+    "legende.osm": "chemin OSM",
+    "legende.chemins_officiels": "chemin {reseau}",
+    "legende.itineraire": "tracé itinéraire",
+    "legende.gpx": "import GPX",
+    "legende.barriere": "clôture et mur",
     "legende.bloque": "franchissement bloquant",
     "legende.verifier": "franchissement à vérifier",
     "legende.jonction": "chemin non raccordé (à vérifier)",
-    "legende.osm": "chemins OSM (tirets : sentiers)",
-    "legende.barriere": "clôtures et murs connus d'OSM",
     // FIN LEGENDE fr
     "jonction.titre": "Chemin non raccordé",
     "jonction.detail": "Ce chemin s'arrête à {distance} m d'un autre sans le toucher dans OpenStreetMap : le calcul ne peut pas passer de l'un à l'autre. À vérifier sur place ou sur l'imagerie : il peut aussi s'agir d'un vrai cul-de-sac.",
@@ -389,15 +392,14 @@ const TEXTES = {
     // DEBUT LEGENDE en : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main
     "legende.titre": "Legend",
     "legende.fermer": "Hide the legend",
-    "legende.gpx": "Loaded GPX",
-    "legende.itineraire": "hike2gpx route",
-    "legende.portion_officielle": "section on an {reseau} path missing from OSM, to check",
-    "legende.naif": "standard route, ignoring barriers",
+    "legende.osm": "OSM path",
+    "legende.chemins_officiels": "{reseau} path",
+    "legende.itineraire": "route",
+    "legende.gpx": "GPX import",
+    "legende.barriere": "fence and wall",
     "legende.bloque": "blocking crossing",
     "legende.verifier": "crossing to check",
     "legende.jonction": "unconnected path (to check)",
-    "legende.osm": "OSM paths (dashed: footpaths)",
-    "legende.barriere": "fences and walls known to OSM",
     // FIN LEGENDE en
     "jonction.titre": "Unconnected path",
     "jonction.detail": "This path ends {distance} m from another one without touching it in OpenStreetMap: routing cannot go from one to the other. Check on site or on imagery: it may also be a real dead end.",
@@ -956,29 +958,6 @@ function nomCoche(cle) {
 function nomFond(cle) {
   return FOURNISSEURS_CARTES[paysCarte]?.baseNames?.[cle]?.[langue] || t(`fond.${cle}`);
 }
-const LEGENDES_PROVIDERS = new Map();
-for (const fournisseur of Object.values(FOURNISSEURS_CARTES)) {
-  const entrees = [
-    ...(fournisseur.paths?.overlay ? [[fournisseur.paths.overlay, fournisseur.paths.name,
-      fournisseur.paths.legendStyle]] : []),
-    ...(fournisseur.overlays || []).map((cle) => [cle, fournisseur.overlayNames?.[cle],
-      fournisseur.overlayLegendStyles?.[cle]]),
-  ];
-  for (const [cle, noms, style] of entrees) {
-    if (LEGENDES_PROVIDERS.has(cle)) continue;
-    const ligne = document.createElement("li");
-    ligne.dataset.mapOverlay = cle;
-    ligne.hidden = true;
-    const trait = document.createElement("span");
-    trait.className = "trait";
-    Object.assign(trait.style, style || { borderTop: "3px dashed #8650ac" });
-    const libelle = document.createElement("span");
-    libelle.textContent = ` ${noms?.fr || cle}`;
-    ligne.append(trait, libelle);
-    $("legendRows").append(ligne);
-    LEGENDES_PROVIDERS.set(cle, { ligne, libelle, noms });
-  }
-}
 function cheminsDisponibles(chemins, points = []) {
   if (!chemins?.bounds) return Boolean(chemins);
   const [s, w, n, e] = chemins.bounds;
@@ -1094,15 +1073,15 @@ function texte(contenu) {
 const DESSINS = {
   osm(groupe, donnees) {
     for (const v of donnees.voies) {
-      L.polyline(v.pts, { ...STYLES_OSM[v.genre], renderer: rendu, interactive: false }).addTo(groupe);
+      L.polyline(v.pts, { ...STYLES_OSM[v.genre], renderer: rendu, interactive: false, leg: "osm" }).addTo(groupe);
     }
     for (const b of donnees.barrieres) {
-      L.polyline(b.pts, { color: "#e53935", weight: 3, renderer: rendu })
+      L.polyline(b.pts, { color: "#e53935", weight: 3, renderer: rendu, leg: "barriere" })
         .bindTooltip(texte(`${ts(b.nature)} (OSM)`), { sticky: true }).addTo(groupe);
     }
     for (const f of donnees.franchissements || []) {
       L.circleMarker([f.lat, f.lon], { radius: 6, weight: 2, color: "#fff", fillOpacity: 1,
-        fillColor: COULEURS[f.statut], renderer: renduObstacles, pane: "obstaclesOsm" })
+        fillColor: COULEURS[f.statut], renderer: renduObstacles, pane: "obstaclesOsm", leg: LEGENDE_STATUT[f.statut] })
         .bindPopup(() => bulleFranchissement(f)).addTo(groupe);
     }
     // Un chemin qui finit tout près d'un autre sans le toucher : le calcul n'y
@@ -1110,13 +1089,13 @@ const DESSINS = {
     // franchissements. Un lot fabriqué avant cette couche n'en a pas.
     for (const j of donnees.jonctions || []) {
       L.circleMarker([j.lat, j.lon], { radius: 6, weight: 2, color: "#4e342e", fillOpacity: 1,
-        fillColor: "#fdd835", renderer: renduObstacles, pane: "obstaclesOsm" })
+        fillColor: "#fdd835", renderer: renduObstacles, pane: "obstaclesOsm", leg: "jonction" })
         .bindPopup(() => bulleJonction(j)).addTo(groupe);
     }
   },
 };
 for (const [cle, chemins] of Object.entries(CHEMINS_OFFICIELS)) {
-  DESSINS[cle] = (groupe, donnees) => chemins.draw({ L, groupe, donnees, rendu, texte, t });
+  DESSINS[cle] = (groupe, donnees) => chemins.draw({ couleur: COULEUR_CHEMINS_OFFICIELS, L, groupe, donnees, rendu, texte, t });
 }
 
 // Barre d'une note du panneau (préfixe de ses identifiants : noteCalques,
@@ -1353,14 +1332,47 @@ function choisirPays(pays) {
 
 function afficherOptionsIgn() {
   const chemins = FOURNISSEURS_CARTES[paysCarte]?.paths;
-  $("legendIgn").hidden = !chemins?.source;
-  if (chemins?.legend) $("legendOfficielTexte").textContent = chemins.legend[langue];
   afficherOptionChemins();
-  for (const [cle, { ligne, libelle, noms }] of LEGENDES_PROVIDERS) {
-    ligne.hidden = !calquesDuPays().includes(cle);
-    libelle.textContent = ` ${noms?.[langue] || cle}`;
-  }
+  majLegende();
 }
+
+// Les réseaux nationaux dont un calque est coché, une fois chacun : « IGN », « IGN / swissTLM3D »...
+function reseauxCoches() {
+  const noms = [];
+  // Seuls les chemins qui ont des lots (paths : France, Suisse, Tchéquie, Allemagne, Pologne) ;
+  // les couches d'affichage seul (sentiers espagnols, américains, suisses) gardent leur rendu.
+  for (const f of Object.values(FOURNISSEURS_CARTES)) {
+    const nom = f.paths?.label;
+    if (nom && !noms.includes(nom) && carte.hasLayer(coucheCalque(f.paths.overlay))) noms.push(nom);
+  }
+  return noms;
+}
+
+// La légende ne montre que ce qui est sur la carte : les lignes des calques cochés, et
+// celles dont un objet est dessiné (chaque objet porte son identifiant de ligne dans
+// options.leg). Replanifiée à chaque ajout ou retrait de couche, une fois par image.
+function majLegende() {
+  const presentes = new Set();
+  carte.eachLayer((couche) => { if (couche.options?.leg) presentes.add(couche.options.leg); });
+  const reseaux = reseauxCoches();
+  let visibles = 0;
+  for (const ligne of $("legendRows").children) {
+    const cle = ligne.dataset.legende;
+    const visible = cle === "chemins_officiels" ? reseaux.length > 0 : presentes.has(cle);
+    ligne.hidden = !visible;
+    if (visible) visibles++;
+    if (cle === "chemins_officiels" && visible)
+      $("legendOfficielTexte").textContent = t("legende.chemins_officiels", { reseau: reseaux.join(" / ") });
+  }
+  $("mapLegend").classList.toggle("vide", visibles === 0);
+}
+let legendePlanifiee = false;
+function planifierLegende() {
+  if (legendePlanifiee) return;
+  legendePlanifiee = true;
+  requestAnimationFrame(() => { legendePlanifiee = false; majLegende(); });
+}
+carte.on("layeradd layerremove", planifierLegende);
 
 function afficherOptionChemins() {
   const fournisseur = FOURNISSEURS_CARTES[paysCarte];
@@ -2623,7 +2635,7 @@ function afficher(r) {
     L.polyline(lignes(r.naif), { color: "#555", weight: 4, opacity: 0.7, dashArray: "6 8", interactive: false, pane: "trace" })
       .addTo(couches);
   }
-  L.polyline(lignes(r.itineraire), { color: "#1565c0", weight: 5, opacity: 0.85, interactive: false, pane: "trace" })
+  L.polyline(lignes(r.itineraire), { color: "#1565c0", weight: 5, opacity: 0.85, interactive: false, pane: "trace", leg: "itineraire" })
     .addTo(couches);
   flechesTrace = preparerFleches(r.itineraire.geometry.coordinates);
   afficherFleches();
@@ -2632,7 +2644,7 @@ function afficher(r) {
       .addTo(couches);
   }
   for (const f of r.franchissements) {
-    L.circleMarker([f.lat, f.lon], { radius: 6, weight: 2, color: "#fff", fillOpacity: 1, fillColor: COULEURS[f.statut], pane: "trace" })
+    L.circleMarker([f.lat, f.lon], { radius: 6, weight: 2, color: "#fff", fillOpacity: 1, fillColor: COULEURS[f.statut], pane: "trace", leg: LEGENDE_STATUT[f.statut] })
       .bindPopup(() => bulleFranchissement(f))
       .addTo(couches);
   }
@@ -2805,7 +2817,7 @@ async function chargerGpx(fichier) {
       L.polyline(points, { pane: "gpxImporte", color: "#344132", weight: 7, opacity: 0.9,
         dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
       L.polyline(points, { pane: "gpxImporte", color: "#ffe14a", weight: 4, opacity: 1,
-        dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
+        dashArray: "9 6", interactive: false, leg: "gpx" }).addTo(traceGpxImporte);
       for (const [lat, lon] of points) {
         minLat = Math.min(minLat, lat); minLon = Math.min(minLon, lon);
         maxLat = Math.max(maxLat, lat); maxLon = Math.max(maxLon, lon);
@@ -2815,7 +2827,6 @@ async function chargerGpx(fichier) {
     traceGpxImporte.addTo(carte);
     if (controleFonds) controleFonds.addOverlay(traceGpxImporte, echapper(nomGpxImporte));
     else construireFonds();
-    $("legendGpx").hidden = false;
     $("chargerGpxTexte").dataset.i18n = "bouton.supprimerGpx";
     $("chargerGpxTexte").textContent = t("bouton.supprimerGpx");
     $("chargerGpxIcone").replaceChildren(pictogramme("corbeille").firstChild);
@@ -2835,7 +2846,6 @@ function supprimerGpx() {
   traceGpxImporte.clearLayers();
   $("fichierGpx").value = "";
   nomGpxImporte = null;
-  $("legendGpx").hidden = true;
   $("chargerGpxTexte").dataset.i18n = "bouton.chargerGpx";
   $("chargerGpxTexte").textContent = t("bouton.chargerGpx");
   $("chargerGpxIcone").replaceChildren(pictogramme("charger").firstChild);

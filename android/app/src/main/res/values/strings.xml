@@ -10,6 +10,10 @@
     <string name="effacer">Clear</string>
     <string name="exporter">GPX</string>
     <string name="reglages">Settings</string>
+    <string name="bulle_bloquant">blocking</string>
+    <string name="bulle_verifier">to check</string>
+    <string name="bulle_osm">View on OpenStreetMap</string>
+    <string name="bulle_franchissement">Crossing</string>
     <string name="fermer">Close</string>
     <string name="depart">Start</string>
     <string name="arrivee">Finish</string>
@@ -86,13 +90,13 @@
     <!-- DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main -->
     <string name="legende_titre">Legend</string>
     <string name="legende_fermer">Hide the legend</string>
-    <string name="legende_itineraire">hike2gpx route</string>
-    <string name="legende_chemins_officiels">%1$s paths (dashed: footpaths)</string>
+    <string name="legende_osm">OSM path</string>
+    <string name="legende_chemins_officiels">%1$s path</string>
+    <string name="legende_itineraire">route</string>
+    <string name="legende_barriere">fence and wall</string>
     <string name="legende_bloque">blocking crossing</string>
     <string name="legende_verifier">crossing to check</string>
     <string name="legende_jonction">unconnected path (to check)</string>
-    <string name="legende_osm">OSM paths (dashed: footpaths)</string>
-    <string name="legende_barriere">fences and walls known to OSM</string>
     <!-- FIN LEGENDE -->
 
     <string name="titre_lots">Zones stored locally</string>

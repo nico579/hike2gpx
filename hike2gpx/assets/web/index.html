@@ -30,15 +30,14 @@
     <section id="mapLegend" class="legende" aria-label="Légende de la carte">
       <!-- DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main -->
       <div class="legende-tete"><h3 data-i18n="legende.titre">Légende</h3><button id="legendFermer" type="button" class="legende-fermer" title="Masquer la légende" aria-label="Masquer la légende">×</button></div><ul id="legendRows">
-        <li id="legendGpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">GPX chargé</span></li>
-        <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
-        <li id="legendIgn" hidden><span class="trait ign"></span> <span id="legendOfficielTexte">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
-        <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
-        <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
-        <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
-        <li><span class="pastille jonction"></span> <span data-i18n="legende.jonction">chemin non raccordé (à vérifier)</span></li>
-        <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
-        <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
+        <li data-legende="osm" hidden><span class="trait osm"></span> <span data-i18n="legende.osm">chemin OSM</span></li>
+        <li data-legende="chemins_officiels" hidden><span class="trait officiel"></span> <span id="legendOfficielTexte">chemin IGN</span></li>
+        <li data-legende="itineraire" hidden><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">tracé itinéraire</span></li>
+        <li data-legende="gpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">import GPX</span></li>
+        <li data-legende="barriere" hidden><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôture et mur</span></li>
+        <li data-legende="bloque" hidden><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
+        <li data-legende="verifier" hidden><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
+        <li data-legende="jonction" hidden><span class="pastille jonction"></span> <span data-i18n="legende.jonction">chemin non raccordé (à vérifier)</span></li>
       </ul>
       <!-- FIN LEGENDE -->
     </section>
