@@ -81,16 +81,20 @@ dd { margin: 0; font-weight: 600; }
 .legende ul { list-style: none; padding: 0; margin: 0; }
 .legende li { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
 .trait { display: inline-block; width: 26px; height: 0; border-top: 4px solid var(--accent); }
-.trait.naif { border-top: 3px dashed var(--naif); }
-.trait.ign { border-top: 4px dashed var(--verifier); }
-.trait.osm { border-top: 3px dashed #7b1fa2; }
-.trait.barriere { border-top: 3px solid #e53935; }
 #noteCalques { margin: 0 0 6px; }
 .pastille { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff;
             box-shadow: 0 0 0 1px #0004; }
-.pastille.bloque { background: var(--bloque); }
-.pastille.verifier { background: var(--verifier); }
+/* DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main */
+.trait.gpx { border-top: 4px dashed #ffe14a; filter:drop-shadow(0 0 1px #344132); }
+.trait.itineraire { border-top: 4px solid #1565c0; }
+.trait.ign { border-top: 4px dashed #ef6c00; }
+.trait.naif { border-top: 3px dashed #555555; }
+.pastille.bloque { background: #d32f2f; }
+.pastille.verifier { background: #ef6c00; }
 .pastille.jonction { background: #fdd835; border-color: #4e342e; }
+.trait.osm { border-top: 3px dashed #7b1fa2; }
+.trait.barriere { border-top: 3px solid #e53935; }
+/* FIN LEGENDE */
 
 #reglages { margin-top: 14px; }
 #reglages summary { cursor: pointer; font-weight: 600; }

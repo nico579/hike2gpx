@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any">
   <link rel="stylesheet" href="/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css?v=desktop-13">
-  <link rel="stylesheet" href="/presentation.css?v=desktop-62">
+  <link rel="stylesheet" href="/presentation.css?v=desktop-63">
 </head>
 <body class="panel-collapsed">
 <div class="map-top"><form id="citySearch" class="city-search" role="search" autocomplete="off" hidden><label class="visually-hidden" for="cityQuery" data-i18n="recherche.label">Rechercher une ville</label><input id="cityQuery" type="search" minlength="2" maxlength="80" placeholder="Rechercher une ville…" aria-controls="cityResults"><button id="citySubmit" type="submit" class="avec-icone"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span data-i18n="recherche.bouton">Chercher</span></button><div id="cityResults" class="city-results" role="status" aria-live="polite" hidden></div></form></div>
@@ -28,10 +28,11 @@
   <div class="map-widget-toolbar">
     <p id="offlineHint" class="map-offline-hint" role="status" hidden></p>
     <section id="mapLegend" class="legende" aria-label="Légende de la carte">
-      <h3 data-i18n="legende.titre">Légende</h3><ul id="legendRows">
+      <!-- DEBUT LEGENDE : généré par tools/generer_legende.py depuis hike2gpx/assets/legende.json : ne pas modifier à la main -->
+      <div class="legende-tete"><h3 data-i18n="legende.titre">Légende</h3><button id="legendFermer" type="button" class="legende-fermer" title="Masquer la légende" aria-label="Masquer la légende">×</button></div><ul id="legendRows">
         <li id="legendGpx" hidden><span class="trait gpx"></span> <span data-i18n="legende.gpx">GPX chargé</span></li>
         <li><span class="trait itineraire"></span> <span data-i18n="legende.itineraire">itinéraire hike2gpx</span></li>
-        <li id="legendIgn"><span class="trait ign"></span> <span id="legendOfficielTexte">portion sur un chemin officiel absent d'OSM, à vérifier</span></li>
+        <li id="legendIgn" hidden><span class="trait ign"></span> <span id="legendOfficielTexte">portion sur un chemin IGN absent d'OSM, à vérifier</span></li>
         <li><span class="trait naif"></span> <span data-i18n="legende.naif">tracé standard, qui ignore les barrières</span></li>
         <li><span class="pastille bloque"></span> <span data-i18n="legende.bloque">franchissement bloquant</span></li>
         <li><span class="pastille verifier"></span> <span data-i18n="legende.verifier">franchissement à vérifier</span></li>
@@ -39,6 +40,7 @@
         <li><span class="trait osm"></span> <span data-i18n="legende.osm">chemins OSM (tirets : sentiers)</span></li>
         <li><span class="trait barriere"></span> <span data-i18n="legende.barriere">clôtures et murs connus d'OSM</span></li>
       </ul>
+      <!-- FIN LEGENDE -->
     </section>
   </div>
   <button type="button" class="map-widget-button map-expand-button leaflet-control" id="expandMapButton" aria-label="Mettre la carte en plein écran" aria-pressed="false" title="Mettre la carte en plein écran">
@@ -177,10 +179,10 @@
     <div class="partage-boutons"><button id="fermerFenetrePartage" type="button" data-i18n="partage.fermerFenetre">Fermer</button><button id="arreterPartageFenetre" type="button" data-i18n="partage.fermer">Arrêter le partage</button></div>
   </div>
 </div>
-<script src="/app.js?v=desktop-94"></script>
+<script src="/app.js?v=desktop-95"></script>
 <script src="/nico579-langue.js"></script>
 <!-- Bandeau commun de mise à jour : « Installer » quand une version plus récente est publiée. -->
 <script src="/nico579-maj.js"></script>
-<script src="/presentation.js?v=desktop-38"></script>
+<script src="/presentation.js?v=desktop-39"></script>
 </body>
 </html>

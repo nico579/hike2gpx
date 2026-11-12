@@ -503,6 +503,11 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     try { localStorage.setItem(legendPreference, String(showLegend.checked)); } catch (error) {}
     syncLegend();
   });
+  // La croix de la légende la masque : elle décoche la même case des réglages.
+  document.getElementById("legendFermer").addEventListener("click", () => {
+    showLegend.checked = false;
+    showLegend.dispatchEvent(new Event("change"));
+  });
   syncLegend();
   // L'aide des tuiles hors ligne et la légende restent posées sur la carte.
   toolbar.addEventListener("mousedown", event => event.stopPropagation());
