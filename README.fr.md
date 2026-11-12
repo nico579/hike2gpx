@@ -40,10 +40,25 @@ existe un. [Les sources et leur précision](#le-relief).
 
 ## Mode d'emploi
 
-Les deux applications se téléchargent dans les
-[releases](https://github.com/nico579/hike2gpx/releases) : une archive par
-système pour l'ordinateur, `hike2gpx-android.apk` pour le téléphone. Installées
-depuis une release, elles se mettent à jour d'elles-mêmes ([détail](#installation)).
+### Installer et relancer
+
+**Sur l'ordinateur**, téléchargez l'archive de votre système dans les
+[releases](https://github.com/nico579/hike2gpx/releases), décompressez-la et
+lancez `hike2gpx` : la page s'ouvre dans le navigateur. Au tout premier
+lancement, hike2gpx pose une icône sur le Bureau ; c'est elle qui le relance
+ensuite, après un redémarrage de l'ordinateur par exemple.
+
+Tant qu'il tourne, hike2gpx vit dans la zone de notification (près de
+l'horloge sous Windows, dans la barre des menus sous macOS). Fermer l'onglet du
+navigateur ne l'arrête pas : un double-clic sur son icône rouvre la page. Son
+menu propose « Ouvrir », « Mettre à jour vers x.y » quand une version plus
+récente existe, « Redémarrer », « Arrêter », et « Créer un raccourci sur le
+Bureau » pour remettre l'icône si vous l'avez effacée. Il se met à jour tout
+seul ([détail](#installation)).
+
+**Sur le téléphone**, installez `hike2gpx-android.apk`, à prendre dans les
+mêmes releases (Android demande d'autoriser l'installation depuis cette
+source). L'application se relance comme toutes les autres, par son icône.
 
 ### Sur l'ordinateur
 
@@ -57,7 +72,7 @@ l'enregistre. [Tout sur le tracé](#ce-que-fait-hike2gpx).
 **Télécharger une zone de carte.** Dans « Gestion des cartes », choisissez le
 fond à emporter (SCAN 25, Plan IGN, OpenStreetMap…), puis cliquez sur la carte
 les cases de 1° voulues et « Télécharger ». Les zones de routage, elles, se
-prennent dans « Gestion des itinéraires », par cases de 5° ; en France, elles
+prennent dans « Gestion des itinéraires », par cases de 5° ; dans les cinq pays à carte nationale, elles
 viennent toutes faites du serveur. [Le détail des fonds et des
 lots](#lots-hors-ligne).
 
@@ -79,7 +94,7 @@ protégé](#partager-au-téléphone).
 code de l'ordinateur » et visez le QR code du PC. Le téléphone dit ce qu'il
 lui manque et sa taille, puis télécharge les fonds et les zones de routage,
 chaque fichier vérifié à l'arrivée. Les zones publiées par le serveur
-(la France) se téléchargent aussi d'elles-mêmes, sans PC.
+(France, Suisse, Allemagne, Tchéquie, Pologne) se téléchargent aussi d'elles-mêmes, sans PC.
 
 **Tracer un parcours.** Menu, puis « Planifier un itinéraire » : chaque
 toucher sur la carte pose un point, comme sur l'ordinateur, et le calcul se
@@ -204,7 +219,7 @@ dans « Gestion des itinéraires », le règlent :
 - **Inclure les chemins IGN** (ATKIS en Allemagne…) : laisser BRouter
   emprunter aussi les chemins BD TOPO ou ATKIS absents d'OpenStreetMap. Ils
   s'affichent en tirets orange et rejoignent les points à vérifier, car rien
-  ne garantit qu'ils existent encore ni qu'on y passe. En Espagne, en Suisse
+  ne garantit qu'ils existent encore ni qu'on y passe. En Espagne
   et aux États-Unis, la case nomme les sentiers officiels du pays et précise
   qu'ils ne servent qu'à l'affichage ;
 - **Comparaison** : montrer en pointillé le tracé standard, celui qui ignore
@@ -242,73 +257,76 @@ bas de la carte.
 
 ## Comment ça marche
 
-Le calcul passe par cinq pièces.
+Un itinéraire hike2gpx tient en quatre pièces : un moteur de calcul éprouvé,
+BRouter ; des tuiles que hike2gpx fabrique pour lui ; des coupes posées en
+travers des chemins à chaque calcul, là où une barrière gêne ; et un dénivelé
+recalculé sur un vrai modèle de terrain. Les tuiles se fabriquent à l'avance,
+sur un serveur GitHub pour les pays à carte nationale, sur votre PC ailleurs.
 
-1. **Les franchissements.** Pour la zone du tracé, hike2gpx lit dans
-   OpenStreetMap (dans un extrait installé, ou par Overpass, en tuiles de 0,05°
-   gardées sept jours) les chemins praticables à pied, les barrières dessinées
-   en ligne, les nœuds barrière et les itinéraires de randonnée balisés. Chaque
-   croisement est jugé **bloquant**, **à vérifier** ou **franchissable**, avec
-   les règles de [gpx2elev](https://github.com/nico579/gpx2elev), recopiées
-   telles quelles dans `regles.py` : une clôture traversée sans ouverture
-   cartographiée bloque, un portail sans indication d'accès est à vérifier,
-   `foot=yes` prime sur `access=private`, des horaires ou des conditions
-   laissent un doute.
-2. **Le moteur.** [BRouter](https://github.com/abrensch/brouter), celui
-   qu'utilise Locus, calcule l'itinéraire en local. Chaque franchissement lui
-   arrive comme une petite ligne d'un mètre posée en travers du chemin : sans
-   poids, elle retire le tronçon du calcul ; avec un poids, elle le rend
-   coûteux, de sorte qu'un détour de moins de 300 m environ l'évite. Le profil
-   est celui de la randonnée de BRouter, corrigé pour qu'une interdiction
-   piétonne (`foot=no` ou `foot=private`) soit respectée même là où un vélo
-   passerait ou qu'un trottoir est indiqué. Quand deux coupes tombent sur le
-   même tronçon, l'interdite l'emporte toujours sur la pondérée ; et si le
-   tracé rendu par BRouter passait malgré tout une coupe interdite, hike2gpx le
-   refuserait au lieu de l'afficher.
-3. **La page.** Une page locale, servie par la bibliothèque commune
-   [nico579-commons](https://pypi.org/project/nico579-commons/), qui partage
-   avec les autres applications de nico579 l'icône, la langue et la mise à
-   jour. Chaque calcul laisse sa trace dans le journal de la session
-   (`logs/hike2gpx-<date>.log`, dans le dossier de données ; les dix dernières
-   sessions sont gardées), avec le temps de chaque étape, ses erreurs et ses
-   lenteurs.
-4. **Le dénivelé.** Une fois l'itinéraire affiché, le moteur de
-   [gpx2elev](https://pypi.org/project/gpx2elev/) recalcule son dénivelé :
-   tracé échantillonné tous les 5 m, lissage gaussien de 20 m, hystérésis de
-   2 m. Il prend le meilleur modèle de terrain qui couvre tout le parcours :
-   l'IGN LiDAR HD en France, sinon Mapterhorn, FABDEM, Copernicus GLO-30 ou
-   SRTM. Le chiffre de BRouter, tiré d'un modèle mondial plus grossier, ne sert
-   que d'estimation en attendant ; si aucun modèle ne couvre le parcours, le
-   dénivelé est dit indisponible plutôt que remplacé par ce chiffre.
-5. **Les chemins officiels, en France et en Allemagne.** Un sentier que la BD TOPO connaît et
-   qu'OpenStreetMap ignore n'existe pas pour BRouter, qui ne voit que ses
-   tuiles. hike2gpx fabrique donc sa propre tuile BRouter à partir des données
-   déjà lues : les voies d'OpenStreetMap, plus les tronçons de la BD TOPO qui
-   n'en doublent aucune, raccordés au réseau. La tuile grossit au fil des zones
-   consultées, jusqu'à 25 tuiles de 0,05° avant de repartir de la zone
-   demandée, et ne se refait que pour une zone nouvelle ou des données relues,
-   en six secondes environ pour neuf tuiles. Les franchissements se cherchent
-   alors sur le réseau fusionné : un sentier OSM et un chemin IGN arrêtés de
-   part et d'autre d'une clôture, une fois raccordés, la traversent. Ces
-   chemins coûtent un peu plus que les autres, s'affichent en tirets orange
-   sur l'itinéraire et rejoignent les points à vérifier, car rien ne dit
-   qu'ils existent encore ni qu'on y passe ; un accès piéton restreint dans la
-   BD TOPO les ferme. Une case permet de s'en passer, et si la fabrication
-   échoue, le calcul se fait sur OpenStreetMap seul, avec un avertissement.
-   En Allemagne, le calque ATKIS et le calcul reprennent le même chargement
-   par zone, sans téléchargement préalable de tout un Land. La Bavière et la
-   Thuringe utilisent leurs WFS natifs ; les quatorze autres Länder utilisent
-   les petites tuiles vectorielles officielles de [basemap.de](https://basemap.de/produkte-und-dienste/web-vektor/),
-   dérivées de l'ATKIS Basis-DLM. Ces dernières sont des géométries de
-   présentation, dont la précision et les raccordements restent à vérifier.
-   Tous les chemins ATKIS ajoutés sont pénalisés et signalés « à vérifier ».
-   Sur la tuile du centre de Rosa, 76,6 km de voies ATKIS étudiées manquent à
-   OSM selon la règle de fusion, contre 96,8 km de voies OSM ; ce gain de
-   longueur potentiel ne prouve pas l'accès à pied. La BD TOPO française
-   ajoute de 18 à 100 % selon les zones mesurées. Aux États-Unis, en Suisse
-   et aux Pays-Bas, les sources officielles étudiées ajoutent 0 à 12 % :
-   le calcul y reste sur OSM seul. Mesure et analyse
-   dans [RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+### Le moteur : BRouter
+
+[BRouter](https://github.com/abrensch/brouter), celui qu'utilise Locus Map,
+calcule l'itinéraire en local, sur l'ordinateur comme sur le téléphone, qui
+l'embarque. hike2gpx ne le modifie pas. Il lit des tuiles de 5° sur 5°, les
+RD5, qui contiennent le réseau des chemins et le relief. Le profil est celui de
+la randonnée de BRouter (« hiking-mountain », celui de brouter-web), corrigé
+sur un point : une interdiction piétonne (`foot=no` ou `foot=private`) est
+respectée même là où un vélo passerait ou qu'un trottoir est indiqué.
+
+### Des tuiles BRouter fabriquées par hike2gpx
+
+Le site de BRouter publie chaque nuit des RD5 tirées d'OpenStreetMap seul. Là où
+une carte nationale apporte des chemins, hike2gpx compile les siennes, avec le
+créateur de tuiles de BRouter lui-même, à partir de trois ingrédients.
+
+1. **OpenStreetMap**, lu dans l'extrait [Geofabrik](https://download.geofabrik.de/)
+   de la région, voies entières.
+2. **Les chemins de la carte nationale** (BD TOPO, ATKIS, swissTLM3D, ZABAGED,
+   BDOT10k), mais seulement ceux qui ne doublent aucune voie d'OpenStreetMap,
+   raccordés au réseau par des nœuds insérés dans les voies voisines. Une case
+   de 5° ne tient pas en mémoire d'un bloc : la fusion se fait par mailles de
+   0,25°, chacune lue avec une couronne autour, et un registre commun garde
+   d'une maille à l'autre les mêmes nœuds aux mêmes endroits. Ces chemins
+   portent une marque que le profil rend une fois et demie plus coûteux qu'un
+   chemin OSM équivalent : rien ne dit qu'ils existent encore ni qu'on y passe.
+   La case « Inclure les chemins IGN » de la page les interdit sans changer de
+   tuile. Un accès piéton restreint dans la BD TOPO les ferme.
+3. **Le relief**, celui de [Mapterhorn](https://mapterhorn.com) : le sol nu tiré
+   du LiDAR là où il existe (en France, le MNT LiDAR HD de l'IGN). hike2gpx
+   rapatrie ses tuiles du zoom 12, les rééchantillonne sur la grille d'une
+   seconde d'arc (environ 30 m) qu'attend BRouter, et les lui donne à la
+   compilation. Le calcul pénalise ainsi les pentes du terrain réel, et non
+   celles de la cime des arbres du SRTM que portent les tuiles du site de
+   BRouter.
+
+Le lot d'une case réunit cette RD5, les franchissements de la case, les calques
+qu'affiche la carte (chemins, barrières, franchissements, chemins non
+raccordés) et un manifeste qui donne l'empreinte SHA-256 de chaque fichier.
+Ailleurs dans le monde, le lot reprend la RD5 du site de BRouter (voir
+[Hors des pays du serveur](#hors-des-pays-du-serveur--le-pc-fabrique)).
+
+### Les franchissements, posés à chaque calcul
+
+Les barrières ne sont pas gravées dans la tuile : elles accompagnent le lot, et
+chaque calcul les pose en travers des chemins. hike2gpx lit dans OpenStreetMap
+les chemins praticables à pied, les barrières dessinées en ligne, les nœuds
+barrière et les itinéraires de randonnée balisés. Chaque croisement est jugé
+**bloquant**, **à vérifier** ou **franchissable**, avec les règles de
+[gpx2elev](https://github.com/nico579/gpx2elev), recopiées telles quelles dans
+`regles.py` : une clôture traversée sans ouverture cartographiée bloque, un
+portail sans indication d'accès est à vérifier, `foot=yes` prime sur
+`access=private`, des horaires ou des conditions laissent un doute. Sur un
+réseau fusionné, un sentier OSM et un chemin IGN arrêtés de part et d'autre
+d'une clôture, une fois raccordés, la traversent : les franchissements se
+cherchent donc sur le réseau entier, carte nationale comprise.
+
+Chaque franchissement arrive à BRouter comme une petite ligne d'un mètre posée
+en travers du chemin (son paramètre `polylines`). Sans poids, elle retire le
+tronçon du calcul ; avec un poids, elle le rend coûteux, de sorte qu'un détour
+de moins de 300 m environ l'évite. Quand deux coupes tombent sur le même
+tronçon, l'interdite l'emporte toujours sur la pondérée ; et si le tracé rendu
+par BRouter passait malgré tout une coupe interdite, hike2gpx le refuserait au
+lieu de l'afficher.
 
 Ce que hike2gpx ajoute aux règles de gpx2elev, parce qu'il examine un réseau
 entier et non une seule trace :
@@ -326,6 +344,102 @@ entier et non une seule trace :
 Si OpenStreetMap ne répond pas, le calcul s'arrête : une barrière inconnue ne
 prouve jamais qu'un passage est libre. Et s'il n'existe aucun itinéraire, la
 page le dit, sans relier les points en ligne droite.
+
+### Le dénivelé, recalculé par gpx2elev
+
+Le dénivelé que donne BRouter vient du relief grossier de ses tuiles. Une fois
+l'itinéraire tracé, hike2gpx le recalcule avec le moteur de
+[gpx2elev](https://pypi.org/project/gpx2elev/), selon son protocole publié :
+
+1. le tracé est échantillonné tous les 5 m ;
+2. l'altitude de chaque point est lue dans le meilleur modèle de terrain qui
+   couvre **tout** le parcours, dans cet ordre : IGN LiDAR HD, Mapterhorn,
+   FABDEM, Copernicus GLO-30, SRTM. Un seul modèle pour tout le tracé, jamais
+   un mélange, pour qu'une couture entre deux modèles ne fabrique pas une
+   marche ;
+3. le profil est lissé par une gaussienne de 20 m, qui efface le bruit du
+   modèle sans aplatir une vraie bosse ;
+4. les montées et les descentes se comptent avec une hystérésis de 2 m : une
+   variation n'entre dans le total qu'une fois dépassés 2 m dans le même sens.
+   Un chemin qui ondule d'un mètre sur un kilomètre n'ajoute donc pas cent
+   mètres de montée imaginaires.
+
+La durée suit le modèle de Tobler, appliqué au profil par pas de 20 m : la
+vitesse vaut 6 × e<sup>−3,5 × |pente + 0,05|</sup> km/h, soit environ 5 km/h
+sur le plat, un peu plus en légère descente, beaucoup moins dans les fortes
+pentes. Tant que gpx2elev calcule, le chiffre de BRouter sert d'estimation ; si
+aucun modèle ne couvre le parcours, le dénivelé est dit indisponible plutôt que
+remplacé par ce chiffre.
+
+### Le serveur de lots, sur GitHub
+
+Chaque dimanche à 02 h 17 UTC, GitHub Actions fabrique les lots des quinze
+cases de 5° qui couvrent les pays à carte nationale : la France, la Suisse,
+l'Allemagne, la Tchéquie et la Pologne. Chaque case a sa tâche, en parallèle ;
+la case du Var (E5_N40) demande environ une heure et demie, 6 Go de mémoire et
+35 Go de disque. Une case dont les éditions n'ont pas changé (extrait OSM,
+carte nationale) n'est pas refaite. Les lots partent sur la publication fixe
+« bundles » du dépôt
+[hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles), avec leur
+catalogue `catalog.json`, et chaque fabrication y laisse un compte rendu
+horodaté dans `rapports/`. La logique vit dans ce dépôt-ci
+(`.github/workflows/bundles.yml`), à côté du code qu'elle exécute ; le dépôt
+des lots ne garde qu'un petit appel planifié.
+
+L'ordinateur et le téléphone lisent ce catalogue : un lot se télécharge de
+lui-même dès qu'un calcul ou la carte touche sa case, chaque fichier vérifié
+par son empreinte avant l'installation, et se renouvelle quand le serveur en
+publie un plus récent. Le détail est dans [Lots hors ligne](#lots-hors-ligne).
+
+### Les cartes : fonds et fournisseurs
+
+Chaque pays a son fichier `hike2gpx/assets/web/providers/<pays>.js` : ses fonds
+de carte (le SCAN 25, le Plan IGN et les photos de l'IGN, la carte nationale de
+swisstopo, TopPlusOpen pour l'Allemagne…), ses calques, leurs styles et leurs
+libellés. La carte suit le pays de son centre et propose ses fonds. Les pays
+dont les chemins servent au calcul ont en plus un lecteur dans
+`hike2gpx/providers/` : la BD TOPO par région, l'ATKIS (les WFS de Bavière et
+de Thuringe, ailleurs les tuiles vectorielles de
+[basemap.de](https://basemap.de/produkte-und-dienste/web-vektor/), des
+géométries de présentation dont la précision reste à vérifier), swissTLM3D et
+ZABAGED dans leur édition nationale, la BDOT10k par district. Le registre de ce
+dossier relie les pays à leurs sources ; l'affichage et le calcul suivent
+ensuite le même mécanisme. Le [tableau des pays pris en
+charge](RAPPORT_SOURCES_CHEMINS_BROUTER.md#pays-pris-en-charge) est généré
+depuis ces fichiers.
+
+Pour le téléphone, les fonds se gardent hors ligne quand leur licence le
+permet : les tuiles du SCAN 25, du Plan IGN, des photos ou du relief LiDAR,
+rangées en MBTiles. OpenStreetMap interdit la recopie en masse de ses tuiles :
+le PC fabrique donc, depuis l'extrait Geofabrik, une carte vectorielle au
+format Mapsforge (celui de Locus Map), que le téléphone dessine lui-même.
+
+### Hors des pays du serveur : le PC fabrique
+
+Pour l'Espagne, l'Italie, la Norvège ou n'importe où ailleurs, le serveur ne
+publie rien : c'est votre PC qui prépare le lot, pour la vue affichée ou la case
+entière, depuis « Gestion des itinéraires ». Sans carte nationale, il n'y a
+rien à compiler : la RD5 est celle que le site de BRouter publie chaque nuit,
+et le PC n'y ajoute que ce qu'elle ne contient pas, les franchissements et les
+calques, tirés de l'extrait Geofabrik qu'il a téléchargé. Une vue de quelques
+kilomètres est prête en trois minutes environ. Le lot se partage ensuite au
+téléphone par le Wi-Fi, comme un fond de carte.
+
+Sans lot, la page calcule quand même, à la volée : elle lit OpenStreetMap
+(extrait installé ou Overpass) et, en France ou en Allemagne, refait au fil
+des zones consultées une petite tuile BRouter maison, jusqu'à 25 tuiles de
+0,05°. C'est le mode d'origine de hike2gpx ; un lot installé qui couvre tout le
+parcours passe devant lui, sans réseau.
+
+### La page et le journal
+
+La page locale est servie par la bibliothèque commune
+[nico579-commons](https://pypi.org/project/nico579-commons/), qui partage avec
+les autres applications de nico579 l'icône de la zone de notification, la
+langue et la mise à jour. Chaque calcul laisse sa trace dans le journal de la
+session (`logs/hike2gpx-<date>.log`, dans le dossier de données ; les dix
+dernières sessions sont gardées), avec le temps de chaque étape, ses erreurs et
+ses lenteurs.
 
 ### Données OSM hors ligne
 
@@ -378,8 +492,9 @@ fichier vérifié contre l'empreinte SHA-256 d'un manifeste.
 tant que la page est ouverte : on clique celles qu'on veut, puis « Télécharger ».
 Un lot s'obtient de deux façons :
 
-- **le télécharger depuis le serveur.** Les cases de la France sont fabriquées
-  chaque semaine et publiées sur
+- **le télécharger depuis le serveur.** Les cases de la France, de la Suisse, de
+  l'Allemagne, de la Tchéquie et de la Pologne sont fabriquées chaque semaine
+  ([comment](#le-serveur-de-lots-sur-github)) et publiées sur
   [hike2gpx-bundles](https://github.com/nico579/hike2gpx-bundles) ; la grille
   les montre en bleu. La case du Var, 247 Mo, arrive en quelques dizaines de
   secondes, reprise après une coupure, chaque fichier vérifié avant
