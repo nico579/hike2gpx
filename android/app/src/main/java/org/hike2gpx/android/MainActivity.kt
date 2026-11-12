@@ -120,6 +120,9 @@ class MainActivity : Activity() {
     private var rechercheVille: LinearLayout? = null
     private var sequenceVille = 0
     private var legende: LinearLayout? = null
+    /** La ligne « chemin officiel » de la légende : son réseau dépend du pays. */
+    private var ligneOfficiel: LinearLayout? = null
+    private var texteOfficiel: TextView? = null
     private var courbe: CourbeDenivele? = null
     private var repereProfil: RepereProfil? = null
     private var coordonneesProfil: List<DoubleArray> = emptyList()
@@ -157,6 +160,7 @@ class MainActivity : Activity() {
     private var traceEnregistree: Polyline? = null
     private var fichierTrace: File? = null
     private var insetBas = 0
+    private var insetHaut = 0
     /** Le relief de la trace : cache gpx2elev seulement, sans réseau. */
     private lateinit var reliefTrace: Mapterhorn
     private val traceOccupe = AtomicBoolean(false)
@@ -342,13 +346,13 @@ class MainActivity : Activity() {
         arreter = Button(this).apply { setText(R.string.arreter); visibility = View.GONE }.avecIcone(R.drawable.ic_btn_arreter)
         bandeauHaut.addView(arreter, LinearLayout.LayoutParams(-2, -2))
         racine.addView(bandeauHaut, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-        // La légende est une surcouche de la carte, comme sur la page du PC : au bord droit,
-        // à mi-hauteur, loin du bandeau du haut, des boutons et de la courbe.
+        // La légende est une surcouche de la carte, comme sur la page du PC :
+        // en haut à droite, sous le bandeau quand il est là.
         legende = construireLegende().apply {
             setBackgroundColor(VOILE); setPadding(marge, marge, marge, marge)
         }
-        racine.addView(legende, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL)
-            .apply { marginEnd = marge })
+        racine.addView(legende, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.TOP)
+            .apply { marginEnd = marge; topMargin = marge })
 
         bandeauBas = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         courbe = CourbeDenivele(this).apply {
@@ -416,6 +420,7 @@ class MainActivity : Activity() {
         })
         majBoutonTrace()
         bandeauBas.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placerCommandes() }
+        bandeauHaut.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placerLegende() }
 
         // Android 15 dessine l'application sous les barres du système : les bandeaux s'en écartent.
         racine.setOnApplyWindowInsetsListener { _, insets ->
@@ -424,8 +429,10 @@ class MainActivity : Activity() {
             else @Suppress("DEPRECATION") (insets.systemWindowInsetTop to insets.systemWindowInsetBottom)
             bandeauHaut.setPadding(marge, marge + dessus, marge, marge)
             bandeauBas.setPadding(0, 0, 0, dessous)
+            insetHaut = dessus
             insetBas = dessous
             placerCommandes()
+            placerLegende()
             insets
         }
         setContentView(racine)
@@ -451,10 +458,11 @@ class MainActivity : Activity() {
     }
 
     /**
-     * La légende de la page, sous le bandeau d'état : les mêmes symboles que
-     * ceux dessinés par CalquesOverlay et par le tracé de l'itinéraire. Les
-     * couleurs viennent des overlays, pour qu'une légende ne mente jamais sur
-     * ce que la carte montre.
+     * La légende de la page, au bord droit sous le bandeau : le même ordre et
+     * les mêmes mots que la page du PC. Les couleurs viennent des overlays,
+     * pour qu'une légende ne mente jamais sur ce que la carte montre. Les deux
+     * lignes propres au PC (GPX chargé, tracé standard) manquent : le
+     * téléphone ne les dessine pas.
      */
     private fun construireLegende(): LinearLayout {
         val boite = LinearLayout(this).apply {
@@ -467,7 +475,7 @@ class MainActivity : Activity() {
             setTextColor(0xff202020.toInt())
         })
         fun ligne(texte: Int, couleur: Int, pastille: Boolean = false, tirets: Boolean = false,
-                  cercle: Int = 0xffffffff.toInt()) {
+                  cercle: Int = 0xffffffff.toInt(), epaisseur: Float = 3f): LinearLayout {
             val rangee = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             }
@@ -491,7 +499,7 @@ class MainActivity : Activity() {
                         canvas.drawCircle(width / 2f, y, 5 * densite, pinceau)
                     } else {
                         pinceau.style = Paint.Style.STROKE
-                        pinceau.strokeWidth = 3 * densite
+                        pinceau.strokeWidth = epaisseur * densite
                         pinceau.color = couleur
                         pinceau.pathEffect = if (tirets)
                             DashPathEffect(floatArrayOf(4 * densite, 3 * densite), 0f) else null
@@ -503,16 +511,34 @@ class MainActivity : Activity() {
                 setText(texte); textSize = 11f; setTextColor(0xff404040.toInt())
             })
             boite.addView(rangee)
+            return rangee
         }
-        // Le tracé de l'itinéraire, puis les calques du lot.
-        ligne(R.string.legende_itineraire, 0xff175dcb.toInt())
-        ligne(R.string.legende_officiel, CalquesOverlay.COULEUR_OFFICIEL, tirets = true)
-        ligne(R.string.legende_osm, CalquesOverlay.COULEUR_OSM, tirets = true)
-        ligne(R.string.legende_barriere, CalquesOverlay.COULEUR_BARRIERE)
+        // Le même ordre que la page du PC : le tracé de l'itinéraire, le chemin
+        // officiel du pays, les franchissements, puis les calques OSM.
+        ligne(R.string.legende_itineraire, COULEUR_ITINERAIRE, epaisseur = 4f)
+        val officiel = ligne(R.string.legende_officiel, CalquesOverlay.COULEUR_OFFICIEL, tirets = true)
+        ligneOfficiel = officiel
+        texteOfficiel = officiel.getChildAt(1) as TextView
         ligne(R.string.legende_bloque, CalquesOverlay.COULEUR_BLOQUE, true)
         ligne(R.string.legende_verifier, CalquesOverlay.COULEUR_A_VERIFIER, true)
-        ligne(R.string.legende_jonction, CalquesOverlay.COULEUR_JONCTION, true, cercle = CalquesOverlay.CONTOUR_JONCTION)
+        ligne(R.string.legende_jonction, CalquesOverlay.COULEUR_JONCTION, true,
+            cercle = CalquesOverlay.CONTOUR_JONCTION)
+        ligne(R.string.legende_osm, CalquesOverlay.COULEUR_OSM, tirets = true)
+        ligne(R.string.legende_barriere, CalquesOverlay.COULEUR_BARRIERE)
+        majLegendeOfficiel()
         return boite
+    }
+
+    /**
+     * La ligne « chemin officiel » suit le pays affiché, comme la page : elle
+     * nomme le réseau du pays (IGN, ATKIS, swissTLM3D…) et disparaît là où
+     * aucun n'existe.
+     */
+    private fun majLegendeOfficiel() {
+        val fournisseur = Fournisseurs.TOUS.firstOrNull { it.pays == paysAffiche }
+        ligneOfficiel?.visibility = if (fournisseur == null) View.GONE else View.VISIBLE
+        if (fournisseur != null)
+            texteOfficiel?.text = getString(R.string.legende_officiel, fournisseur.court)
     }
 
     /**
@@ -536,6 +562,7 @@ class MainActivity : Activity() {
         bandeauBas.visibility = if (!bandeauxMasques && modePlan) View.VISIBLE else View.GONE
         afficherCourbe()
         placerCommandes()
+        placerLegende()
     }
 
     /**
@@ -572,6 +599,21 @@ class MainActivity : Activity() {
         // comme sur Locus Map ; la courbe du dénivelé les remonte avec eux.
         droits?.setOffset(dp(8), hauteur + dp(84))
         echelle?.setScaleBarOffset(dp(8), hauteur + dp(104))
+    }
+
+    /**
+     * La légende reste en haut à droite, sous le bandeau quand il est visible :
+     * sans cela elle passerait dessous, ou sous la barre d'état quand le
+     * bandeau est caché.
+     */
+    private fun placerLegende() {
+        val vue = legende ?: return
+        val parametres = vue.layoutParams as? FrameLayout.LayoutParams ?: return
+        val dessus = if (!bandeauxMasques && bandeauHaut.visibility == View.VISIBLE)
+            bandeauHaut.height + dp(8) else insetHaut + dp(8)
+        if (parametres.topMargin == dessus) return
+        parametres.topMargin = dessus
+        vue.layoutParams = parametres
     }
 
     /**
@@ -784,7 +826,7 @@ class MainActivity : Activity() {
         distancesProfil = Denivele.distances(coordonneesProfil)
         trace = Polyline(carte).apply {
             setPoints(geo)
-            outlinePaint.color = 0xff175dcb.toInt()
+            outlinePaint.color = COULEUR_ITINERAIRE
             outlinePaint.strokeWidth = 8f
         }
         carte.overlays.add(1, trace)        // sous les touches et les repères
@@ -1471,6 +1513,7 @@ class MainActivity : Activity() {
         val nouveau = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
         if (nouveau == paysAffiche) return
         paysAffiche = nouveau
+        majLegendeOfficiel()
         if (Fonds.sourceDeCle(reglages.fond) == null &&
             CartesEnLigne.parCle(reglages.fond)?.pays != null)
             appliquerFond(CartesEnLigne.defaut(nouveau))
@@ -2906,6 +2949,8 @@ class MainActivity : Activity() {
         private const val CANAL_EXPORT = "export"
         private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
+        /** Le bleu de l'itinéraire, celui de la page du PC. */
+        private const val COULEUR_ITINERAIRE = 0xff1565c0.toInt()
         /** Une clé IGN valide, comme le réglage du PC : lettres, chiffres, _ et -, 100 au plus. */
         private val CLE_IGN = Regex("[A-Za-z0-9_-]{0,100}")
         /** Le zoom des tuiles vectorielles du lot, et celui où la page montre les calques. */

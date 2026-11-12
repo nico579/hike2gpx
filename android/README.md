@@ -28,8 +28,8 @@ communes françaises répondent d'abord (geo.api.gouv.fr, avec leur
 département) ; ailleurs, ou si la France ne connaît rien, Nominatim donne les
 villes et villages d'OSM avec leur région et leur pays. Une seule réponse
 recadre aussitôt, plusieurs se choisissent dans une liste ; le bandeau de
-recherche se referme ensuite, sans légende pendant la saisie, et un tap sur la
-carte le referme aussi. Le menu « Recherche » reste disponible en planification ;
+recherche se referme ensuite, et un tap sur la carte le referme aussi. Le menu
+« Recherche » reste disponible en planification ;
 pendant l'enregistrement, seul l'état de la trace s'affiche.
 
 Les calques du lot s'affichent sur la carte, comme ceux de la page : les
@@ -57,8 +57,10 @@ PC lit Mapterhorn au zoom 13 : l'écart mesuré sur le D+ reste sous 1 %.
 Le calcul du relief est séparé de celui de l'itinéraire : le tracé s'affiche
 d'abord, le dénivelé arrive ensuite. Sans relief disponible, la ligne le dit et
 la valeur BRouter ne le remplace pas, comme sur le PC. Les bandeaux de
-planification et d'enregistrement ne montrent ni légende ni champ de recherche :
-la carte, l'état et les commandes suffisent. La coche « Afficher courbe du
+planification et d'enregistrement ne montrent pas de champ de recherche : la
+carte, l'état et les commandes suffisent. La légende, elle, reste en haut à
+droite si « Afficher la légende » est cochée, dans le même ordre que celle du
+PC. La coche « Afficher courbe du
 dénivelé » dessine au-dessus des boutons le profil de la page — distance en
 abscisse, altitude lissée en ordonnée, aire bleue et bornes d'altitude. La courbe
 n'apparaît qu'une fois le relief calculé ;

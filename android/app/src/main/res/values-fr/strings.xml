@@ -74,14 +74,14 @@
     <string name="reglages_cle_ign">Clé IGN pour le SCAN 25</string>
     <string name="reglages_cle_note">Le SCAN 25 n’est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</string>
     <string name="reglages_cle_afficher">Afficher la clé</string>
-    <string name="afficher_legende">Afficher légendes</string>
+    <string name="afficher_legende">Afficher la légende</string>
     <string name="afficher_courbe">Afficher courbe du dénivelé</string>
     <string name="courbe_aide">Touchez la courbe pour voir le point correspondant sur le tracé.</string>
     <string name="legende_titre">Légende</string>
     <string name="legende_itineraire">itinéraire hike2gpx</string>
-    <string name="legende_officiel">chemin officiel</string>
+    <string name="legende_officiel">portion sur un chemin %1$s absent d’OSM, à vérifier</string>
     <string name="legende_osm">chemins OSM (tirets : sentiers)</string>
-    <string name="legende_barriere">clôtures et murs OSM</string>
+    <string name="legende_barriere">clôtures et murs connus d’OSM</string>
     <string name="legende_bloque">franchissement bloquant</string>
     <string name="legende_verifier">franchissement à vérifier</string>
     <string name="legende_jonction">chemin non raccordé (à vérifier)</string>
