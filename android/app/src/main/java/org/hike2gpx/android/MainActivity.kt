@@ -1451,10 +1451,16 @@ class MainActivity : Activity() {
                     // l'empreinte des fichiers y entre, pour qu'une carte mise à
                     // jour ne réaffiche pas les tuiles de l'ancienne.
                     val empreinte = vectorielles.joinToString("|") { "${it.name}:${it.length()}:${it.lastModified()}" }
+                    // Le thème par défaut de Mapsforge, dessiné à l'échelle des tuiles
+                    // en ligne (ECHELLE_RENDU) : Mapsforge multiplie par défaut traits
+                    // et textes par la densité de l'écran, et osmdroid, qui affiche
+                    // les tuiles pixel pour pixel, les rendait énormes. Le « v2 » du
+                    // nom écarte les tuiles de l'ancien rendu restées en cache.
                     val source = try {
                         MapsForgeTileSource.createFromFiles(vectorielles.toTypedArray(),
-                            InternalRenderTheme.OSMARENDER,
-                            "mapsforge-$sourcePc-${Integer.toHexString(empreinte.hashCode())}")
+                            InternalRenderTheme.DEFAULT,
+                            "mapsforge-v2-$sourcePc-${Integer.toHexString(empreinte.hashCode())}")
+                            .also { it.setUserScaleFactor(ECHELLE_RENDU / resources.displayMetrics.density) }
                     } catch (e: Exception) {
                         // Fichier illisible ou format Mapsforge inconnu : mieux
                         // vaut une carte en ligne qu'un écran vide.
@@ -2948,6 +2954,8 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        /** Taille de dessin des cartes Mapsforge d'un PC, en pixels d'écran par pixel de la carte : celle des cartes en ligne. */
+        private const val ECHELLE_RENDU = 1f
         private const val EXPORT = 1
         private const val EXPORT_TRACE = 2
         private const val PERMISSION_POSITION = 3
