@@ -62,7 +62,6 @@ import android.widget.TextView
 import android.widget.Toast
 import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
-import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapListener
@@ -222,9 +221,13 @@ class MainActivity : Activity() {
         Configuration.getInstance().userAgentValue = "${Depot.AGENT} (+https://github.com/nico579/hike2gpx)"
         Configuration.getInstance().osmdroidBasePath = File(cacheDir, "osmdroid")
         Configuration.getInstance().osmdroidTileCache = File(cacheDir, "osmdroid/tiles")
-        // Mapsforge dessine les cartes vectorielles (.map) reçues d'un PC ;
-        // son usine graphique se crée une fois, avant toute source.
-        if (AndroidGraphicFactory.INSTANCE == null) MapsForgeTileSource.createInstance(application)
+        // Mapsforge dessine les cartes vectorielles (.map) reçues d'un PC ; son
+        // usine graphique doit recevoir le contexte avant toute source. Sans
+        // condition : Mapsforge 0.21 crée d'office AndroidGraphicFactory.INSTANCE
+        // SANS contexte (bloc statique), si bien qu'un test « INSTANCE == null »
+        // ne l'initialisait jamais, et chaque tuile échouait sur un contexte nul
+        // (carte blanche, 0.9.17).
+        MapsForgeTileSource.createInstance(application)
         reglages = Reglages(this)
         reglages.oublierPcs()                   // un PC ne se contacte qu'au scan de son QR code
         horsLigne = HorsLigne(filesDir)
