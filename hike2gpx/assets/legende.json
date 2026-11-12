@@ -13,7 +13,7 @@
     {"id": "itineraire", "plateformes": ["pc", "android"], "forme": "trait", "epaisseur": 4, "couleur": "#1565c0",
      "fr": "tracé itinéraire", "en": "route",
      "pc": {"classe": "itineraire"}},
-    {"id": "gpx", "plateformes": ["pc"], "forme": "tirets", "epaisseur": 4, "couleur": "#ffe14a",
+    {"id": "gpx", "plateformes": ["pc", "android"], "forme": "tirets", "epaisseur": 4, "couleur": "#ffe14a",
      "fr": "import GPX", "en": "GPX import",
      "pc": {"classe": "gpx", "css": "filter:drop-shadow(0 0 1px #344132)"}},
     {"id": "barriere", "plateformes": ["pc", "android"], "forme": "trait", "epaisseur": 3, "couleur": "#e53935",

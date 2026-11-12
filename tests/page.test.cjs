@@ -150,7 +150,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
-    + " basculerPartage, enregistrerReglages, majLegende, coucheCalque,"
+    + " basculerPartage, enregistrerReglages, lireNomTrace, couleurKml, majLegende, coucheCalque,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -501,7 +501,7 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   page.traceGpxImporte.addTo(carte);
   page.construireFonds();
   assert.equal(page.controle().calques["2026-09-20_09-03"], page.traceGpxImporte);
-  assert.equal(elements.get("chargerGpxTexte").textContent, "Supprimer le GPX");
+  assert.equal(elements.get("chargerGpxTexte").textContent, "Retirer l'import");
   assert.equal(page.etat.points.length, 0);
   assert.equal(stockage.has("hike2gpx.points"), false);
   elements.get("chargerGpx").click();
@@ -509,7 +509,7 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   assert.equal(page.controle().calques["2026-09-20_09-03"], undefined);
   page.majLegende();
   assert.equal(ligneLegende(elements, "gpx").hidden, true);
-  assert.equal(elements.get("chargerGpxTexte").textContent, "Charger un GPX");
+  assert.equal(elements.get("chargerGpxTexte").textContent, "Importer un GPX ou un KML");
 });
 
 test("un GPX invalide conserve le tracé précédemment chargé", async () => {
@@ -1513,4 +1513,24 @@ test("les couches d'affichage seul (Espagne, États-Unis) n'ont pas de ligne de 
   page.coucheCalque("bdtopo").layers.push({ options: {} });
   page.majLegende();
   assert.equal(elements.get("legendOfficielTexte").textContent, "chemin IGN");
+});
+
+test("un KML de gpx2dash : nom, date, D+ et durée lus dans le nom, couleur KML convertie", () => {
+  const { page } = charger();
+  const lu = page.lireNomTrace("2020-12-13_LA ROQUEBRUSSANNE_8.7KM_D+350M_2H18");
+  assert.equal(lu.titre, "LA ROQUEBRUSSANNE");
+  assert.equal(lu.date.toISOString().slice(0, 10), "2020-12-13");
+  assert.equal(lu.km, 8.7);
+  assert.equal(lu.dplus, 350);
+  assert.equal(lu.minutes, 138);
+  const autre = page.lireNomTrace("2015-04-24_Tourris10_Le Revest-les-Eaux_11.5km_D+514m_2h21");
+  assert.equal(autre.titre, "Tourris10 Le Revest-les-Eaux");
+  assert.equal(autre.minutes, 141);
+  const recente = page.lireNomTrace("2026-04-27_12-14 La Roquebrussanne_17.8km_D+690m_3h49");
+  assert.equal(recente.titre, "La Roquebrussanne");
+  assert.equal(recente.heure, "12 h 14");
+  assert.equal(JSON.stringify(page.lireNomTrace("Sortie du dimanche")), JSON.stringify({ titre: "Sortie du dimanche" }));
+  // KML : aabbggrr. ff5622e5 = opaque, rouge e5, vert 22, bleu 56.
+  assert.equal(JSON.stringify(page.couleurKml("ff5622e5")), JSON.stringify({ couleur: "#e52256", opacite: 1 }));
+  assert.equal(JSON.stringify(page.couleurKml("pas une couleur")), "{}");
 });

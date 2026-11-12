@@ -18,6 +18,15 @@
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Recherche</string>
     <string name="menu_cartes">Gestion des cartes</string>
+    <string name="menu_importer">Importer un GPX ou un KML</string>
+    <string name="menu_retirer_import">Retirer l’import</string>
+    <string name="import_lecture">Lecture du fichier…</string>
+    <string name="import_invalide">Fichier GPX ou KML invalide, sans tracé, ou trop volumineux (20 Mo au plus).</string>
+    <string name="import_date">Date : %1$s</string>
+    <string name="import_distance">Distance : %1$s</string>
+    <string name="import_denivele">Dénivelé : + %1$d m / − %2$d m (%3$s)</string>
+    <string name="import_denivele_nom">Dénivelé : + %1$d m</string>
+    <string name="import_duree">Durée : %1$s</string>
     <string name="menu_itineraires">Gestion des itinéraires</string>
     <string name="menu_aide">Aide</string>
     <string name="menu_enregistrer">Enregistrer un parcours</string>
@@ -87,6 +96,7 @@
     <string name="legende_osm">chemin OSM</string>
     <string name="legende_chemins_officiels">chemin %1$s</string>
     <string name="legende_itineraire">tracé itinéraire</string>
+    <string name="legende_gpx">import GPX</string>
     <string name="legende_barriere">clôture et mur</string>
     <string name="legende_bloque">franchissement bloquant</string>
     <string name="legende_verifier">franchissement à vérifier</string>

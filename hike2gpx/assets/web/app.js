@@ -83,10 +83,15 @@ const TEXTES = {
     "bouton.boucler": "Revenir",
     "bouton.bouclerInfo": "Ajoute le point de départ à la fin du parcours pour fermer la boucle.",
     "bouton.exporter": "Exporter le GPX",
-    "bouton.chargerGpx": "Charger un GPX",
-    "bouton.supprimerGpx": "Supprimer le GPX",
-    "gpx.erreur": "Impossible de charger ce GPX : {message}",
-    "gpx.invalide": "fichier GPX invalide ou sans tracé.",
+    "bouton.chargerGpx": "Importer un GPX ou un KML",
+    "bouton.supprimerGpx": "Retirer l'import",
+    "gpx.erreur": "Impossible de charger ce fichier : {message}",
+    "gpx.invalide": "fichier GPX ou KML invalide, ou sans tracé.",
+    "trace.date": "Date : {date}",
+    "trace.distance": "Distance : {km}",
+    "trace.denivele": "Dénivelé : + {plus} m / − {moins} m ({modele})",
+    "trace.deniveleNom": "Dénivelé : + {plus} m",
+    "trace.duree": "Durée : {duree}",
     "gpx.tropGrand": "fichier trop volumineux (20 Mo maximum).",
     "option.strict": "Inclure les blocages à vérifier",
     "option.cheminsRoutables": "Inclure les chemins {nom}",
@@ -357,10 +362,15 @@ const TEXTES = {
     "bouton.boucler": "Return",
     "bouton.bouclerInfo": "Adds the starting point to the end of the route to close the loop.",
     "bouton.exporter": "Export GPX",
-    "bouton.chargerGpx": "Load a GPX",
-    "bouton.supprimerGpx": "Remove GPX",
-    "gpx.erreur": "Unable to load this GPX: {message}",
-    "gpx.invalide": "invalid GPX file or no track found.",
+    "bouton.chargerGpx": "Import a GPX or KML",
+    "bouton.supprimerGpx": "Remove the import",
+    "gpx.erreur": "Unable to load this file: {message}",
+    "gpx.invalide": "invalid GPX or KML file, or no track found.",
+    "trace.date": "Date: {date}",
+    "trace.distance": "Distance: {km}",
+    "trace.denivele": "Elevation: + {plus} m / − {moins} m ({modele})",
+    "trace.deniveleNom": "Elevation gain: + {plus} m",
+    "trace.duree": "Time: {duree}",
     "gpx.tropGrand": "file too large (20 MB maximum).",
     "option.strict": "Include crossings to check",
     "option.cheminsRoutables": "Include {nom} paths",
@@ -998,6 +1008,8 @@ carte.createPane("sensTrace").style.zIndex = 451;
 carte.createPane("gpxImporte").style.zIndex = 449;
 carte.createPane("obstaclesOsm").style.zIndex = 452;
 const traceGpxImporte = L.layerGroup();
+// Un KML porte souvent des centaines de traces : un seul canevas, une marge de clic de 6 px.
+const renduImport = L.canvas({ pane: "gpxImporte", tolerance: 6 });
 let nomGpxImporte = null;
 let sequenceImportGpx = 0;
 const rendu = L.canvas({ padding: 0.2 });
@@ -2809,26 +2821,132 @@ function lireTracesGpx(source) {
   return segments;
 }
 
+// KML (Google Earth, Géoportail, gpx2dash…) : une trace par Placemark, avec la
+// couleur et l'épaisseur de son style, et ses données (ExtendedData, en JSON
+// quand elles viennent de gpx2elev).
+function couleurKml(texte) {
+  // KML écrit aabbggrr : alpha, puis bleu, vert, rouge.
+  const m = /^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec((texte || "").trim());
+  return m ? { couleur: `#${m[4]}${m[3]}${m[2]}`, opacite: parseInt(m[1], 16) / 255 } : {};
+}
+
+function enfant(element, nom) {
+  return Array.from(element.children).find((e) => e.localName === nom);
+}
+
+function lireTracesKml(source) {
+  const xml = new DOMParser().parseFromString(source, "application/xml");
+  if (xml.documentElement?.localName !== "kml" || xml.getElementsByTagName("parsererror").length) {
+    throw new Error(t("gpx.invalide"));
+  }
+  const styles = new Map();
+  for (const style of xml.getElementsByTagNameNS("*", "Style")) {
+    const ligne = style.getElementsByTagNameNS("*", "LineStyle")[0];
+    if (!style.getAttribute("id") || !ligne) continue;
+    const valeur = (nom) => ligne.getElementsByTagNameNS("*", nom)[0]?.textContent;
+    styles.set(style.getAttribute("id"), { ...couleurKml(valeur("color")), epaisseur: Number(valeur("width")) || null });
+  }
+  const traces = [];
+  for (const repere of xml.getElementsByTagNameNS("*", "Placemark")) {
+    const segments = [];
+    for (const ligne of repere.getElementsByTagNameNS("*", "LineString")) {
+      const points = [];
+      const brut = ligne.getElementsByTagNameNS("*", "coordinates")[0]?.textContent || "";
+      for (const triplet of brut.trim().split(/\s+/)) {
+        const [lon, lat] = triplet.split(",").map(Number);
+        if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) points.push([lat, lon]);
+      }
+      if (points.length > 1) segments.push(points);
+    }
+    if (!segments.length) continue;
+    const infos = {};
+    for (const donnee of repere.getElementsByTagNameNS("*", "Data")) {
+      const valeur = donnee.getElementsByTagNameNS("*", "value")[0]?.textContent ?? "";
+      try { infos[donnee.getAttribute("name")] = JSON.parse(valeur); } catch { infos[donnee.getAttribute("name")] = valeur; }
+    }
+    const lien = (enfant(repere, "styleUrl")?.textContent || "").trim().replace(/^#/, "");
+    traces.push({ nom: (enfant(repere, "name")?.textContent || "").trim(), segments, style: styles.get(lien) || {}, infos });
+  }
+  if (!traces.length) throw new Error(t("gpx.invalide"));
+  return traces;
+}
+
+// gpx2dash nomme ses traces « 2020-12-13_LA ROQUEBRUSSANNE_8.7KM_D+350M_2H18 » :
+// la date, le lieu, la distance, le D+ et la durée ; les plus récentes ajoutent
+// l'heure de départ devant le lieu (« 2026-04-27_12-14 La Roquebrussanne_… »).
+// Un autre nom reste tel quel.
+function lireNomTrace(nom) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})_(?:(\d{1,2})-(\d{2})\s+)?(.+?)(?:_([\d.]+)km)?(?:_D\+(\d+)m)?(?:_(\d+)h(\d+))?$/i.exec(nom);
+  if (!m) return { titre: nom };
+  return { titre: m[6].replace(/_/g, " "), date: new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])),
+    heure: m[4] ? `${Number(m[4])} h ${m[5]}` : null,
+    km: m[7] ? Number(m[7]) : null, dplus: m[8] ? Number(m[8]) : null, minutes: m[9] ? Number(m[9]) * 60 + Number(m[10]) : null };
+}
+
+function longueurTrace(segments) {
+  let metres = 0;
+  for (const points of segments) {
+    for (let i = 1; i < points.length; i++) metres += L.latLng(points[i - 1]).distanceTo(L.latLng(points[i]));
+  }
+  return metres;
+}
+
+// La bulle d'une trace importée : son nom, sa date, sa distance, son dénivelé, sa durée.
+function bulleTraceImportee(trace) {
+  const div = document.createElement("div");
+  div.className = "bulle";
+  const lu = lireNomTrace(trace.nom);
+  const lignes = [];
+  if (lu.date) {
+    const jour = lu.date.toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR",
+      { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+    lignes.push(t("trace.date", { date: lu.heure ? `${jour}, ${lu.heure}` : jour }));
+  }
+  // La distance du nom vient du GPX complet ; la géométrie d'un KML est souvent simplifiée.
+  lignes.push(t("trace.distance", { km: km(lu.km != null ? lu.km * 1000 : longueurTrace(trace.segments)) }));
+  const d = trace.infos.denivele_exact;
+  if (d && Number.isFinite(d.Dplus_m) && Number.isFinite(d.Dmoins_m)) {
+    const modele = typeof trace.infos.modele === "string" ? trace.infos.modele : "gpx2elev";
+    lignes.push(t("trace.denivele", { plus: Math.round(d.Dplus_m), moins: Math.round(d.Dmoins_m), modele }));
+  } else if (lu.dplus != null) {
+    lignes.push(t("trace.deniveleNom", { plus: lu.dplus }));
+  }
+  if (lu.minutes != null) lignes.push(t("trace.duree", { duree: dureeLongue(lu.minutes * 60) }));
+  div.append(paragraphe(lu.titre || trace.nom, true), ...lignes.map((l) => paragraphe(l)));
+  return div;
+}
+
 async function chargerGpx(fichier) {
   const sequence = ++sequenceImportGpx;
   $("erreurGpx").hidden = true;
   try {
     if (fichier.size > 20_000_000) throw new Error(t("gpx.tropGrand"));
-    const segments = lireTracesGpx(await fichier.text());
+    const texte = await fichier.text();
+    const kml = /\.kml$/i.test(fichier.name) || /<kml[\s>]/.test(texte.slice(0, 1000));
+    const traces = kml ? lireTracesKml(texte) : [{ segments: lireTracesGpx(texte) }];
     if (sequence !== sequenceImportGpx) return;
     traceGpxImporte.clearLayers();
     let minLat = 90, minLon = 180, maxLat = -90, maxLon = -180;
-    for (const points of segments) {
-      L.polyline(points, { pane: "gpxImporte", color: "#344132", weight: 7, opacity: 0.9,
-        dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
-      L.polyline(points, { pane: "gpxImporte", color: "#ffe14a", weight: 4, opacity: 1,
-        dashArray: "9 6", interactive: false, leg: "gpx" }).addTo(traceGpxImporte);
-      for (const [lat, lon] of points) {
-        minLat = Math.min(minLat, lat); minLon = Math.min(minLon, lon);
-        maxLat = Math.max(maxLat, lat); maxLon = Math.max(maxLon, lon);
+    for (const trace of traces) {
+      for (const points of trace.segments) {
+        if (kml) {
+          // Le rendu du fichier, comme Géoportail : sa couleur et son épaisseur ; un clic ouvre la bulle de la trace.
+          L.polyline(points, { pane: "gpxImporte", renderer: renduImport, color: trace.style.couleur || "#ffe14a",
+            opacity: trace.style.opacite ?? 1, weight: trace.style.epaisseur || 4, bubblingMouseEvents: false })
+            .bindPopup(() => bulleTraceImportee(trace)).addTo(traceGpxImporte);
+        } else {
+          L.polyline(points, { pane: "gpxImporte", color: "#344132", weight: 7, opacity: 0.9,
+            dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
+          L.polyline(points, { pane: "gpxImporte", color: "#ffe14a", weight: 4, opacity: 1,
+            dashArray: "9 6", interactive: false, leg: "gpx" }).addTo(traceGpxImporte);
+        }
+        for (const [lat, lon] of points) {
+          minLat = Math.min(minLat, lat); minLon = Math.min(minLon, lon);
+          maxLat = Math.max(maxLat, lat); maxLon = Math.max(maxLon, lon);
+        }
       }
     }
-    nomGpxImporte = fichier.name.replace(/\.gpx$/i, "") || fichier.name;
+    nomGpxImporte = fichier.name.replace(/\.(gpx|kml)$/i, "") || fichier.name;
     traceGpxImporte.addTo(carte);
     if (controleFonds) controleFonds.addOverlay(traceGpxImporte, echapper(nomGpxImporte));
     else construireFonds();

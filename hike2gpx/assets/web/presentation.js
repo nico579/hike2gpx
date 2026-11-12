@@ -241,6 +241,8 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   menuButton.addEventListener("click", () => setMenuOpen(menu.hidden));
   menuBackdrop.addEventListener("click", () => setMenuOpen(false));
   document.getElementById("aide").addEventListener("click", () => setMenuOpen(false));
+  // Importer ouvre le sélecteur de fichiers (app.js) : le menu se referme sur la carte.
+  document.getElementById("chargerGpx").addEventListener("click", () => setMenuOpen(false));
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !menu.hidden) {
       setMenuOpen(false);

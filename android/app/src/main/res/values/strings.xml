@@ -20,6 +20,15 @@
     <string name="menu_titre">Menu</string>
     <string name="menu_recherche">Search</string>
     <string name="menu_cartes">Map management</string>
+    <string name="menu_importer">Import a GPX or KML</string>
+    <string name="menu_retirer_import">Remove the import</string>
+    <string name="import_lecture">Reading the file…</string>
+    <string name="import_invalide">Invalid GPX or KML file, no track, or too large (20 MB at most).</string>
+    <string name="import_date">Date: %1$s</string>
+    <string name="import_distance">Distance: %1$s</string>
+    <string name="import_denivele">Elevation: + %1$d m / − %2$d m (%3$s)</string>
+    <string name="import_denivele_nom">Elevation gain: + %1$d m</string>
+    <string name="import_duree">Time: %1$s</string>
     <string name="menu_itineraires">Route management</string>
     <string name="menu_aide">Help</string>
     <string name="menu_enregistrer">Record a track</string>
@@ -89,6 +98,7 @@
     <string name="legende_osm">OSM path</string>
     <string name="legende_chemins_officiels">%1$s path</string>
     <string name="legende_itineraire">route</string>
+    <string name="legende_gpx">GPX import</string>
     <string name="legende_barriere">fence and wall</string>
     <string name="legende_bloque">blocking crossing</string>
     <string name="legende_verifier">crossing to check</string>
