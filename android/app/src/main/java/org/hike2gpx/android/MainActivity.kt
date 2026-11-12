@@ -1,5 +1,6 @@
 package org.hike2gpx.android
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
@@ -38,6 +39,9 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+import androidx.annotation.RequiresApi
 import android.database.sqlite.SQLiteDatabase
 import android.view.Gravity
 import android.view.KeyEvent
@@ -216,7 +220,23 @@ class MainActivity : Activity() {
      */
     private var sourceMapsforge: MapsForgeTileSource? = null
 
+    /** Le geste retour d'Android 13+ : quitte le mode en cours, sinon laisse le système agir. */
+    private var retourSysteme: OnBackInvokedCallback? = null
+
     override fun onCreate(etatSauve: Bundle?) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val rappel = OnBackInvokedCallback {
+                if (!quitterModes()) {
+                    // Rien à quitter : le comportement du système, sans notre rappel.
+                    onBackInvokedDispatcher.unregisterOnBackInvokedCallback(retourSysteme!!)
+                    onBackPressed()
+                    onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                        OnBackInvokedDispatcher.PRIORITY_DEFAULT, retourSysteme!!)
+                }
+            }
+            retourSysteme = rappel
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, rappel)
+        }
         super.onCreate(etatSauve)
         Configuration.getInstance().userAgentValue = "${Depot.AGENT} (+https://github.com/nico579/hike2gpx)"
         Configuration.getInstance().osmdroidBasePath = File(cacheDir, "osmdroid")
@@ -2238,6 +2258,8 @@ class MainActivity : Activity() {
                 gestionnairePosition.requestLocationUpdates(fournisseur, 1_000L, 0f, ecoute,
                     Looper.getMainLooper())
                 posee = true
+            } catch (e: SecurityException) {
+                // permission retirée entre-temps : pas de position
             } catch (e: Exception) {
                 // fournisseur absent : l'autre suffit
             }
@@ -2261,6 +2283,8 @@ class MainActivity : Activity() {
         return listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).mapNotNull {
             try {
                 gestionnairePosition.getLastKnownLocation(it)
+            } catch (e: SecurityException) {
+                null
             } catch (e: Exception) {
                 null
             }
@@ -2537,13 +2561,12 @@ class MainActivity : Activity() {
         if (reseauDisponible()) listOf(IgnLidar(), mapterhorn.source()) else listOf(mapterhorn.source())
 
     /**
-     * Android 10 et plus : le GPX va directement dans Téléchargements (MediaStore,
-     * sans permission ni sélecteur), comme sur le PC. Avant, il faudrait une
-     * permission d'écriture : le sélecteur de fichiers reste.
+     * Android 10 et plus (les appelants testent la version) : le GPX va directement
+     * dans Téléchargements (MediaStore, sans permission ni sélecteur), comme sur le
+     * PC. Avant, il faudrait une permission d'écriture : le sélecteur de fichiers reste.
+     * Vrai si le fichier est écrit ; sinon l'erreur est dans le bandeau. Pas de message de succès.
      */
-    private val telechargementsDirects get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-
-    /** Vrai si le fichier est écrit ; sinon l'erreur est dans le bandeau. Pas de message de succès. */
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun ecrireTelechargements(nom: String, octets: ByteArray): Boolean {
         return try {
             val valeurs = ContentValues().apply {
@@ -2596,7 +2619,7 @@ class MainActivity : Activity() {
     }
 
     private fun lancerExport(nom: String) {
-        if (telechargementsDirects) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val octets = contenuExport ?: fichierTrace?.takeIf { it.isFile }?.readBytes()
             contenuExport = null
             // Le « calcul du dénivelé » qui précédait s'efface : le fichier est dans Téléchargements.
@@ -2636,7 +2659,7 @@ class MainActivity : Activity() {
         // Horodaté comme la trace GPS (« trace-… »), avec son propre préfixe pour ne pas les confondre.
         val nom = "itineraire-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
         val coordonnees = dernier?.coordonnees ?: return
-        if (telechargementsDirects) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ecrireTelechargements(nom, Gpx.ecrire(coordonnees).toByteArray())
             return
         }
@@ -2924,19 +2947,28 @@ class MainActivity : Activity() {
             .show()
     }
 
-    /** Retour : d'abord quitter le mode (planification ou recherche), ensuite l'application. */
+    /** Quitte la planification ou la recherche ; faux s'il n'y en avait pas. */
+    private fun quitterModes(): Boolean {
+        if (!modePlan && !modeRecherche) return false
+        modePlan = false
+        modeRecherche = false
+        effacerReperes()
+        majBoutonTrace()
+        cacherClavier()
+        renduALaCarte()
+        appliquerAffichage()
+        return true
+    }
+
+    /**
+     * Retour : d'abord quitter le mode (planification ou recherche), ensuite l'application.
+     * Avant Android 13 le système appelle onBackPressed ; depuis, le geste passe par
+     * [retourSysteme] (enregistré dans onCreate) et n'appelle plus onBackPressed.
+     */
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    @SuppressLint("GestureBackNavigation")          // le chemin Android 13+ est retourSysteme
     override fun onBackPressed() {
-        if (modePlan || modeRecherche) {
-            modePlan = false
-            modeRecherche = false
-            effacerReperes()
-            majBoutonTrace()
-            cacherClavier()
-            renduALaCarte()
-            appliquerAffichage()
-            return
-        }
+        if (quitterModes()) return
         super.onBackPressed()
     }
 

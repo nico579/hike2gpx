@@ -4,7 +4,6 @@
     <string name="etat_pret">Tap the map to set the start, then the finish.</string>
     <string name="etat_depart_pose">Start set: tap the finish.</string>
     <string name="arreter">Stop</string>
-    <string name="fond">Map</string>
     <string name="retirer">Remove</string>
     <string name="revenir">Return</string>
     <string name="effacer">Clear</string>
@@ -54,7 +53,6 @@
     <string name="cartes_supprimer_titre">Delete the base map</string>
     <string name="cartes_supprimer_message">Delete %1$s from the phone? The file will be erased.</string>
 
-    <string name="titre_itineraire">Route</string>
     <string name="strict">Include crossings to check</string>
     <string name="officiels">Include %1$s paths</string>
     <string name="officiels_aucun">Include the official paths</string>
@@ -232,7 +230,6 @@
     <string name="trace_notification_texte">Tap to open hike2gpx. Points are kept even with the screen off.</string>
     <string name="trace_recuperee">Interrupted track recovered: %1$s</string>
     <string name="trace_titre">GPS track recorded</string>
-    <string name="trace_resume">%1$s, %2$s, %3$s.</string>
     <string name="trace_fichier">File: %1$s</string>
     <string name="trace_exporter">Export the GPX</string>
     <string name="trace_etat">GPS track: %1$s, %2$s, %3$s, ascent %4$d m / descent %5$d m.</string>

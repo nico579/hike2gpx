@@ -23,7 +23,7 @@ import sqlite3
 from collections import defaultdict
 from pathlib import Path
 
-from . import franchissements as fr, fusion, geofabrik
+from . import franchissements as fr, fusion
 
 MAILLE_DEG = 0.25
 HALO_DEG = 0.05
@@ -93,15 +93,6 @@ def mailles(sud: float, ouest: float, nord: float, est: float) -> list:
     return [(la * MAILLE_DEG, lo * MAILLE_DEG)
             for la in range(rang(sud), rang(nord - 1e-9) + 1)
             for lo in range(rang(ouest), rang(est - 1e-9) + 1)]
-
-
-def elements_osm(extrait: dict, sud: float, ouest: float) -> list:
-    """Les éléments OSM de la maille et de sa couronne, lus dans l'index local."""
-    elements = []
-    for i, j in fr.tuiles_zone(sud - HALO_DEG, ouest - HALO_DEG,
-                               sud + MAILLE_DEG + HALO_DEG, ouest + MAILLE_DEG + HALO_DEG):
-        elements += geofabrik.elements_tuile(extrait, i, j)
-    return elements
 
 
 class Registre:
