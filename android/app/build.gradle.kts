@@ -66,6 +66,7 @@ android {
 
 dependencies {
     implementation(libs.osmdroid)
+    implementation(libs.osmdroid.mapsforge)
     implementation(libs.gson)
     implementation(libs.core)
     implementation(libs.zxing)

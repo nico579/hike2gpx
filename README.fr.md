@@ -113,8 +113,8 @@ ZABAGED, swissTLM3D ou BDOT10k). Le registre de ce dossier relie les pays aux
 sources ; la lecture par zone et l'affichage suivent ensuite le même mécanisme.
 
 Le fond et les calques se choisissent dans « Gestion des cartes » ; la légende
-s'affiche sur la carte, et « Afficher la légende », dans les réglages, la
-cache. « Recherche » déplie en haut de la carte un champ qui la recentre sur
+s'affiche en haut à droite de la carte, et « Afficher la légende », dans les
+réglages, la cache. « Recherche » déplie en haut de la carte un champ qui la recentre sur
 une ville : les communes françaises par l'API Géo de l'État, le reste du monde
 par Nominatim, le moteur de recherche d'OpenStreetMap. Un bouton passe la
 carte en plein écran. Dans le menu, un voyant indique

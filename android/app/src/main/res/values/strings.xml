@@ -52,7 +52,7 @@
     <string name="etat_fond_installe">Base map %1$s installed.</string>
     <string name="cartes_a_telecharger">Download areas from the computer</string>
     <string name="cartes_supprimer_titre">Delete the base map</string>
-    <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
+    <string name="cartes_supprimer_message">Delete %1$s from the phone? The file will be erased.</string>
 
     <string name="titre_itineraire">Route</string>
     <string name="strict">Include crossings to check</string>
@@ -76,14 +76,14 @@
     <string name="reglages_cle_ign">IGN key for SCAN 25</string>
     <string name="reglages_cle_note">SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.</string>
     <string name="reglages_cle_afficher">Show the key</string>
-    <string name="afficher_legende">Show legend</string>
+    <string name="afficher_legende">Show the legend</string>
     <string name="afficher_courbe">Show elevation profile</string>
     <string name="courbe_aide">Touch the profile to see the matching point on the route.</string>
     <string name="legende_titre">Legend</string>
     <string name="legende_itineraire">hike2gpx route</string>
-    <string name="legende_officiel">official path</string>
+    <string name="legende_officiel">section on an official %1$s path missing from OSM, to check</string>
     <string name="legende_osm">OSM paths (dashed: footpaths)</string>
-    <string name="legende_barriere">OSM fences and walls</string>
+    <string name="legende_barriere">fences and walls known to OSM</string>
     <string name="legende_bloque">blocking crossing</string>
     <string name="legende_verifier">crossing to check</string>
     <string name="legende_jonction">unconnected path (to check)</string>
