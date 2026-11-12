@@ -2,12 +2,12 @@
 
 # hike2gpx
 
-hike2gpx plans hikes and exports the route as GPX, with its elevation gain
-and its walking time. It comes in two versions that complement each other: a
-desktop application (Windows, macOS, Linux) and an Android application. The
-computer prepares what the phone carries: it builds base maps and routing
-areas, then shares them over Wi-Fi with a QR code. The phone then computes its
-routes offline, in the middle of a hike, with no network.
+hike2gpx plans hikes and exports the route as GPX. It comes in two versions
+that complement each other: a desktop application (Windows, macOS, Linux) and
+an Android application. The computer prepares what the phone carries: it
+builds base maps and routing areas, then shares them over Wi-Fi with a QR
+code. The phone then computes its routes offline, in the middle of a hike,
+with no network.
 
 Three things set it apart from the usual planners (Visorando, Locus Map,
 brouter-web).
@@ -16,21 +16,16 @@ brouter-web).
 These planners do not see them: their routing engines only read the tags on
 the nodes of the path, and a fence is a separate line. hike2gpx examines the
 network of the area beforehand, finds every crossing between a path and a
-barrier, judges it, then forbids or discourages the passage. In Garéoult (Var,
-France), BRouter's standard hiking profile goes through a concrete fence on a
-69 m stretch; hike2gpx goes around it with a 435 m detour.
+barrier, judges it, then forbids or discourages the passage.
+[An example in Garéoult](#fences-and-barriers).
 
 **It combines OpenStreetMap with national maps.** A path that IGN (the French
 national mapping agency) knows and OpenStreetMap does not does not exist for an
 engine that reads only the latter. hike2gpx adds IGN's BD TOPO (France), ATKIS
 (Germany), swissTLM3D (Switzerland), ZABAGED (Czechia) and BDOT10k (Poland,
 Lower Silesia only). This is not every country, on purpose: only those where
-the national map brings a significant share of new paths are kept. On the
-areas studied, BD TOPO adds 18% to 100% in length of candidate paths, ATKIS
-12% to 127%, ZABAGED 40% to 66%, while the United States and the Netherlands
-stay between 0% and 12%. These percentages measure possible lengths, not a
-guaranteed gain: the method and its caveats are in
-[RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+the national map brings a significant share of new paths are kept.
+[The figures country by country](#national-maps).
 
 **It computes elevation on the ground, not on the treetops.** Under a forest, a
 surface model such as SRTM or Copernicus, both derived from radar, rather
@@ -38,12 +33,86 @@ measures the top of the canopy, and distorts the slopes. LiDAR sends laser
 pulses, some of which pass through the foliage to the ground: from them one
 builds a true digital terrain model (DTM), the bare ground. hike2gpx takes the
 best terrain model that covers the whole route: in France, IGN's LiDAR HD;
-elsewhere Mapterhorn, which takes the national LiDAR whenever one exists:
-about two hundred national and regional models, at 0.25 m to 10 m resolution,
-for almost all of Europe, the United States, Canada, Japan, Australia and New
-Zealand. Outside these areas it falls back on Copernicus' 30 m global model,
-which is less precise, and SRTM remains the very last resort. The country by
-country detail is in the
+elsewhere Mapterhorn, which takes the national LiDAR whenever one exists.
+[The sources and their accuracy](#terrain).
+
+![The desktop page: a route planned in Garéoult, with its profile and legend](docs/images/pc-tracer.png)
+
+## How to use it
+
+Both applications are downloaded from the
+[releases](https://github.com/nico579/hike2gpx/releases): one archive per
+system for the computer, `hike2gpx-android.apk` for the phone. Installed from
+a release, they update themselves ([details](#installation)).
+
+### On the computer
+
+**Plan a route.** Open the menu (the three-line button, bottom left), then
+"Plan a route". Each click on the map places a point: the start, the
+waypoints, the finish. The route is computed right away, with its distance,
+walking time and profile; drag a point to move it. "Return" closes the loop on
+the start, "Export GPX" saves it. [All about planning](#what-hike2gpx-does).
+
+**Download a map area.** In "Map management", choose the base map to take
+along (SCAN 25, Plan IGN, OpenStreetMap…), then click the 1° cells you want on
+the map and "Download". Routing areas are taken in "Route management", by 5°
+cells; in France they come ready-made from the server.
+[Base maps and bundles in detail](#offline-bundles).
+
+![Map management: the Var cell selected, ready to download](docs/images/pc-zone-carte.png)
+
+**Share it with the phone.** Select the cells already on the computer (in
+green) and click "Share": a QR code appears. The phone must be on the same
+Wi-Fi. "Stop sharing" closes it, and the code changes every time.
+[How sharing is protected](#sharing-with-the-phone).
+
+![The sharing QR code, to scan with the phone](docs/images/pc-partager.png)
+
+### On the phone
+
+<img src="docs/images/telephone-recuperer.png" alt="The phone offers to fetch the areas shared by the PC" width="260" align="right">
+
+**Get the map.** In "Map management", tap "Scan the computer's QR code" and
+aim at the PC's QR code. The phone says what it is missing and how big it is,
+then downloads the base maps and routing areas, each file checked on arrival.
+Areas published by the server (France) also download by themselves, with no
+PC.
+
+**Plan a route.** Menu, then "Plan a route": each tap on the map places a
+point, as on the computer, and the route is computed on the phone, with no
+network once the area is installed. The profile panel folds with a tap on its
+title; a tap on a crossing opens its details.
+[All about the Android app](android/README.md).
+
+<img src="docs/images/telephone-tracer.png" alt="A route planned on the phone, with its profile" width="260">
+
+<br clear="right">
+
+## Why hike2gpx, in detail
+
+### Fences and barriers
+
+In Garéoult (Var, France), BRouter's standard hiking profile goes through a
+concrete fence on a 69 m stretch; hike2gpx goes around it with a 435 m detour.
+The page option "Compare with the standard route (which ignores barriers)" overlays that standard
+route, for comparison. The method is described further down, in
+[How it works](#how-it-works).
+
+### National maps
+
+On the areas studied, BD TOPO adds 18% to 100% in length of candidate paths,
+ATKIS 12% to 127%, ZABAGED 40% to 66%, while the United States and the
+Netherlands stay between 0% and 12%. These percentages measure possible
+lengths, not a guaranteed gain: the method and its caveats are in
+[RAPPORT_SOURCES_CHEMINS_BROUTER.md](RAPPORT_SOURCES_CHEMINS_BROUTER.md).
+
+### Terrain
+
+Mapterhorn gathers about two hundred national and regional models, at 0.25 m
+to 10 m resolution, for almost all of Europe, the United States, Canada, Japan,
+Australia and New Zealand. Outside these areas, hike2gpx falls back on
+Copernicus' 30 m global model, which is less precise, and SRTM remains the very
+last resort. The country by country detail is in the
 [provider catalog](https://github.com/nico579/lidar2map/blob/main/docs/providers.md)
 of lidar2map, the sister project, which queries these national LiDAR sources
 directly, and which Mapterhorn gathers too. Compared with the native LiDAR,
@@ -53,15 +122,10 @@ an elevation gain, which the 20 m smoothing averages out anyway. These
 measurements, with their limits, are in
 [lidar2map's evaluation](https://github.com/nico579/lidar2map/blob/main/docs/mapterhorn-evaluation.fr.md).
 
-Both applications are downloaded from the releases: one archive per system for
-the computer (Windows, macOS, Linux), `hike2gpx-android.apk` for the phone.
-
-Installed from a release, hike2gpx updates itself, like the other nico579
-applications: when a newer version is published, a banner on the page and the
-menu of its tray icon offer to install it; it downloads it, checks it, then
-restarts on it. The "Check for updates" button in the Settings panel asks
-right away, without waiting for the periodic check. Run from source,
-hike2gpx simply opens the page of the new version.
+The terrain also feeds the routing, which penalises slopes. In the routing
+areas hike2gpx builds (the five countries with a national map), BRouter reads
+the Mapterhorn terrain, resampled to one arc second (about 30 m); elsewhere it
+keeps the terrain of its own tiles, derived from SRTM.
 
 ## What hike2gpx does
 
@@ -158,7 +222,7 @@ until the page is closed or reloaded.
 
 **The settings.** The IGN key for the SCAN 25, how long downloaded data is
 kept before being renewed (30 days by default), the transparency of the panels,
-whether to hide the profile, and a button that empties all local caches.
+and a button that empties all local caches.
 They are saved when the panel closes, with no button. One
 button opens the `logs` folder, which holds the logs of the application and of
 BRouter; another shows the installed version and checks whether a newer one
@@ -419,6 +483,13 @@ macOS), unzip it, for instance on Windows into
 `%LOCALAPPDATA%\Programs\hike2gpx`, and run `hike2gpx`. It ships its own Java
 and updates itself; "Create a Desktop shortcut", in the menu of its tray icon,
 adds the shortcut.
+
+Installed from a release, hike2gpx updates itself, like the other nico579
+applications: when a newer version is published, a banner on the page and the
+menu of its tray icon offer to install it; it downloads it, checks it, then
+restarts on it. The "Check for updates" button in the Settings panel asks
+right away, without waiting for the periodic check. Run from source,
+hike2gpx simply opens the page of the new version.
 
 From source, you need Python 3.12, [uv](https://docs.astral.sh/uv/) and
 Java 11 or later for BRouter.
