@@ -12,10 +12,12 @@ import java.time.ZoneOffset
  *
  *   {"format": 1, "genere": "…", "lots": [{"case": "E5_N40", "type": "enrichi", …,
  *     "fichiers": [{"nom": "E5_N40.rd5", "octets": …, "sha256": "…", "url": "E5_N40.E5_N40.rd5"}]}],
- *    "fonds": [{"nom", "zone", "zoom", "source", "octets", "sha256", "url"}]}
+ *    "fonds": [{"nom", "zone", "zoom", "source", "octets", "sha256", "url"}],
+ *    "cartes": [{"nom", "zone", "zoom", "source", "octets", "sha256", "url"}]}
  *
- * Les adresses des fichiers sont relatives à celle du catalogue. La liste
- * « fonds » (fonds de carte d'un PC) est facultative.
+ * Les adresses des fichiers sont relatives à celle du catalogue. Les listes
+ * « fonds » (MBTiles d'un PC) et « cartes » (cartes vectorielles Mapsforge du
+ * même PC, en .map) sont facultatives et de même forme.
  */
 class ErreurDepot(texte: Int, args: List<Any> = emptyList(), cause: Throwable? = null) :
     ErreurTexte(texte, args, cause)
@@ -52,9 +54,15 @@ data class Fond(
     val octets: Long,
     val sha256: String,
     val url: String,
-)
+    /** « map » pour une carte vectorielle Mapsforge, null pour un MBTiles d'images. */
+    val format: String? = null,
+) {
+    /** Le suffixe du fichier installé, celui de l'URL du catalogue. */
+    val extension: String get() = if (format == "map") ".map" else ".mbtiles"
+}
 
-data class Catalogue(val genere: String, val lots: List<Lot>, val fonds: List<Fond>) {
+data class Catalogue(val genere: String, val lots: List<Lot>, val fonds: List<Fond>,
+                     val cartes: List<Fond> = emptyList()) {
     companion object {
         const val FORMAT = 1
         private val CASE = Regex("[EW][0-9]{1,3}_[NS][0-9]{1,2}")
@@ -67,8 +75,9 @@ data class Catalogue(val genere: String, val lots: List<Lot>, val fonds: List<Fo
                 if (json.optInt("format", -1) != FORMAT || json.optJSONArray("lots") == null)
                     throw ErreurDepot(R.string.err_catalogue_format)
                 val lots = json.getJSONArray("lots").objets().map { lot(it, avecUrl = true) }
-                val fonds = json.optJSONArray("fonds")?.objets()?.map { fond(it) } ?: emptyList()
-                return Catalogue(json.optString("genere"), lots, fonds)
+                val fonds = json.optJSONArray("fonds")?.objets()?.map { fond(it, null) } ?: emptyList()
+                val cartes = json.optJSONArray("cartes")?.objets()?.map { fond(it, "map") } ?: emptyList()
+                return Catalogue(json.optString("genere"), lots, fonds, cartes)
             } catch (e: ErreurDepot) {
                 throw e
             } catch (e: Exception) {
@@ -104,11 +113,12 @@ data class Catalogue(val genere: String, val lots: List<Lot>, val fonds: List<Fo
             return Fichier(nomSur(json.getString("nom")), octets, sha, if (avecUrl) json.getString("url") else "")
         }
 
-        private fun fond(json: JSONObject): Fond {
+        /** Un fond ou une carte : la clé du catalogue dit le format, absent des entrées. */
+        private fun fond(json: JSONObject, format: String?): Fond {
             val sha = json.getString("sha256")
             if (!SHA256.matches(sha)) throw ErreurDepot(R.string.err_sha256, listOf(sha))
             return Fond(nomSur(json.getString("nom")), boite(json.optJSONArray("zone")), json.opt("zoom")?.toString() ?: "",
-                json.optString("source"), json.getLong("octets"), sha, json.getString("url"))
+                json.optString("source"), json.getLong("octets"), sha, json.getString("url"), format)
         }
 
         /** Jamais de chemin venu du catalogue : le seul nom du fichier. */

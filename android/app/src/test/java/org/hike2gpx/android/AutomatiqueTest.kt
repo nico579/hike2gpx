@@ -67,13 +67,16 @@ class AutomatiqueTest {
         assertFalse(Zone(45.1, 6.0, 45.2, 6.1).touche(e5n40))
     }
 
-    private fun fond(nom: String) = Fond(nom, e5n40, "[6,13]", Fonds.source(nom), 10, "0".repeat(64), "fonds/$nom.mbtiles")
+    private fun fond(nom: String, format: String? = null) =
+        Fond(nom, e5n40, "[6,13]", Fonds.source(nom), 10, "0".repeat(64),
+            "fonds/$nom${if (format == "map") ".map" else ".mbtiles"}", format)
 
     @Test fun la_source_d_un_fond_se_lit_dans_son_nom() {
         assertEquals("scan25", Fonds.source("E5_N40-scan25"))
         assertEquals("plan", Fonds.source("E5_N40-plan-vue-3fa2c1"))
         assertEquals("bizarre", Fonds.source("bizarre"))
         assertEquals("SCAN 25 (IGN)", Fonds.titre("scan25"))
+        assertEquals("OpenStreetMap", Fonds.titre("osm"))
     }
 
     @Test fun les_fonds_des_pc_qui_manquent_une_fois_chacun() {
@@ -81,10 +84,12 @@ class AutomatiqueTest {
         val pc2 = Source("http://192.168.1.21/depot/catalog.json", "b")
         val proposes = fondsProposes(listOf(
             Source.GITHUB to Catalogue("", emptyList(), emptyList()),
-            pc1 to Catalogue("", emptyList(), listOf(fond("E5_N40-scan25"), fond("E5_N45-scan25"))),
+            pc1 to Catalogue("", emptyList(), listOf(fond("E5_N40-scan25"), fond("E5_N45-scan25")),
+                listOf(fond("E5_N40-osm", "map"))),
             pc2 to Catalogue("", emptyList(), listOf(fond("E5_N40-scan25"), fond("E5_N40-plan"))),
         ), installes = setOf("E5_N45-scan25"))
-        assertEquals(listOf("E5_N40-plan" to pc2, "E5_N40-scan25" to pc1), proposes.map { it.second.nom to it.first })
+        assertEquals(listOf("E5_N40-osm" to pc1, "E5_N40-plan" to pc2, "E5_N40-scan25" to pc1),
+            proposes.map { it.second.nom to it.first })
     }
 
     @Test fun vider_retire_lots_et_fonds_et_dit_ce_qui_est_libere() {
@@ -104,9 +109,12 @@ class AutomatiqueTest {
         fonds.installer(recu, fond("E5_N40-scan25"))
         fonds.installer(dossier.newFile("x"), fond("E5_N45-scan25"))
         fonds.installer(dossier.newFile("y"), fond("E5_N40-plan-vue-3fa2c1"))
+        fonds.installer(dossier.newFile("z"), fond("E5_N40-osm", "map"))
         File(fonds.dossier, "note.txt").writeText("pas un fond")
         assertFalse(recu.exists())
-        assertEquals(mapOf("plan" to listOf("E5_N40-plan-vue-3fa2c1"), "scan25" to listOf("E5_N40-scan25", "E5_N45-scan25")),
+        assertTrue(File(fonds.dossier, "E5_N40-osm.map").isFile)
+        assertEquals(mapOf("osm" to listOf("E5_N40-osm"), "plan" to listOf("E5_N40-plan-vue-3fa2c1"),
+            "scan25" to listOf("E5_N40-scan25", "E5_N45-scan25")),
             fonds.parSource().mapValues { (_, f) -> f.map { it.nameWithoutExtension } }.toSortedMap())
     }
 }

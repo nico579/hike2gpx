@@ -28,8 +28,8 @@ communes françaises répondent d'abord (geo.api.gouv.fr, avec leur
 département) ; ailleurs, ou si la France ne connaît rien, Nominatim donne les
 villes et villages d'OSM avec leur région et leur pays. Une seule réponse
 recadre aussitôt, plusieurs se choisissent dans une liste ; le bandeau de
-recherche se referme ensuite, sans légende pendant la saisie, et un tap sur la
-carte le referme aussi. Le menu « Recherche » reste disponible en planification ;
+recherche se referme ensuite, et un tap sur la carte le referme aussi. Le menu
+« Recherche » reste disponible en planification ;
 pendant l'enregistrement, seul l'état de la trace s'affiche.
 
 Les calques du lot s'affichent sur la carte, comme ceux de la page : les
@@ -57,8 +57,10 @@ PC lit Mapterhorn au zoom 13 : l'écart mesuré sur le D+ reste sous 1 %.
 Le calcul du relief est séparé de celui de l'itinéraire : le tracé s'affiche
 d'abord, le dénivelé arrive ensuite. Sans relief disponible, la ligne le dit et
 la valeur BRouter ne le remplace pas, comme sur le PC. Les bandeaux de
-planification et d'enregistrement ne montrent ni légende ni champ de recherche :
-la carte, l'état et les commandes suffisent. La coche « Afficher courbe du
+planification et d'enregistrement ne montrent pas de champ de recherche : la
+carte, l'état et les commandes suffisent. La légende, elle, reste en haut à
+droite si « Afficher la légende » est cochée, dans le même ordre que celle du
+PC. La coche « Afficher courbe du
 dénivelé » dessine au-dessus des boutons le profil de la page — distance en
 abscisse, altitude lissée en ordonnée, aire bleue et bornes d'altitude. La courbe
 n'apparaît qu'une fois le relief calculé ;
@@ -143,21 +145,24 @@ hors des pays couverts la carte revient à OpenStreetMap. Un fond du monde
 quand on change de pays. Le SCAN 25 n'est pas une donnée libre : il
 n'apparaît qu'une fois la clé IGN renseignée dans les réglages, et sans elle la
 carte reste sur le Plan IGN. Les cartes reçues d'un PC (le SCAN 25 ou le Plan
-IGN qu'il a fabriqués) forment le chapitre « Hors ligne », après « En ligne ».
-Les fonds qu'un PC partage et qui manquent au téléphone y sont proposés, avec
-leur taille et un bouton de téléchargement ; le QR code du PC (« Partager au
-téléphone » dans ses réglages) l'ajoute, sur le même Wi-Fi. « Superposition des
-chemins » coche les chemins OSM, toujours proposés, et ceux du fournisseur
-national du lot qui couvre la vue (IGN, ATKIS…) : la coche du pays n'apparaît
-que si ce lot est installé, et elle ne suit que le pays affiché, pas les autres
-fournisseurs d'un lot frontalier (à Genève, swissTLM3D, pas l'IGN) ; elle
-disparaît dès que la carte sort de sa zone. En fin de page, « Zones stockées
-localement » liste les fonds installés avec leur taille et « Supprimer », après
-confirmation ; si le fond supprimé était affiché, la carte revient en ligne. Un
-fond est un MBTiles rangé sous `hors-ligne/fonds/`, comme sur le PC ; tous ceux
-d'une même source s'affichent ensemble, et la carte agrandit au-delà de leur
-zoom le plus fin. Le bandeau de planification ne garde que « Retirer »,
-« Effacer » et « Revenir ».
+IGN qu'il a fabriqués, ou sa carte OpenStreetMap vectorielle) forment le
+chapitre « Hors ligne », après « En ligne ». Une seule carte est choisie :
+cocher une carte d'un chapitre décoche celle de l'autre, même quand elles
+portent le même nom. Les fonds qu'un PC partage et qui manquent au téléphone y
+sont proposés, avec leur taille et un bouton de téléchargement ; le QR code du
+PC (« Partager au téléphone » dans ses réglages) l'ajoute, sur le même Wi-Fi.
+« Superposition des chemins » coche les chemins OSM, toujours proposés, et ceux
+du fournisseur national du lot qui couvre la vue (IGN, ATKIS…) : la coche du
+pays n'apparaît que si ce lot est installé, et elle ne suit que le pays
+affiché, pas les autres fournisseurs d'un lot frontalier (à Genève,
+swissTLM3D, pas l'IGN) ; elle disparaît dès que la carte sort de sa zone. En fin
+de page, « Zones stockées localement » liste les fonds installés avec leur
+taille et « Supprimer », après confirmation ; si le fond supprimé était
+affiché, la carte revient en ligne. Un fond est un MBTiles rangé sous
+`hors-ligne/fonds/`, comme sur le PC ; une carte OpenStreetMap vectorielle y
+est un fichier `.map` Mapsforge. Tous ceux d'une même source s'affichent
+ensemble, et la carte agrandit les MBTiles au-delà de leur zoom le plus fin. Le
+bandeau de planification ne garde que « Retirer », « Effacer » et « Revenir ».
 
 La page « Gestion des itinéraires », dans le menu, réunit le calcul et
 l'enregistrement, sortis des réglages. « Mode de calcul » y coche « Inclure les
@@ -223,7 +228,8 @@ Toutes les requêtes vers ce PC portent
 Le HTTP simple n'est accepté que vers le réseau local.
 
 Les lots du serveur se lisent sur GitHub au lancement et se téléchargent
-d'eux-mêmes. Un PC sert au téléphone ses fonds de carte et les lots de routage
+d'eux-mêmes. Un PC sert au téléphone ses fonds de carte (MBTiles) et ses
+cartes vectorielles OpenStreetMap (`.map` Mapsforge), plus les lots de routage
 qu'il a calculés : son catalogue ne se lit qu'à la demande, sur les pages
 Cartes et Itinéraires ou quand on ajoute le PC, si bien qu'un PC éteint ne
 retarde jamais le lancement. Les lots d'un PC ne sont proposés que s'ils
