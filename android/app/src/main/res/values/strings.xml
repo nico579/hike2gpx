@@ -54,7 +54,7 @@
     <string name="cartes_a_telecharger">Download from the computer</string>
     <string name="cartes_aucun_fond">No base map to download yet. Add a PC with its QR code to receive its own.</string>
     <string name="cartes_supprimer_titre">Delete the base map</string>
-    <string name="cartes_supprimer_message">Delete %1$s from the phone? The MBTiles file will be erased.</string>
+    <string name="cartes_supprimer_message">Delete %1$s from the phone? The file will be erased.</string>
 
     <string name="titre_itineraire">Route</string>
     <string name="strict">Include crossings to check</string>

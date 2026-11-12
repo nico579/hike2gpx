@@ -59,15 +59,17 @@ Sans lui, ou avec un jeton faux ou périmé, la réponse est **401**, avec
 | toute autre méthode              | 405                                                            |
 
 `<url d'un fichier>` est l'adresse que donne le catalogue, relative à celle du
-catalogue : `E5_N40/E5_N40.rd5`, `fonds/N43E006-scan25.mbtiles`. Une seule
+catalogue : `E5_N40/E5_N40.rd5`, `fonds/N43E006-scan25.mbtiles`,
+`fonds/E5_N40-osm.map`. Une seule
 plage par requête (`bytes=N-`, `bytes=N-M` ou `bytes=-N`) ; une autre forme
 est ignorée et le fichier part en entier, comme HTTP le permet.
 
 ## 3. Le catalogue
 
 Le format du dépôt, inchangé : `"format": 1` et la liste `"lots"`, chaque
-fichier avec sa taille, son SHA-256 et son adresse. Le PC y ajoute une liste
-facultative `"fonds"` :
+fichier avec sa taille, son SHA-256 et son adresse. Le PC y ajoute deux listes
+facultatives de même forme, `"fonds"` (MBTiles d'images) et `"cartes"` (cartes
+vectorielles Mapsforge, `.map`) :
 
 ```json
 {"format": 1, "genere": "2026-10-28T14:02:11Z",
@@ -76,7 +78,9 @@ facultative `"fonds"` :
            "fichiers": [{"nom": "E5_N40.rd5", "octets": 98000000, "sha256": "…", "url": "E5_N40/E5_N40.rd5"},
                         {"nom": "manifest.json", "octets": 812, "sha256": "…", "url": "E5_N40/manifest.json"}]}],
  "fonds": [{"nom": "N43E006-scan25", "zone": [43, 6, 44, 7], "zoom": [13, 16], "source": "scan25",
-            "octets": 600000000, "sha256": "…", "url": "fonds/N43E006-scan25.mbtiles"}]}
+            "octets": 600000000, "sha256": "…", "url": "fonds/N43E006-scan25.mbtiles"}],
+ "cartes": [{"nom": "E5_N40-osm", "zone": [40, 5, 45, 10], "zoom": [0, 21], "source": "osm",
+             "octets": 320000000, "sha256": "…", "url": "fonds/E5_N40-osm.map"}]}
 ```
 
 Un fond de carte couvre un **carré de 1°**, nommé comme les tuiles SRTM
@@ -106,9 +110,14 @@ blanc), et la table
 `metadata` avec `name`, `format`, `type` (`baselayer`), `bounds`, `minzoom`,
 `maxzoom`, `attribution`, plus `source`.
 
-Un lecteur qui ne connaît pas `"fonds"` l'ignore : celui du PC
+Les deux listes se lisent de la même façon : `nom` (le fichier sans extension),
+`zone`, `zoom`, `source`, `octets`, `sha256` et `url`. C'est la clé qui dit le
+format : une entrée de `"fonds"` est un MBTiles, une entrée de `"cartes"`
+s'affiche avec Mapsforge. L'URL, elle, finit par `.mbtiles` ou `.map`.
+
+Un lecteur qui ne connaît pas `"fonds"` ou `"cartes"` les ignore : celui du PC
 (`depot.lire_catalogue`) ne regarde que `format` et `lots`, et les tests le
-vérifient. Une publication GitHub n'a jamais de `"fonds"`.
+vérifient. Une publication GitHub n'a jamais ni `"fonds"` ni `"cartes"`.
 
 ## 4. Sécurité
 
@@ -141,6 +150,7 @@ le SHA-256 du catalogue.
    après une coupure ; contrôler taille et SHA-256 avant d'installer.
 4. Un 401 veut dire que le partage a été fermé ou rouvert : rescanner.
 
-Depuis le 2026-11-04, l'application Android ne prend au PC que ses **fonds** :
+Depuis le 2026-11-04, l'application Android ne prend au PC que ses fonds
+(`fonds` et `cartes`, les cartes vectorielles Mapsforge désormais comprises) :
 ses lots viennent de GitHub seulement, et la liste `lots` du catalogue d'un PC
 est ignorée. Elle ne lit ce catalogue qu'à la demande (le bouton « Fond »).

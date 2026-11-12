@@ -52,11 +52,16 @@ import android.widget.TextView
 import android.widget.Toast
 import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONArray
+import org.mapsforge.map.android.graphics.AndroidGraphicFactory
+import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
 import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.mapsforge.MapsForgeTileProvider
+import org.osmdroid.mapsforge.MapsForgeTileSource
+import org.osmdroid.tileprovider.MapTileProviderBase
 import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.modules.OfflineTileProvider
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -187,12 +192,21 @@ class MainActivity : Activity() {
     private val verifierPays = Runnable { majPays() }
     /** Un calcul de relief plus récent remplace celui qui tourne encore. */
     private var sequenceDenivele = 0
+    /**
+     * Le rendu Mapsforge affiché (cartes vectorielles .map d'un PC), libéré
+     * quand un autre fond prend sa place : osmdroid détache le fournisseur,
+     * mais les fichiers .map resteraient ouverts.
+     */
+    private var sourceMapsforge: MapsForgeTileSource? = null
 
     override fun onCreate(etatSauve: Bundle?) {
         super.onCreate(etatSauve)
         Configuration.getInstance().userAgentValue = "${Depot.AGENT} (+https://github.com/nico579/hike2gpx)"
         Configuration.getInstance().osmdroidBasePath = File(cacheDir, "osmdroid")
         Configuration.getInstance().osmdroidTileCache = File(cacheDir, "osmdroid/tiles")
+        // Mapsforge dessine les cartes vectorielles (.map) reçues d'un PC ;
+        // son usine graphique se crée une fois, avant toute source.
+        if (AndroidGraphicFactory.INSTANCE == null) MapsForgeTileSource.createInstance(application)
         reglages = Reglages(this)
         horsLigne = HorsLigne(filesDir)
         fonds = Fonds(horsLigne.racine)
@@ -1047,8 +1061,8 @@ class MainActivity : Activity() {
         if (recus.isNotEmpty()) {
             titre(colonne, R.string.titre_fonds)
             for (source in recus.keys)
-                fondChoisi(horsLigne, source, Fonds.titre(source)) {
-                    appliquerFond(source)
+                fondChoisi(horsLigne, Fonds.cle(source), Fonds.titre(source)) {
+                    appliquerFond(Fonds.cle(source))
                     cadrerSur(recus.getValue(source))
                 }
             colonne.addView(horsLigne)
@@ -1128,7 +1142,7 @@ class MainActivity : Activity() {
             .setPositiveButton(R.string.supprimer) { _, _ ->
                 val source = Fonds.source(f.nameWithoutExtension)
                 f.delete()
-                if (reglages.fond == source && fonds.parSource()[source] == null)
+                if (reglages.fond == Fonds.cle(source) && fonds.parSource()[source] == null)
                     appliquerFond(CartesEnLigne.defaut(paysAffiche))
                 remplirCartes()
             }
@@ -1157,7 +1171,7 @@ class MainActivity : Activity() {
             getString(R.string.etat_fond_installe, fond.nom)
         }, ensuite = { reussi ->
             if (reussi) {
-                appliquerFond(Fonds.source(fond.nom))
+                appliquerFond(Fonds.cle(Fonds.source(fond.nom)))
                 remplirCartes()
             }
         })
@@ -1311,19 +1325,38 @@ class MainActivity : Activity() {
      * zoom où il a des tuiles (cadrer le carré entier dézoomerait sous son minzoom).
      */
     private fun cadrerSur(fichiers: List<File>) {
-        val boites = fichiers.mapNotNull { f ->
+        // Une carte vectorielle connaît ses bornes par son moteur Mapsforge ;
+        // un MBTiles les donne dans sa table metadata.
+        val vectorielles = fichiers.filter { it.extension.equals("map", true) }
+        val source = sourceMapsforge?.takeIf { vectorielles.isNotEmpty() && vectorielles.size == fichiers.size }
+        val boites = if (source != null) listOf(source.boundsOsmdroid) else fichiers.mapNotNull { f ->
             metadonnees(f)["bounds"]?.split(',')?.mapNotNull { it.trim().toDoubleOrNull() }?.takeIf { it.size == 4 }
                 ?.let { (o, s, e, n) -> BoundingBox(n, e, s, o) }
         }
         if (boites.isEmpty() || boites.any { it.contains(carte.mapCenter) }) return
-        carte.controller.setZoom(maxOf(carte.zoomLevelDouble, zoomMin(fichiers).toDouble()))
+        val minimum = source?.minimumZoomLevel?.toDouble() ?: zoomMin(fichiers).toDouble()
+        carte.controller.setZoom(maxOf(carte.zoomLevelDouble, minimum))
         carte.controller.setCenter(boites.first().centerWithDateLine)
     }
 
     /**
-     * Le fond de la carte. Un fond hors ligne réunit tous les MBTiles de sa
-     * source ; osmdroid agrandit au-delà de leur zoom le plus fin, comme la page
-     * (maxNativeZoom), et ne demande rien au réseau. La carte ne descend pas
+     * Remplace le fournisseur de tuiles, puis libère le rendu Mapsforge
+     * précédent : osmdroid détache l'ancien fournisseur, mais les .map
+     * resteraient ouverts. [source] est le rendu du nouveau fournisseur, ou
+     * null pour une carte en ligne ou un MBTiles.
+     */
+    private fun poserFournisseur(fournisseur: MapTileProviderBase, source: MapsForgeTileSource? = null) {
+        val ancienne = sourceMapsforge
+        sourceMapsforge = source
+        carte.setTileProvider(fournisseur)
+        ancienne?.dispose()
+    }
+
+    /**
+     * Le fond de la carte. Un fond hors ligne réunit tous les fichiers de sa
+     * source, MBTiles d'images ou cartes vectorielles .map (Mapsforge) ; la
+     * carte ne demande rien au réseau. Un MBTiles agrandit au-delà de son zoom
+     * le plus fin, comme la page (maxNativeZoom), et la carte ne descend pas
      * sous son zoom le plus bas, où elle n'aurait rien à montrer.
      *
      * Une carte nationale ne sert que dans son pays : si le centre de la carte
@@ -1331,35 +1364,72 @@ class MainActivity : Activity() {
      * n'y en a pas. Un fond du monde ou hors ligne reste tel quel.
      */
     private fun appliquerFond(cle: String) {
-        val horsLigne = fonds.parSource()[cle]
+        // Un fond reçu d'un PC porte la clé « pc:<source> » : même si une carte
+        // en ligne a le même nom (SCAN 25, OpenStreetMap), les deux restent
+        // distinctes et une seule est cochée. Ses fichiers disparus, le pays reprend.
+        val sourcePc = Fonds.sourceDeCle(cle)
+        if (sourcePc != null) {
+            val fichiers = fonds.parSource()[sourcePc]
+            if (fichiers == null) {
+                appliquerFond(CartesEnLigne.defaut(paysAffiche))
+                return
+            }
+            // Les .map d'un PC se dessinent avec Mapsforge, les .mbtiles avec
+            // le lecteur hors ligne d'osmdroid. Une source mélangée prend ses
+            // images, seules lisibles par le lecteur commun.
+            val vectorielles = fichiers.filter { it.extension.equals("map", true) }
+            val images = fichiers.filter { it.extension.equals("mbtiles", true) }
+            when {
+                images.isEmpty() && vectorielles.isNotEmpty() -> {
+                    val source = try {
+                        MapsForgeTileSource.createFromFiles(vectorielles.toTypedArray(),
+                            InternalRenderTheme.OSMARENDER, "mapsforge-$sourcePc")
+                    } catch (e: Exception) {
+                        // Fichier illisible ou format Mapsforge inconnu : mieux
+                        // vaut une carte en ligne qu'un écran vide.
+                        appliquerFond(CartesEnLigne.defaut(paysAffiche))
+                        return
+                    }
+                    poserFournisseur(MapsForgeTileProvider(SimpleRegisterReceiver(this), source, null), source)
+                    val minimum = source.minimumZoomLevel.toDouble()
+                    carte.setMinZoomLevel(minimum)
+                    if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum)
+                }
+                images.isNotEmpty() -> {
+                    val minimum = zoomMin(images)
+                    poserFournisseur(OfflineTileProvider(SimpleRegisterReceiver(this), images.toTypedArray()))
+                    carte.setTileSource(XYTileSource("hors-ligne-$sourcePc", minimum, 19, 256, "", arrayOf<String>(),
+                        "© ${Fonds.titre(sourcePc)}"))
+                    carte.setMinZoomLevel(minimum.toDouble())
+                    if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum.toDouble())
+                }
+                else -> {                       // fichiers illisibles : la carte revient en ligne
+                    appliquerFond(CartesEnLigne.defaut(paysAffiche))
+                    return
+                }
+            }
+            reglages.fond = cle
+            carte.invalidate()
+            return
+        }
         val national = CartesEnLigne.parCle(cle)?.pays != null
-        val choix = if (horsLigne == null && national &&
-            !CartesEnLigne.disponible(cle, paysAffiche, reglages.cleIgn))
+        val choix = if (national && !CartesEnLigne.disponible(cle, paysAffiche, reglages.cleIgn))
             CartesEnLigne.defaut(paysAffiche) else cle
-        val fichiers = fonds.parSource()[choix]
         val enLigne = CartesEnLigne.parCle(choix)
         val servi = CartesEnLigne.disponible(choix, paysAffiche, reglages.cleIgn)
         when {
-            fichiers != null -> {
-                val minimum = zoomMin(fichiers)
-                carte.setTileProvider(OfflineTileProvider(SimpleRegisterReceiver(this), fichiers.toTypedArray()))
-                carte.setTileSource(XYTileSource("hors-ligne-$choix", minimum, 19, 256, "", arrayOf<String>(),
-                    "© ${Fonds.titre(choix)}"))
-                carte.setMinZoomLevel(minimum.toDouble())
-                if (carte.zoomLevelDouble < minimum) carte.controller.setZoom(minimum.toDouble())
-            }
             servi && enLigne != null -> {
-                carte.setTileProvider(MapTileProviderBasic(applicationContext))
+                poserFournisseur(MapTileProviderBasic(applicationContext))
                 carte.setTileSource(CartesEnLigne.tuile(enLigne, reglages.cleIgn))
                 carte.setMinZoomLevel(null)         // le zoom le plus bas de la source en ligne
             }
             else -> {
-                carte.setTileProvider(MapTileProviderBasic(applicationContext))
+                poserFournisseur(MapTileProviderBasic(applicationContext))
                 carte.setTileSource(TileSourceFactory.MAPNIK)
                 carte.setMinZoomLevel(null)
             }
         }
-        reglages.fond = if (fichiers != null || (servi && enLigne != null)) choix else "osm"
+        reglages.fond = if (servi && enLigne != null) choix else "osm"
         carte.invalidate()
     }
 
@@ -1378,7 +1448,7 @@ class MainActivity : Activity() {
         val nouveau = pays.de(carte.mapCenter.latitude, carte.mapCenter.longitude)
         if (nouveau == paysAffiche) return
         paysAffiche = nouveau
-        if (fonds.parSource()[reglages.fond] == null &&
+        if (Fonds.sourceDeCle(reglages.fond) == null &&
             CartesEnLigne.parCle(reglages.fond)?.pays != null)
             appliquerFond(CartesEnLigne.defaut(nouveau))
         if (fenetreCartes != null) remplirCartes()
@@ -1976,7 +2046,7 @@ class MainActivity : Activity() {
     private fun ajouterPc(source: Source) = tache(R.string.etat_pc, false, { _ ->
         val catalogue = Depot().lireCatalogue(source)
         runOnUiThread { proposerRecuperation(source, catalogue) }
-        getString(R.string.etat_pc_lus, catalogue.fonds.size, catalogue.lots.size)
+        getString(R.string.etat_pc_lus, catalogue.fonds.size + catalogue.cartes.size, catalogue.lots.size)
     })
 
     private fun proposerRecuperation(source: Source, catalogue: Catalogue) {
@@ -2639,6 +2709,8 @@ class MainActivity : Activity() {
         planificateur.removeCallbacksAndMessages(null)
         routeur.annuler()
         carte.onDetach()
+        sourceMapsforge?.dispose()
+        sourceMapsforge = null
         super.onDestroy()
     }
 
