@@ -263,7 +263,7 @@ const TEXTES = {
     "horsLigne.etape.carte": "carte OpenStreetMap",
     "horsLigne.fondFini": "Fond de carte {nom} prêt hors ligne.",
     "partage.fermer": "Arrêter le partage",
-    "partage.ouvert": "Partagé : {quoi}, {taille}. Dans hike2gpx sur le téléphone, sur le même Wi-Fi : « {page} », puis « Scanner le QR code d’un PC » ; le téléphone demande une confirmation et récupère tout. Le code change à chaque partage.",
+    "partage.ouvert": "Partagé : {quoi}, {taille}. Dans hike2gpx sur le téléphone, sur le même Wi-Fi : « {page} », puis « Scanner le QR code de l’ordinateur » ; le téléphone demande une confirmation et récupère tout. Le code change à chaque partage.",
     "partage.rien": "Rien à partager : ce PC n’a ni zone de carte ni zone de routage.",
     "partage.etat": "Partage ouvert : {quoi}, {taille}.",
     "partage.zonesCarte1": "1 zone de carte",
@@ -537,7 +537,7 @@ const TEXTES = {
     "horsLigne.etape.carte": "OpenStreetMap map",
     "horsLigne.fondFini": "Base map {nom} ready offline.",
     "partage.fermer": "Stop sharing",
-    "partage.ouvert": "Shared: {quoi}, {taille}. In hike2gpx on the phone, on the same Wi-Fi: “{page}”, then “Scan a PC’s QR code”; the phone asks for one confirmation and gets everything. The code changes with every share.",
+    "partage.ouvert": "Shared: {quoi}, {taille}. In hike2gpx on the phone, on the same Wi-Fi: “{page}”, then “Scan the computer’s QR code”; the phone asks for one confirmation and gets everything. The code changes with every share.",
     "partage.rien": "Nothing to share: this PC has no map zone and no routing zone.",
     "partage.etat": "Sharing open: {quoi}, {taille}.",
     "partage.zonesCarte1": "1 map zone",
@@ -1343,7 +1343,9 @@ function reseauxCoches() {
   // les couches d'affichage seul (sentiers espagnols, américains, suisses) gardent leur rendu.
   for (const f of Object.values(FOURNISSEURS_CARTES)) {
     const nom = f.paths?.label;
-    if (nom && !noms.includes(nom) && carte.hasLayer(coucheCalque(f.paths.overlay))) noms.push(nom);
+    if (!nom || noms.includes(nom)) continue;
+    const couche = coucheCalque(f.paths.overlay);
+    if (carte.hasLayer(couche) && couche.getLayers?.().length) noms.push(nom);
   }
   return noms;
 }
