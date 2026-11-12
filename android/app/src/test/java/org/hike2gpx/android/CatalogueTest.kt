@@ -43,6 +43,19 @@ class CatalogueTest {
         assertEquals("france.mbtiles", c.fonds[0].nom)
         assertEquals("14", c.fonds[0].zoom)
         assertEquals("fonds/france.mbtiles", c.fonds[0].url)
+        assertEquals(".mbtiles", c.fonds[0].extension)
+        assertTrue(c.cartes.isEmpty())
+    }
+
+    @Test fun lit_les_cartes_vectorielles_d_un_pc() {
+        val c = Catalogue.lire("""{"format": 1, "lots": [], "cartes": [{"nom": "E5_N40-osm", "zone": [40, 5, 45, 10],
+            "zoom": [0, 21], "source": "osm", "octets": 12, "sha256": "${"a".repeat(64)}", "url": "fonds/E5_N40-osm.map"}]}""")
+        assertEquals(1, c.cartes.size)
+        assertEquals("E5_N40-osm", c.cartes[0].nom)
+        assertEquals("osm", c.cartes[0].source)
+        assertEquals("map", c.cartes[0].format)
+        assertEquals(".map", c.cartes[0].extension)
+        assertTrue(c.fonds.isEmpty())
     }
 
     @Test fun refuse_un_autre_format() {

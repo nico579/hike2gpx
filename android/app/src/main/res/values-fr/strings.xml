@@ -50,7 +50,7 @@
     <string name="etat_fond_installe">Fond %1$s installé.</string>
     <string name="cartes_a_telecharger">Télécharger des zones depuis l’ordinateur</string>
     <string name="cartes_supprimer_titre">Supprimer le fond</string>
-    <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier MBTiles sera effacé.</string>
+    <string name="cartes_supprimer_message">Supprimer %1$s du téléphone ? Le fichier sera effacé.</string>
 
     <string name="titre_itineraire">Itinéraire</string>
     <string name="strict">Inclure les blocages à vérifier</string>

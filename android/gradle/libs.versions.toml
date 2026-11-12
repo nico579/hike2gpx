@@ -11,6 +11,8 @@ zxing = "4.3.0"
 
 [libraries]
 osmdroid = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
+# Les cartes vectorielles Mapsforge (.map) qu'un PC partage.
+osmdroid-mapsforge = { module = "org.osmdroid:osmdroid-mapsforge", version.ref = "osmdroid" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 junit = { module = "junit:junit", version.ref = "junit" }
 json = { module = "org.json:json", version.ref = "json" }
