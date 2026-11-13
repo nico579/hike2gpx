@@ -51,7 +51,7 @@ const TEXTES = {
     "reglages.zonesAuto": "Télécharger automatiquement les zones de routage (une question par zone)",
     "reglages.dossierDonnees": "Dossier des données",
     "reglages.deplacer": "Déplacer",
-    "reglages.dossierNote": "Les cartes, les zones et les extraits OSM pèsent des Go : un autre disque peut les recevoir. Indiquez le dossier, puis « Déplacer » ; hike2gpx redémarre sur la copie.",
+    "reglages.dossierNote": "Les cartes, le routage et les extraits OSM pèsent des Go : un autre disque peut les recevoir. Indiquez le dossier, puis « Déplacer » ; hike2gpx redémarre sur la copie.",
     "reglages.confirmerDeplacement": "Déplacer toutes les données de hike2gpx dans {dossier} ?\n\nLa copie peut durer quelques minutes ; hike2gpx redémarre ensuite sur elle et efface l'ancien dossier.",
     "horsLigne.titreDeplacement": "Dossier des données",
     "horsLigne.deplacement": "Copie des données{compte}, depuis {duree}",
@@ -80,7 +80,7 @@ const TEXTES = {
     "horsLigne.exporter": "Exporter",
     "horsLigne.infoExporter": "Enregistre dans une archive zip ce que la sélection a sur ce PC, à copier sur un autre PC qui l'importe.",
     "horsLigne.importer": "Importer",
-    "horsLigne.infoImporter": "Installe sur ce PC les cartes et les zones d'une archive zip exportée par un autre hike2gpx.",
+    "horsLigne.infoImporter": "Installe sur ce PC les cartes et le routage d'une archive zip exportée par un autre hike2gpx.",
     "horsLigne.importEnCours": "Import de {nom} ({taille}) en cours…",
     "horsLigne.importFini": "{nom} importée : {n} carte(s) et {z} zone(s) de routage.",
     "horsLigne.importErreur": "{nom} non importée : {erreur}",
@@ -348,7 +348,7 @@ const TEXTES = {
     "reglages.zonesAuto": "Download routing areas automatically (one question per area)",
     "reglages.dossierDonnees": "Data folder",
     "reglages.deplacer": "Move",
-    "reglages.dossierNote": "Maps, areas and OSM extracts weigh GBs: another disk can take them. Enter the folder, then \"Move\"; hike2gpx restarts on the copy.",
+    "reglages.dossierNote": "Maps, routing and OSM extracts weigh GBs: another disk can take them. Enter the folder, then \"Move\"; hike2gpx restarts on the copy.",
     "reglages.confirmerDeplacement": "Move all hike2gpx data to {dossier}?\n\nThe copy may take a few minutes; hike2gpx then restarts on it and deletes the old folder.",
     "horsLigne.titreDeplacement": "Data folder",
     "horsLigne.deplacement": "Copying the data{compte}, for {duree}",
@@ -377,7 +377,7 @@ const TEXTES = {
     "horsLigne.exporter": "Export",
     "horsLigne.infoExporter": "Saves what the selection has on this PC to a zip archive, to copy to another PC that imports it.",
     "horsLigne.importer": "Import",
-    "horsLigne.infoImporter": "Installs on this PC the maps and areas of a zip archive exported by another hike2gpx.",
+    "horsLigne.infoImporter": "Installs on this PC the maps and routing of a zip archive exported by another hike2gpx.",
     "horsLigne.importEnCours": "Importing {nom} ({taille})…",
     "horsLigne.importFini": "{nom} imported: {n} map(s) and {z} routing area(s).",
     "horsLigne.importErreur": "{nom} not imported: {erreur}",
@@ -3223,7 +3223,7 @@ async function enregistrerReglages() {
   }
 }
 document.addEventListener("hike2gpx:reglages-fermes", enregistrerReglages);
-// Le dossier des cartes et des zones hors ligne : le serveur les déplace en tâche
+// Le dossier des données : le serveur le déplace en tâche
 // de fond, et la ligne d'activité suit le déplacement comme une préparation.
 $("deplacerDonnees").addEventListener("click", async () => {
   const dossier = $("dossierDonnees").value.trim();
