@@ -85,7 +85,7 @@
     <string name="reglages_cle_note">Le SCAN 25 n’est pas une donnée libre. Sans clé, la carte utilise le Plan IGN, sous Licence Ouverte.</string>
     <string name="reglages_cle_afficher">Afficher la clé</string>
     <string name="afficher_legende">Afficher la légende</string>
-    <string name="reglages_zoom_calques">Zoom minimal des calques (14 à 19)</string>
+    <string name="reglages_zoom_calques">Zoom minimal (14 à 19)</string>
     <string name="courbe_titre">Relief du parcours</string>
     <string name="courbe_resume">+%1$d m, −%2$d m</string>
     <string name="courbe_replier">Replier la courbe du dénivelé</string>
