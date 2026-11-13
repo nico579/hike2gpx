@@ -87,7 +87,7 @@
     <string name="reglages_cle_note">SCAN 25 is not open data. Without a key, the map uses Plan IGN, under the Open Licence.</string>
     <string name="reglages_cle_afficher">Show the key</string>
     <string name="afficher_legende">Show the legend</string>
-    <string name="reglages_zoom_calques">Minimum zoom for layers (14 to 19)</string>
+    <string name="reglages_zoom_calques">Minimum zoom (14 to 19)</string>
     <string name="courbe_titre">Route elevation</string>
     <string name="courbe_resume">+%1$d m, −%2$d m</string>
     <string name="courbe_replier">Collapse the elevation profile</string>

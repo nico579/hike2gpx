@@ -1280,6 +1280,12 @@ class MainActivity : Activity() {
                 }
             })
         }
+        // Sous leurs coches : les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
+        // téléphone a moins à tracer.
+        champNombre(colonne, R.string.reglages_zoom_calques, reglages.zoomCalques.toDouble(), entier = true) {
+            reglages.zoomCalques = it.roundToInt()
+            planifierCalques()
+        }
 
         // Les zones de carte téléchargées, supprimables une par une. En fin de
         // page, comme sur le PC : la liste peut s'allonger sans décaler les
@@ -2057,12 +2063,6 @@ class MainActivity : Activity() {
             setText(R.string.afficher_legende); isChecked = reglages.legende
             setOnCheckedChangeListener { _, v -> reglages.legende = v; appliquerAffichage() }
         })
-        // Les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
-        // téléphone a moins à tracer.
-        champNombre(colonne, R.string.reglages_zoom_calques, reglages.zoomCalques.toDouble(), entier = true) {
-            reglages.zoomCalques = it.roundToInt()
-            planifierCalques()
-        }
 
         // Les cartes et les zones pèsent des Go : la carte SD peut les recevoir.
         choixEmplacement(colonne)
