@@ -187,6 +187,10 @@ body.profile-collapsed .map-activity{bottom:81px}
 /* Les boutons du volet sur une ligne ; leur bulle au survol, comme ceux du tracé.
    Un bouton masqué emporte sa bulle. */
 .hl-actions{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+/* Le dossier des données : libellé, champ et note les uns sous les autres (une
+   seule colonne) ; en deux colonnes, la note s'écrasait d'un mot par ligne. */
+.dossier-row{grid-template-columns:minmax(0,1fr);gap:4px}
+.dossier-row .note{margin:2px 0 0}
 .dossier-ligne{display:flex;gap:6px}.dossier-ligne input{flex:1;min-width:0}
 .hl-actions .action-control{display:inline-block}
 .hl-actions .action-control:has(>button[hidden]){display:none}
