@@ -196,7 +196,7 @@ SHA-256 d'un manifeste. Une règle simple s'applique : quand une zone installée
 couvre tout le parcours, elle sert seule, au calcul comme aux calques de la
 carte ; sinon, le calcul se fait [à la volée](#sans-zone-de-routage--le-calcul-à-la-volée).
 
-Il y a deux façons d'en obtenir une.
+Il y a trois façons d'en obtenir une.
 
 - **Du serveur**, pour la France, la Suisse, l'Allemagne, la Tchéquie et la
   Pologne. La première fois qu'un calcul ou les chemins de la carte touchent
@@ -206,11 +206,21 @@ Il y a deux façons d'en obtenir une.
   le serveur en publie une plus récente ; la case du Var, 247 Mo, arrive en
   quelques dizaines de secondes. Refusée, elle ne se propose plus et reste
   disponible dans « Gestion des itinéraires ». La coche « Télécharger
-  automatiquement les zones de routage » des réglages, sur le PC comme sur le
-  téléphone, coupe tout téléchargement automatique.
+  automatiquement les zones de routage » des réglages coupe tout
+  téléchargement automatique. Sur le téléphone, rien ne se télécharge de
+  soi-même : « Planifier un itinéraire » demande la zone quand aucune n'est
+  installée, et s'ouvre une fois la zone téléchargée ; refusée, la
+  planification ne s'ouvre pas. Une zone installée se renouvelle par son
+  bouton « Mettre à jour ».
 - **Du PC**, partout ailleurs : « Gestion des itinéraires » montre la grille
   des cases ; cliquez celles qu'il vous faut, puis « Télécharger ». Le PC
   prépare la vue affichée ou la case entière.
+- **De BRouter, sur le téléphone seul**, là où le serveur n'a rien (le
+  Canada, l'Asie…) : « Planifier un itinéraire » propose la zone de base que
+  BRouter publie pour toute case du monde (quelques dizaines de Mo). Les
+  itinéraires se calculent avec, sans les chemins dessinés sur la carte ni les
+  franchissements à vérifier : pour ceux-là, le PC prépare la zone complète
+  et la partage.
 
 Une case dont on n'a plus besoin se retire par sa bulle : « Supprimer de cet
 ordinateur » efface sa zone de routage et ses fonds de carte. Une zone du

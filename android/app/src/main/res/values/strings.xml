@@ -29,13 +29,7 @@
     <string name="import_denivele">Elevation: + %1$d m / − %2$d m (%3$s)</string>
     <string name="import_denivele_nom">Elevation gain: + %1$d m</string>
     <string name="import_duree">Time: %1$s</string>
-    <string name="zone_initiale_titre">Routing area</string>
-    <string name="zone_initiale_message">To compute routes with no network, the phone needs the routing area of this region (cell %1$s, %2$s). Download it now? Otherwise it stays available in “Route management”.</string>
-    <string name="zone_refuser">No thanks</string>
     <string name="plan_sans_zone_titre">No routing area here</string>
-    <string name="plan_point_sans_zone">No routing area here: the point is not placed.</string>
-    <string name="reglage_zones_auto">Download routing areas automatically (one question per area)</string>
-    <string name="zone_refusee">Area %1$s not downloaded. You can download it at any time from “Route management”, “Refused areas” section.</string>
     <string name="menu_itineraires">Route management</string>
     <string name="menu_aide">Help</string>
     <string name="menu_enregistrer">Record a track</string>
@@ -132,7 +126,6 @@
     <string name="supprimer">Delete</string>
     <string name="confirmer_suppression">Remove this routing area from the phone? It will not come back on its own before the next launch.</string>
     <string name="confirmer_telechargement">%1$s from %2$s. Wi-Fi is better.</string>
-    <string name="confirmer_donnees_mobiles">The routing area of cell %1$s (%2$s, %3$s) covers this route. Download it over mobile data?</string>
 
     <string name="titre_cache">Cache</string>
     <string name="vider_cache">Clear the cache (%1$s)</string>
@@ -297,8 +290,9 @@
     <string name="stockage_absent">SD card missing: the maps and routing are on it. Put it back, then restart hike2gpx.</string>
     <string name="etat_deplacement">Moving the maps and routing…</string>
     <string name="etat_deplace">Maps and routing moved: %1$s.</string>
-    <string name="itineraires_refusees">Refused areas, to download</string>
-    <string name="plan_sans_zone_serveur">The phone computes its routes offline, with a routing area. Area %1$s is not installed: download it in “Route management”.</string>
-    <string name="plan_sans_zone_refusee">The phone computes its routes offline, with a routing area. Area %1$s was refused: download it in “Route management”, “Refused areas” section.</string>
     <string name="plan_sans_zone_pc">The phone computes its routes offline, with a routing area, and the server publishes none for this region. Prepare it on a PC (“Route management”, the offline grid), then share it with the phone: QR code, or zip archive.</string>
+    <string name="plan_zone_brouter">The hike2gpx server publishes no routing area for this region, but BRouter has its base area (cell %1$s, %2$s): routes work with it, without the paths drawn on the map nor the crossings to check. A PC can prepare the complete area and share it. Download it?</string>
+    <string name="err_brouter_absent">brouter.de has no routing area for cell %1$s (sea, or no network).</string>
+    <string name="err_brouter_altere">Routing area %1$s from brouter.de is incomplete: download it again.</string>
+    <string name="plan_zone_serveur">To plan here, the phone needs the routing area of this region (cell %1$s, %2$s). Download it?</string>
 </resources>

@@ -206,20 +206,12 @@ class MainActivity : Activity() {
     /** Les catalogues des PC, pour leurs fonds seulement ; null tant qu'ils n'ont pas été lus. */
     private var cataloguesPc: List<Pair<Source, Catalogue>>? = null
     private var offres: List<Offre> = emptyList()
-    /** case -> instant (SystemClock) d'un échec ou d'un refus : pas de nouvel essai automatique avant une heure. */
-    private val exclues = mutableMapOf<String, Long>()
-    /**
-     * Les cases retirées à la main : un survol de la carte ne les redemande pas
-     * pendant la séance (comme le PC), mais un calcul d'itinéraire, qui en a
-     * vraiment besoin, si (Nico, 2026-11-13 : « elles ne se retéléchargent pas »).
-     */
-    private val retirees = mutableSetOf<String>()
+    /** Le catalogue du serveur a été lu (ou a échoué) : la question d'une zone peut dire ce qui existe. */
+    private var catalogueEssaye = false
+    /** Une question de zone qui attend la lecture du catalogue. */
+    private var apresCatalogue: (() -> Unit)? = null
     /** Un point posé pendant une tâche : on reprend à sa fin. */
     private var aReprendre = false
-    /** Case dont le téléchargement automatique est proposé ou en cours. */
-    private var autoLotDemande: String? = null
-    /** Un recentrage a demandé le lot de sa zone avant que le catalogue soit lu. */
-    private var lotDeZoneEnAttente = false
     private var fenetreReglages: LinearLayout? = null
     /** La page « Cartes » du menu, refaite après chaque téléchargement ou suppression. */
     private var fenetreCartes: LinearLayout? = null
@@ -350,9 +342,10 @@ class MainActivity : Activity() {
                         return true
                     }
                     if (modePlan) {
+                        val point = Point(p.latitude, p.longitude)
                         if (lotAuPoint(horsLigne.lots(), p.latitude, p.longitude) == null)
-                            Toast.makeText(this@MainActivity, R.string.plan_point_sans_zone, Toast.LENGTH_SHORT).show()
-                        else ajouterPoint(Point(p.latitude, p.longitude))
+                            demanderZonePour(p.latitude, p.longitude) { ajouterPoint(point) }
+                        else ajouterPoint(point)
                     }
                     return true
                 }
@@ -879,21 +872,15 @@ class MainActivity : Activity() {
     }
 
     /**
-     * La suite logique après chaque point ou chaque tâche : le lot qui manque
-     * pour la zone d'abord, puis le calcul s'il y a deux points.
+     * La suite logique après chaque point ou chaque tâche : le calcul s'il y a
+     * deux points. Rien ne se télécharge de soi-même : une zone manquante se
+     * demande au moment de planifier (demanderZonePour).
      */
     private fun avancer() {
         aReprendre = false
         if (points.isEmpty()) return
         if (enCours.get()) {
             aReprendre = true; return
-        }
-        val maintenant = SystemClock.elapsedRealtime()
-        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + reglages.zonesRefusees
-        val aFaire = lotsATelecharger(offres, horsLigne.lots(), Zone.autour(points), exclu)
-        if (reglages.zonesAuto && aFaire.isNotEmpty()) {
-            autoLotDemande = aFaire.first().lot.case
-            telechargerAuto(aFaire.first()); return
         }
         if (points.size >= 2) calculer()
     }
@@ -1069,42 +1056,11 @@ class MainActivity : Activity() {
             carte.invalidate()
             return
         }
-        proposerLotZone()
         planificateur.postDelayed(lectureCalques, 350)
     }
 
     /** La lecture des calques, différée le temps que la carte s'arrête (planifierCalques). */
     private val lectureCalques = Runnable { rafraichirCalques() }
-
-    /**
-     * Comme la page, s'arrêter sur une région est un usage réel : le lot de la
-     * case du centre se télécharge de lui-même s'il manque, ou si le catalogue
-     * en a un plus récent. Un survol sous le zoom 14 ne suffit pas, mais un
-     * recentrage (recherche, position GPS) le propose aussitôt, sans attendre
-     * un geste sur la carte. Une case refusée ou en échec attend une heure.
-     */
-    private fun proposerLotZone(attendreCatalogue: Boolean = false) {
-        if (!reglages.zonesAuto) return         // réglage : les zones se prennent dans « Gestion des itinéraires »
-        if (enCours.get() || autoLotDemande != null) {
-            // Une tâche occupe le téléchargement : la demande attend son tour.
-            if (attendreCatalogue) lotDeZoneEnAttente = true
-            return
-        }
-        if (offres.isEmpty()) {
-            // Une recherche peut aboutir avant la lecture du catalogue : le lot
-            // de sa zone se proposera dès qu'il sera là.
-            if (attendreCatalogue) lotDeZoneEnAttente = true
-            return
-        }
-        lotDeZoneEnAttente = false
-        val boite = carte.boundingBox ?: return
-        val maintenant = SystemClock.elapsedRealtime()
-        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees + reglages.zonesRefusees
-        val zone = Zone(boite.latSouth, boite.lonWest, boite.latNorth, boite.lonEast)
-        val offre = offreAuCentre(offres, horsLigne.lots(), zone, exclu) ?: return
-        autoLotDemande = offre.lot.case
-        telechargerAuto(offre)
-    }
 
     /** Lit les tuiles de la vue en arrière-plan ; une lecture à la fois. */
     private fun rafraichirCalques() {
@@ -1140,7 +1096,7 @@ class MainActivity : Activity() {
                     carte.invalidate()
                     if (calqueCoche) {
                         calqueCoche = false
-                        if (donnees.vide && !enCours.get() && autoLotDemande == null)
+                        if (donnees.vide && !enCours.get())
                             Toast.makeText(this, R.string.calque_vide, Toast.LENGTH_LONG).show()
                     }
                 }
@@ -1162,56 +1118,21 @@ class MainActivity : Activity() {
      */
     private fun actualiser() = tache(R.string.etat_catalogue, false, { _ ->
         val choix = choisir(listOf(Source.GITHUB to Depot().lireCatalogue(Source.GITHUB)))
-        runOnUiThread {
-            offres = choix; remplirReglages(); remplirItineraires(); planifierCalques()
-            // Une recherche faite avant la lecture du catalogue n'a pas perdu sa demande.
-            if (lotDeZoneEnAttente) proposerLotZone()
-        }
+        runOnUiThread { offres = choix; remplirReglages(); remplirItineraires(); planifierCalques() }
         // Le conseil de pose ne vaut qu'en planification ; au repos, le bilan
         // se contente du catalogue lu.
         if (points.isEmpty() && modePlan) getString(R.string.etat_pret)
         else getString(R.string.etat_catalogue_lu, choix.size)
-    }, ensuite = { avancer() }, discret = true)
+    }, ensuite = {
+        catalogueEssaye = true
+        // Une question de zone posée avant la lecture du catalogue part maintenant.
+        apresCatalogue?.also { apresCatalogue = null }?.invoke()
+        avancer()
+    }, discret = true)
 
 
-    /** Le lot qui manque : de lui-même sur le Wi-Fi, sur demande sur un réseau facturé. */
-    private fun telechargerAuto(offre: Offre) {
-        autoLotDemande = offre.lot.case
-        val reseau = getSystemService(ConnectivityManager::class.java)
-        if (reseau.activeNetwork == null) {
-            autoLotDemande = null
-            // Un calque sans réseau ne réessaie pas en boucle ; un parcours, lui, le dit à chaque calcul.
-            if (points.size < 2) exclues[offre.lot.case] = SystemClock.elapsedRealtime()
-            if (points.size >= 2) calculer()
-            return
-        }
-        if (offre.lot.case !in reglages.zonesProposees) {
-            demanderZone(offre); return
-        }
-        if (!reseau.isActiveNetworkMetered) {
-            autoLotDemande = null
-            telecharger(offre); return
-        }
-        AlertDialog.Builder(this)
-            .setTitle(offre.lot.case)
-            .setMessage(getString(R.string.confirmer_donnees_mobiles, offre.lot.case,
-                Formatter.formatShortFileSize(this, offre.lot.octets), offre.source.libelle))
-            .setPositiveButton(R.string.telecharger) { _, _ ->
-                autoLotDemande = null
-                telecharger(offre)
-            }
-            .setNegativeButton(R.string.plus_tard) { _, _ ->
-                autoLotDemande = null
-                exclues[offre.lot.case] = SystemClock.elapsedRealtime()
-                avancer()
-                planifierCalques()
-            }
-            .setCancelable(false)
-            .show()
-    }
-
-    private fun telecharger(offre: Offre) {
-        autoLotDemande = null
+    /** Le lot d'une case, téléchargé et installé ; apres(réussi) à la fin (la planification qui attendait). */
+    private fun telecharger(offre: Offre, apres: (Boolean) -> Unit = {}) {
         val lot = offre.lot
         tache(R.string.etat_telechargement, true, { continuer ->
             runOnUiThread { etat.text = getString(R.string.etat_telechargement_lot, lot.case,
@@ -1222,13 +1143,12 @@ class MainActivity : Activity() {
             runOnUiThread { progression.isIndeterminate = true }
             val installe = horsLigne.installer(travail)
             travail.deleteRecursively()
-            retirees.remove(installe.case)
             getString(R.string.etat_installe, installe.case)
         }, ensuite = { reussi ->
-            if (!reussi) exclues[lot.case] = SystemClock.elapsedRealtime()
             remplirReglages()
             remplirItineraires()
             planifierCalques()
+            apres(reussi)
             avancer()
         })
     }
@@ -1243,10 +1163,6 @@ class MainActivity : Activity() {
                 }
                 routeur.annuler()
                 val octets = horsLigne.supprimer(lot.case)
-                retirees.add(lot.case)
-                // Supprimée, elle n'est plus acceptée : le prochain calcul qui en a
-                // besoin repose la question, au lieu de la retélécharger en silence.
-                reglages.zonesProposees = reglages.zonesProposees - lot.case
                 etat.text = getString(R.string.etat_supprime, lot.case,
                     Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
@@ -1530,7 +1446,6 @@ class MainActivity : Activity() {
             val r = entree.use {
                 Archive.importer(it, horsLigne, fonds, File(donnees, "archive"), suiviTelechargement(nom), continuer)
             }
-            retirees.removeAll(r.lots.toSet())
             getString(R.string.etat_archive_importee, r.fonds.size, r.lots.size)
         }, ensuite = {
             remplirCartes()
@@ -1585,24 +1500,6 @@ class MainActivity : Activity() {
         // Les lots installés, pour la liste des zones en fin de page et pour
         // savoir ce qu'un PC apporte en plus.
         val installes = horsLigne.lots()
-
-        // Les zones du serveur refusées à la question : elles se reprennent ici,
-        // comme le promet la question (sur le PC, c'est la grille hors ligne).
-        val refusees = offres.filter { o -> o.lot.case in reglages.zonesRefusees && installes.none { it.case == o.lot.case } }
-            .distinctBy { it.lot.case }.sortedBy { it.lot.case }
-        if (refusees.isNotEmpty()) {
-            titre(colonne, R.string.itineraires_refusees)
-            for (offre in refusees) colonne.addView(Button(this).apply {
-                text = getString(R.string.itineraires_lot, offre.lot.case, description(offre.lot),
-                    Formatter.formatShortFileSize(this@MainActivity, offre.lot.octets), offre.source.libelle)
-                setOnClickListener {
-                    // Reprise : la zone redevient acceptée, et se renouvellera d'elle-même.
-                    reglages.zonesRefusees = reglages.zonesRefusees - offre.lot.case
-                    reglages.zonesProposees = reglages.zonesProposees + offre.lot.case
-                    telecharger(offre)
-                }
-            }.avecIcone(R.drawable.ic_btn_telecharger))
-        }
 
         // Ce que seul un PC calcule : ses lots absents du serveur et du téléphone.
         titre(colonne, R.string.itineraires_pc)
@@ -1917,8 +1814,6 @@ class MainActivity : Activity() {
                 setTextColor(0xff263238.toInt())
                 setPadding(dp(18), 0, 0, 0)
             }, LinearLayout.LayoutParams(0, -2, 1f))
-            // Sans zone de routage au centre, la planification ne peut rien calculer : grisée.
-            if (texte == R.string.menu_planifier && !zoneAuCentre()) ligne.alpha = 0.4f
             ligne.setOnClickListener {
                 dialogue.dismiss()
                 action()
@@ -2022,7 +1917,10 @@ class MainActivity : Activity() {
             return
         }
         if (!modePlan && !zoneAuCentre()) {
-            expliquerSansZone(); return
+            // Pas de zone ici : la question ; la page s'ouvre une fois la zone installée.
+            val centre = carte.mapCenter
+            demanderZonePour(centre.latitude, centre.longitude) { if (!modePlan) basculerPlanification() }
+            return
         }
         modePlan = !modePlan
         modeRecherche = false
@@ -2159,10 +2057,6 @@ class MainActivity : Activity() {
             setText(R.string.afficher_legende); isChecked = reglages.legende
             setOnCheckedChangeListener { _, v -> reglages.legende = v; appliquerAffichage() }
         })
-        colonne.addView(CheckBox(this).apply {
-            setText(R.string.reglage_zones_auto); isChecked = reglages.zonesAuto
-            setOnCheckedChangeListener { _, v -> reglages.zonesAuto = v }
-        })
         // Les calques ne se dessinent qu'à partir de ce zoom : plus haut, le
         // téléphone a moins à tracer.
         champNombre(colonne, R.string.reglages_zoom_calques, reglages.zoomCalques.toDouble(), entier = true) {
@@ -2286,11 +2180,9 @@ class MainActivity : Activity() {
         carte.invalidate()
         // Le point est situé : le bandeau de recherche se referme aussitôt.
         fermerRecherche()
-        // Le pays et le lot de la nouvelle zone n'attendent pas un geste sur la
-        // carte : la recherche a amené l'utilisateur ici, le lot y part.
+        // Le pays de la nouvelle zone n'attend pas un geste sur la carte.
         planifierPays()
         planifierCalques()
-        proposerLotZone(attendreCatalogue = true)
     }
 
     private fun cacherClavier() {
@@ -2410,8 +2302,6 @@ class MainActivity : Activity() {
                 val octets = octetsCaches()
                 horsLigne.vider()
                 caches().forEach { it.deleteRecursively() }
-                retirees.clear()
-                exclues.clear()
                 effacerTrace()
                 appliquerFond(reglages.fond)     // un fournisseur neuf, sur un cache neuf
                 etat.text = getString(R.string.etat_cache_vide,
@@ -2543,7 +2433,6 @@ class MainActivity : Activity() {
                 carte.controller.setZoom(12.0)
                 carte.controller.setCenter(GeoPoint(position.first, position.second))
                 reglages.vue = Triple(position.first, position.second, 12.0)
-                proposerLotZone(attendreCatalogue = true)
             }
         }
     }
@@ -2554,56 +2443,73 @@ class MainActivity : Activity() {
         return lotAuPoint(horsLigne.lots(), centre.latitude, centre.longitude) != null
     }
 
-    /** Sans zone de routage, la planification ne mènerait à rien : on le dit, et où la prendre. */
     /**
-     * Pas de zone de routage sous la carte : le message dit où la prendre, selon
-     * le cas. Le serveur en publie une : dans « Gestion des itinéraires »
-     * (section « Zones refusées » si elle a été refusée). Il n'en publie pas :
-     * seul un PC la prépare, puis la partage au téléphone (QR code ou archive).
+     * Planifier là où aucune zone de routage n'est installée : une question,
+     * et rien d'automatique (Nico, 2026-11-13 : « il suffit de laisser le menu
+     * de planification disponible, mais avec une question sur le
+     * téléchargement si aucune zone est là localement »). La zone du serveur
+     * si elle existe, sinon la zone de base de BRouter, sinon le PC. Acceptée,
+     * elle se télécharge, puis ensuite() reprend (ouvrir la planification,
+     * poser le point) ; refusée, rien ne se passe.
      */
-    private fun expliquerSansZone() {
-        val boite = carte.boundingBox
-        val offre = boite?.let { offreAuCentre(offres, horsLigne.lots(), Zone(it.latSouth, it.lonWest, it.latNorth, it.lonEast), emptySet()) }
-        val message = when {
-            offre == null -> getString(R.string.plan_sans_zone_pc)
-            offre.lot.case in reglages.zonesRefusees -> getString(R.string.plan_sans_zone_refusee, offre.lot.case)
-            else -> getString(R.string.plan_sans_zone_serveur, offre.lot.case)
+    private fun demanderZonePour(lat: Double, lon: Double, ensuite: () -> Unit) {
+        if (!catalogueEssaye) {
+            // Le catalogue du serveur dit d'abord ce qui existe : sans lui, la zone de
+            // base de BRouter serait proposée là où le serveur a une zone complète.
+            apresCatalogue = { demanderZonePour(lat, lon, ensuite) }
+            actualiser()
+            return
         }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.plan_sans_zone_titre)
-            .setMessage(message)
-            .setPositiveButton(R.string.menu_itineraires) { _, _ -> ouvrirItineraires() }
-            .setNegativeButton(R.string.fermer, null)
-            .show()
+        val offre = offreAuCentre(offres, emptyList(), Zone(lat, lon, lat, lon), emptySet())
+        if (offre != null) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.plan_sans_zone_titre)
+                .setMessage(getString(R.string.plan_zone_serveur, offre.lot.case,
+                    Formatter.formatShortFileSize(this, offre.lot.octets)))
+                .setPositiveButton(R.string.telecharger) { _, _ -> telecharger(offre) { reussi -> if (reussi) ensuite() } }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        // Le serveur n'en publie pas : brouter.de a la zone de base de toute case
+        // (le Canada, l'Asie…). Sa taille d'abord, en tâche de fond.
+        val case = ZoneBrouter.caseDe(lat, lon)
+        EXECUTEUR_TRACE.execute {
+            val octets = ZoneBrouter.taille(case)
+            runOnUiThread { if (!isDestroyed) proposerZoneBrouter(case, octets, ensuite) }
+        }
     }
 
     /**
-     * Le premier téléchargement automatique d'une case demande d'abord, même
-     * sur Wi-Fi : une zone pèse plusieurs centaines de Mo, et recentrer la
-     * carte sur une ville ne doit pas suffire à la télécharger. La question
-     * n'est posée qu'une fois par case ; un refus est retenu, la zone restant
-     * disponible dans « Gestion des itinéraires ». Une zone acceptée se
-     * renouvelle ensuite d'elle-même.
+     * Pas de zone du serveur ici : la zone de base de brouter.de (ZoneBrouter),
+     * qui suffit au calcul d'itinéraire, ou à défaut (pas de réseau, la mer)
+     * le lot complet à préparer sur un PC.
      */
-    private fun demanderZone(offre: Offre) {
-        reglages.zonesProposees = reglages.zonesProposees + offre.lot.case
-        AlertDialog.Builder(this)
-            .setTitle(R.string.zone_initiale_titre)
-            .setMessage(getString(R.string.zone_initiale_message, offre.lot.case,
-                Formatter.formatShortFileSize(this, offre.lot.octets)))
-            .setPositiveButton(R.string.telecharger) { _, _ ->
-                autoLotDemande = null
-                telecharger(offre)
-            }
-            .setNegativeButton(R.string.zone_refuser) { _, _ ->
-                autoLotDemande = null
-                reglages.zonesRefusees = reglages.zonesRefusees + offre.lot.case
-                Toast.makeText(this, getString(R.string.zone_refusee, offre.lot.case), Toast.LENGTH_LONG).show()
-                avancer()
-                planifierCalques()
-            }
-            .setCancelable(false)
+    private fun proposerZoneBrouter(case: String, octets: Long?, ensuite: () -> Unit) {
+        val dialogue = AlertDialog.Builder(this).setTitle(R.string.plan_sans_zone_titre)
+        if (octets == null) {
+            dialogue.setMessage(R.string.plan_sans_zone_pc).setNegativeButton(R.string.fermer, null).show()
+            return
+        }
+        dialogue.setMessage(getString(R.string.plan_zone_brouter, case, Formatter.formatShortFileSize(this, octets)))
+            .setPositiveButton(R.string.telecharger) { _, _ -> telechargerZoneBrouter(case, ensuite) }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun telechargerZoneBrouter(case: String, ensuite: () -> Unit) {
+        tache(R.string.etat_telechargement, true, { continuer ->
+            val travail = File(File(donnees, "telechargements"), "brouter-$case")
+            ZoneBrouter.telecharger(case, travail, suiviTelechargement(getString(R.string.etat_zone_routage, case)), continuer)
+            runOnUiThread { progression.isIndeterminate = true }
+            val installe = horsLigne.installer(travail)
+            travail.deleteRecursively()
+            getString(R.string.etat_installe, installe.case)
+        }, ensuite = { reussi ->
+            remplirItineraires()
+            planifierCalques()
+            if (reussi) ensuite()
+        })
     }
 
     // ------------------------------------------------------------------ import GPX et KML
@@ -2759,7 +2665,9 @@ class MainActivity : Activity() {
     /** L'itinéraire de hike2gpx de la position GPS jusqu'au point : la planification, ses deux points posés. */
     private fun itineraireVers(p: GeoPoint) {
         if (lotAuPoint(horsLigne.lots(), p.latitude, p.longitude) == null) {
-            Toast.makeText(this, R.string.plan_point_sans_zone, Toast.LENGTH_SHORT).show(); return
+            // La même question que la planification ; la zone installée, l'itinéraire part.
+            demanderZonePour(p.latitude, p.longitude) { itineraireVers(p) }
+            return
         }
         avecPosition {
             val ici = dernierPointConnu()
@@ -2928,11 +2836,8 @@ class MainActivity : Activity() {
         if (carte.zoomLevelDouble < 14.0) carte.controller.setZoom(15.0)
         carte.controller.setCenter(point)
         carte.invalidate()
-        // Un recentrage sur la position est un usage réel de la zone : le lot
-        // qui la couvre se propose sans attendre un geste sur la carte.
         planifierPays()
         planifierCalques()
-        proposerLotZone(attendreCatalogue = true)
     }
 
     private fun basculerEnregistrement() {
@@ -3383,9 +3288,6 @@ class MainActivity : Activity() {
                 val reprendre = aReprendre
                 ensuite?.invoke(reussie)
                 if (reprendre && !enCours.get()) avancer()
-                // Un recentrage demandé pendant la tâche n'a pas perdu sa demande.
-                if (lotDeZoneEnAttente && !enCours.get() && autoLotDemande == null)
-                    proposerLotZone()
                 // « Arrêter » pendant une récupération l'arrête toute ; sinon la suivante part.
                 if (interrompue) recuperations.clear()
                 if (!enCours.get()) recuperations.removeFirstOrNull()?.invoke()
@@ -3608,7 +3510,6 @@ class MainActivity : Activity() {
         private const val PERMISSION_POSITION = 3
         private const val PERMISSION_NOTIFICATIONS = 4
         private const val CANAL_EXPORT = "export"
-        private const val REESSAI_MS = 3_600_000L
         private const val VOILE = 0xe6ffffff.toInt()
         /** Le bleu de l'itinéraire, celui de la page du PC. */
         private const val COULEUR_ITINERAIRE = 0xff1565c0.toInt()

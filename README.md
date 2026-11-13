@@ -183,7 +183,7 @@ manifest. One simple rule applies: when an installed area covers the whole
 route, it is used alone, for the routing as for the map layers; otherwise, the
 routing runs [on the fly](#without-a-routing-area-routing-on-the-fly).
 
-There are two ways to get one.
+There are three ways to get one.
 
 - **From the server**, for France, Switzerland, Germany, Czechia and Poland.
   The first time a route or the map's paths touch a published cell, hike2gpx
@@ -192,11 +192,18 @@ There are two ways to get one.
   when the server publishes a newer one; the Var cell, 247 MB, arrives in a few
   tens of seconds. Refused, it is no longer offered and stays available in
   "Route management". The "Download routing areas automatically" box in the
-  settings, on the computer as on the phone, turns off all automatic
-  downloads.
+  settings turns off all automatic downloads. On the phone, nothing downloads
+  by itself: "Plan a route" asks for the area when none is installed, and
+  opens once it is downloaded; refused, planning does not open. An installed
+  area renews through its "Update" button.
 - **From the PC**, everywhere else: "Route management" shows the grid of
   cells; click the ones you need, then "Download". The PC prepares the view on
   screen or the whole cell.
+- **From BRouter, on the phone alone**, where the server has nothing (Canada,
+  Asia…): "Plan a route" offers the base area BRouter publishes for any cell
+  of the world (a few tens of MB). Routes are computed with it, without the
+  paths drawn on the map nor the crossings to check: for those, the PC
+  prepares the complete area and shares it.
 
 A cell you no longer need is removed from its bubble: "Delete from this
 computer" erases its routing area and its base maps. An area from the server

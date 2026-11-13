@@ -138,10 +138,14 @@ class HorsLigne(dossier: File) {
         }.minByOrNull { if (it.osm) 1 else 0 }
 
     /** Les franchissements du lot qui tombent dans la zone, lus au fil du fichier. */
-    fun franchissements(lot: Lot, zone: Zone): List<Franchissement> =
-        GZIPInputStream(File(File(racine, lot.case), "franchissements.json.gz").inputStream()).use {
+    fun franchissements(lot: Lot, zone: Zone): List<Franchissement> {
+        // Une zone de base de brouter.de (ZoneBrouter) n'a pas d'analyse des franchissements.
+        val fichier = File(File(racine, lot.case), "franchissements.json.gz")
+        if (!fichier.isFile) return emptyList()
+        return GZIPInputStream(fichier.inputStream()).use {
             lireFranchissements(InputStreamReader(it, Charsets.UTF_8), zone)
         }
+    }
 
     companion object {
         val FORMATS_LUS = listOf(2, 3)

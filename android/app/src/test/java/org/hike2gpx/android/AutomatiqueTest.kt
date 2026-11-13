@@ -34,26 +34,6 @@ class AutomatiqueTest {
         assertNull(PositionIp.lire("""{"latitude": 0, "longitude": 0}"""))
     }
 
-    @Test fun le_lot_de_la_case_du_parcours_quand_il_manque() {
-        val offres = listOf(Offre(Source.GITHUB, lot("E0_N40", e0n40, "2026-11-01")),
-            Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-01")))
-        val choix = lotsATelecharger(offres, emptyList(), gareoult, emptySet())
-        assertEquals(listOf("E5_N40"), choix.map { it.lot.case })
-    }
-
-    @Test fun rien_si_le_lot_installe_est_a_jour_et_un_plus_recent_le_remplace() {
-        val installe = lot("E5_N40", e5n40, "2026-11-01")
-        val memeEdition = listOf(Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-01")))
-        assertTrue(lotsATelecharger(memeEdition, listOf(installe), gareoult, emptySet()).isEmpty())
-        val plusRecent = listOf(Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-08")))
-        assertEquals(1, lotsATelecharger(plusRecent, listOf(installe), gareoult, emptySet()).size)
-    }
-
-    @Test fun une_case_exclue_ne_revient_pas() {
-        val offres = listOf(Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-01")))
-        assertTrue(lotsATelecharger(offres, emptyList(), gareoult, setOf("E5_N40")).isEmpty())
-    }
-
     @Test fun le_calque_demande_le_lot_du_centre_de_la_vue() {
         val offres = listOf(Offre(Source.GITHUB, lot("E0_N40", e0n40, "2026-11-01")),
             Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-01")))
@@ -73,11 +53,7 @@ class AutomatiqueTest {
         assertEquals("E5_N40", offreAuCentre(plusRecent, listOf(installe), gareoult, emptySet())?.lot?.case)
     }
 
-    @Test fun un_parcours_a_cheval_prend_les_deux_cases() {
-        val offres = listOf(Offre(Source.GITHUB, lot("E0_N40", e0n40, "2026-11-01")),
-            Offre(Source.GITHUB, lot("E5_N40", e5n40, "2026-11-01")))
-        val frontiere = Zone(43.0, 4.9, 43.1, 5.1)
-        assertEquals(listOf("E0_N40", "E5_N40"), lotsATelecharger(offres, emptyList(), frontiere, emptySet()).map { it.lot.case })
+    @Test fun une_zone_ne_touche_pas_la_case_voisine() {
         assertFalse(Zone(45.1, 6.0, 45.2, 6.1).touche(e5n40))
     }
 
