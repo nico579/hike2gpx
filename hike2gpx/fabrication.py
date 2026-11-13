@@ -92,11 +92,17 @@ def regions_a_installer(dossier, zone: tuple) -> list:
     for i, j in _tuiles(zone):
         if geofabrik.extraits_de_tuile(dossier, i, j):
             continue
+        sud, ouest, nord, est = fr.bornes_tuile(i, j)
+        # Une région dont la boîte ne touche pas la tuile ne peut pas la
+        # contenir : l'écarter d'abord évite 554 tests de contour par tuile
+        # (39 s pour une case de 5° le 2026-11-13, sur l'index réel).
+        proches = [r for r in regions if r["bornes"][0] <= nord and r["bornes"][2] >= sud
+                   and r["bornes"][1] <= est and r["bornes"][3] >= ouest]
         # Une tuile frontalière demande les deux régions voisines, pas le
         # grand extrait qui les contient (geofabrik.regions_de_tuile). Une
         # région déjà installée, mais découpée pour une autre case, ne couvre
         # pas celle-ci : elle se redemande, découpée à la case.
-        for region in geofabrik.regions_de_tuile(regions, i, j):
+        for region in geofabrik.regions_de_tuile(proches, i, j):
             besoins[region["id"]] = region
     return list(besoins.values())
 
@@ -360,11 +366,11 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
         suivi("fusion", len(mailles), len(mailles))
 
         suivi("compilation", 0, 1)
-        stock.ecrire_pbf(travail / "osm.osm.pbf")
+        # Le PBF enrichi s'écrit directement depuis le stock : un passage de
+        # moins sur les données de la case (le PBF OSM intermédiaire n'existe plus).
+        stock.ecrire_pbf(travail / "enrichi.osm.pbf", registre)
     finally:
         stock.fermer()
-    registre.ecrire_pbf(travail / "osm.osm.pbf", travail / "enrichi.osm.pbf")
-    (travail / "osm.osm.pbf").unlink()
     (travail / "osm.sqlite").unlink()
     # Le réseau fusionné de toute la case est écrit : n'en garder que les
     # franchissements. Il restait sinon en mémoire pendant la compilation, que
@@ -649,8 +655,10 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
         # en_ligne=False : un lot ne lit que les extraits, jamais Overpass, trop
         # instable pour une fabrication en série (Nico, 2026-10-27).
         sud, ouest, nord, est = fr.bornes_tuile(i, j)
-        return (fr.voies_affichables(sud, ouest, nord - BORD_DEG, est - BORD_DEG, dossier, en_ligne=False),
-                fr.franchissements_tuile(i, j, dossier, en_ligne=False) if franchissements is None else [])
+        complets = [] if franchissements is None else None
+        voie = fr.voies_affichables(sud, ouest, nord - BORD_DEG, est - BORD_DEG, dossier, en_ligne=False,
+                                    franchissements_complets=complets)
+        return voie, complets or []
     def bloc(x10, y10):
         """Les couches d'un bloc, ses franchissements analysés et ses dates
         OSM, sans rien écrire : en série ici, ou dans un processus fils."""
@@ -660,18 +668,28 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
                    min(n, zone[2]) + MARGE_LECTURE, min(e, zone[3]) + MARGE_LECTURE)
         couches = {"voies": [], "barrieres": [], "franchissements": [], "jonctions": []}
         jonctions_vues = set()
+        voies_vues = set()
+        barrieres_vues = set()
+        franchissements_vus = set()
         for i, j in _tuiles(lecture):
             extraits = geofabrik.extraits_de_tuile(dossier, i, j)
             if not extraits:            # mer, ou région sans extrait : rien à lire sans réseau
                 continue
             dates_bloc.update(e.get("date") for e in extraits)
             v, franchissements_tuile = lire(i, j)
-            couches["voies"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
-                                  {"id": x["id"], "genre": x["genre"]}) for x in v["voies"]
-                                 if len(x["pts"]) > 1]
-            couches["barrieres"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
-                                      {"id": x["id"], "nature": x["nature"]}) for x in v["barrieres"]
-                                     if len(x["pts"]) > 1]
+            # Une voie qui traverse deux tuiles revient entière de chacune : une
+            # seule copie, sinon les tuiles du lot se recouvrent (mesuré ×1,05
+            # sur une zone réelle, plus sur les longues voies).
+            for x in v["voies"]:
+                if len(x["pts"]) > 1 and x["id"] not in voies_vues:
+                    voies_vues.add(x["id"])
+                    couches["voies"].append((shapely.LineString([(lo, la) for la, lo in x["pts"]]),
+                                             {"id": x["id"], "genre": x["genre"]}))
+            for x in v["barrieres"]:
+                if len(x["pts"]) > 1 and x["id"] not in barrieres_vues:
+                    barrieres_vues.add(x["id"])
+                    couches["barrieres"].append((shapely.LineString([(lo, la) for la, lo in x["pts"]]),
+                                                 {"id": x["id"], "nature": x["nature"]}))
             # Les chemins non raccordés (franchissements.jonctions_manquees), une fois chacun.
             for x in v.get("jonctions", ()):
                 if x["cle"] not in jonctions_vues:
@@ -682,7 +700,8 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
                           "isole": bool(x.get("isole"))}))
             for f in franchissements_tuile:
                 tous_bloc[f["cle"]] = f
-                if f["statut"] in ("blocked", "uncertain"):
+                if f["statut"] in ("blocked", "uncertain") and f["cle"] not in franchissements_vus:
+                    franchissements_vus.add(f["cle"])
                     couches["franchissements"].append(
                         (shapely.Point(f["lon"], f["lat"]),
                          {c: f.get(c) for c in ("cle", "statut", "raison", "nature", "osm")}))
@@ -799,11 +818,19 @@ def renouveler_extraits(dossier, zone: tuple) -> list:
 def lot_a_jour(chemin: Path, *, osm: str | None, fournisseurs: list = (), editions: dict | None = None) -> bool:
     """Le lot déjà fabriqué dans chemin suffit-il ? Même format, mêmes
     fournisseurs, données OSM au moins aussi récentes que les extraits, même
-    édition des tronçons quand elle est connue (un GeoPackage ; le WFS n'en a pas)."""
+    édition des tronçons quand elle est connue (un GeoPackage ; le WFS n'en a pas).
+    Ses fichiers doivent être là et de la taille annoncée : un lot tronqué ou
+    amputé se refait (la taille suffit, sans relire le SHA-256 de centaines de Mo)."""
     try:
         m = json.loads((Path(chemin) / "manifest.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
+    for fichier in m.get("fichiers", ()):
+        try:
+            if (Path(chemin) / fichier["nom"]).stat().st_size != fichier["octets"]:
+                return False
+        except (OSError, KeyError, TypeError):
+            return False
     sources = m.get("sources", {})
     demandes = m.get("fournisseurs_demandes", m.get("fournisseurs", []))
     apportes = m.get("fournisseurs", [])

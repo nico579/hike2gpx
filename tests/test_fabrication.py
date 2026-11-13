@@ -34,17 +34,22 @@ def mode_en_ligne(monkeypatch):
     monkeypatch.setattr(geofabrik, "regions_attendues", lambda dossier: [])
     monkeypatch.setattr(geofabrik, "installes", lambda dossier: [])
 
-    def voies(sud, ouest, nord, est, dossier, **options):
+    def entrees():
+        return [
+            {"cle": "a", "statut": "blocked", "raison": "r", "nature": "Clôture", "lat": 43.315, "lon": 6.015,
+             "osm": "way/2", "voies": [1], "coupes": [[[6.015, 43.3149], [6.015, 43.3151]]]},
+            {"cle": "b", "statut": "passable", "raison": "r", "nature": "Portillon", "lat": 43.316, "lon": 6.016,
+             "osm": "node/3", "voies": [1], "coupes": []}]
+
+    def voies(sud, ouest, nord, est, dossier, *, franchissements_complets=None, **options):
         lus.append((sud, ouest))
+        if franchissements_complets is not None:
+            franchissements_complets.extend(entrees())
         return {"voies": [{"id": 1, "genre": "sentier", "pts": [[43.31, 6.01], [43.32, 6.02]]}],
                 "barrieres": [{"id": 2, "nature": "Clôture", "pts": [[43.315, 6.01], [43.315, 6.02]]}],
                 "franchissements": []}
     monkeypatch.setattr(fr, "voies_affichables", voies)
-    monkeypatch.setattr(fr, "franchissements_tuile", lambda i, j, dossier, **o: [
-        {"cle": "a", "statut": "blocked", "raison": "r", "nature": "Clôture", "lat": 43.315, "lon": 6.015,
-         "osm": "way/2", "voies": [1], "coupes": [[[6.015, 43.3149], [6.015, 43.3151]]]},
-        {"cle": "b", "statut": "passable", "raison": "r", "nature": "Portillon", "lat": 43.316, "lon": 6.016,
-         "osm": "node/3", "voies": [1], "coupes": []}])
+    monkeypatch.setattr(fr, "franchissements_tuile", lambda i, j, dossier, **o: entrees())
     return lus
 
 
@@ -61,6 +66,15 @@ def test_fabrication_reprend_le_mode_en_ligne(tmp_path, mode_en_ligne):
     calque = lot.lire_calque(tmp_path / "lot" / "calques.mbtiles", "osm", *ZONE)
     assert {v["genre"] for v in calque["voies"]} == {"sentier"}
     assert [b["nature"] for b in calque["barrieres"]] and [f["cle"] for f in calque["franchissements"]] == ["a"]
+
+
+def test_les_calques_n_ecrivent_pas_deux_fois_une_voie_qui_traverse_deux_tuiles(tmp_path, mode_en_ligne):
+    # La même voie revient entière de chaque tuile qu'elle touche : une seule
+    # copie dans le lot, sinon la carte la dessine deux fois (2026-11-13).
+    zone = (43.30, 6.00, 43.40, 6.10)
+    fabrication.fabriquer(tmp_path / "donnees", Installation(), "E5_N40", tmp_path / "lot", zone=zone)
+    calque = lot.lire_calque(tmp_path / "lot" / "calques.mbtiles", "osm", *zone)
+    assert [v["id"] for v in calque["voies"]] == [1]
 
 
 def test_fabrication_installe_a_part_des_lots_enrichis(tmp_path, mode_en_ligne):
@@ -420,6 +434,19 @@ def test_fabriquer_lots_limite_les_cases_a_la_zone(tmp_path, serie):
                                        zone=(42.98, 5.65, 43.81, 6.94), ecrire=lambda t: None)
     assert bilan == {"E5_N40": "fabriqué", "W5_N45": "hors zone"}
     assert faites == [("E5_N40", (42.98, 5.65, 43.81, 6.94))]
+
+
+def test_lot_a_jour_exige_des_fichiers_presents_et_entiers(tmp_path):
+    # Un manifeste seul ne fait pas un lot : une RD5 effacée ou tronquée doit
+    # être refaite, sinon le serveur publierait un lot inutilisable.
+    rd5 = tmp_path / "E5_N40.rd5"
+    rd5.write_bytes(b"rd5")
+    lot.ecrire_manifeste(tmp_path, "E5_N40", [rd5], {"osm": "2026-10-20"}, type="osm")
+    assert fabrication.lot_a_jour(tmp_path, osm="2026-10-20")
+    rd5.write_bytes(b"rd")                                  # tronquée
+    assert not fabrication.lot_a_jour(tmp_path, osm="2026-10-20")
+    rd5.unlink()                                            # absente
+    assert not fabrication.lot_a_jour(tmp_path, osm="2026-10-20")
 
 
 def test_lot_a_jour_selon_le_type_et_l_edition(tmp_path):

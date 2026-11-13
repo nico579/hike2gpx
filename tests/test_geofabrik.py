@@ -110,6 +110,21 @@ def test_l_extrait_rend_ce_que_rendrait_overpass(tmp_path):
     assert sorted(map(cle, fr.analyser(elements))) == sorted(map(cle, fr.analyser(attendu.elements)))
 
 
+def test_un_bac_sans_highway_entre_dans_l_extrait(tmp_path):
+    # Le profil de randonnée accepte route=ferry (coût 2,34) : sans cette voie,
+    # une randonnée qui traverse un lac n'a plus de bac dans la RD5 enrichie.
+    carte = Carte()
+    gauche, droite = carte.noeud(-10, 10), carte.noeud(10, 10)
+    carte.chemin((-10, 20), (10, 20))
+    bac = {"type": "way", "id": 900, "nodes": [gauche, droite],
+           "tags": {"route": "ferry", "foot": "yes", "motor_vehicle": "yes"}}
+    installer_carte(tmp_path, carte, autres_voies=[bac])
+    elements = elements_zone(tmp_path, geofabrik.installes(tmp_path)[0])
+    voies = {e["id"]: e for e in elements if e["type"] == "way"}
+    assert voies[900]["tags"]["route"] == "ferry"
+    assert len(voies[900]["geometry"]) == 2, "les nœuds du bac ont leur position"
+
+
 def test_charger_tuile_prend_l_extrait_sans_overpass(tmp_path):
     carte, _, _ = carte_d_essai()
     installer_carte(tmp_path, carte)
