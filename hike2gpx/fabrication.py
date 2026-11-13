@@ -860,17 +860,22 @@ def lot_a_jour(chemin: Path, *, osm: str | None, fournisseurs: list = (), editio
         return False
     for fichier in m.get("fichiers", ()):
         try:
-            if (Path(chemin) / fichier["nom"]).stat().st_size != fichier["octets"]:
-                return False
+            nom = fichier["nom"]
+            if Path(nom).name != nom or (Path(chemin) / nom).stat().st_size != fichier["octets"]:
+                return False        # un nom qui sort du dossier ne passe pas (audit A01)
         except (OSError, KeyError, TypeError):
             return False
     sources = m.get("sources", {})
     demandes = m.get("fournisseurs_demandes", m.get("fournisseurs", []))
     apportes = m.get("fournisseurs", [])
+    # Sans extrait OSM qui couvre la zone, un lot fait sans OSM est à jour ;
+    # sinon il se refaisait à chaque passage (audit A09). Un lot qui a une
+    # édition OSM reste à refaire tant que celle des extraits est inconnue.
+    osm_a_jour = (sources.get("osm") or "") >= osm if osm is not None else not sources.get("osm")
     # Un fournisseur demandé mais sans tronçon (sa case est hors de son pays) n'a
     # pas d'édition au manifeste : seule celle des fournisseurs apportés compte.
     return (m.get("format") == lot.FORMAT and sorted(demandes) == sorted(fournisseurs)
-            and osm is not None and (sources.get("osm") or "") >= osm
+            and osm_a_jour
             and all(sources.get(providers.source(s).calque) == edition for s, edition in (editions or {}).items()
                     if s in apportes))
 

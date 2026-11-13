@@ -101,10 +101,13 @@ def dresser(hors_ligne, empreintes: dict | None = None, selection: dict | None =
             continue
         suffixe = mapsforge.SUFFIXE if f.get("format") == "map" else ".mbtiles"
         chemin = hors_ligne.dossier_fonds / f"{f['nom']}{suffixe}"
-        etat = chemin.stat()
-        cle = (str(chemin), etat.st_size, etat.st_mtime_ns)
-        if cle not in empreintes:
-            empreintes[cle] = lot.empreinte(chemin)
+        try:
+            etat = chemin.stat()
+            cle = (str(chemin), etat.st_size, etat.st_mtime_ns)
+            if cle not in empreintes:
+                empreintes[cle] = lot.empreinte(chemin)
+        except OSError:
+            continue        # retiré entre le listing et sa lecture : il ne se partage pas (audit A10)
         url = f"fonds/{f['nom']}{suffixe}"
         (cartes if suffixe == mapsforge.SUFFIXE else fonds).append(
             {"nom": f["nom"], "zone": f["zone"], "zoom": f["zoom"], "source": f["source"],

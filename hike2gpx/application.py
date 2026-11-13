@@ -428,7 +428,9 @@ class Application:
         {"moteur": bool, "segments": [...]}, ou None."""
         with self._verrou_brouter:
             if self._fil_brouter and self._fil_brouter.is_alive():
-                return {**self._brouter_en_cours, "segments": list(self._brouter_en_cours["segments"])}
+                # Le fil peut avoir vidé l'état sans être encore sorti (audit A02).
+                en_cours = self._brouter_en_cours
+                return {"moteur": bool(en_cours.get("moteur")), "segments": list(en_cours.get("segments", []))}
             maintenant = time.monotonic()
             recent = lambda cle: maintenant - self._echecs_brouter.get(cle, -self.REESSAI_BROUTER_S) \
                 < self.REESSAI_BROUTER_S
@@ -470,7 +472,8 @@ class Application:
                 finally:
                     self._brouter_en_cours["segments"].remove(nom)
         finally:
-            self._brouter_en_cours = {}
+            with self._verrou_brouter:
+                self._brouter_en_cours = {}
 
     # ---------------------------------------------------------- avancement
 
@@ -624,7 +627,7 @@ class Application:
                 zone = union(zone, zone_autour([etendue[:2], etendue[2:]], 0.1))
             else:
                 return {"erreur": "Le tracé sort sans cesse de la zone examinée : rapprochez les points."}
-        except brouter.ErreurBRouter as exc:
+        except (brouter.ErreurBRouter, hors_ligne.ErreurLot) as exc:
             return {"erreur": str(exc)}
         # Dernier contrôle, indépendant de BRouter : un tracé qui passe encore
         # une coupe interdite n'est jamais rendu (audit B10, amélioration 2).
@@ -789,7 +792,8 @@ class Application:
         l'index de Geofabrik lu : son contour de la France, comme pour les
         autres pays."""
         en_cours = self._brouter_en_cours
-        reponse = {"brouter": {**en_cours, "segments": list(en_cours["segments"])} if en_cours else None}
+        reponse = {"brouter": {"moteur": bool(en_cours.get("moteur")), "segments": list(en_cours.get("segments", []))}
+                   if en_cours else None}
         if zone is None:
             return reponse
         lat, lon = (zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2
@@ -871,21 +875,30 @@ class Application:
         """Ce que hike2gpx a téléchargé, pour la section des réglages (Nico,
         2026-10-20 : « il faudrait une fonction pour vider le cache, dans les
         réglages », « utile aussi pour actualiser les données rapidement »)."""
-        def mesure(fichiers) -> dict:
-            fichiers = [p for p in fichiers if p.is_file()]
-            return {"fichiers": len(fichiers), "octets": sum(p.stat().st_size for p in fichiers)}
+        def etat(chemin):
+            # Un fichier supprimé entre le listing et sa mesure (une action des
+            # réglages, une case retirée) est ignoré, sans faire échouer la section (audit A10).
+            try:
+                return Path(chemin).stat()
+            except OSError:
+                return None
 
-        def date(chemin) -> str:
-            return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(chemin.stat().st_mtime))
+        def mesure(fichiers) -> dict:
+            tailles = [e.st_size for e in map(etat, fichiers) if e is not None]
+            return {"fichiers": len(tailles), "octets": sum(tailles)}
+
+        def date(e) -> str:
+            return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(e.st_mtime))
 
         caches = {nom: mesure([p for d in dossiers if d.is_dir() for p in d.glob("*.json")])
                   for nom, dossiers in self._caches().items()}
         # Les extraits que la fabrication des lots a téléchargés et découpés.
-        extraits = [{"id": e["id"], "nom": e["nom"], "date": e["date"], "octets": Path(e["base"]).stat().st_size}
-                    for e in geofabrik.installes(self.dossier)]
+        extraits = [{"id": e["id"], "nom": e["nom"], "date": e["date"], "octets": s.st_size}
+                    for e in geofabrik.installes(self.dossier) if (s := etat(e["base"])) is not None]
         segments = sorted(self.installation.segments.glob("*.rd5")) if self.installation.segments.is_dir() else []
         return {**caches, "extraits": extraits,
-                "brouter": [{"nom": p.stem, "octets": p.stat().st_size, "date": date(p)} for p in segments],
+                "brouter": [{"nom": p.stem, "octets": s.st_size, "date": date(s)}
+                            for p in segments if (s := etat(p)) is not None],
                 "restes": mesure(self._restes()),
                 "occupe": {"brouter": bool(self._fil_brouter and self._fil_brouter.is_alive())}}
 
@@ -895,6 +908,8 @@ class Application:
         état de la section, ou {"erreur"}."""
         corps = corps if isinstance(corps, dict) else {}
         action, cible = corps.get("action"), corps.get("cible")
+        if not isinstance(action, str):
+            return {"erreur": "Action inconnue."}       # et non une erreur 500 (audit A05)
         if action == "vider_cache":
             if (self._fil_brouter and self._fil_brouter.is_alive()) or (self._fil_lot and self._fil_lot.is_alive()):
                 return {"erreur": "Un téléchargement ou une lecture est en cours. Réessayez après sa fin."}
@@ -1019,7 +1034,8 @@ class Application:
             journal.warning("Tuiles BRouter non actualisées : %s", exc)
         finally:
             shutil.rmtree(attente, ignore_errors=True)
-            self._brouter_en_cours = {}
+            with self._verrou_brouter:
+                self._brouter_en_cours = {}
 
     def routes(self):
         # /api/langue : le choix FR / EN du commun, gardé dans les préférences.

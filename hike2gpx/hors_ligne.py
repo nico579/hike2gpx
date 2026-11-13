@@ -55,13 +55,30 @@ class HorsLigne:
         # pas celle des RD5 enrichies ; un dossier à part pour ne pas les mêler.
         self.segments_osm = self.racine / "segments-osm"
         self._franchissements = {}      # case -> liste, lue une fois
+        self._manifestes = {}           # chemin -> ((mtime, taille), manifeste), voir lots()
         self.dossier_fonds = self.racine / "fonds"
 
     def lots(self) -> list:
-        """Manifestes des lots installés."""
+        """Manifestes des lots installés. Chacun ne se relit que s'il a changé
+        (date et taille) : un calcul demande les lots plusieurs fois, et chaque
+        appel décodait tous les manifestes (audit A12). La liste, elle, se
+        refait à chaque appel : un lot installé ou retiré entre-temps se voit."""
         if not self.racine.is_dir():
             return []
-        return [json.loads(m.read_text(encoding="utf-8")) for m in sorted(self.racine.glob("*/manifest.json"))]
+        connus, resultat = {}, []
+        for chemin in sorted(self.racine.glob("*/manifest.json")):
+            try:
+                etat = chemin.stat()
+            except OSError:
+                continue            # retiré entre le listing et sa lecture
+            signature = (etat.st_mtime_ns, etat.st_size)
+            connu = self._manifestes.get(chemin)
+            if connu is None or connu[0] != signature:
+                connu = (signature, json.loads(chemin.read_text(encoding="utf-8")))
+            connus[chemin] = connu
+            resultat.append(dict(connu[1]))
+        self._manifestes = connus
+        return resultat
 
     def fonds(self) -> list:
         """Les fonds de carte installés : les MBTiles d'images, décrits par
@@ -168,8 +185,16 @@ class HorsLigne:
         case = manifeste.get("case", "")
         if not case or "/" in case or "\\" in case or ".." in case:
             raise ErreurLot("Nom de case invalide dans le manifeste.")
+        # Un nom de fichier nu, validé une fois et seul utilisé ensuite : le
+        # contrôle et la copie lisaient deux noms différents, et « ../x » ou
+        # un chemin absolu écrivait hors du dossier du lot (audit A01, 2026-11-13).
         for f in manifeste.get("fichiers", []):
-            chemin = source / Path(f["nom"]).name
+            nom = f.get("nom") if isinstance(f, dict) else None
+            if not isinstance(nom, str) or nom in ("", ".", "..") or "/" in nom or "\\" in nom \
+                    or ":" in nom or Path(nom).name != nom:
+                raise ErreurLot(f"Nom de fichier invalide dans le manifeste : {nom!r}.")
+        for f in manifeste.get("fichiers", []):
+            chemin = source / f["nom"]
             if not chemin.is_file() or chemin.stat().st_size != f["octets"]:
                 raise ErreurLot(f"{f['nom']} manquant ou de taille inattendue.")
             if lot.empreinte(chemin) != f["sha256"]:
@@ -250,7 +275,13 @@ class HorsLigne:
         if not (self.racine / case / "franchissements.json.gz").is_file():
             return []
         if case not in self._franchissements:
-            with gzip.open(self.racine / case / "franchissements.json.gz", "rt", encoding="utf-8") as f:
-                self._franchissements[case] = json.load(f)
+            # Illisible, il ne passe pas pour « aucune barrière » : un passage
+            # bloqué serait dit libre (audit A07).
+            try:
+                with gzip.open(self.racine / case / "franchissements.json.gz", "rt", encoding="utf-8") as f:
+                    self._franchissements[case] = json.load(f)
+            except (OSError, EOFError, ValueError) as exc:
+                raise ErreurLot(f"Franchissements de la zone {case} illisibles ({exc}) : supprimez-la puis "
+                                "téléchargez-la ou fabriquez-la de nouveau.") from exc
         sud, ouest, nord, est = zone
         return [f for f in self._franchissements[case] if sud <= f["lat"] <= nord and ouest <= f["lon"] <= est]

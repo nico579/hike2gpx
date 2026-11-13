@@ -118,6 +118,22 @@ def _par_plages(fichier: dict, cible: Path, plages: int, ouvrir, essais: int, pa
             partie.unlink()
 
 
+def taille(url: str, ouvrir=urllib.request.urlopen) -> int:
+    """La taille d'un fichier distant (HEAD, Content-Length). Sans en-tête,
+    une erreur : 0 passait pour un fichier vide, et le téléchargement levait
+    ensuite FileNotFoundError (audit A03/A04, 2026-11-13). La seule copie,
+    pour les quatre fournisseurs nationaux."""
+    with ouvrir(urllib.request.Request(url, headers=AGENT, method="HEAD"), timeout=60) as reponse:
+        longueur = (getattr(reponse, "headers", None) or {}).get("Content-Length")
+    try:
+        octets = int(longueur)
+    except (TypeError, ValueError):
+        octets = 0
+    if octets <= 0:
+        raise ErreurArchive(f"{url} : taille inconnue (pas de Content-Length).")
+    return octets
+
+
 def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essais: int = ESSAIS,
                 pause=time.sleep, plages: int = 1) -> None:
     """fichier = {"url", "octets", "md5"} : téléchargé dans cible, repris là où
@@ -133,6 +149,10 @@ def telecharger(fichier: dict, cible: Path, ouvrir=urllib.request.urlopen, essai
 
     plages > 1 : en autant de plages parallèles (_par_plages), pour un serveur
     qui bride chaque connexion ; d'un seul tenant s'il ne sert pas les plages."""
+    if not isinstance(fichier.get("octets"), int) or fichier["octets"] <= 0:
+        # Une archive nationale n'est jamais vide : sans taille, rien ne se
+        # télécharge ni ne se contrôle (audit A03).
+        raise ErreurArchive(f"{cible.name} : taille inconnue, téléchargement refusé.")
     if plages > 1 and fichier["octets"] > plages * BLOC \
             and not (cible.exists() and cible.stat().st_size == fichier["octets"]):
         try:
@@ -200,7 +220,12 @@ def lignes_gpkg(gpkg, table: str, colonnes: tuple, epsg: int, sud: float, ouest:
         for *attributs, blob in base.execute(requete, [max(xs), min(xs), max(ys), min(ys), *valeurs]):
             if not blob:
                 continue
-            for k, ligne in enumerate(get_parts(from_wkb(blob[8 + tailles[(blob[3] >> 1) & 7]:]))):
+            # Les indicateurs 5 à 7 sont réservés : un message, plutôt qu'un
+            # KeyError au milieu de la lecture (audit A11).
+            enveloppe = tailles.get((blob[3] >> 1) & 7) if len(blob) >= 8 else None
+            if enveloppe is None:
+                raise ErreurArchive(f"{Path(gpkg).name} : géométrie GeoPackage illisible dans {table}.")
+            for k, ligne in enumerate(get_parts(from_wkb(blob[8 + enveloppe:]))):
                 points = get_coordinates(ligne)        # x, y dans la projection du fichier, sans l'altitude
                 if len(points) >= 2:
                     lues.append((tuple(attributs), k))

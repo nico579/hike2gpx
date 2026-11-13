@@ -43,7 +43,6 @@ from .depot import AGENT
 @dataclass(frozen=True)
 class Source:
     gabarit: str            # l'adresse d'une tuile : {z}, {x}, {y}, et {cle} pour un service à clé
-    format: str             # « jpg » ou « png », le format MBTiles
     cle: bool               # le service privé de l'IGN, avec la clé de l'utilisateur
     titre: str
     attribution: str
@@ -68,23 +67,25 @@ def _ign(couche: str, mime: str, cle: bool, matrice: str = "PM") -> str:
 # d'OpenStreetMap et d'OpenTopoMap (serveurs de bénévoles, qui bloquent les
 # téléchargements en masse) et l'imagerie d'Esri (stockage hors ligne interdit
 # par ses conditions).
+# Toute tuile se range en JPEG (en_jpeg) : le format d'origine n'est plus noté
+# (champ jamais lu, audit M1 du 2026-11-13).
 SOURCES = {
-    "scan25": Source(_ign("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", True), "jpg", True, "SCAN 25 (IGN)", "© IGN"),
-    "plan": Source(_ign("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png", False), "png", False, "Plan IGN", "© IGN"),
-    "photos": Source(_ign("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg", False), "jpg", False,
+    "scan25": Source(_ign("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", True), True, "SCAN 25 (IGN)", "© IGN"),
+    "plan": Source(_ign("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png", False), False, "Plan IGN", "© IGN"),
+    "photos": Source(_ign("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg", False), False,
                      "Photos aériennes (IGN)", "© IGN"),
     "reliefLidar": Source(_ign("IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png", False,
-                               "PM_0_18"), "png", False, "Relief LiDAR HD (IGN)", "© IGN"),
+                               "PM_0_18"), False, "Relief LiDAR HD (IGN)", "© IGN"),
     "allemagne": Source("https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/"
-                        "{z}/{y}/{x}.png", "png", False, "TopPlusOpen (BKG)", "© BKG, dl-de/by-2-0"),
+                        "{z}/{y}/{x}.png", False, "TopPlusOpen (BKG)", "© BKG, dl-de/by-2-0"),
     "espagne": Source("https://www.ign.es/wmts/mapa-raster?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=MTN"
                       "&STYLE=default&TILEMATRIXSET=GoogleMapsCompatible&FORMAT=image/jpeg"
-                      "&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}", "jpg", False, "MTN (IGN España)",
+                      "&TILEMATRIX={z}&TILECOL={x}&TILEROW={y}", False, "MTN (IGN España)",
                       "© IGN España, CC BY 4.0"),
     "norvege": Source("https://cache.kartverket.no/v1/wmts/1.0.0/toporaster/default/webmercator/{z}/{y}/{x}.png",
-                      "png", False, "Toporaster (Kartverket)", "© Kartverket, CC BY 4.0"),
+                      False, "Toporaster (Kartverket)", "© Kartverket, CC BY 4.0"),
     "paysBas": Source("https://service.pdok.nl/kadaster/brt-achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/"
-                      "{z}/{x}/{y}.png", "png", False, "BRT Achtergrondkaart (PDOK)", "© Kadaster / PDOK, CC BY 4.0"),
+                      "{z}/{x}/{y}.png", False, "BRT Achtergrondkaart (PDOK)", "© Kadaster / PDOK, CC BY 4.0"),
 }
 # Un fond couvre un carré de 1°, nommé comme les tuiles SRTM (N43E006 : de
 # 43° à 44° nord, de 6° à 7° est), et non la case de 5° du routage : une case
