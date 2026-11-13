@@ -129,7 +129,7 @@ def test_un_arret_pendant_l_extrait_arrete_le_lot(tmp_path, monkeypatch):
     region = {"id": "provence-alpes-cote-d-azur"}
     monkeypatch.setattr(fabrication, "regions_a_installer", lambda dossier, zone: [region])
 
-    def installer(dossier, region, continuer=None):
+    def installer(dossier, region, continuer=None, **decoupe):
         raise geofabrik.Abandon()
     monkeypatch.setattr(geofabrik, "installer", installer)
     with pytest.raises(fabrication.Abandon):
@@ -154,7 +154,12 @@ def test_regions_a_installer_pour_les_tuiles_sans_extrait(tmp_path, monkeypatch)
     monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda dossier, i, j: [])
     monkeypatch.setattr(geofabrik, "regions_de_tuile", lambda regions, i, j: [region])
     assert fabrication.regions_a_installer(tmp_path, ZONE) == [region]
+    # Une région installée, mais découpée pour une autre case, ne couvre pas
+    # celle-ci : elle se redemande, découpée à la case.
     monkeypatch.setattr(geofabrik, "installes", lambda dossier: [region])
+    assert fabrication.regions_a_installer(tmp_path, ZONE) == [region]
+    # Une tuile que couvre déjà un extrait (entier, ou découpé à cette case) ne demande rien.
+    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda dossier, i, j: [region])
     assert fabrication.regions_a_installer(tmp_path, ZONE) == []
 
 
@@ -447,7 +452,7 @@ def test_un_extrait_trop_gros_est_saute_pas_fatal(tmp_path, mode_en_ligne, monke
     europe = {"id": "europe", "bornes": (34.0, -25.0, 72.0, 45.0)}
     monkeypatch.setattr(fabrication, "regions_a_installer", lambda dossier, zone: [europe])
 
-    def installer(dossier, region, continuer=None):
+    def installer(dossier, region, continuer=None, **decoupe):
         raise geofabrik.ExtraitEcarte("extrait trop gros (32.9 Go), Overpass reste la source")
     monkeypatch.setattr(geofabrik, "installer", installer)
     manifeste = fabrication.fabriquer(tmp_path / "donnees", Installation(), "E5_N40", tmp_path / "lot", zone=ZONE)

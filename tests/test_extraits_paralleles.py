@@ -15,7 +15,7 @@ REGIONS = [{"id": f"r{k}"} for k in range(6)]
 
 
 def installer_simule(en_cours, maximum, verrou, ecartee=None):
-    def installer(dossier, region, continuer=None):
+    def installer(dossier, region, continuer=None, **decoupe):
         with verrou:
             en_cours[0] += 1
             maximum[0] = max(maximum[0], en_cours[0])
@@ -51,7 +51,7 @@ def test_les_archives_se_preparent_pendant_les_extraits(monkeypatch):
     delai = 5
     extrait_commence, preparation_commencee = threading.Event(), threading.Event()
 
-    def installer(dossier, region, continuer=None):
+    def installer(dossier, region, continuer=None, **decoupe):
         extrait_commence.set()
         assert preparation_commencee.wait(delai), "la préparation n'a pas commencé pendant les extraits"
         return {"id": region["id"]}

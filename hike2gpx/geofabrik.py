@@ -110,11 +110,16 @@ def contient_point(region: dict, lat: float, lon: float) -> bool:
 
 def contient_tuile(region: dict, i: int, j: int) -> bool:
     """La tuile entière dans le contour : ses coins, le milieu de ses côtés et
-    son centre (les contours de Geofabrik sont lisses et larges)."""
+    son centre (les contours de Geofabrik sont lisses et larges). Un extrait
+    découpé à une case (emprise) ne contient que les tuiles de son emprise."""
     sud, ouest, nord, est = fr.bornes_tuile(i, j)
     s, w, n, e = region["bornes"]
     if sud < s or nord > n or ouest < w or est > e:
         return False
+    if region.get("emprise"):
+        es, ew, en, ee = region["emprise"]
+        if sud < es or nord > en or ouest < ew or est > ee:
+            return False
     points = [(la, lo) for la in (sud, (sud + nord) / 2, nord) for lo in (ouest, (ouest + est) / 2, est)]
     return all(_dans(la, lo, region["polygones"]) for la, lo in points)
 
@@ -151,16 +156,23 @@ def regions_de_tuile(regions: list, i: int, j: int) -> list:
     for r in sorted(regions, key=_surface):
         if seule is not None and _surface(r) >= _surface(seule):
             break
-        s, w, n, e = r["bornes"]
+        s, w, n, e = r.get("emprise") or r["bornes"]
         if s > nord or n < sud or w > est or e < ouest:
             continue
-        dedans = {p for p in reste if _dans(*p, r["polygones"])}
+        dedans = {p for p in reste if _dans(*p, r["polygones"]) and _dans_emprise(r, *p)}
         if dedans:
             choisies.append(r)
             reste -= dedans
             if not reste:
                 return choisies
     return [seule] if seule else []
+
+
+def _dans_emprise(region: dict, lat: float, lon: float) -> bool:
+    if not region.get("emprise"):
+        return True
+    s, w, n, e = region["emprise"]
+    return s <= lat <= n and w <= lon <= e
 
 
 def _region(feature: dict) -> dict | None:
@@ -180,7 +192,8 @@ def _region(feature: dict) -> dict | None:
 def _a_garder(region: dict) -> dict:
     """Ce que la base d'un extrait garde de sa région : de quoi le renouveler
     sans index (voies_coupees : un extrait d'OSM France, osmfr.py)."""
-    return {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones", "voies_coupees") if k in region}
+    return {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones", "voies_coupees", "emprise")
+            if k in region}
 
 
 class Index:
@@ -295,12 +308,16 @@ def regions_attendues(dossier) -> list:
 
 # ------------------------------------------------------------------ extraits installés
 
-def _base(dossier, identifiant: str) -> Path:
+def _base(dossier, identifiant: str, case: str | None = None) -> Path:
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*", identifiant):
         raise ValueError(f"Identifiant d'extrait invalide : {identifiant}")
+    if case is not None and not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", case):
+        raise ValueError(f"Case invalide : {case}")
     # L'index Geofabrik contient des sous-régions comme us/utah. Le nom du
     # fichier reste plat pour que installes() et le nettoyage les retrouvent.
-    return dossier_extraits(dossier) / f"{identifiant.replace('/', '__')}.sqlite"
+    # Découpé à une case, l'extrait porte son nom : il ne remplace jamais la
+    # région entière, ni la découpe d'une autre case.
+    return dossier_extraits(dossier) / f"{identifiant.replace('/', '__')}{'@' + case if case else ''}.sqlite"
 
 
 def _lire(base: Path):
@@ -507,6 +524,13 @@ def importer(pbf: Path, base: Path, region: dict, date: str, *, suivi=None) -> d
     processus à part (--importer-extrait), qui rend en sortant le fichier et
     la mémoire, et efface l'index ensuite."""
     import osmium
+    # Découpé à une case (la fabrication d'un lot) : la région entière se lit
+    # toujours, mais seules les voies et les nœuds qui touchent l'emprise se
+    # rangent. L'Ontario pour la case de Montréal : la région d'Ottawa, pas
+    # Toronto (essai du 2026-11-13, 4,6 Go pour deux extraits sur six).
+    emprise = region.get("emprise")
+    if emprise:
+        es, ew, en, ee = emprise
     base.unlink(missing_ok=True)
     stockage = stockage_des_noeuds(base)
     stockage.unlink(missing_ok=True)
@@ -542,6 +566,8 @@ def importer(pbf: Path, base: Path, region: dict, date: str, *, suivi=None) -> d
             fabrique, tous_les_noeuds = osmium.geom.WKBFactory(), osmium.geom.use_nodes.ALL
             for objet in lecture:
                 if objet.is_node():
+                    if emprise and not (es <= objet.location.lat <= en and ew <= objet.location.lon <= ee):
+                        continue
                     if "barrier" in objet.tags or "entrance" in objet.tags:
                         noeuds.append((objet.id, objet.location.lat, objet.location.lon,
                                        json.dumps(dict(objet.tags))))
@@ -553,6 +579,9 @@ def importer(pbf: Path, base: Path, region: dict, date: str, *, suivi=None) -> d
                         continue
                     ids, lonlat = _geometrie(objet, fabrique, tous_les_noeuds)
                     if len(ids) < 2:
+                        continue
+                    if emprise and (lonlat[:, 1].max() < es or lonlat[:, 1].min() > en
+                                    or lonlat[:, 0].max() < ew or lonlat[:, 0].min() > ee):
                         continue
                     voies.append((objet.id, json.dumps(tags), ids.astype("<i8").tobytes()))
                     # (lat, lon) au 1e-7 degré, la précision d'OSM : entiers exacts.
@@ -758,12 +787,17 @@ def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=tim
         partiel.unlink(missing_ok=True)
 
 
-def installer(dossier, region: dict, *, suivi=None, ouvrir=None, continuer=None) -> dict:
+def installer(dossier, region: dict, *, suivi=None, ouvrir=None, continuer=None,
+              case: str | None = None, emprise: tuple | None = None) -> dict:
     """Télécharge l'extrait, l'importe, puis remplace d'un coup l'ancienne base
     (une lecture en cours la garde ouverte jusqu'au bout). continuer() faux
-    arrête le téléchargement ou l'import (Abandon) ; rien n'en reste."""
+    arrête le téléchargement ou l'import (Abandon) ; rien n'en reste. case et
+    emprise : la découpe d'une case (fabrication.preparer_donnees), dans sa
+    propre base."""
     debut = time.monotonic()
-    base = _base(dossier, region["id"])
+    if emprise:
+        region = {**region, "emprise": list(emprise)}
+    base = _base(dossier, region["id"], case if emprise else None)
     base.parent.mkdir(parents=True, exist_ok=True)
     pbf = base.with_suffix(".osm.pbf")
     partielle = base.with_name(base.name + ".part")
@@ -939,6 +973,9 @@ class Telechargements:
     def renouveler_si_perime(self, extrait: dict) -> None:
         """Lancé à chaque lecture d'un extrait trop vieux : l'ancien sert jusqu'à
         la bascule."""
+        # Une découpe de case se refait avec son lot, pas toute seule.
+        if extrait.get("emprise"):
+            return
         if age_s(extrait) > jours_renouvellement(self.dossier) * 86400 and not (self._fil and self._fil.is_alive()):
             journal.info("Extrait OSM %s du %s : renouvellement en tâche de fond", extrait["id"],
                          extrait["date"])
