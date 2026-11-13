@@ -601,3 +601,28 @@ def test_une_tuile_en_mer_ne_reclame_ni_pays_ni_continent():
     assert [r["id"] for r in geofabrik.regions_de_tuile(feuilles, *fr.tuile_du_point(43.3, 6.0))] == \
         ["provence-alpes-cote-d-azur"]
 
+
+def test_un_extrait_decoupe_a_la_case_ne_range_que_sa_partie(tmp_path):
+    # Essai du 2026-11-13 : pour Montréal, l'import rangeait l'Ontario entier
+    # (4,6 Go pour deux extraits sur six) quand la case n'en touche qu'Ottawa.
+    class Petite:
+        positions = {1: (43.10, 5.60), 2: (43.11, 5.61), 3: (43.50, 6.40), 4: (43.51, 6.41), 5: (43.105, 5.605)}
+        elements = [
+            {"type": "way", "id": 10, "nodes": [1, 2], "tags": {"highway": "path"}},
+            {"type": "way", "id": 20, "nodes": [3, 4], "tags": {"highway": "path"}},
+            {"type": "node", "id": 5, "tags": {"barrier": "gate"}},
+            {"type": "node", "id": 4, "tags": {"barrier": "gate"}},
+        ]
+    pbf = tmp_path / "essai.osm.pbf"
+    ecrire_pbf(pbf, Petite())
+    emprise = (43.0, 5.5, 43.2, 5.7)
+    base = geofabrik._base(tmp_path, REGION["id"], "E5_N40")
+    assert base.name == "essai@E5_N40.sqlite", "découpé, il ne remplace pas la région entière"
+    base.parent.mkdir(parents=True)
+    compte = geofabrik.importer(pbf, base, {**REGION, "emprise": list(emprise)}, DATE)
+    assert compte["voies"] == 1 and compte["noeuds"] == 1, "seule la voie et la barrière de l'emprise"
+    installe = geofabrik.installes(tmp_path)[0]
+    assert tuple(installe["emprise"]) == emprise
+    assert geofabrik.contient_tuile(installe, *fr.tuile_du_point(43.1, 5.6))
+    assert not geofabrik.contient_tuile(installe, *fr.tuile_du_point(43.5, 6.4)), "hors de l'emprise"
+    assert geofabrik.extrait_de_tuile(tmp_path, *fr.tuile_du_point(43.5, 6.4)) is None

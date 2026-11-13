@@ -88,16 +88,16 @@ def regions_a_installer(dossier, zone: tuple) -> list:
     parmi les seules régions sans sous-régions : une tuile en mer ne réclame
     plus la France, l'Italie ni l'Europe."""
     regions = geofabrik.feuilles(geofabrik.regions_attendues(dossier))
-    installes = {r["id"] for r in geofabrik.installes(dossier)}
     besoins = {}
     for i, j in _tuiles(zone):
         if geofabrik.extraits_de_tuile(dossier, i, j):
             continue
         # Une tuile frontalière demande les deux régions voisines, pas le
-        # grand extrait qui les contient (geofabrik.regions_de_tuile).
+        # grand extrait qui les contient (geofabrik.regions_de_tuile). Une
+        # région déjà installée, mais découpée pour une autre case, ne couvre
+        # pas celle-ci : elle se redemande, découpée à la case.
         for region in geofabrik.regions_de_tuile(regions, i, j):
-            if region["id"] not in installes:
-                besoins[region["id"]] = region
+            besoins[region["id"]] = region
     return list(besoins.values())
 
 
@@ -420,11 +420,24 @@ def preparer_donnees(dossier, case, zone, fournisseurs, troncons, suivi, continu
     6 heures à elle."""
     lire = _lecteur(dossier, fournisseurs, troncons or {}) if fournisseurs else None
     _installer_extraits(dossier, case, regions_a_installer(dossier, zone), suivi, continuer,
-                        preparation=(lambda: lire.preparer(*zone)) if hasattr(lire, "preparer") else None)
+                        preparation=(lambda: lire.preparer(*zone)) if hasattr(lire, "preparer") else None,
+                        emprise=emprise_de_decoupe(zone))
     return lire
 
 
-def _installer_extraits(dossier, case, regions, suivi, continuer, preparation=None) -> None:
+# La marge de la découpe autour de la zone : les voies qui débordent un peu de
+# la case gardent leurs tuiles voisines (deux tuiles de 0,05°).
+MARGE_DECOUPE = 0.1
+
+
+def emprise_de_decoupe(zone: tuple) -> tuple:
+    """L'emprise à laquelle les extraits se découpent pour un lot : la zone et
+    sa marge (geofabrik.importer)."""
+    sud, ouest, nord, est = zone
+    return (sud - MARGE_DECOUPE, ouest - MARGE_DECOUPE, nord + MARGE_DECOUPE, est + MARGE_DECOUPE)
+
+
+def _installer_extraits(dossier, case, regions, suivi, continuer, preparation=None, emprise=None) -> None:
     """Installe les extraits Geofabrik manquants, EXTRAITS_EN_PARALLELE à la
     fois, et lance pendant ce temps preparation() s'il y en a une
     (téléchargement des archives d'un fournisseur). Chaque extrait s'importe
@@ -438,7 +451,10 @@ def _installer_extraits(dossier, case, regions, suivi, continuer, preparation=No
     with ThreadPoolExecutor(EXTRAITS_EN_PARALLELE + (1 if preparation else 0),
                             thread_name_prefix="extraits") as groupe:
         archives = groupe.submit(preparation) if preparation else None
-        taches = {groupe.submit(geofabrik.installer, dossier, region, continuer=continuer): region
+        # Découpés à la case (emprise) : la province entière se lit, sa seule
+        # partie utile se range ; Montréal ne range plus tout l'Ontario.
+        taches = {groupe.submit(geofabrik.installer, dossier, region, continuer=continuer,
+                                case=case if emprise else None, emprise=emprise): region
                   for region in regions}
         try:
             for tache in as_completed(taches):
