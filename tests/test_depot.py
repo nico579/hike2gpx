@@ -138,42 +138,35 @@ def test_un_depot_injoignable_n_empeche_rien(tmp_path, monkeypatch):
     assert reponse["lots"] == [] and "illisible" in reponse["erreur"]
 
 
-def test_le_lot_du_serveur_se_telecharge_de_lui_meme(tmp_path, monkeypatch):
-    # Décision de Nico du 2026-10-28 : la case qui sert vraiment (un calcul, un
-    # calque) reçoit d'elle-même le lot du serveur, qui prend le relais du
-    # mode à la volée.
+def test_la_planification_demande_la_zone_du_serveur_quand_aucune_n_est_la(tmp_path, monkeypatch):
+    # Nico, 2026-11-13 : plus de téléchargement automatique ; « il suffit de laisser le
+    # menu de planification disponible, mais avec une question sur le téléchargement si
+    # aucune zone est là localement ».
     from hike2gpx import application as appli
     fabriquer_lot(tmp_path / "lots" / "E5_N40")
     depot.ecrire_catalogue(tmp_path / "lots", tmp_path / "publication")
     ouvrir, _ = servir(tmp_path / "publication")
     monkeypatch.setattr(depot.urllib.request, "urlopen", ouvrir)
     a = appli.Application(tmp_path / "donnees")
-    ailleurs, zone = (47.0, 2.0, 47.01, 2.01), (43.30, 5.50, 43.31, 5.51)
-    # Jamais lu, le catalogue se lit à la première demande : la première vue de
-    # la page sait déjà qu'un lot existe, et ne lance pas d'extrait.
-    assert a._lot_automatique(ailleurs, "essai") is False, "rien au catalogue pour cette zone"
-    assert a._catalogue is not None
-    # Une zone pèse plusieurs centaines de Mo : la première fois, la page demande d'abord.
-    assert a._lot_automatique(zone, "essai") is False
-    assert a._avec_lot_automatique({})["zone_a_proposer"]["case"] == "E5_N40"
-    assert a.repondre_zone({"case": "E5_N40", "accepter": True})["ok"] is True
-    assert "zone_a_proposer" not in a._avec_lot_automatique({})
-    assert a._avec_lot_automatique({})["lot_en_cours"]["auto"] is True, "la page suit l'avancement"
+    zone = (43.30, 5.50, 43.31, 5.51)
+    # Hors des cases du serveur : la page s'ouvre, le calcul à la volée prend le relais.
+    assert a.zone_planification({"lat": 47.0, "lon": 2.0}) == {"ouvrir": True}
+    # Une case publiée et absente : la page propose d'abord, et rien ne part seul.
+    r = a.zone_planification({"lat": 43.305, "lon": 5.505})
+    assert r["proposer"]["case"] == "E5_N40" and r["proposer"]["octets"] > 0
+    assert a._fil_lot is None
+    # Acceptée : la page la télécharge, puis s'ouvre.
+    assert "lot_en_cours" in a.telecharger_lot({"case": "E5_N40"})
     a._fil_lot.join(10)
     assert a.lot_en_cours()["etape"] == "fini" and a.hors_ligne.origine("E5_N40") == {"depot": a.depot_lots}
-    assert a._lot_automatique(zone, "essai") is False, "à jour : rien à refaire"
-    # Plus récent au serveur : un lot du dépôt se renouvelle, un lot préparé ici non.
+    assert a.zone_planification({"lat": 43.305, "lon": 5.505}) == {"ouvrir": True}
+    # Plus récent au serveur : un lot du dépôt est à renouveler (bouton « Mettre à jour »), un lot préparé ici non.
     a._catalogue[1]["lots"][0]["sources"] = {"osm": "2026-11-01T00:00:00Z"}
     assert [e["case"] for e in a._lots_a_telecharger(a._catalogue[1], zone)] == ["E5_N40"]
     (a.hors_ligne.racine / "E5_N40" / "origine.json").unlink()
     assert a._lots_a_telecharger(a._catalogue[1], zone) == []
-    # Retirée à la main, la case ne revient pas d'elle-même pendant la séance.
-    (a.hors_ligne.racine / "E5_N40" / "origine.json").write_text("{}")
-    a.supprimer_case({"case": "E5_N40"})
-    assert a._lots_a_telecharger(a._catalogue[1], zone) == []
+    assert a.zone_planification({"lat": "nord", "lon": 5})["erreur"]
 
-
-# ------------------------------------------------------------------ fraîcheur du catalogue publié
 
 def _instant(texte):
     import calendar
@@ -209,59 +202,3 @@ def test_une_edition_illisible_est_signalee_sans_passer_pour_absente():
     assert lignes == [("E0_N40", "?", None)]
     assert problemes == ["E0_N40 : édition OSM illisible (None)"]
     assert "| E0_N40 | ? | ? (!) |" in depot.tableau_fraicheur(lignes, problemes, 14)
-
-
-def test_une_zone_refusee_ou_le_reglage_decoche_ne_se_telecharge_plus(tmp_path, monkeypatch):
-    # Demande de Nico du 2026-11-12 : une question par zone, un refus retenu, et une
-    # coche des réglages pour couper le téléchargement automatique.
-    from hike2gpx import application as appli
-    fabriquer_lot(tmp_path / "lots" / "E5_N40")
-    depot.ecrire_catalogue(tmp_path / "lots", tmp_path / "publication")
-    ouvrir, _ = servir(tmp_path / "publication")
-    monkeypatch.setattr(depot.urllib.request, "urlopen", ouvrir)
-    a = appli.Application(tmp_path / "donnees")
-    zone = (43.30, 5.50, 43.31, 5.51)
-    assert a._lot_automatique(zone, "essai") is False
-    assert a._avec_lot_automatique({})["zone_a_proposer"]["case"] == "E5_N40"
-    a.repondre_zone({"case": "E5_N40", "accepter": False})
-    assert a._lot_automatique(zone, "essai") is False
-    assert "zone_a_proposer" not in a._avec_lot_automatique({}), "refusée : plus de question"
-    assert a._fil_lot is None, "rien ne se télécharge"
-    # Le réglage décoché : plus rien d'automatique, même pour une case acceptée avant.
-    a.repondre_zone({"case": "E5_N40", "accepter": True})
-    a._fil_lot.join(10)
-    a.supprimer_case({"case": "E5_N40"})
-    a._lots_retires.clear()
-    assert a.reglages()["zones_auto"] is True
-    a.enregistrer_reglages({"cle_ign": "", "zones_auto": False})
-    assert a.reglages()["zones_auto"] is False
-    assert a._lot_automatique(zone, "essai") is False
-    assert not a.lots_hors_ligne()["lots"]
-
-
-def test_une_zone_supprimee_revient_pour_un_calcul_apres_une_question(tmp_path, monkeypatch):
-    # Nico, 2026-11-13 : « j'ai supprimé les zones de routage, et elles ne se
-    # retéléchargent pas automatiquement ». Un survol de la carte ne la
-    # redemande pas pendant la séance ; un calcul, si, après la question.
-    from hike2gpx import application as appli
-    fabriquer_lot(tmp_path / "lots" / "E5_N40")
-    depot.ecrire_catalogue(tmp_path / "lots", tmp_path / "publication")
-    ouvrir, _ = servir(tmp_path / "publication")
-    monkeypatch.setattr(depot.urllib.request, "urlopen", ouvrir)
-    a = appli.Application(tmp_path / "donnees")
-    zone = (43.30, 5.50, 43.31, 5.51)
-    a._lot_automatique(zone, "calcul d'itinéraire")
-    a.repondre_zone({"case": "E5_N40", "accepter": True})
-    a._fil_lot.join(10)
-    assert [m["case"] for m in a.hors_ligne.lots()] == ["E5_N40"]
-    a.supprimer_case({"case": "E5_N40"})
-    assert "E5_N40" not in a._prefs_zones()[1], "supprimée : plus acceptée d'office"
-    # Un calque (le survol) ne la redemande pas pendant la séance.
-    assert a._lot_automatique(zone, "calque des chemins OSM") is False
-    assert "zone_a_proposer" not in a._avec_lot_automatique({})
-    # Un calcul, si : la question revient, puis la zone se télécharge.
-    assert a._lot_automatique(zone, "calcul d'itinéraire") is False
-    assert a._avec_lot_automatique({})["zone_a_proposer"]["case"] == "E5_N40"
-    a.repondre_zone({"case": "E5_N40", "accepter": True})
-    a._fil_lot.join(10)
-    assert [m["case"] for m in a.hors_ligne.lots()] == ["E5_N40"]

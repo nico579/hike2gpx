@@ -236,13 +236,8 @@ class Application:
         self._verrou_lot = threading.Lock()
         self._lot = {"actif": False}
         self._fil_lot = None
-        # Lots du serveur téléchargés d'eux-mêmes (_lot_automatique) : case ou
-        # "catalogue" -> instant du dernier échec ; et les cases retirées à la
-        # main pendant la séance, qui ne reviennent pas toutes seules.
+        # Le catalogue du serveur en échec : "catalogue" -> instant du dernier échec.
         self._echecs_lots = {}
-        self._lots_retires = set()
-        # La zone dont la page doit d'abord demander le téléchargement ({case, octets}), ou None.
-        self._zone_a_proposer = None
         # Le partage au téléphone (partage.py), fermé tant qu'on ne l'ouvre pas.
         self.partage = partage.Partage(self.hors_ligne)
         self.autoriser_pare_feu = pare_feu.autoriser       # remplaçable dans les tests
@@ -277,7 +272,6 @@ class Application:
         cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
         return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
                 "renouvellement_jours": geofabrik.jours_renouvellement(self.dossier),
-                "zones_auto": self._prefs_zones()[0],
                 "dossier_donnees": str(self.dossier)}
 
     def deplacer_donnees(self, corps) -> dict:
@@ -340,16 +334,6 @@ class Application:
             journal.warning("Déplacement des données impossible : %s", exc)
             self._lot = {"actif": False, "erreur": f"Déplacement impossible : {exc}"}
 
-    def _prefs_zones(self) -> tuple:
-        """(téléchargement automatique, cases déjà proposées, cases refusées) :
-        une question par zone, comme sur le téléphone ; un refus est retenu."""
-        prefs = atomique.lire_json(self.preferences, {})
-        prefs = prefs if isinstance(prefs, dict) else {}
-        def cases(cle):
-            valeur = prefs.get(cle)
-            return {c for c in valeur if isinstance(c, str)} if isinstance(valeur, list) else set()
-        return prefs.get("zones_auto", True) is not False, cases("zones_proposees"), cases("zones_refusees")
-
     def enregistrer_reglages(self, payload) -> dict:
         payload = payload or {}
         cle = payload.get("cle_ign", "")
@@ -362,8 +346,6 @@ class Application:
         prefs = prefs if isinstance(prefs, dict) else {}
         prefs["cle_ign"] = cle.strip()
         prefs["renouvellement_jours"] = jours
-        if isinstance(payload.get("zones_auto"), bool):
-            prefs["zones_auto"] = payload["zones_auto"]
         atomique.ecrire_json(self.preferences, prefs)
         return self.reglages()
 
@@ -545,7 +527,7 @@ class Application:
             self._temps_etapes, self._etape_courante = {}, None
             self._avancer("debut", 0.02)
             try:
-                reponse = self._avec_lot_automatique(self._itineraire(payload))
+                reponse = self._itineraire(payload)
             except Exception:
                 journal.exception("Itinéraire : erreur inattendue après %.1f s (%s)",
                                   time.monotonic() - self._debut_calcul, self._detail_des_etapes())
@@ -585,16 +567,11 @@ class Application:
         # Un calcul est un usage réel de la région : son extrait OSM part en
         # tâche de fond s'il manque, Overpass servant en attendant ; de même le
         # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
-        # Un lot installé qui couvre la zone suffit : rien à télécharger. Le lot
-        # que publie le serveur pour la zone se télécharge de lui-même, plus
-        # vite que la volée (Overpass, tuiles BRouter) : le calcul l'attend,
-        # la page le relance à son arrivée (essai de Nico du 2026-10-28, les
-        # deux se chevauchaient).
-        lot_attendu = self._lot_automatique(zone, "calcul d'itinéraire")
-        if lot_attendu and not self.hors_ligne.lot_couvrant(zone):
-            return {"erreur": "Le lot hors ligne de la zone se télécharge : le calcul reprendra à son arrivée.",
-                    "code": "attente_lot"}
-        couvert = lot_attendu or bool(self.hors_ligne.lot_couvrant(zone))
+        # Un lot installé qui couvre la zone suffit : rien à télécharger. Une
+        # zone du serveur ne se télécharge plus d'elle-même : la page la
+        # demande à l'ouverture de la planification (zone_planification ; Nico,
+        # 2026-11-13).
+        couvert = bool(self.hors_ligne.lot_couvrant(zone))
         extrait = None if couvert else self._extrait_automatique(zone, "calcul d'itinéraire")
         if not self.installation.installee():
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True,
@@ -787,17 +764,12 @@ class Application:
         numero = self._prendre_vue("osm", vue)
         if numero is None:
             return self._calque("osm", zone, None, None)
-        # Le lot du serveur pour la vue se télécharge de lui-même, comme pour
-        # un calcul ; un lot installé qui couvre la vue la montre seul, sans
-        # réseau ni extrait.
-        lot_attendu = self._lot_automatique(zone, "calque des chemins OSM") if zone else False
+        # Un lot installé qui couvre la vue la montre seul, sans réseau ni extrait.
         tuiles = self._tuiles_du_lot(zone, "osm")
         if tuiles:
-            return self._avec_lot_automatique(tuiles)
-        if lot_attendu:                 # rien à la volée : la page relit le calque à l'arrivée du lot
-            return self._avec_lot_automatique({"attente_lot": True})
-        extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone and not lot_attendu else None
-        resultat = self._avec_lot_automatique(self._calque("osm", zone, franchissements.voies_affichables, numero))
+            return tuiles
+        extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone else None
+        resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
 
     def calque_officiel(self, source, zone, vue=None) -> dict:
@@ -807,13 +779,10 @@ class Application:
                 return {"troncons": []}
             return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
         numero = self._prendre_vue(fournisseur.calque, vue)
-        lot_attendu = self._lot_automatique(zone, f"calque {fournisseur.nom}") if numero is not None and zone else False
         tuiles = self._tuiles_du_lot(zone, fournisseur.calque) if numero is not None else None
         if tuiles:
-            return self._avec_lot_automatique(tuiles)
-        if lot_attendu:
-            return self._avec_lot_automatique({"attente_lot": True})
-        return self._avec_lot_automatique(self._calque(fournisseur.calque, zone, lire, numero))
+            return tuiles
+        return self._calque(fournisseur.calque, zone, lire, numero)
 
     def _tuiles_du_lot(self, zone, calque) -> dict | None:
         """Un lot installé couvre la vue : la page lit elle-même ses tuiles
@@ -1216,7 +1185,7 @@ class Application:
                 "supprimer_case": self.supprimer_case, "supprimer_fond": self.supprimer_fond,
                 "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot,
                 "preparer_fond": self.preparer_fond, "partage": self.partager,
-                "zone_reponse": self.repondre_zone, "deplacer_donnees": self.deplacer_donnees,
+                "zone_planification": self.zone_planification, "deplacer_donnees": self.deplacer_donnees,
                 **post_langue}
         return get, post
 
@@ -1261,22 +1230,18 @@ class Application:
     def _echec_recent(self, cle: str) -> bool:
         return time.monotonic() - self._echecs_lots.get(cle, -self.REESSAI_LOT_S) < self.REESSAI_LOT_S
 
-    def _lots_a_telecharger(self, catalogue: dict, zone, calcul: bool = False) -> list:
+    def _lots_a_telecharger(self, catalogue: dict, zone) -> list:
         """Les entrées du catalogue à télécharger pour la zone : le lot de
         chaque case qu'elle touche, quand il manque ici, ou qu'il vient du dépôt
         et que le catalogue en a un plus récent. Un lot préparé sur cet
-        ordinateur n'est jamais remplacé tout seul (la page propose sa mise à
-        jour). Une case retirée à la main pendant la séance ne revient pas pour
-        un calque (un survol de la carte la redemanderait aussitôt), mais
-        revient pour un calcul : un itinéraire en a vraiment besoin (Nico,
-        2026-11-13 : « elles ne se retéléchargent pas »)."""
+        ordinateur n'est jamais remplacé (la page propose sa mise à jour)."""
         cases = set(brouter.segments_zone(*zone))
         installes = {m["case"]: m for m in self.hors_ligne.lots()}
         a_faire = []
         for entree in catalogue["lots"]:
             case = entree["case"]
             couverture = entree.get("zone") if entree.get("type") == "osm" else entree.get("emprise_enrichie")
-            if case not in cases or (case in self._lots_retires and not calcul) or self._echec_recent(case) \
+            if case not in cases or self._echec_recent(case) \
                     or not couverture or not hors_ligne.touche(couverture, zone):
                 continue
             etat = self._etat_au_catalogue(entree, installes.get(case))
@@ -1284,95 +1249,33 @@ class Application:
                 a_faire.append(entree)
         return a_faire
 
-    def _lot_automatique(self, zone, raison: str) -> bool:
-        """Le lot que publie le serveur pour une case qui sert vraiment (un
-        calcul, un calque, pas un survol de la carte) se télécharge de lui-même
-        en tâche de fond, sur le modèle des extraits OSM ; il prend le relais
-        dès qu'il est installé (décision de Nico du 2026-10-28). Un seul lot à
-        la fois. La décision se prend sur le dernier catalogue lu ; jamais lu,
-        il se lit ici une fois (une fraction de seconde), sans quoi la première
-        vue de la page lancerait l'extrait OSM avant de savoir qu'un lot existe
-        (essai de Nico du 2026-10-28). Un échec vaut pour une heure. Vrai si un
-        lot automatique est en route pour la zone : le mode à la volée
-        l'attend alors sans télécharger d'extrait."""
-        if getattr(self, "_catalogue", None) is None and not self._echec_recent("catalogue"):
-            try:
-                self._lire_catalogue()
-            except depot.ErreurDepot as exc:
-                self._echecs_lots["catalogue"] = time.monotonic()
-                journal.warning("Lots du serveur : %s ; nouvel essai automatique dans une heure", exc)
-        with self._verrou_lot:
-            if self._fil_lot is not None and self._fil_lot.is_alive():
-                return bool(self._lot.get("auto"))
-            cache = getattr(self, "_catalogue", None)
-            a_faire = self._lots_a_telecharger(cache[1], zone, calcul=raison == "calcul d'itinéraire") if cache else []
-            auto, proposees, refusees = self._prefs_zones()
-            a_faire = [e for e in a_faire if e["case"] not in refusees] if auto else []
-            if not a_faire:
-                return False
-            if a_faire[0]["case"] not in proposees:
-                # Une zone pèse plusieurs centaines de Mo : la page demande d'abord, une fois par case.
-                self._zone_a_proposer = {"case": a_faire[0]["case"], "octets": a_faire[0].get("octets", 0)}
-                return False
-            self._lancer_lots_auto(a_faire, raison)
-            return True
-
-    def _lancer_lots_auto(self, a_faire: list, raison: str) -> None:
-        """Lance en tâche de fond le téléchargement des lots ; sous self._verrou_lot."""
-        self._lot = {"actif": True, "auto": True, "case": a_faire[0]["case"], "zone": a_faire[0].get("zone"),
-                     "etape": "telechargement", "faites": 0, "total": a_faire[0].get("octets", 0),
-                     "debut": time.time(), "arreter": False}
-        self._fil_lot = threading.Thread(target=self._telecharger_lots_auto, args=(a_faire, raison),
-                                         daemon=True, name="lot-automatique")
-        self._fil_lot.start()
-
-    def repondre_zone(self, corps) -> dict:
-        """La réponse de la page à la question d'une zone : {"case", "accepter"}.
-        Oui : le téléchargement part aussitôt. Non : la case ne se télécharge
-        plus d'elle-même ; elle reste dans « Gestion des itinéraires »."""
+    def zone_planification(self, corps) -> dict:
+        """La page « Planifier un itinéraire » s'ouvre-t-elle ici ? Plus de
+        téléchargement automatique (Nico, 2026-11-13 : « il suffit de laisser
+        le menu de planification disponible, mais avec une question sur le
+        téléchargement si aucune zone est là localement »). {"lat", "lon"} :
+        {"ouvrir": true} quand un lot installé couvre le point, ou quand le
+        serveur n'en publie pas (le calcul à la volée, propre au PC, prend
+        le relais) ; sinon {"proposer": {"case", "octets"}} : la page demande,
+        télécharge (telecharger_lot), puis s'ouvre."""
         corps = corps if isinstance(corps, dict) else {}
-        case = corps.get("case")
-        if not isinstance(case, str) or not case:
-            return {"erreur": "Case manquante."}
-        accepter = corps.get("accepter") is True
-        prefs = atomique.lire_json(self.preferences, {})
-        prefs = prefs if isinstance(prefs, dict) else {}
-        _, proposees, refusees = self._prefs_zones()
-        prefs["zones_proposees"] = sorted(proposees | {case})
-        prefs["zones_refusees"] = sorted(refusees - {case} if accepter else refusees | {case})
-        atomique.ecrire_json(self.preferences, prefs)
-        if getattr(self, "_zone_a_proposer", None) and self._zone_a_proposer.get("case") == case:
-            self._zone_a_proposer = None
-        if accepter:
-            cache = getattr(self, "_catalogue", None)
-            entrees = [e for e in (cache[1].get("lots", []) if cache else []) if e.get("case") == case]
-            with self._verrou_lot:
-                if entrees and not (self._fil_lot is not None and self._fil_lot.is_alive()):
-                    self._lancer_lots_auto(entrees, "zone acceptée dans la page")
-        return {"ok": True, "lot_en_cours": self.lot_en_cours() if self._lot.get("auto") else None}
-
-    def _telecharger_lots_auto(self, a_faire: list, raison: str) -> None:
-        for i, entree in enumerate(a_faire):
-            case = entree["case"]
-            if self._lot.get("arreter"):
-                break
-            if i:
-                self._lot = {"actif": True, "auto": True, "case": case, "zone": entree.get("zone"),
-                             "etape": "telechargement", "faites": 0, "total": entree.get("octets", 0),
-                             "debut": time.time(), "arreter": False}
-            journal.info("Lot %s : téléchargement automatique depuis le serveur (%s)", case, raison)
-            self._telecharger_lot(entree)
-            if "erreur" in self._lot:
-                self._echecs_lots[case] = time.monotonic()
-
-    def _avec_lot_automatique(self, reponse: dict) -> dict:
-        """La réponse d'un calcul ou d'un calque, avec l'état du lot qui se
-        télécharge tout seul, pour que la page en suive l'avancement."""
-        if getattr(self, "_zone_a_proposer", None):
-            reponse = {**reponse, "zone_a_proposer": self._zone_a_proposer}
-        if self._lot.get("actif") and self._lot.get("auto"):
-            return {**reponse, "lot_en_cours": self.lot_en_cours()}
-        return reponse
+        lat, lon = corps.get("lat"), corps.get("lon")
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (lat, lon)) \
+                or abs(lat) > 90 or abs(lon) > 180:
+            return {"erreur": "Position invalide."}
+        zone = (lat, lon, lat, lon)
+        if self.hors_ligne.lot_couvrant(zone):
+            return {"ouvrir": True}
+        try:
+            catalogue = self._lire_catalogue()
+        except depot.ErreurDepot as exc:
+            journal.warning("Lots du serveur : %s ; planification à la volée", exc)
+            return {"ouvrir": True}
+        installes = {m["case"] for m in self.hors_ligne.lots()}
+        for entree in self._lots_a_telecharger(catalogue, zone):
+            if entree["case"] not in installes:
+                return {"proposer": {"case": entree["case"], "octets": entree.get("octets", 0)}}
+        return {"ouvrir": True}
 
     def supprimer_case(self, corps) -> dict:
         """Retire de l'ordinateur le lot d'une case, et ses fonds sauf {"fonds": false}
@@ -1388,13 +1291,6 @@ class Application:
         try:
             self._arreter_moteurs()       # un moteur garde la RD5 ouverte : Windows refuserait de l'effacer
             octets = self.hors_ligne.supprimer(case, fonds=(corps or {}).get("fonds", True) is not False)
-            self._lots_retires.add(case)    # un calque ne la redemande pas pendant la séance
-            # Supprimée, elle n'est plus acceptée : le prochain calcul qui en a
-            # besoin repose la question, au lieu de la retélécharger en silence.
-            prefs = atomique.lire_json(self.preferences, {})
-            if isinstance(prefs, dict) and case in (prefs.get("zones_proposees") or []):
-                prefs["zones_proposees"] = [c for c in prefs["zones_proposees"] if c != case]
-                atomique.ecrire_json(self.preferences, prefs)
         finally:
             self._verrou_calcul.release()
         journal.info("Case %s retirée de l'ordinateur depuis la carte : %d octets libérés", case, octets)

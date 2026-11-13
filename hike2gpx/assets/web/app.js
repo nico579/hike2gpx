@@ -48,7 +48,6 @@ const TEXTES = {
     "horsLigne.modeFond": "Fond de carte (cases de 1°)",
     "horsLigne.fondAucun": "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : {liste}.",
     "reglages.afficherLegende": "Afficher la légende",
-    "reglages.zonesAuto": "Télécharger automatiquement les zones de routage (une question par zone)",
     "reglages.dossierDonnees": "Dossier des données",
     "reglages.deplacer": "Déplacer",
     "reglages.dossierNote": "Les cartes, le routage et les extraits OSM pèsent des Go : un autre disque peut les recevoir. Indiquez le dossier, puis « Déplacer » ; hike2gpx redémarre sur la copie.",
@@ -56,8 +55,7 @@ const TEXTES = {
     "horsLigne.titreDeplacement": "Dossier des données",
     "horsLigne.deplacement": "Copie des données{compte}, depuis {duree}",
     "horsLigne.deplace": "Données copiées dans {dossier} : hike2gpx redémarre, rechargez la page dans quelques secondes.",
-    "zones.question": "Pour calculer sans réseau, avec les chemins de la carte nationale, hike2gpx peut télécharger la zone de routage de cette région (case {nom}, {taille}). La télécharger maintenant ?",
-    "zones.refusee": "Zone {nom} non téléchargée. Vous pourrez la télécharger à tout moment depuis « Gestion des itinéraires ».",
+    "zones.planifier": "Pour planifier ici, hike2gpx a besoin de la zone de routage de cette région (case {nom}, {taille}). La télécharger ? La page s'ouvrira à la fin du téléchargement.",
     "horsLigne.legendeInstalle": "sur ce PC",
     "horsLigne.legendeSelection": "sélectionné",
     "horsLigne.legendeEnCours": "en cours",
@@ -264,8 +262,6 @@ const TEXTES = {
     "horsLigne.avancement": "Préparation de la case {nom} : {etape}{compte}, depuis {duree}",
     "horsLigne.titreCarte": "Carte hors ligne « {fond} »",
     "horsLigne.titreZone": "Zone de routage",
-    "horsLigne.attenteCalques": "Chemins de la carte : en attente de la zone de routage hors ligne, qui se télécharge.",
-    "horsLigne.attenteCalcul": "La zone de routage hors ligne se télécharge : le calcul reprendra dès son arrivée.",
     "horsLigne.automatique": "Zone de routage de la case {nom}, téléchargée d'elle-même depuis le serveur :{compte}, depuis {duree}. Elle prendra le relais du mode à la volée.",
     "horsLigne.fini": "Case {nom} prête hors ligne.",
     "horsLigne.perime": "La zone de routage hors ligne de {nom} date du {date}, au-delà du délai de renouvellement. La mettre à jour ?",
@@ -345,7 +341,6 @@ const TEXTES = {
     "horsLigne.modeFond": "Base map (1° cells)",
     "horsLigne.fondAucun": "The base map shown cannot be kept offline. Choose in the list above: {liste}.",
     "reglages.afficherLegende": "Show the legend",
-    "reglages.zonesAuto": "Download routing areas automatically (one question per area)",
     "reglages.dossierDonnees": "Data folder",
     "reglages.deplacer": "Move",
     "reglages.dossierNote": "Maps, routing and OSM extracts weigh GBs: another disk can take them. Enter the folder, then \"Move\"; hike2gpx restarts on the copy.",
@@ -353,8 +348,7 @@ const TEXTES = {
     "horsLigne.titreDeplacement": "Data folder",
     "horsLigne.deplacement": "Copying the data{compte}, for {duree}",
     "horsLigne.deplace": "Data copied to {dossier}: hike2gpx is restarting, reload the page in a few seconds.",
-    "zones.question": "To compute with no network, with the paths of the national map, hike2gpx can download the routing area of this region (cell {nom}, {taille}). Download it now?",
-    "zones.refusee": "Area {nom} not downloaded. You can download it at any time from “Route management”.",
+    "zones.planifier": "To plan here, hike2gpx needs the routing area of this region (cell {nom}, {taille}). Download it? The page will open when the download is done.",
     "horsLigne.legendeInstalle": "on this PC",
     "horsLigne.legendeSelection": "selected",
     "horsLigne.legendeEnCours": "in progress",
@@ -561,8 +555,6 @@ const TEXTES = {
     "horsLigne.avancement": "Preparing cell {nom}: {etape}{compte}, for {duree}",
     "horsLigne.titreCarte": "Offline map “{fond}”",
     "horsLigne.titreZone": "Routing area",
-    "horsLigne.attenteCalques": "Map paths: waiting for the offline routing area, which is downloading.",
-    "horsLigne.attenteCalcul": "The offline routing area is downloading: the route will be computed as soon as it arrives.",
     "horsLigne.automatique": "Routing area of the {nom} cell, downloading by itself from the server:{compte}, for {duree}. It will take over from on-the-fly mode.",
     "horsLigne.fini": "Area {nom} ready offline.",
     "horsLigne.perime": "The offline data of {nom} dates from {date}, past the refresh delay. Update it?",
@@ -777,30 +769,7 @@ async function api(route, corps, signal) {
   const reponse = await fetch(`/api/${route}`, options);
   const donnees = await reponse.json().catch(() => ({}));
   if (!reponse.ok) throw new Error(donnees.error || `HTTP ${reponse.status}`);
-  // Un calcul ou un calque a lancé de lui-même le lot du serveur de la zone :
-  // la page suit son avancement, comme celui d'un lot demandé à la main.
-  if (donnees.lot_en_cours?.auto && donnees.lot_en_cours.actif && !minuterieLot) suivreLot();
-  // Une zone que le serveur téléchargerait de lui-même : la page demande d'abord, une fois par case.
-  if (donnees.zone_a_proposer) proposerZone(donnees.zone_a_proposer);
   return donnees;
-}
-
-// Une zone de routage pèse plusieurs centaines de Mo : la première fois qu'un
-// calcul ou un calque en a besoin, la page demande (le serveur retient la
-// réponse). Un refus rappelle où la télécharger à la main.
-const zonesDemandees = new Set();
-async function proposerZone(zone) {
-  if (!zone?.case || zonesDemandees.has(zone.case)) return;
-  zonesDemandees.add(zone.case);
-  const accepter = confirm(t("zones.question", { nom: zone.case, taille: tailleTexte(zone.octets) }));
-  try {
-    const r = await api("zone_reponse", { case: zone.case, accepter });
-    if (accepter && r.lot_en_cours?.actif && !minuterieLot) suivreLot();
-  } catch (e) {
-    zonesDemandees.delete(zone.case);     // la question reviendra au prochain calcul
-    return;
-  }
-  if (!accepter) afficherStatut(() => t("zones.refusee", { nom: zone.case }));
 }
 
 // Le statut se réécrit au changement de langue : on garde de quoi le refaire,
@@ -1301,13 +1270,6 @@ async function chargerCalque(cle, zone) {
   }
   if (donnees.erreur) {
     noteCalques(`${nom} : ${ts(donnees.erreur)}`);
-    return;
-  }
-  if (donnees.attente_lot) {
-    // Le lot de la zone se télécharge : rien à la volée, le calque se relit
-    // depuis le lot à son arrivée (suivreLot).
-    calque.charge = null;
-    noteCalques(t("horsLigne.attenteCalques"));
     return;
   }
   calque.groupe.clearLayers();
@@ -2100,7 +2062,6 @@ async function supprimerZone(l) {
   if (!confirm(t("zones.confirmer", { nom: l.case, taille: tailleTexte(l.octets) }))) return;
   let r;
   try { r = await api("supprimer_case", { case: l.case, fonds: false }); } catch (e) { r = { erreur: e.message }; }
-  zonesDemandees.delete(l.case);      // supprimée : un calcul pourra la redemander
   if (r.erreur) afficherLot({ case: l.case, erreur: r.erreur });
   else afficherFile(t("zones.supprimee", { nom: l.case, taille: tailleTexte(r.octets || 0) }));
   await chargerLots();
@@ -2339,15 +2300,14 @@ async function suivreLot() {
     chargerFonds();         // sans l'attendre : la grille est déjà à jour
     if (horsLigne.file.length) lancerSuivant();     // la tuile suivante du volet « Hors ligne »
     if (lotSuivi) {
-      // Le lot est arrivé (ou a échoué) : les calques et le calcul qui
-      // l'attendaient repartent, sur lui ou à la volée.
+      // Le lot est arrivé (ou a échoué) : les calques se relisent, sur lui ou à la volée.
       lotSuivi = false;
       rafraichirCalques();
-      if (etat.attenteLot) {
-        etat.attenteLot = false;
-        if (etat.points.length >= 2) planifierCalcul();
-      }
     }
+    // La planification qui attendait sa zone s'ouvre, si elle est arrivée.
+    const suite = apresLot;
+    apresLot = null;
+    if (suite && lotEnCours.etape === "fini") suite();
   }
 }
 
@@ -2651,12 +2611,6 @@ function boutonAction(libelle, action) {
 }
 
 function afficherErreur(reponse) {
-  if (reponse.code === "attente_lot") {
-    // Pas une erreur : le calcul attend le lot de la zone, puis reprend (suivreLot).
-    afficherStatut(() => t("horsLigne.attenteCalcul"));
-    etat.attenteLot = true;
-    return;
-  }
   effacerResultat();
   const osmIndisponible = /Overpass|barrières non vérifiées|OSM.*indisponibles/i.test(reponse.erreur || "");
   afficherStatut(() => osmIndisponible ? t("statut.donneesIndisponibles") : texteErreur(reponse), true);
@@ -3116,6 +3070,42 @@ function planifier(actif) {
   planification = actif;
   document.body.classList.toggle("planification", actif);
   etat.points.forEach(armerPoint);
+  if (actif) verifierZonePlanification();
+}
+
+// Plus de téléchargement automatique (Nico, 2026-11-13 : « il suffit de laisser
+// le menu de planification disponible, mais avec une question sur le
+// téléchargement si aucune zone est là localement ») : la page s'ouvre là où une
+// zone est installée, ou là où le serveur n'en publie pas (le calcul à la volée
+// prend le relais) ; sinon une question. Refusée, la page se referme ;
+// acceptée, la zone se télécharge, et la page se rouvre à la fin (suivreLot).
+let apresLot = null;
+function ouvrirPage(nom) {
+  if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:ouvrir-page", { detail: nom }));
+}
+async function verifierZonePlanification() {
+  const centre = carte.getCenter();
+  let r;
+  try {
+    r = await api("zone_planification", { lat: centre.lat, lon: centre.lng });
+  } catch (e) {
+    return;                       // le calcul dira ce qui manque
+  }
+  if (!r.proposer || !planification) return;
+  if (!confirm(t("zones.planifier", { nom: r.proposer.case, taille: tailleTexte(r.proposer.octets) }))) {
+    ouvrirPage("");
+    return;
+  }
+  ouvrirPage("");                 // la carte et la ligne d'activité, le temps du téléchargement
+  try {
+    const d = await api("telecharger_lot", { case: r.proposer.case });
+    if (d.erreur) { afficherStatut(() => ts(d.erreur), true); return; }
+  } catch (e) {
+    afficherStatut(() => t("statut.erreur", { message: e.message }), true);
+    return;
+  }
+  apresLot = () => ouvrirPage("trace");
+  if (!minuterieLot) suivreLot();
 }
 carte.on("click", (e) => {
   // Comme sur le téléphone, un clic sur la carte referme la recherche : presentation.js l'écoute.
@@ -3191,7 +3181,6 @@ for (const id of ["strict", "ign", "comparer"]) {
 function restaurerChampsReglages() {
   $("cleIgn").value = etat.cleIgn;
   $("renouvellementJours").value = etat.renouvellementJours;
-  $("zonesAuto").checked = etat.zonesAuto;
 }
 
 // Les réglages s'enregistrent à la fermeture de leur page (presentation.js),
@@ -3201,17 +3190,15 @@ async function enregistrerReglages() {
   const cle = $("cleIgn").value;
   const saisie = Math.round(Number($("renouvellementJours").value));
   const jours = saisie >= 1 && saisie <= 365 ? saisie : etat.renouvellementJours;
-  const zonesAuto = $("zonesAuto").checked;
-  if (cle === etat.cleIgn && jours === etat.renouvellementJours && zonesAuto === etat.zonesAuto) {
+  if (cle === etat.cleIgn && jours === etat.renouvellementJours) {
     restaurerChampsReglages(); return;
   }
   const cleChangee = cle !== etat.cleIgn;
   try {
-    const r = await api("reglages", { cle_ign: cle, renouvellement_jours: jours, zones_auto: zonesAuto });
+    const r = await api("reglages", { cle_ign: cle, renouvellement_jours: jours });
     if (r.erreur) { afficherStatut(() => ts(r.erreur), true); restaurerChampsReglages(); return; }
     etat.cleIgn = r.cle_ign;
     etat.renouvellementJours = r.renouvellement_jours;
-    etat.zonesAuto = r.zones_auto !== false;
     restaurerChampsReglages();
     afficherExtrait(etat.extrait);
     construireFonds();
@@ -3374,8 +3361,6 @@ async function demarrer() {
     $("cleIgn").value = etat.cleIgn;
     etat.renouvellementJours = reglages.renouvellement_jours ?? 30;
     $("renouvellementJours").value = etat.renouvellementJours;
-    etat.zonesAuto = reglages.zones_auto !== false;
-    $("zonesAuto").checked = etat.zonesAuto;
     etat.dossierDonnees = $("dossierDonnees").value = reglages.dossier_donnees || "";
     await verifierBrouter();
   } catch (e) {

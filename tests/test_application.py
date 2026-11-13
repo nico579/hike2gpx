@@ -51,9 +51,9 @@ def test_sur_le_trace_seulement_si_le_trace_coupe_la_coupe():
 
 def test_reglages_cle_ign(tmp_path):
     a = appli.Application(tmp_path)
-    assert a.reglages() == {"cle_ign": "", "renouvellement_jours": 30, "zones_auto": True, "dossier_donnees": str(tmp_path)}
-    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30, "zones_auto": True, "dossier_donnees": str(tmp_path)}
-    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30, "zones_auto": True, "dossier_donnees": str(tmp_path)}
+    assert a.reglages() == {"cle_ign": "", "renouvellement_jours": 30, "dossier_donnees": str(tmp_path)}
+    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30, "dossier_donnees": str(tmp_path)}
+    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30, "dossier_donnees": str(tmp_path)}
     assert a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 45})["renouvellement_jours"] == 45
     assert "erreur" in a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 0})
     assert "erreur" in a.enregistrer_reglages({"cle_ign": "<script>"})
@@ -325,19 +325,6 @@ def test_extrait_signale_le_pays_et_abandonne_l_ancienne_region(tmp_path, monkey
     assert a.extrait(madrid)["hors_france"] is True
     assert abandonnees == [franchissements.tuile_du_point(43.32, 6.04),
                            franchissements.tuile_du_point(40.415, -3.705)]
-
-
-def test_les_calques_attendent_le_lot_qui_se_telecharge(tmp_path, monkeypatch):
-    # Essai de Nico du 2026-10-28 : la volée commençait, puis le lot ; les deux
-    # se chevauchaient. Le lot de la zone arrive plus vite : rien à la volée.
-    a = appli.Application(tmp_path)
-    monkeypatch.setattr(a, "_lot_automatique", lambda zone, raison: True)
-    monkeypatch.setattr(franchissements, "voies_affichables",
-                        lambda *z, **o: pytest.fail("lecture à la volée pendant le téléchargement du lot"))
-    monkeypatch.setattr(a, "_extrait_automatique", lambda *z: pytest.fail("extrait pendant le lot"))
-    vue = (43.30, 6.00, 43.34, 6.08)
-    assert a.calque_osm(vue)["attente_lot"] is True
-    assert a.calque_officiel("ign", vue)["attente_lot"] is True
 
 
 def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypatch):
@@ -630,7 +617,7 @@ def test_routes_init_annonce_l_application(tmp_path):
     # supprimer_case : retirer de l'ordinateur le lot et les fonds d'une case.
     assert set(post) == {"itineraire", "disponibilite", "reglages", "moteur", "denivele", "communes", "langue",
                          "arreter_calques", "donnees", "ouvrir_journaux", "installer_lot", "preparer_lot",
-                         "arreter_lot", "telecharger_lot", "preparer_fond", "partage", "supprimer_case", "supprimer_fond", "zone_reponse", "deplacer_donnees"}
+                         "arreter_lot", "telecharger_lot", "preparer_fond", "partage", "supprimer_case", "supprimer_fond", "zone_planification", "deplacer_donnees"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
@@ -641,7 +628,7 @@ def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
     assert get["langue"]()["code"] is None
     assert post["langue"]({"code": "en"})["enregistre"]
     autre = appli.Application(tmp_path)
-    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test", "renouvellement_jours": 30, "zones_auto": True, "dossier_donnees": str(tmp_path)}
+    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test", "renouvellement_jours": 30, "dossier_donnees": str(tmp_path)}
 
 
 def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch):

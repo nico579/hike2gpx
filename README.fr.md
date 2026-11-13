@@ -199,19 +199,15 @@ carte ; sinon, le calcul se fait [à la volée](#sans-zone-de-routage--le-calcul
 Il y a trois façons d'en obtenir une.
 
 - **Du serveur**, pour la France, la Suisse, l'Allemagne, la Tchéquie et la
-  Pologne. La première fois qu'un calcul ou les chemins de la carte touchent
-  une case publiée, hike2gpx demande s'il faut télécharger sa zone (une
-  question par zone : elle pèse plusieurs centaines de Mo). Acceptée, elle se
-  télécharge, reprise après une coupure, puis se renouvelle d'elle-même quand
-  le serveur en publie une plus récente ; la case du Var, 247 Mo, arrive en
-  quelques dizaines de secondes. Refusée, elle ne se propose plus et reste
-  disponible dans « Gestion des itinéraires ». La coche « Télécharger
-  automatiquement les zones de routage » des réglages coupe tout
-  téléchargement automatique. Sur le téléphone, rien ne se télécharge de
-  soi-même : « Planifier un itinéraire » demande la zone quand aucune n'est
-  installée, et s'ouvre une fois la zone téléchargée ; refusée, la
-  planification ne s'ouvre pas. Une zone installée se renouvelle par son
-  bouton « Mettre à jour ».
+  Pologne. Rien ne se télécharge de soi-même : à l'ouverture de « Planifier
+  un itinéraire », s'il n'y a pas de zone sous la carte, hike2gpx demande
+  s'il faut télécharger celle de la région (elle pèse plusieurs centaines de
+  Mo). Acceptée, elle se télécharge, reprise après une coupure, puis la page
+  s'ouvre ; la case du Var, 247 Mo, arrive en quelques dizaines de secondes.
+  Refusée, la planification ne s'ouvre pas. Une zone installée se met à jour
+  par son bouton « Mettre à jour » de « Gestion des itinéraires ». Sur le PC,
+  là où le serveur ne publie rien, la planification s'ouvre sans question :
+  le calcul se fait à la volée.
 - **Du PC**, partout ailleurs : « Gestion des itinéraires » montre la grille
   des cases ; cliquez celles qu'il vous faut, puis « Télécharger ». Le PC
   prépare la vue affichée ou la case entière.
