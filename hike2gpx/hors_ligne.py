@@ -244,8 +244,11 @@ class HorsLigne:
         return lot.lire_calque(self.racine / manifeste["case"] / "calques.mbtiles", calque, *zone)
 
     def franchissements(self, manifeste: dict, zone: tuple) -> list:
-        """Les franchissements du lot qui tombent dans la zone."""
+        """Les franchissements du lot qui tombent dans la zone. Une zone simple
+        (la RD5 de brouter.de seule, application._zone_simple) n'en a pas."""
         case = manifeste["case"]
+        if not (self.racine / case / "franchissements.json.gz").is_file():
+            return []
         if case not in self._franchissements:
             with gzip.open(self.racine / case / "franchissements.json.gz", "rt", encoding="utf-8") as f:
                 self._franchissements[case] = json.load(f)

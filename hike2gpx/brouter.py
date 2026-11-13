@@ -196,6 +196,20 @@ def _telecharger(url: str, cible: Path, sha256: str | None = None, valider=None,
     raise ErreurBRouter(f"Téléchargement impossible : {url} ({derniere}).") from derniere
 
 
+def taille_segment(nom: str) -> int | None:
+    """La taille de la RD5 d'une case sur brouter.de (requête HEAD), ou None
+    si elle n'existe pas (la mer) ou sans réseau : la zone simple que la page
+    annonce avant de la télécharger, comme ZoneBrouter.taille sur le téléphone."""
+    demande = urllib.request.Request(SEGMENTS_URL + f"{nom}.rd5", method="HEAD",
+                                     headers={"User-Agent": f"hike2gpx/{__version__}"})
+    try:
+        with urllib.request.urlopen(demande, timeout=15) as reponse:
+            octets = int((getattr(reponse, "headers", None) or {}).get("Content-Length") or 0)
+    except (OSError, ValueError):
+        return None
+    return octets or None
+
+
 def _recevoir(url: str, cible: Path, sha256: str | None, valider) -> Path:
     """Un essai de _telecharger. Les erreurs réseau remontent telles quelles,
     un contenu faux en ErreurBRouter."""

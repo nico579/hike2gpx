@@ -24,11 +24,13 @@ def calques_en_serie(monkeypatch, request):
 @pytest.fixture(autouse=True)
 def zones_de_routage_presentes(monkeypatch, request):
     """Les essais du calcul tournent sans lot installé : chaque case passe pour
-    couverte. Le refus d'un tracé sans zone de routage a son propre essai
-    (marqueur zones_reelles), qui s'en dispense."""
+    couverte, et ses chemins dessinés. Le refus d'un tracé ou de chemins sans
+    zone de routage a ses propres essais (marqueur zones_reelles), qui s'en
+    dispensent."""
     if "zones_reelles" not in request.keywords:
         from hike2gpx import application
         monkeypatch.setattr(application.Application, "_cases_sans_lot", lambda self, zone: [])
+        monkeypatch.setattr(application.Application, "_cases_sans_calques", lambda self, zone: [])
 
 
 # Fixtures de test_fabrication.py servies à tous les fichiers (la fabrication

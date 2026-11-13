@@ -805,11 +805,23 @@ class Application:
         ni extrait de toute une région, ni Overpass, ni service officiel, pour
         un simple affichage (Nico, 2026-11-13, à Montréal : « Supprimer »
         l'affichage à la volée). Les chemins viennent avec la zone, téléchargée
-        ou fabriquée depuis « Planifier un itinéraire »."""
-        if zone is None or not self._cases_sans_lot(zone):
+        ou fabriquée depuis « Planifier un itinéraire ». Une zone simple (la
+        RD5 seule, _zone_simple) n'a pas de chemins à montrer non plus : ils
+        viennent avec la zone étendue."""
+        if zone is None or not self._cases_sans_calques(zone):
             return None
-        return {"erreur": "Pas de zone de routage ici : les chemins s'afficheront avec elle "
-                          "(« Planifier un itinéraire »).", "code": "calques_sans_zone"}
+        if self._cases_sans_lot(zone):
+            return {"erreur": "Pas de zone de routage ici : les chemins s'afficheront avec elle "
+                              "(« Planifier un itinéraire »).", "code": "calques_sans_zone"}
+        return {"erreur": "Zone de routage simple ici : les chemins s'afficheront avec la zone étendue.",
+                "code": "calques_zone_simple"}
+
+    def _cases_sans_calques(self, zone) -> list:
+        """Les cases de la vue sans lot qui sache dessiner ses chemins : sans
+        lot, ou avec une zone simple (pas de calques.mbtiles)."""
+        dessinees = {m["case"] for m in self.hors_ligne.lots()
+                     if (self.hors_ligne.racine / m["case"] / "calques.mbtiles").is_file()}
+        return [c for c in brouter.segments_zone(*zone) if c not in dessinees]
 
     def _tuiles_du_lot(self, zone, calque) -> dict | None:
         """Un lot installé couvre la vue : la page lit elle-même ses tuiles
@@ -1320,7 +1332,15 @@ class Application:
                 continue
             if self._lot.get("actif") and self._lot.get("case") == case:
                 return {"attendre": {"case": case}}
-            return {"fabriquer": {"case": case}}
+            # La zone simple de brouter.de d'abord (preparer_lot, « simple ») : sa
+            # taille pour la question ; sans elle (la mer, pas de réseau), rien
+            # à préparer, la fabrication partant de la même RD5.
+            octets = brouter.taille_segment(case)
+            if octets is None:
+                return {"erreur": f"brouter.de n'a pas de zone de routage pour la case {case} "
+                                  "(la mer, ou pas de réseau).",
+                        "code": "brouter_absent", "valeurs": {"case": case}}
+            return {"fabriquer": {"case": case, "octets": octets}}
         return {"ouvrir": True}
 
     def supprimer_case(self, corps) -> dict:
@@ -1406,10 +1426,16 @@ class Application:
         """Fabrique en tâche de fond le lot d'une case (fabrication.py), puis
         l'installe. corps : {"case": "E5_N40", "zone": [sud, ouest, nord, est]}
         (zone facultative, dans la case). Tout fournisseur national qui touche
-        la zone entre au lot, plusieurs pour une case frontalière."""
+        la zone entre au lot, plusieurs pour une case frontalière.
+        {"simple": true} : la zone simple de brouter.de d'abord, installée en
+        une minute, puis la zone étendue qui la remplace (Nico, 2026-11-13 :
+        « pour ne pas bloquer la planification, sur le pc on commence par la
+        zone simple brouter, et en parallèle, la zone étendue se calcule »)."""
         case, zone, erreur = self._case_et_zone(corps)
         if erreur:
             return {"erreur": erreur}
+        if (corps or {}).get("simple"):
+            return self._lancer_tache(lambda c, z: self._fabriquer_lot(c, z, simple=True), case, zone, "debut")
         return self._lancer_tache(self._fabriquer_lot, case, zone, "debut")
 
     @staticmethod
@@ -1495,7 +1521,28 @@ class Application:
             journal.info("Fond %s : %d Mo, en %.0f s", nom, decrit["octets"] // 10 ** 6, time.monotonic() - debut)
         self._lot.update(actif=False, etape="fini", fond=", ".join(fonds.nom_fond(c, source) for c in carres))
 
-    def _fabriquer_lot(self, case, zone) -> None:
+    def _zone_simple(self, case) -> None:
+        """La zone simple d'une case : la RD5 de brouter.de seule, installée
+        comme un lot OSM sans calques ni franchissements, comme ZoneBrouter
+        sur le téléphone. Le tracé marche en une minute ; la zone étendue la
+        remplace à la fin de sa fabrication."""
+        travail = self.hors_ligne.racine / f".simple-{case}"
+        fabrication.nettoyer(travail)
+        try:
+            self._lot.update(etape="simple", faites=0, total=1)
+            rd5 = self.installation.telecharger_segment(case, vers=travail)
+            tuiles_lot.ecrire_manifeste(travail, case, [rd5], {"rd5": "brouter.de"}, type="osm",
+                                        zone=list(tuiles_lot.boite_case(case)), attribution=fabrication.ATTRIBUTION)
+            with self._verrou_calcul:
+                self._arreter_moteurs()
+                self.hors_ligne.installer(travail)
+        finally:
+            fabrication.nettoyer(travail)
+        journal.info("Lot %s : zone simple de brouter.de installée", case)
+        # La page ouvre la planification sans attendre la zone étendue.
+        self._lot.update(simple_installee=True, faites=1)
+
+    def _fabriquer_lot(self, case, zone, simple=False) -> None:
         travail = self.hors_ligne.racine / f".fabrication-{case}"
         debut = time.monotonic()
 
@@ -1503,6 +1550,8 @@ class Application:
             self._lot.update(etape=etape, faites=faites, total=total)
 
         try:
+            if simple:
+                self._zone_simple(case)
             fabrication.nettoyer(travail)
             fabrication.fabriquer(self.dossier, self.installation, case, travail,
                                   zone=tuple(zone) if zone else None, suivi=suivi, continuer=lambda: not self._lot.get("arreter"))
