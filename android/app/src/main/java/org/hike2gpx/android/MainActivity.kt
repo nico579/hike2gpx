@@ -349,7 +349,10 @@ class MainActivity : Activity() {
                     }
                     return true
                 }
-                override fun longPressHelper(p: GeoPoint) = false
+                // L'appui long, comme le clic droit du PC : les coordonnées du point.
+                override fun longPressHelper(p: GeoPoint): Boolean {
+                    menuPoint(p); return true
+                }
             }))
             // Un double tap sur la carte masque les bandeaux et laisse la carte
             // seule, un second les ramène (geste de Locus Map). Il ne pose pas
@@ -2577,7 +2580,69 @@ class MainActivity : Activity() {
             .setTitle(lu.titre.ifEmpty { t.nom.ifEmpty { nomImport ?: "" } })
             .setMessage(lignes.joinToString("\n"))
             .setPositiveButton(R.string.fermer, null)
+            // Le retrait là où l'on regarde la trace, pas seulement dans le menu.
+            .setNeutralButton(R.string.menu_retirer_import) { _, _ -> retirerImport() }
             .show()
+    }
+
+    // ------------------------------------------------------------------ appui long
+
+    /**
+     * L'appui long sur la carte, comme le clic droit du PC : les coordonnées
+     * du point en titre, à copier, et deux façons d'y aller depuis la position
+     * GPS : l'itinéraire de hike2gpx, ou la navigation d'une autre application
+     * (lien geo:, que OsmAnd, Organic Maps ou Google Maps savent ouvrir).
+     */
+    private fun menuPoint(p: GeoPoint) {
+        val coordonnees = String.format(Locale.US, "%.6f, %.6f", p.latitude, p.longitude)
+        AlertDialog.Builder(this)
+            .setTitle(coordonnees)
+            .setItems(arrayOf(getString(R.string.point_copier), getString(R.string.point_itineraire),
+                getString(R.string.point_naviguer))) { _, choix ->
+                when (choix) {
+                    0 -> {
+                        (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+                            .setPrimaryClip(android.content.ClipData.newPlainText("hike2gpx", coordonnees))
+                        Toast.makeText(this, R.string.point_copie, Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> itineraireVers(p)
+                    else -> naviguerVers(p)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** L'itinéraire de hike2gpx de la position GPS jusqu'au point : la planification, ses deux points posés. */
+    private fun itineraireVers(p: GeoPoint) {
+        if (lotAuPoint(horsLigne.lots(), p.latitude, p.longitude) == null) {
+            Toast.makeText(this, R.string.plan_point_sans_zone, Toast.LENGTH_SHORT).show(); return
+        }
+        avecPosition {
+            val ici = dernierPointConnu()
+            if (ici == null) {
+                etat.setText(if (gpsActif()) R.string.position_recherchee else R.string.gps_inactif)
+                etat.visibility = View.VISIBLE
+                return@avecPosition
+            }
+            if (!modePlan) basculerPlanification()
+            if (!modePlan) return@avecPosition          // planification refusée (trace en cours), déjà expliqué
+            points.clear()
+            effacerTrace()
+            ajouterPoint(Point(ici.latitude, ici.longitude))
+            ajouterPoint(Point(p.latitude, p.longitude))
+        }
+    }
+
+    /** La navigation d'une autre application, par le lien geo: standard (RFC 5870). */
+    private fun naviguerVers(p: GeoPoint) {
+        val lien = Uri.parse(String.format(Locale.US, "geo:%.6f,%.6f?q=%.6f,%.6f", p.latitude, p.longitude,
+            p.latitude, p.longitude))
+        try {
+            startActivity(Intent.createChooser(Intent(Intent.ACTION_VIEW, lien), getString(R.string.point_naviguer)))
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.point_sans_application, Toast.LENGTH_LONG).show()
+        }
     }
 
     // ------------------------------------------------------------------ position et trace GPS

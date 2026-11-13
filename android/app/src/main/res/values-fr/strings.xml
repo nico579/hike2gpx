@@ -281,4 +281,9 @@
     <string name="etat_archive_lecture">Import de l’archive…</string>
     <string name="etat_archive_importee">Archive importée : %1$d carte(s) et %2$d zone(s) de routage.</string>
     <string name="err_archive_catalogue">Ce zip n’est pas une archive de hike2gpx (catalog.json manque en tête).</string>
+    <string name="point_copier">Copier les coordonnées</string>
+    <string name="point_itineraire">Itinéraire depuis ma position</string>
+    <string name="point_naviguer">Naviguer avec une autre application</string>
+    <string name="point_copie">Coordonnées copiées.</string>
+    <string name="point_sans_application">Aucune application de navigation sur ce téléphone.</string>
 </resources>
