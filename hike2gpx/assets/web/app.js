@@ -2964,6 +2964,13 @@ function bulleTraceImportee(trace) {
   }
   if (lu.minutes != null) lignes.push(t("trace.duree", { duree: dureeLongue(lu.minutes * 60) }));
   div.append(paragraphe(lu.titre || trace.nom, true), ...lignes.map((l) => paragraphe(l)));
+  // Le retrait là où l'on regarde la trace, pas seulement dans le menu.
+  const retirer = document.createElement("button");
+  retirer.type = "button";
+  retirer.className = "page-action";
+  retirer.textContent = t("bouton.supprimerGpx");
+  retirer.addEventListener("click", () => { carte.closePopup(); supprimerGpx(); });
+  div.append(retirer);
   return div;
 }
 

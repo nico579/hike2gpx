@@ -283,4 +283,9 @@
     <string name="etat_archive_lecture">Importing the archive…</string>
     <string name="etat_archive_importee">Archive imported: %1$d map(s) and %2$d routing area(s).</string>
     <string name="err_archive_catalogue">This zip is not a hike2gpx archive (catalog.json missing at its start).</string>
+    <string name="point_copier">Copy the coordinates</string>
+    <string name="point_itineraire">Route from my position</string>
+    <string name="point_naviguer">Navigate with another app</string>
+    <string name="point_copie">Coordinates copied.</string>
+    <string name="point_sans_application">No navigation app on this phone.</string>
 </resources>

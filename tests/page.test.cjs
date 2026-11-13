@@ -147,7 +147,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " afficherDisponibilite,"
      + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
-    + " preparerFleches, afficherFleches, fleches, traceGpxImporte, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
+    + " preparerFleches, afficherFleches, fleches, traceGpxImporte, bulleTraceImportee, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
     + " basculerPartage, selectionGrille, adresseArchive, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
@@ -528,6 +528,20 @@ test("un GPX chargé se coche dans les couches sans perdre son tracé", async ()
   assert.equal(page.controle().calques["2026-09-20_09-03"], undefined);
   page.majLegende();
   assert.equal(ligneLegende(elements, "gpx").hidden, true);
+  assert.equal(elements.get("chargerGpxTexte").textContent, "Importer un GPX ou un KML");
+});
+
+test("la bulle d'une trace importée la retire, sans passer par le menu", async () => {
+  // Nico, 2026-11-13 : « quand j'importe un gpx/kml, y a rien pour l'effacer ».
+  const { page, elements } = charger({}, documentGpx([[[43.3, 6], [43.31, 6.02]]]));
+  await elements.get("fichierGpx").ecouteurs.change[0]({ target: {
+    files: [{ name: "rando.gpx", size: 250, text: async () => "<gpx/>" }], value: "rando.gpx" } });
+  assert.ok(page.traceGpxImporte.layers.length > 0);
+  const bulle = page.bulleTraceImportee({ nom: "rando", segments: [[[43.3, 6], [43.31, 6.02]]], infos: {} });
+  const bouton = bulle.enfants.at(-1);
+  assert.equal(bouton.textContent, "Retirer l'import");
+  bouton.click();
+  assert.equal(page.traceGpxImporte.layers.length, 0);
   assert.equal(elements.get("chargerGpxTexte").textContent, "Importer un GPX ou un KML");
 });
 
