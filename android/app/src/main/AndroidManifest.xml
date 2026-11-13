@@ -41,6 +41,41 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="hike2gpx" android:host="depot" />
             </intent-filter>
+            <!-- Un GPX ou un KML ouvert depuis un gestionnaire de fichiers, une pièce
+                 jointe ou un téléchargement : « Ouvrir avec hike2gpx ». -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/gpx+xml" />
+                <data android:mimeType="application/gpx" />
+                <data android:mimeType="application/vnd.google-earth.kml+xml" />
+            </intent-filter>
+            <!-- Un gestionnaire qui ignore ces types envoie application/octet-stream :
+                 l'extension du nom tranche, pour ne pas proposer hike2gpx à tout fichier. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:pathPattern=".*\\.gpx" />
+                <data android:pathPattern=".*\\..*\\.gpx" />
+                <data android:pathPattern=".*\\.kml" />
+                <data android:pathPattern=".*\\..*\\.kml" />
+            </intent-filter>
+            <!-- « Partager » un GPX ou un KML vers hike2gpx (depuis un courriel, une messagerie). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/gpx+xml" />
+                <data android:mimeType="application/gpx" />
+                <data android:mimeType="application/vnd.google-earth.kml+xml" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>
