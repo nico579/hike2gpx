@@ -84,9 +84,7 @@ def powiats_de_zone(sud: float, ouest: float, nord: float, est: float, lire=_xml
 
 
 def _taille(url: str) -> int:
-    demande = urllib.request.Request(url, headers=AGENT, method="HEAD")
-    with urllib.request.urlopen(demande, timeout=60) as reponse:
-        return int(reponse.headers.get("Content-Length") or 0)
+    return en_bloc.taille(url)      # une seule copie, qui échoue sans Content-Length (audit A04)
 
 
 _verrou_global = threading.Lock()

@@ -58,8 +58,7 @@ def _json(url: str) -> dict:
 
 
 def _taille(url: str) -> int:
-    with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT, method="HEAD"), timeout=60) as reponse:
-        return int(reponse.headers.get("Content-Length") or 0)
+    return en_bloc.taille(url)      # une seule copie, qui échoue sans Content-Length (audit A04)
 
 
 def derniere_edition(lire=_json, taille=_taille) -> dict:

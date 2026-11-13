@@ -62,8 +62,7 @@ def _texte(url: str) -> str:
 
 
 def _taille(url: str) -> int:
-    with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT, method="HEAD"), timeout=60) as reponse:
-        return int(reponse.headers.get("Content-Length") or 0)
+    return en_bloc.taille(url)      # une seule copie, qui échoue sans Content-Length (audit A04)
 
 
 def fichiers(lire=_texte) -> dict:
@@ -165,11 +164,16 @@ class Lecteur:
 
     def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
         self.preparer(sud, ouest, nord, est)
-        resultat = []
+        # Un tronçon qui passe la limite de deux Länder est dans les deux : une
+        # seule fois, comme les lecteurs de la BDOT10k et de la BD TOPO (audit A08).
+        vus, resultat = set(), []
         for land in self.laender(sud, ouest, nord, est):
             for (identifiant, ebene, klasse), k, pts in en_bloc.lignes_gpkg(
                     self._bases[land], TABLE, ("id", "ebene", "klasse"), EPSG, sud, ouest, nord, est,
                     geometrie=GEOMETRIE, cle=CLE):
+                if (identifiant, k) in vus:
+                    continue
+                vus.add((identifiant, k))
                 resultat.append({"id": f"DLM:{land}:{identifiant}:{k}", "land": land, "niveau": ebene or 0,
                                  "nature": CLASSES[klasse], "pts": pts})
         return resultat

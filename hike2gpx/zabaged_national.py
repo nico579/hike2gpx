@@ -55,18 +55,26 @@ def _atom(url: str) -> ET.Element:
         return ET.fromstring(reponse.read())
 
 
-def derniere_edition(lire=_atom) -> dict:
+def derniere_edition(lire=_atom, taille=None) -> dict:
     """{"nom", "date", "fichiers": [{"url", "octets", "md5": None}]} de
-    l'édition courante en EPSG 3045, d'après le flux du jeu de données."""
+    l'édition la plus récente en EPSG 3045, d'après le flux du jeu de données.
+    La plus récente, pas la première : rien ne garantit l'ordre du flux
+    (audit A06, 2026-11-13), et les trois autres fournisseurs prennent déjà le
+    maximum. Sans attribut length, la taille se demande au serveur (A04)."""
+    editions = []
     for entree in lire(FLUX).findall(ATOM + "entry"):
         for lien in entree.findall(ATOM + "link"):
             url = lien.get("href", "")
             trouve = re.fullmatch(r"https://[\w.-]+/[\w/.-]*/epsg-3045/(ZABAGED-3045-gpkg-(\d{4})(\d{2})(\d{2}))\.zip",
                                   url)
             if trouve:
-                return {"nom": trouve.group(1), "date": "-".join(trouve.group(2, 3, 4)),
-                        "fichiers": [{"url": url, "octets": int(lien.get("length", "0")), "md5": None}]}
-    raise ErreurArchive("Aucune édition ZABAGED GeoPackage en EPSG 3045 dans le flux de l'ČÚZK.")
+                editions.append(("-".join(trouve.group(2, 3, 4)), trouve.group(1), url, lien.get("length")))
+    if not editions:
+        raise ErreurArchive("Aucune édition ZABAGED GeoPackage en EPSG 3045 dans le flux de l'ČÚZK.")
+    date, nom, url, longueur = max(editions)
+    octets = int(longueur) if longueur and longueur.isdigit() and int(longueur) > 0 \
+        else (taille or en_bloc.taille)(url)
+    return {"nom": nom, "date": date, "fichiers": [{"url": url, "octets": octets, "md5": None}]}
 
 
 def geopackage(dossier, edition: dict | None = None) -> Path:
