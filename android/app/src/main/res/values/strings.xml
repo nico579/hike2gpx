@@ -301,4 +301,7 @@
     <string name="plan_sans_zone_serveur">The phone computes its routes offline, with a routing area. Area %1$s is not installed: download it in “Route management”.</string>
     <string name="plan_sans_zone_refusee">The phone computes its routes offline, with a routing area. Area %1$s was refused: download it in “Route management”, “Refused areas” section.</string>
     <string name="plan_sans_zone_pc">The phone computes its routes offline, with a routing area, and the server publishes none for this region. Prepare it on a PC (“Route management”, the offline grid), then share it with the phone: QR code, or zip archive.</string>
+    <string name="plan_zone_brouter">The hike2gpx server publishes no routing area for this region, but BRouter has its base area (cell %1$s, %2$s): routes work with it, without the paths drawn on the map nor the crossings to check. A PC can prepare the complete area and share it. Download it?</string>
+    <string name="err_brouter_absent">brouter.de has no routing area for cell %1$s (sea, or no network).</string>
+    <string name="err_brouter_altere">Routing area %1$s from brouter.de is incomplete: download it again.</string>
 </resources>

@@ -299,4 +299,7 @@
     <string name="plan_sans_zone_serveur">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage. La zone %1$s n’est pas installée : téléchargez-la dans « Gestion des itinéraires ».</string>
     <string name="plan_sans_zone_refusee">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage. La zone %1$s a été refusée : téléchargez-la dans « Gestion des itinéraires », section « Zones refusées ».</string>
     <string name="plan_sans_zone_pc">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage, et le serveur n’en publie pas pour cette région. Préparez-la sur un PC (« Gestion des itinéraires », grille hors ligne), puis partagez-la au téléphone : QR code, ou archive zip.</string>
+    <string name="plan_zone_brouter">Le serveur de hike2gpx ne publie pas de zone de routage pour cette région, mais BRouter en a la zone de base (case %1$s, %2$s) : les itinéraires se calculent avec, sans les chemins dessinés sur la carte ni les franchissements à vérifier. Un PC peut préparer la zone complète et la partager. La télécharger ?</string>
+    <string name="err_brouter_absent">brouter.de n’a pas de zone de routage pour la case %1$s (la mer, ou pas de réseau).</string>
+    <string name="err_brouter_altere">La zone de routage %1$s de brouter.de est incomplète : téléchargez-la de nouveau.</string>
 </resources>

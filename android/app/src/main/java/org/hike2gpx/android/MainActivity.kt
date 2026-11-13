@@ -2564,6 +2564,16 @@ class MainActivity : Activity() {
     private fun expliquerSansZone() {
         val boite = carte.boundingBox
         val offre = boite?.let { offreAuCentre(offres, horsLigne.lots(), Zone(it.latSouth, it.lonWest, it.latNorth, it.lonEast), emptySet()) }
+        if (offre == null && boite != null) {
+            // Le serveur n'en publie pas : brouter.de a la zone de base de toute case
+            // (le Canada, l'Asie…). Sa taille d'abord, en tâche de fond.
+            val case = ZoneBrouter.caseDe(boite.centerLatitude, boite.centerLongitude)
+            EXECUTEUR_TRACE.execute {
+                val octets = ZoneBrouter.taille(case)
+                runOnUiThread { if (!isDestroyed) proposerZoneBrouter(case, octets) }
+            }
+            return
+        }
         val message = when {
             offre == null -> getString(R.string.plan_sans_zone_pc)
             offre.lot.case in reglages.zonesRefusees -> getString(R.string.plan_sans_zone_refusee, offre.lot.case)
@@ -2575,6 +2585,38 @@ class MainActivity : Activity() {
             .setPositiveButton(R.string.menu_itineraires) { _, _ -> ouvrirItineraires() }
             .setNegativeButton(R.string.fermer, null)
             .show()
+    }
+
+    /**
+     * Pas de zone du serveur ici : la zone de base de brouter.de (ZoneBrouter),
+     * qui suffit au calcul d'itinéraire, ou à défaut (pas de réseau, la mer)
+     * le lot complet à préparer sur un PC.
+     */
+    private fun proposerZoneBrouter(case: String, octets: Long?) {
+        val dialogue = AlertDialog.Builder(this).setTitle(R.string.plan_sans_zone_titre)
+        if (octets == null) {
+            dialogue.setMessage(R.string.plan_sans_zone_pc).setNegativeButton(R.string.fermer, null).show()
+            return
+        }
+        dialogue.setMessage(getString(R.string.plan_zone_brouter, case, Formatter.formatShortFileSize(this, octets)))
+            .setPositiveButton(R.string.telecharger) { _, _ -> telechargerZoneBrouter(case) }
+            .setNegativeButton(R.string.fermer, null)
+            .show()
+    }
+
+    private fun telechargerZoneBrouter(case: String) {
+        tache(R.string.etat_telechargement, true, { continuer ->
+            val travail = File(File(donnees, "telechargements"), "brouter-$case")
+            ZoneBrouter.telecharger(case, travail, suiviTelechargement(getString(R.string.etat_zone_routage, case)), continuer)
+            runOnUiThread { progression.isIndeterminate = true }
+            val installe = horsLigne.installer(travail)
+            travail.deleteRecursively()
+            getString(R.string.etat_installe, installe.case)
+        }, ensuite = { reussi ->
+            remplirItineraires()
+            planifierCalques()
+            if (reussi && !modePlan) basculerPlanification()
+        })
     }
 
     /**
