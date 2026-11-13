@@ -152,7 +152,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, bulleTraceImportee, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
-    + " bornesTuile, basculerPartage, selectionGrille, adresseArchive, nomArchive, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
+    + " bornesTuile, basculerPartage, selectionGrille, adresseArchive, nomArchive, enregistrerReglages, lireNomTrace, couleurKml, verifierZonePlanification, majLegende, coucheCalque,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -389,10 +389,8 @@ test("les réglages s'enregistrent à la fermeture de leur page, seulement s'ils
   const { page, document, requetes } = charger();
   page.etat.cleIgn = "ancienne";
   page.etat.renouvellementJours = 30;
-  page.etat.zonesAuto = true;
   document.getElementById("cleIgn").value = "ancienne";
   document.getElementById("renouvellementJours").value = "30";
-  document.getElementById("zonesAuto").checked = true;
   const avant = requetes.length;
   const envois = () => requetes.filter((r) => r.url === "/api/reglages").length;
   const initiaux = envois();
@@ -403,8 +401,8 @@ test("les réglages s'enregistrent à la fermeture de leur page, seulement s'ils
   document.getElementById("renouvellementJours").value = "45";
   const envoi = page.enregistrerReglages();
   const requete = requetes.findLast((r) => r.url === "/api/reglages");
-  assert.deepEqual(JSON.parse(requete.options.body), { cle_ign: "nouvelle", renouvellement_jours: 45, zones_auto: true });
-  repondre(requete, { cle_ign: "nouvelle", renouvellement_jours: 45, zones_auto: true });
+  assert.deepEqual(JSON.parse(requete.options.body), { cle_ign: "nouvelle", renouvellement_jours: 45 });
+  repondre(requete, { cle_ign: "nouvelle", renouvellement_jours: 45 });
   await envoi;
   assert.equal(page.etat.cleIgn, "nouvelle");
   assert.equal(page.etat.renouvellementJours, 45);
@@ -1632,23 +1630,42 @@ test("un KML de gpx2dash : nom, date, D+ et durée lus dans le nom, couleur KML 
   assert.equal(JSON.stringify(page.couleurKml("pas une couleur")), "{}");
 });
 
-test("décocher le téléchargement automatique des zones s'enregistre ; une zone proposée est demandée une fois", async () => {
-  const { page, document, requetes, confirmations } = charger();
-  page.etat.cleIgn = ""; page.etat.renouvellementJours = 30; page.etat.zonesAuto = true;
-  document.getElementById("cleIgn").value = ""; document.getElementById("renouvellementJours").value = "30";
-  document.getElementById("zonesAuto").checked = false;
-  const envoi = page.enregistrerReglages();
-  const requete = requetes.findLast((r) => r.url === "/api/reglages");
-  assert.equal(JSON.parse(requete.options.body).zones_auto, false);
-  repondre(requete, { cle_ign: "", renouvellement_jours: 30, zones_auto: false });
-  await envoi;
-  assert.equal(page.etat.zonesAuto, false);
-  // Le serveur signale une zone à proposer : une seule question, même si la réponse revient deux fois.
+test("sans zone installée, la planification demande la zone, et s'ouvre une fois téléchargée", async () => {
+  // Nico, 2026-11-13 : « laisser le menu de planification disponible, mais avec une question
+  // sur le téléchargement si aucune zone est là localement ».
+  const { page, requetes, confirmations, evenements } = charger();
+  const ouvertures = () => evenements.filter((e) => e === "hike2gpx:ouvrir-page").length;
+  // Refusée : la page se referme, rien ne se télécharge.
   confirmations.reponse = false;
-  page.proposerZone({ case: "E5_N40", octets: 250_000_000 });
-  page.proposerZone({ case: "E5_N40", octets: 250_000_000 });
-  assert.equal(confirmations.length, 1);
-  assert.match(confirmations[0], /E5_N40/);
-  const reponse = requetes.findLast((r) => r.url === "/api/zone_reponse");
-  assert.deepEqual(JSON.parse(reponse.options.body), { case: "E5_N40", accepter: false });
+  page.planifier(true);
+  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), { proposer: { case: "E5_N40", octets: 248e6 } });
+  await tic();
+  await tic();
+  assert.match(confirmations.at(-1), /case E5_N40, 248 Mo/);
+  assert.equal(ouvertures(), 1, "la page se referme");
+  assert.equal(requetes.some((r) => r.url === "/api/telecharger_lot"), false);
+  // Acceptée : la zone se télécharge, la page se rouvre à la fin.
+  confirmations.reponse = true;
+  page.planifier(true);
+  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), { proposer: { case: "E5_N40", octets: 248e6 } });
+  await tic();
+  await tic();
+  const telechargement = requetes.findLast((r) => r.url === "/api/telecharger_lot");
+  assert.deepEqual(JSON.parse(telechargement.options.body), { case: "E5_N40" });
+  repondre(telechargement, { lot_en_cours: { actif: true, case: "E5_N40", etape: "telechargement" } });
+  await tic();
+  await tic();
+  assert.equal(ouvertures(), 2, "la carte et la ligne d'activité, le temps du téléchargement");
+  repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"), { actif: false, case: "E5_N40", etape: "fini" });
+  for (let k = 0; k < 6; k++) await tic();
+  for (const r of requetes.filter((r) => r.url === "/api/hors_ligne" && !r.repondue)) { r.repondue = true; repondre(r, { lots: [], fonds: [] }); }
+  for (let k = 0; k < 6; k++) await tic();
+  assert.equal(ouvertures(), 3, "la page se rouvre, la zone installée");
+  // Une zone installée ou absente du serveur : la page reste ouverte, sans question.
+  const avant = confirmations.length;
+  page.planifier(true);
+  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), { ouvrir: true });
+  await tic();
+  assert.equal(confirmations.length, avant);
 });
+

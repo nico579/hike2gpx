@@ -276,6 +276,9 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
     setSearchOpen(search.hidden);
   });
   document.addEventListener("hike2gpx:recherche-aboutie", () => setSearchOpen(false));
+  // app.js : la planification sans zone se referme sur un refus, et se rouvre
+  // une fois la zone téléchargée (verifierZonePlanification).
+  document.addEventListener("hike2gpx:ouvrir-page", event => selectPane(event.detail || ""));
   document.addEventListener("hike2gpx:carte-cliquee", () => setSearchOpen(false));
   setSearchOpen(false);
   let savedPage = "";

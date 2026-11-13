@@ -186,14 +186,14 @@ routing runs [on the fly](#without-a-routing-area-routing-on-the-fly).
 There are two ways to get one.
 
 - **From the server**, for France, Switzerland, Germany, Czechia and Poland.
-  The first time a route or the map's paths touch a published cell, hike2gpx
-  asks whether to download its area (one question per area: it weighs several
-  hundred MB). Accepted, it downloads, resumed after a cut, then renews itself
-  when the server publishes a newer one; the Var cell, 247 MB, arrives in a few
-  tens of seconds. Refused, it is no longer offered and stays available in
-  "Route management". The "Download routing areas automatically" box in the
-  settings, on the computer as on the phone, turns off all automatic
-  downloads.
+  Nothing downloads by itself: when "Plan a route" opens with no area under
+  the map, hike2gpx asks whether to download the region's area (it weighs
+  several hundred MB). Accepted, it downloads, resumed after a cut, then the
+  page opens; the Var cell, 247 MB, arrives in a few tens of seconds. Refused,
+  planning does not open. An installed area updates through its "Update"
+  button in "Route management". On the PC, where the server publishes
+  nothing, planning opens without a question: the route is computed on the
+  fly.
 - **From the PC**, everywhere else: "Route management" shows the grid of
   cells; click the ones you need, then "Download". The PC prepares the view on
   screen or the whole cell.
