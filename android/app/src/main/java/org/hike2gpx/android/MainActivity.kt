@@ -2417,9 +2417,26 @@ class MainActivity : Activity() {
 
     // ------------------------------------------------------------------ PC
 
-    /** Un lien hike2gpx://depot reçu du QR code d'un PC (lu par l'appareil photo). */
+    /**
+     * Ce qu'on ouvre avec hike2gpx : le lien hike2gpx://depot du QR code d'un
+     * PC (lu par l'appareil photo), ou un GPX / KML ouvert depuis un
+     * gestionnaire de fichiers, une pièce jointe, un téléchargement, ou
+     * partagé vers hike2gpx. Le fichier suit le chemin de « Importer un GPX ou
+     * un KML » du menu.
+     */
     private fun lireLien(intent: Intent?) {
-        val lien = intent?.data?.toString() ?: return
+        intent ?: return
+        val fichier = when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data?.takeIf { it.scheme == "content" || it.scheme == "file" }
+            Intent.ACTION_SEND -> if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                else @Suppress("DEPRECATION") (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)
+            else -> null
+        }
+        if (fichier != null) {
+            importer(fichier)
+            return
+        }
+        val lien = intent.data?.toString() ?: return
         if (!lien.startsWith("hike2gpx:")) return
         try {
             ajouterPc(LienDepot.lire(lien))

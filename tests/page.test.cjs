@@ -152,7 +152,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, bulleTraceImportee, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
-    + " bornesTuile, basculerPartage, selectionGrille, adresseArchive, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
+    + " bornesTuile, basculerPartage, selectionGrille, adresseArchive, nomArchive, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -434,6 +434,9 @@ test("l'archive zip : « Exporter » prend la sélection, « Importer » envoie 
   page.grilleCases.layers[0].handlers.click();
   assert.equal(elements.get("hlExporter").hidden, false);
   assert.equal(page.adresseArchive(page.selectionGrille()), "/archive.zip?lots=E5_N40&carres=");
+  // Le nom proposé dans « Enregistrer sous », celui que donne le serveur.
+  assert.equal(page.nomArchive(page.selectionGrille()), "hike2gpx-E5_N40.zip");
+  assert.equal(page.nomArchive({ lots: [], carres: ["N43E006", "N44E006"], source: "scan25" }), "hike2gpx-N43E006-scan25-et-1.zip");
   assert.equal(page.adresseArchive({ lots: [], carres: ["N43E006", "N44E006"], source: "scan25" }),
     "/archive.zip?lots=&carres=N43E006%2CN44E006&source=scan25");
   const fichier = { name: "ami.zip", size: 248e6 };

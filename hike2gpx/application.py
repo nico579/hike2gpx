@@ -1612,10 +1612,11 @@ class Application:
             return None
         return {"lots": lots, "carres": carres, "source": source}
 
-    def exporter_archive(self, flux, selection: dict) -> int:
-        """Écrit dans flux l'archive zip de la sélection (archive.py) ; les
-        empreintes des fonds se reprennent du partage, déjà calculées."""
-        n = archive.ecrire(self.hors_ligne, flux, selection, self.partage._empreintes)
+    def exporter_archive(self, cible, selection: dict) -> int:
+        """Écrit dans le fichier cible l'archive zip de la sélection
+        (archive.py) ; les empreintes des fonds se reprennent du partage,
+        déjà calculées."""
+        n = archive.ecrire(self.hors_ligne, cible, selection, self.partage._empreintes)
         journal.info("Archive exportée : %s fichiers (%s)", n, selection)
         return n
 

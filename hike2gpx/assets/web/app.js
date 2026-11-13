@@ -84,6 +84,9 @@ const TEXTES = {
     "horsLigne.importEnCours": "Import de {nom} ({taille}) en cours…",
     "horsLigne.importFini": "{nom} importée : {n} carte(s) et {z} zone(s) de routage.",
     "horsLigne.importErreur": "{nom} non importée : {erreur}",
+    "horsLigne.exportEnCours": "Export de {nom} : {fait}{total}",
+    "horsLigne.exportFini": "{nom} enregistrée ({taille}).",
+    "horsLigne.exportErreur": "{nom} non enregistrée : {erreur}",
     "horsLigne.infoTelechargerFond": "Télécharge sur ce PC le fond choisi en haut, pour les cases sélectionnées, afin de le partager au téléphone.",
     "horsLigne.infoTelechargerRoutage": "Télécharge du serveur les zones sélectionnées, ou les fabrique sur ce PC quand le serveur ne les publie pas.",
     "horsLigne.infoPartager": "Partage au téléphone ce que la sélection a sur ce PC : un QR code s'affiche, à scanner avec hike2gpx sur le téléphone, qui récupère tout d'un coup.",
@@ -378,6 +381,9 @@ const TEXTES = {
     "horsLigne.importEnCours": "Importing {nom} ({taille})…",
     "horsLigne.importFini": "{nom} imported: {n} map(s) and {z} routing area(s).",
     "horsLigne.importErreur": "{nom} not imported: {erreur}",
+    "horsLigne.exportEnCours": "Exporting {nom}: {fait}{total}",
+    "horsLigne.exportFini": "{nom} saved ({taille}).",
+    "horsLigne.exportErreur": "{nom} not saved: {erreur}",
     "horsLigne.infoTelechargerFond": "Downloads to this PC the base map chosen above, for the selected cells, to share it with the phone.",
     "horsLigne.infoTelechargerRoutage": "Downloads the selected zones from the server, or builds them on this PC when the server does not publish them.",
     "horsLigne.infoPartager": "Shares with the phone what the selection has on this PC: a QR code shows, to scan with hike2gpx on the phone, which gets everything at once.",
@@ -2182,11 +2188,53 @@ function adresseArchive(s) {
   if (s.source) parametres.source = s.source;
   return `/archive.zip?${new URLSearchParams(parametres)}`;
 }
-$("hlExporter").addEventListener("click", () => {
-  const lien = document.createElement("a");
-  lien.href = adresseArchive(selectionGrille());
-  lien.download = "";
-  lien.click();
+// Le nom que le serveur donne à l'archive (web.envoyer_archive) : hike2gpx-N43E006-scan25-et-2.zip.
+function nomArchive(s) {
+  const noms = [...s.lots, ...s.carres.map((c) => (s.source ? `${c}-${s.source}` : c))];
+  return `hike2gpx-${noms[0]}${noms.length > 1 ? `-et-${noms.length - 1}` : ""}.zip`;
+}
+// Où l'enregistrer : la fenêtre « Enregistrer sous » du système (showSaveFilePicker,
+// Chrome et Edge), pour ne pas remplir Téléchargements de plusieurs Go ; la page
+// y écrit l'archive au fil de sa réception. Sans elle (Firefox), le téléchargement
+// habituel, qui suit le réglage « Toujours demander où enregistrer » du navigateur.
+$("hlExporter").addEventListener("click", async () => {
+  const selection = selectionGrille();
+  const adresse = adresseArchive(selection);
+  if (!globalThis.showSaveFilePicker) {
+    const lien = document.createElement("a");
+    lien.href = adresse;
+    lien.download = "";
+    lien.click();
+    return;
+  }
+  let fichier;
+  try {
+    fichier = await globalThis.showSaveFilePicker({ suggestedName: nomArchive(selection),
+      types: [{ description: "Archive zip", accept: { "application/zip": [".zip"] } }] });
+  } catch (e) {
+    return;                         // « Annuler » dans la fenêtre
+  }
+  const nom = fichier.name;
+  try {
+    const sortie = await fichier.createWritable();
+    const reponse = await fetch(adresse);
+    if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+    const total = Number(reponse.headers.get("Content-Length")) || 0;
+    let fait = 0;
+    const suivi = new TransformStream({
+      transform(morceau, controleur) {
+        fait += morceau.byteLength;
+        afficherFile(t("horsLigne.exportEnCours", { nom, fait: tailleTexte(fait),
+          total: total ? ` / ${tailleTexte(total)}` : "" }));
+        controleur.enqueue(morceau);
+      },
+    });
+    afficherFile(t("horsLigne.exportEnCours", { nom, fait: tailleTexte(0), total: total ? ` / ${tailleTexte(total)}` : "" }));
+    await reponse.body.pipeThrough(suivi).pipeTo(sortie);
+    afficherFile(t("horsLigne.exportFini", { nom, taille: tailleTexte(fait) }));
+  } catch (e) {
+    afficherFile(t("horsLigne.exportErreur", { nom, erreur: e.message }));
+  }
 });
 // Importer : le zip part tel quel au serveur, qui vérifie chaque fichier avant de l'installer.
 $("hlImporter").addEventListener("click", () => $("fichierArchive").click());

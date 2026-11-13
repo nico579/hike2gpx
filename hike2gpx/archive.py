@@ -11,11 +11,13 @@ chacun avec sa taille et son SHA-256.
     fonds/N43E006-scan25.mbtiles                  une carte en images
     fonds/N43E006-osm.map                         une carte vectorielle
 
-Les fichiers sont compressés en Deflate au niveau 1, le plus rapide : un
-MBTiles d'images ou une RD5 n'y gagnent presque rien, mais l'archive écrite
-au fil de l'envoi porte chaque taille après son fichier, et le lecteur en
-flux d'Android (java.util.zip.ZipInputStream) n'accepte cela que d'une entrée
-compressée. Le téléphone lit ainsi l'archive sans la copier d'abord.
+Les fichiers sont rangés sans compression (ZIP_STORED), comme Android range
+les images d'un APK : des tuiles JPEG ou une RD5 n'y perdent que 7 %, et la
+compression divisait le débit par neuf (E5_N40 : 8,2 s en Deflate niveau 1,
+0,9 s sans). L'archive s'écrit dans un fichier, où zipfile revient noter la
+taille et le CRC de chaque entrée avant ses données : le lecteur en flux
+d'Android (java.util.zip.ZipInputStream) n'accepte une entrée non compressée
+qu'ainsi. Une archive compressée, d'une version précédente, se lit toujours.
 
 À l'import, aucun nom venu de l'archive ne devient un chemin : chaque fichier
 est lu à l'adresse que donne le catalogue, écrit sous un nom contrôlé, puis
@@ -40,13 +42,13 @@ class ErreurArchive(RuntimeError):
     pass
 
 
-def ecrire(hors_ligne, flux, selection: dict | None = None, empreintes: dict | None = None) -> int:
-    """Écrit dans flux (un fichier, ou la réponse HTTP, qui ne sait pas
-    revenir en arrière : zipfile écrit alors chaque taille après son
-    fichier) l'archive de la sélection, au sens de partage.dresser. Rend le
-    nombre de fichiers rangés, catalogue compris."""
+def ecrire(hors_ligne, cible: Path, selection: dict | None = None, empreintes: dict | None = None) -> int:
+    """Écrit dans le fichier cible l'archive de la sélection, au sens de
+    partage.dresser. Un fichier, pas un flux : zipfile y revient noter chaque
+    taille avant ses données (voir plus haut). Rend le nombre de fichiers
+    rangés, catalogue compris."""
     catalogue, fichiers = partage.dresser(hors_ligne, empreintes, selection)
-    with zipfile.ZipFile(flux, "w", zipfile.ZIP_DEFLATED, allowZip64=True, compresslevel=1) as archive:
+    with zipfile.ZipFile(cible, "w", zipfile.ZIP_STORED, allowZip64=True) as archive:
         archive.writestr(CATALOGUE, json.dumps(catalogue, ensure_ascii=False, indent=1))
         for adresse, chemin in fichiers.items():
             archive.write(chemin, adresse)
