@@ -144,12 +144,18 @@ def test_un_fond_s_ecrit_en_mbtiles_et_se_relit(tmp_path):
     assert fonds.lire_tuile(chemin, 14, x, y) == JPEG + repr((14, x, y)).encode()
     assert fonds.lire_tuile(chemin, 15, x, y) is None
     assert not chemin.with_name(chemin.name + ".part").exists()
+    # Écrit en mode WAL, achevé en un seul fichier : à lire, partager ou archiver tel quel.
+    assert [p.name for p in chemin.parent.iterdir()] == [chemin.name]
+    with sqlite3.connect(chemin) as base:
+        assert base.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+    base.close()
 
 
-def test_un_fond_arrete_reprend_ou_il_en_etait(tmp_path):
+def test_un_fond_arrete_reprend_ou_il_en_etait(tmp_path, monkeypatch):
     chemin = tmp_path / "f.mbtiles"
-    # Une connexion ; la base s'enregistre toutes les 32 tuiles (ENREGISTREMENT). Arrêté au
+    # Une connexion ; la base s'enregistre ici toutes les 32 tuiles (500 en vrai). Arrêté au
     # 45e appel, après le premier enregistrement.
+    monkeypatch.setattr(fonds, "ENREGISTREMENT", 32)
     restantes = [45]
 
     def continuer():
