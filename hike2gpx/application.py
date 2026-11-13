@@ -564,6 +564,16 @@ class Application:
         if ign and not providers.source(source).disponible(zone):
             return {"erreur": f"Chemins {providers.source(source).nom} indisponibles dans cette zone.",
                     "code": "source_hors_zone"}
+        # Pas de tracé sans zone de routage : chaque case que touche le
+        # parcours a son lot (Nico, 2026-11-13 : « on avait dit qu'on bloquait
+        # la planification, si pas de données »). La page le demande à
+        # l'ouverture de « Planifier » ; ceci garde le parcours qui sort de
+        # la zone, la page restée ouverte.
+        manquantes = self._cases_sans_lot(zone)
+        if manquantes:
+            return {"erreur": f"Pas de zone de routage pour la case {', '.join(manquantes)}. Rouvrez "
+                              "« Planifier un itinéraire » ici pour la télécharger ou la fabriquer.",
+                    "code": "zone_absente", "valeurs": {"cases": ", ".join(manquantes)}}
         # Un calcul est un usage réel de la région : son extrait OSM part en
         # tâche de fond s'il manque, Overpass servant en attendant ; de même le
         # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
@@ -768,6 +778,9 @@ class Application:
         tuiles = self._tuiles_du_lot(zone, "osm")
         if tuiles:
             return tuiles
+        sans_zone = self._calque_sans_zone(zone)
+        if sans_zone:
+            return sans_zone
         extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone else None
         resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
         return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
@@ -782,7 +795,21 @@ class Application:
         tuiles = self._tuiles_du_lot(zone, fournisseur.calque) if numero is not None else None
         if tuiles:
             return tuiles
+        sans_zone = self._calque_sans_zone(zone) if numero is not None else None
+        if sans_zone:
+            return sans_zone
         return self._calque(fournisseur.calque, zone, lire, numero)
+
+    def _calque_sans_zone(self, zone) -> dict | None:
+        """Pas de chemins superposés là où une case de la vue n'a pas de lot :
+        ni extrait de toute une région, ni Overpass, ni service officiel, pour
+        un simple affichage (Nico, 2026-11-13, à Montréal : « Supprimer »
+        l'affichage à la volée). Les chemins viennent avec la zone, téléchargée
+        ou fabriquée depuis « Planifier un itinéraire »."""
+        if zone is None or not self._cases_sans_lot(zone):
+            return None
+        return {"erreur": "Pas de zone de routage ici : les chemins s'afficheront avec elle "
+                          "(« Planifier un itinéraire »).", "code": "calques_sans_zone"}
 
     def _tuiles_du_lot(self, zone, calque) -> dict | None:
         """Un lot installé couvre la vue : la page lit elle-même ses tuiles
@@ -1249,15 +1276,25 @@ class Application:
                 a_faire.append(entree)
         return a_faire
 
+    def _cases_sans_lot(self, zone) -> list:
+        """Les cases de 5° que touche la zone et qu'aucun lot installé ne
+        couvre : pas de tracé tant qu'il en reste une."""
+        installes = {m["case"] for m in self.hors_ligne.lots()}
+        return [c for c in brouter.segments_zone(*zone) if c not in installes]
+
     def zone_planification(self, corps) -> dict:
         """La page « Planifier un itinéraire » s'ouvre-t-elle ici ? Plus de
         téléchargement automatique (Nico, 2026-11-13 : « il suffit de laisser
         le menu de planification disponible, mais avec une question sur le
         téléchargement si aucune zone est là localement »). {"lat", "lon"} :
-        {"ouvrir": true} quand un lot installé couvre le point, ou quand le
-        serveur n'en publie pas (le calcul à la volée, propre au PC, prend
-        le relais) ; sinon {"proposer": {"case", "octets"}} : la page demande,
-        télécharge (telecharger_lot), puis s'ouvre."""
+        {"ouvrir": true} quand un lot installé couvre le point ; {"erreur"}
+        quand le catalogue du serveur est illisible : sans données de routage,
+        pas de planification (Nico, 2026-11-13) ; {"proposer": {"case", "octets"}} pour un lot publié : la page
+        demande, télécharge (telecharger_lot), puis s'ouvre ; {"fabriquer":
+        {"case"}} quand le serveur n'en publie pas (Montréal, Nico,
+        2026-11-13 : « j'ai pas le message de création du lot par le pc ») :
+        la page demande, le fabrique (preparer_lot), puis s'ouvre ;
+        {"attendre": {"case"}} quand ce lot se prépare déjà."""
         corps = corps if isinstance(corps, dict) else {}
         lat, lon = corps.get("lat"), corps.get("lon")
         if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (lat, lon)) \
@@ -1269,12 +1306,21 @@ class Application:
         try:
             catalogue = self._lire_catalogue()
         except depot.ErreurDepot as exc:
-            journal.warning("Lots du serveur : %s ; planification à la volée", exc)
-            return {"ouvrir": True}
+            # Sans lot ici ni catalogue, pas de données de routage : la page reste fermée.
+            journal.warning("Lots du serveur : %s ; planification impossible ici", exc)
+            return {"erreur": "Pas de zone de routage ici, et le serveur des zones est injoignable.",
+                    "code": "serveur_zones_injoignable"}
         installes = {m["case"] for m in self.hors_ligne.lots()}
         for entree in self._lots_a_telecharger(catalogue, zone):
             if entree["case"] not in installes:
                 return {"proposer": {"case": entree["case"], "octets": entree.get("octets", 0)}}
+        publiees = {e["case"] for e in catalogue["lots"]}
+        for case in brouter.segments_zone(*zone):
+            if case in publiees:
+                continue
+            if self._lot.get("actif") and self._lot.get("case") == case:
+                return {"attendre": {"case": case}}
+            return {"fabriquer": {"case": case}}
         return {"ouvrir": True}
 
     def supprimer_case(self, corps) -> dict:

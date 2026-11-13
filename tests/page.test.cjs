@@ -1281,6 +1281,16 @@ test("le calque OSM montre clôtures et franchissements sans itinéraire", async
   assert.deepEqual(couches.slice(1).map((c) => c.options.fillColor), ["#ef6c00", "#d32f2f", "#fdd835"],
     "le chemin non raccordé en jaune, à part des franchissements");
   assert.ok(couches.slice(1).every((c) => c.options.pane === "obstaclesOsm"));
+  // Puis une vue sans zone de routage : la carte de fond seule, sans les chemins d'avant
+  // (Nico, 2026-11-13, à Montréal : « Supprimer » l'affichage à la volée).
+  page.CALQUES.osm.charge = null;
+  const ailleurs = page.rafraichirCalques();
+  repondre(requetes.findLast((r) => r.url.startsWith("/api/osm?")),
+    { erreur: "Pas de zone de routage ici : les chemins s'afficheront avec elle (« Planifier un itinéraire »).",
+      code: "calques_sans_zone" });
+  await ailleurs;
+  assert.equal(page.CALQUES.osm.groupe.layers.length, 0);
+  assert.equal(page.CALQUES.osm.charge, null, "redemandé à la vue suivante");
 });
 
 test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tuiles déjà lues", async () => {
@@ -1661,11 +1671,50 @@ test("sans zone installée, la planification demande la zone, et s'ouvre une foi
   for (const r of requetes.filter((r) => r.url === "/api/hors_ligne" && !r.repondue)) { r.repondue = true; repondre(r, { lots: [], fonds: [] }); }
   for (let k = 0; k < 6; k++) await tic();
   assert.equal(ouvertures(), 3, "la page se rouvre, la zone installée");
-  // Une zone installée ou absente du serveur : la page reste ouverte, sans question.
+  // Une zone installée : la page reste ouverte, sans question.
   const avant = confirmations.length;
   page.planifier(true);
   repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), { ouvrir: true });
   await tic();
   assert.equal(confirmations.length, avant);
+});
+
+test("sans zone publiée par le serveur, la planification propose de la fabriquer sur le PC", async () => {
+  // Montréal, Nico, 2026-11-13 : « je lance la planification, mais j'ai pas le message de
+  // création du lot par le pc ».
+  const { page, requetes, confirmations, evenements } = charger();
+  const ouvertures = () => evenements.filter((e) => e === "hike2gpx:ouvrir-page").length;
+  confirmations.reponse = false;
+  page.planifier(true);
+  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), { fabriquer: { case: "W75_N45" } });
+  await tic();
+  await tic();
+  assert.match(confirmations.at(-1), /case W75_N45\. La fabriquer sur ce PC/);
+  assert.equal(ouvertures(), 1, "refusée, la page se referme");
+  assert.equal(requetes.some((r) => r.url === "/api/preparer_lot"), false);
+  confirmations.reponse = true;
+  page.planifier(true);
+  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), { fabriquer: { case: "W75_N45" } });
+  await tic();
+  await tic();
+  const preparation = requetes.findLast((r) => r.url === "/api/preparer_lot");
+  assert.deepEqual(JSON.parse(preparation.options.body), { case: "W75_N45" });
+  repondre(preparation, { lot_en_cours: { actif: true, case: "W75_N45", etape: "debut" } });
+  await tic();
+  await tic();
+  assert.equal(ouvertures(), 2, "la carte et la ligne d'activité, le temps de la fabrication");
+  repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"), { actif: false, case: "W75_N45", etape: "fini" });
+  for (let k = 0; k < 6; k++) await tic();
+  for (const r of requetes.filter((r) => r.url === "/api/hors_ligne" && !r.repondue)) { r.repondue = true; repondre(r, { lots: [], fonds: [] }); }
+  for (let k = 0; k < 6; k++) await tic();
+  assert.equal(ouvertures(), 3, "la page se rouvre, le lot fabriqué");
+  // Ni zone ici ni serveur joignable : pas de données de routage, la page se referme
+  // (Nico : « on avait dit qu'on bloquait la planification, si pas de données »).
+  page.planifier(true);
+  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"),
+    { erreur: "Pas de zone de routage ici, et le serveur des zones est injoignable.", code: "serveur_zones_injoignable" });
+  await tic();
+  await tic();
+  assert.equal(ouvertures(), 4, "la page se referme");
 });
 
