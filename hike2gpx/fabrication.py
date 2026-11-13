@@ -626,18 +626,12 @@ def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, cont
     registre.identifiants._voie = compteurs["voie"].value
 
 
-def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, *, franchissements=None,
-             troncons=None, part=None):
-    """Les calques de la zone dans sortie/calques.mbtiles. Voies et barrières
-    viennent du code du mode en ligne ; les franchissements de la fusion s'ils
-    sont donnés, sinon de l'analyse en ligne ; troncons ajoute la couche des
-    chemins officiels. Rend (franchissements de l'analyse en ligne, dates OSM).
-    part (i, K) : seulement un bloc sur K, à partir du i-ième, dans sa propre
-    base (nom_part), pour une fabrication répartie sur plusieurs machines ;
-    lot.assembler_calques les réunit."""
-    nom = "calques.mbtiles" if part is None else nom_part(*part)
-    calques = lot.Calques(sortie / nom, case, boite, attribution)
-    tous, dates = {}, set()
+def _fabrique_bloc(dossier, zone, franchissements=None, troncons=None):
+    """La lecture d'un bloc de calques, sans rien écrire : rend bloc(x10, y10)
+    -> (couches, franchissements analysés, dates OSM). Une fonction du module
+    plutôt qu'une fermeture de _calques : un processus fils lancé par spawn
+    (Windows, macOS, l'application) la reconstruit (_calques_init), là où un
+    fils de fork en hérite."""
     a_montrer = None
     if franchissements is not None:
         a_montrer = [(shapely.Point(f["lon"], f["lat"]), {c: f.get(c) for c in ("cle", "statut", "raison", "nature",
@@ -720,6 +714,22 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
                          {"id": t["id"], "nature": t.get("nature"), "acces_pieton": t.get("acces_pieton"),
                           "prive": t.get("prive")}))
         return couches, tous_bloc, dates_bloc
+    return bloc
+
+
+def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, *, franchissements=None,
+             troncons=None, part=None):
+    """Les calques de la zone dans sortie/calques.mbtiles. Voies et barrières
+    viennent du code du mode en ligne ; les franchissements de la fusion s'ils
+    sont donnés, sinon de l'analyse en ligne ; troncons ajoute la couche des
+    chemins officiels. Rend (franchissements de l'analyse en ligne, dates OSM).
+    part (i, K) : seulement un bloc sur K, à partir du i-ième, dans sa propre
+    base (nom_part), pour une fabrication répartie sur plusieurs machines ;
+    lot.assembler_calques les réunit."""
+    nom = "calques.mbtiles" if part is None else nom_part(*part)
+    calques = lot.Calques(sortie / nom, case, boite, attribution)
+    tous, dates = {}, set()
+    bloc = _fabrique_bloc(dossier, zone, franchissements, troncons)
 
     blocs = lot.blocs(*zone)
     if part is not None:
@@ -727,8 +737,14 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
         i, k = part
         blocs = blocs[i - 1::k]
     # Comme pour la fusion : un lecteur de tronçons en ligne, avec son cache
-    # sur disque, garde la boucle en série.
+    # sur disque, garde la boucle en série. Sans fork (Windows, macOS,
+    # l'application et ses fils), un lot sans tronçons (un lot OSM) passe par
+    # spawn : 330 blocs à un par un, 13 min pour Montréal sur 4 cœurs, le
+    # 2026-11-13.
+    contexte = "fork"
     processus = processus_paralleles() if troncons is None or hasattr(troncons, "preparer") else 1
+    if processus <= 1 and troncons is None:
+        processus, contexte = processus_spawn(), "spawn"
     try:
         if processus <= 1:
             for k, (x10, y10) in enumerate(blocs):
@@ -744,8 +760,13 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
             # processus fils, le parent seul écrit la base. Près d'une heure
             # sur un cœur pour 300 blocs (E0_N40, 2026-11-01).
             suivi(f"calques en parallèle ({processus} processus)", 0, len(blocs))
-            _CALQUES.update(bloc=bloc, emprise=calques.emprise, troncons=troncons)
-            with ProcessPoolExecutor(processus, mp_context=multiprocessing.get_context("fork")) as groupe:
+            if contexte == "fork":
+                _CALQUES.update(bloc=bloc, emprise=calques.emprise, troncons=troncons)
+                options = {}
+            else:
+                options = {"initializer": _calques_init,
+                           "initargs": (str(dossier), tuple(zone), franchissements, calques.emprise)}
+            with ProcessPoolExecutor(processus, mp_context=multiprocessing.get_context(contexte), **options) as groupe:
                 taches = [groupe.submit(_calque_isole, x10, y10) for x10, y10 in blocs]
                 try:
                     for k, tache in enumerate(as_completed(taches), start=1):
@@ -779,6 +800,20 @@ def nom_part(i: int, k: int) -> str:
 
 # Contexte des calques en parallèle, hérité au fork comme _FUSION.
 _CALQUES: dict = {}
+
+
+def processus_spawn() -> int:
+    """Combien de processus fils lancés par spawn pour les calques d'un lot
+    sans tronçons : les cœurs, au plus PROCESSUS_FUSION_MAX. Chaque fils
+    relit ses modules au démarrage (une ou deux secondes), peu devant 330 blocs."""
+    return max(1, min(PROCESSUS_FUSION_MAX, os.cpu_count() or 1))
+
+
+def _calques_init(dossier: str, zone: tuple, franchissements, emprise) -> None:
+    """Le contexte d'un processus fils lancé par spawn : rien n'en hérite, il
+    reconstruit sa lecture des blocs (voir _calque_isole)."""
+    _CALQUES.update(bloc=_fabrique_bloc(Path(dossier), zone, franchissements, None), emprise=emprise,
+                    troncons=None)
 
 
 def _calque_isole(x10: int, y10: int):

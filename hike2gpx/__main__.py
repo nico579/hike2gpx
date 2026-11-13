@@ -233,4 +233,6 @@ def lots(dossier, args) -> int:
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()        # les fils de spawn des calques (lanceur.py)
     sys.exit(main())
