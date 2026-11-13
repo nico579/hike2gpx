@@ -2555,10 +2555,23 @@ class MainActivity : Activity() {
     }
 
     /** Sans zone de routage, la planification ne mènerait à rien : on le dit, et où la prendre. */
+    /**
+     * Pas de zone de routage sous la carte : le message dit où la prendre, selon
+     * le cas. Le serveur en publie une : dans « Gestion des itinéraires »
+     * (section « Zones refusées » si elle a été refusée). Il n'en publie pas :
+     * seul un PC la prépare, puis la partage au téléphone (QR code ou archive).
+     */
     private fun expliquerSansZone() {
+        val boite = carte.boundingBox
+        val offre = boite?.let { offreAuCentre(offres, horsLigne.lots(), Zone(it.latSouth, it.lonWest, it.latNorth, it.lonEast), emptySet()) }
+        val message = when {
+            offre == null -> getString(R.string.plan_sans_zone_pc)
+            offre.lot.case in reglages.zonesRefusees -> getString(R.string.plan_sans_zone_refusee, offre.lot.case)
+            else -> getString(R.string.plan_sans_zone_serveur, offre.lot.case)
+        }
         AlertDialog.Builder(this)
             .setTitle(R.string.plan_sans_zone_titre)
-            .setMessage(R.string.plan_sans_zone_message)
+            .setMessage(message)
             .setPositiveButton(R.string.menu_itineraires) { _, _ -> ouvrirItineraires() }
             .setNegativeButton(R.string.fermer, null)
             .show()

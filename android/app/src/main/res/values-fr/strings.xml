@@ -31,7 +31,6 @@
     <string name="zone_initiale_message">Pour calculer des itinéraires sans réseau, le téléphone a besoin de la zone de routage de cette région (case %1$s, %2$s). La télécharger maintenant ? Sinon, elle reste disponible dans « Gestion des itinéraires ».</string>
     <string name="zone_refuser">Non merci</string>
     <string name="plan_sans_zone_titre">Pas de zone de routage ici</string>
-    <string name="plan_sans_zone_message">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage. Aucune n’est installée pour cette partie de la carte : téléchargez-la dans « Gestion des itinéraires », ou partagez-la depuis un PC.</string>
     <string name="plan_point_sans_zone">Pas de zone de routage ici : le point n’est pas posé.</string>
     <string name="reglage_zones_auto">Télécharger automatiquement les zones de routage (une question par zone)</string>
     <string name="zone_refusee">Zone %1$s non téléchargée. Vous pourrez la télécharger à tout moment depuis « Gestion des itinéraires », section « Zones refusées ».</string>
@@ -297,4 +296,7 @@
     <string name="etat_deplacement">Déplacement des cartes et du routage…</string>
     <string name="etat_deplace">Cartes et routage déplacés : %1$s.</string>
     <string name="itineraires_refusees">Zones refusées, à télécharger</string>
+    <string name="plan_sans_zone_serveur">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage. La zone %1$s n’est pas installée : téléchargez-la dans « Gestion des itinéraires ».</string>
+    <string name="plan_sans_zone_refusee">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage. La zone %1$s a été refusée : téléchargez-la dans « Gestion des itinéraires », section « Zones refusées ».</string>
+    <string name="plan_sans_zone_pc">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage, et le serveur n’en publie pas pour cette région. Préparez-la sur un PC (« Gestion des itinéraires », grille hors ligne), puis partagez-la au téléphone : QR code, ou archive zip.</string>
 </resources>
