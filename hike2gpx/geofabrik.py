@@ -4,21 +4,18 @@ planète.
 Geofabrik découpe la planète en quelque 550 régions, refaites chaque jour, et
 les décrit dans un index qui donne le contour de chacune. Pour une tuile de
 0,05°, hike2gpx retient le plus petit extrait qui la contient entièrement :
-Provence-Alpes-Côte d'Azur à Garéoult, la Bavière à Munich. En France, les
-départements d'OSM France passent avant (osmfr.py), sur le même modèle. Il se
-télécharge de lui-même dès que la région sert, en tâche de fond (jusqu'à
-plusieurs centaines de Mo, vérifiés par leur MD5), pendant qu'Overpass
-continue de servir. pyosmium le lit une fois et range voies, barrières,
-portails et itinéraires balisés dans une base SQLite indexée par tuile ; le
-fichier téléchargé est alors effacé.
+Provence-Alpes-Côte d'Azur à Garéoult, la Bavière à Munich. La fabrication
+d'une zone de routage le télécharge (jusqu'à plusieurs centaines de Mo,
+vérifiés par leur MD5) ; pyosmium le lit une fois et range voies, barrières,
+portails et itinéraires balisés dans une base SQLite indexée par tuile,
+découpée à la case ; le fichier téléchargé est alors effacé.
 
-Une fois installé, l'extrait devient la source des tuiles qu'il contient :
-lecture instantanée, sans quota ni panne, même hors connexion. Une tuile en
-sort au format exact des réponses d'Overpass, l'analyse des franchissements
-ne voit pas la différence. Overpass ne sert plus qu'au-delà (autre région,
-tuile à cheval sur une frontière). Plus vieux que jours_renouvellement(), l'extrait
-se renouvelle de lui-même en tâche de fond, l'ancien servant jusqu'à la
-bascule.
+Une tuile en sort au format exact des réponses d'Overpass, que l'analyse des
+franchissements a d'abord lu : elle ne voit pas la différence. Overpass, lui,
+ne sert plus depuis la 0.9.31, ni les extraits téléchargés d'eux-mêmes pour
+le calcul à la volée (Nico, 2026-11-13 : « supprime tout ce qui traîne sur
+overpass et extraits »). Plus vieux que jours_renouvellement(), un extrait se
+renouvelle avec son lot (fabrication.renouveler_extraits).
 """
 from __future__ import annotations
 
@@ -27,7 +24,6 @@ import http.client
 import json
 import logging
 import math
-import os
 import re
 import shutil
 import sqlite3
@@ -52,7 +48,7 @@ journal = logging.getLogger(__name__)
 INDEX_URL = "https://download.geofabrik.de/index-v1.json"
 INDEX_TTL_S = 30 * 86400
 RENOUVELLEMENT_JOURS = 30           # par défaut ; réglable de 1 à 365 jours dans la page
-TAILLE_MAX = 2 * 1024 ** 3          # au-delà (grands pays d'un seul tenant), Overpass seul
+TAILLE_MAX = 2 * 1024 ** 3          # au-delà (grands pays d'un seul tenant), écarté
 # Geofabrik met parfois une minute à répondre, puis répond en 0,2 s (mesuré le
 # 2026-10-20, après l'échec de l'extrait Centre sur un délai de 30 s) : délai
 # large, et quelques essais avant de renoncer.
@@ -191,8 +187,8 @@ def _region(feature: dict) -> dict | None:
 
 def _a_garder(region: dict) -> dict:
     """Ce que la base d'un extrait garde de sa région : de quoi le renouveler
-    sans index (voies_coupees : un extrait d'OSM France, osmfr.py)."""
-    return {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones", "voies_coupees", "emprise")
+    sans index, et l'emprise d'un extrait découpé à la case."""
+    return {k: region[k] for k in ("id", "nom", "pbf", "bornes", "polygones", "emprise")
             if k in region}
 
 
@@ -202,7 +198,7 @@ class Index:
     plus d'un essai par heure après un échec. Aucune requête de la page
     n'attend donc son téléchargement, qui prend parfois une minute chez
     Geofabrik (rapport du 2026-10-20). Absent, il rend une liste vide le
-    temps de se préparer. Sert à Geofabrik comme à OSM France (osmfr.py)."""
+    temps de se préparer."""
 
     REESSAI_S = 3600.0
 
@@ -356,23 +352,15 @@ def installes(dossier) -> list:
 
 
 def extrait_de_tuile(dossier, i: int, j: int) -> dict | None:
-    """Le plus petit extrait installé qui contient toute la tuile, aux voies
-    entières d'abord. Celles d'un extrait d'OSM France s'arrêtent net à sa
-    frontière (197 chemins et clôtures coupés dans le Var, aucun dans la PACA
-    de Geofabrik) : un département ne sert qu'en attendant sa région de
-    Geofabrik (Nico, 2026-10-20 : « dès que paca est dispo, on l'utilise pour
-    ne pas avoir de pb aux frontières »)."""
-    liste = installes(dossier)
-    return region_de_tuile([r for r in liste if not r.get("voies_coupees")], i, j) or region_de_tuile(liste, i, j)
+    """Le plus petit extrait installé qui contient toute la tuile."""
+    return region_de_tuile(installes(dossier), i, j)
 
 
 def extraits_de_tuile(dossier, i: int, j: int) -> list:
     """Les extraits installés qui servent la tuile (regions_de_tuile) : un seul
     d'ordinaire, deux ou trois pour une tuile coupée par une frontière ; [] si
-    rien ne la couvre. Aux voies entières d'abord, comme extrait_de_tuile."""
-    liste = installes(dossier)
-    return regions_de_tuile([r for r in liste if not r.get("voies_coupees")], i, j) \
-        or regions_de_tuile(liste, i, j)
+    rien ne la couvre."""
+    return regions_de_tuile(installes(dossier), i, j)
 
 
 def elements_des_extraits(extraits: list, i: int, j: int) -> list:
@@ -395,7 +383,7 @@ def _morceaux(valeurs: list, taille: int = 900):
 
 
 def elements_tuile(extrait: dict, i: int, j: int) -> list:
-    """Les éléments de la tuile au format d'Overpass (requete() : voies et
+    """Les éléments de la tuile au format des réponses d'Overpass (voies et
     barrières qui la touchent, avec leur géométrie entière, nœuds barrière ou
     entrée de ces voies, itinéraires pédestres balisés qui les empruntent)."""
     with _lire(Path(extrait["base"])) as con:
@@ -516,8 +504,8 @@ def _geometrie(voie, fabrique, tous_les_noeuds) -> tuple:
 
 
 def importer(pbf: Path, base: Path, region: dict, date: str, *, suivi=None) -> dict:
-    """Range dans une base SQLite neuve ce que requete() demanderait à Overpass,
-    pour toute la région. Rend les comptes de ce qui a été rangé.
+    """Range dans une base SQLite neuve les voies, barrières et itinéraires
+    balisés de toute la région, comme les rendait une requête à Overpass. Rend les comptes de ce qui a été rangé.
 
     pyosmium garde son index de positions (stockage_des_noeuds) ouvert jusqu'à
     la fin du processus : installer() fait donc tourner cet import dans un
@@ -688,8 +676,8 @@ def _importer_a_part(pbf: Path, base: Path, region: dict, date: str, suivi=None,
 
 
 class ExtraitEcarte(ErreurExtrait):
-    """Extrait trop gros, ou place disque insuffisante : la région reste à
-    Overpass, sans nouvel essai jusqu'à la fin du programme."""
+    """Extrait trop gros, ou place disque insuffisante : ses tuiles restent
+    sans données, sans nouvel essai jusqu'à la fin du programme."""
 
 
 def _passagere(exc: BaseException) -> bool:
@@ -729,10 +717,9 @@ def _verifier_place(octets: int, dossier: Path) -> None:
     """Trois fois la taille de l'extrait : le fichier, la base et l'index des
     nœuds le temps de l'import."""
     if octets > TAILLE_MAX:
-        raise ExtraitEcarte(f"extrait trop gros ({octets / 1024 ** 3:.1f} Go), Overpass reste la source")
+        raise ExtraitEcarte(f"extrait trop gros ({octets / 1024 ** 3:.1f} Go)")
     if shutil.disk_usage(dossier).free < 3 * octets:
-        raise ExtraitEcarte(f"place disque insuffisante pour {octets / 1024 ** 2:.0f} Mo, "
-                            "Overpass reste la source")
+        raise ExtraitEcarte(f"place disque insuffisante pour {octets / 1024 ** 2:.0f} Mo")
 
 
 def _telecharger(url: str, cible: Path, *, suivi=None, ouvrir=None, attendre=time.sleep, continuer=None) -> None:
@@ -843,156 +830,3 @@ def jours_renouvellement(dossier) -> int:
     prefs = atomique.lire_json(Path(dossier) / "preferences.json", {})
     jours = prefs.get("renouvellement_jours") if isinstance(prefs, dict) else None
     return jours if type(jours) is int and 1 <= jours <= 365 else RENOUVELLEMENT_JOURS
-
-
-# ------------------------------------------------------------------ tâche de fond
-
-class Telechargements:
-    """Un téléchargement d'extrait à la fois, en tâche de fond, et son état
-    pour la page."""
-
-    REESSAI_S = 3600.0      # après un échec, pas de nouvel essai pour la même région avant une heure
-
-    def __init__(self, dossier):
-        self.dossier = Path(dossier)
-        self._verrou = threading.Lock()
-        self._etat = None
-        self._fil = None
-        self._numero = 0        # tâche en cours ; une plus récente l'abandonne
-        self._region = None
-        self._echecs = {}       # id de région -> instant (monotonic) du dernier échec
-        self._ecartes = set()   # trop gros, ou place disque insuffisante : Overpass seul
-
-    def etat(self) -> dict | None:
-        return dict(self._etat) if self._etat else None
-
-    def disponible(self, region_id: str) -> bool:
-        """Faux pour une région écartée (trop grosse, disque trop plein) ou dont
-        le téléchargement a échoué il y a moins de REESSAI_S : la région qui la
-        contient prend alors sa place (le département qui échoue cède à sa
-        région, Nico, 2026-10-20)."""
-        return region_id not in self._ecartes and \
-            time.monotonic() - self._echecs.get(region_id, -self.REESSAI_S) >= self.REESSAI_S
-
-    def occupee(self) -> bool:
-        """Vrai pendant un téléchargement ou un import ; une tâche finie, dont
-        le fil s'achève encore, ne compte plus."""
-        return bool(self._fil is not None and self._fil.is_alive() and self._etat
-                    and self._etat["etape"] in ("telechargement", "import"))
-
-    def lancer(self, region: dict, *, ensuite: dict | None = None, relais: bool = False,
-               apres: int | None = None) -> bool:
-        """Faux si cette région se télécharge déjà, si elle est écartée (trop
-        grosse, disque trop plein) ou si son téléchargement a échoué il y a
-        moins de REESSAI_S : le téléchargement étant automatique, une panne ne
-        doit pas le relancer à chaque demande de la page. Une autre région en
-        cours est abandonnée, téléchargement ou import : le dernier usage
-        l'emporte (Nico, 2026-10-20 : passé du Centre à la Bretagne, il
-        attendait la fin du Centre, devenu inutile).
-        ensuite : la région qui part dès celle-ci installée, pour prendre son
-        relais (celle de Geofabrik après un département d'OSM France) ; relais :
-        celle-ci est un tel relais, la page le dit ; apres : ne partir que si
-        la tâche numéro apres est toujours la dernière."""
-        with self._verrou:
-            if apres is not None and apres != self._numero:
-                return False        # un autre usage a pris la place entre-temps
-            en_cours = self.occupee()
-            if en_cours and self._etat["id"] == region["id"]:
-                return False
-            if region["id"] in self._ecartes:
-                return False
-            if time.monotonic() - self._echecs.get(region["id"], -self.REESSAI_S) < self.REESSAI_S:
-                return False
-            if en_cours:
-                journal.info("Extrait OSM %s abandonné : la région %s sert désormais", self._etat["id"],
-                             region["id"])
-            self._numero += 1
-            self._region = region
-            self._etat = {"id": region["id"], "nom": region["nom"], "etape": "telechargement", "fraction": 0.0,
-                          "voies": 0, "relais": relais}
-            self._fil = threading.Thread(target=self._executer, args=(region, self._numero, ensuite), daemon=True,
-                                         name=f"geofabrik-{region['id']}")
-            self._fil.start()
-            return True
-
-    def abandonner_hors_tuile(self, i: int, j: int) -> bool:
-        """Arrête un extrait devenu inutile quand la carte quitte sa région."""
-        with self._verrou:
-            if not self.occupee() or self._region is None or contient_tuile(self._region, i, j):
-                return False
-            journal.info("Extrait OSM %s abandonné : la carte a quitté sa région", self._etat["id"])
-            self._numero += 1
-            self._etat = None
-            self._region = None
-            return True
-
-    def _suivre(self, numero: int, etape: str, valeur) -> None:
-        with self._verrou:
-            if numero == self._numero:
-                self._etat = {**self._etat, "etape": etape,
-                               **({"fraction": round(valeur, 3)} if etape == "telechargement" else {"voies": valeur})}
-
-    def _finir(self, numero: int, **etat) -> None:
-        """L'état de la page, si cette tâche est toujours celle en cours."""
-        with self._verrou:
-            if numero == self._numero:
-                self._etat = {**self._etat, **etat}
-
-    def _executer(self, region: dict, numero: int, ensuite: dict | None = None) -> None:
-        try:
-            resultat = installer(self.dossier, region, suivi=lambda etape, valeur: self._suivre(numero, etape, valeur),
-                                 continuer=lambda: numero == self._numero)
-        except Abandon:
-            return              # la région suivante a pris la place, et l'état de la page
-        except Exception as exc:
-            if numero != self._numero:
-                # Une erreur survenue en s'arrêtant n'est pas un échec : la région
-                # repartira sans attendre une heure si elle resert.
-                journal.info("Extrait OSM %s abandonné (%s)", region["id"], exc)
-                return
-            self._echouer(region, numero, exc)
-        else:
-            self._finir(numero, etape="fini", date=resultat["date"])
-            # Le département d'OSM France est là, la page en dispose : sa région
-            # de Geofabrik part aussitôt pour prendre le relais, à moins qu'un
-            # autre usage n'ait pris la place entre-temps.
-            if ensuite is not None and self.lancer(ensuite, relais=True, apres=numero):
-                journal.info("Extrait OSM %s : téléchargement lancé pour prendre le relais de %s", ensuite["id"],
-                             region["id"])
-
-    def _echouer(self, region: dict, numero: int, exc: Exception) -> None:
-        """Une panne de la tâche en cours, dite dans la page et le journal. Une
-        région écartée (trop grosse, disque trop plein) ne repart plus ; après
-        toute autre panne, pas de nouvel essai avant REESSAI_S."""
-        if isinstance(exc, ExtraitEcarte):
-            journal.warning("Extrait OSM %s non téléchargé : %s", region["id"], exc)
-            self._ecartes.add(region["id"])
-            self._finir(numero, etape="erreur", erreur=str(exc))
-            return
-        journal.warning("Extrait OSM %s non installé : %s", region["id"], exc)
-        self._echecs[region["id"]] = time.monotonic()
-        reprise = time.strftime("%H:%M", time.localtime(time.time() + self.REESSAI_S))
-        self._finir(numero, etape="erreur", erreur=f"{message(exc)} ; nouvel essai après {reprise}")
-
-    def renouveler_si_perime(self, extrait: dict) -> None:
-        """Lancé à chaque lecture d'un extrait trop vieux : l'ancien sert jusqu'à
-        la bascule."""
-        # Une découpe de case se refait avec son lot, pas toute seule.
-        if extrait.get("emprise"):
-            return
-        if age_s(extrait) > jours_renouvellement(self.dossier) * 86400 and not (self._fil and self._fil.is_alive()):
-            journal.info("Extrait OSM %s du %s : renouvellement en tâche de fond", extrait["id"],
-                         extrait["date"])
-            self.lancer(extrait)
-
-
-_telechargements = {}
-_verrou_telechargements = threading.Lock()
-
-
-def telechargements(dossier) -> Telechargements:
-    with _verrou_telechargements:
-        cle = os.path.normcase(str(Path(dossier).resolve()))
-        if cle not in _telechargements:
-            _telechargements[cle] = Telechargements(dossier)
-        return _telechargements[cle]

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from hike2gpx import application as appli, brouter, franchissements, geofabrik, osmfr
+from hike2gpx import application as appli, brouter, franchissements, geofabrik
 
 
 def trace(*points_lat_lon, longueur="1234", montee="56"):
@@ -61,11 +61,9 @@ def test_reglages_cle_ign(tmp_path):
 
 @pytest.fixture(autouse=True)
 def sans_index_geofabrik(monkeypatch):
-    """Calculs et calques consultent les index de Geofabrik et d'OSM France
-    pour télécharger d'eux-mêmes l'extrait de la région : ici, aucune région,
-    donc aucun réseau. Les essais de l'extrait fournissent la leur."""
+    """Le pays de la vue se lit dans l'index de Geofabrik : ici, aucune
+    région, donc aucun réseau. Les essais du pays fournissent les leurs."""
     monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [])
-    monkeypatch.setattr(osmfr, "regions", lambda dossier, **options: [])
 
 
 def test_extrait_identifie_le_pays_au_centre_de_la_carte(tmp_path, monkeypatch):
@@ -97,21 +95,22 @@ def simulee(tmp_path, monkeypatch):
     monkeypatch.setattr(a.installation, "installee", lambda: True)
     monkeypatch.setattr(a.installation, "segment_present", lambda nom: True)
     monkeypatch.setattr(a, "moteur", lambda: 1)
+    monkeypatch.setattr(a, "moteur_lot_osm", lambda: 1)
     zones, appels = [], []
     bloquant = {"cle": "x", "statut": "blocked", "raison": "r", "nature": "Clôture",
                 "lat": 43.3, "lon": 6.005, "osm": "way/9", "voies": [1], "coupes": [coupe_nord_sud(43.3, 6.005)]}
+    # Une zone de routage OSM installée sur toute la case : depuis la 0.9.31, tout
+    # calcul part d'un lot, sans rien lire à la volée.
+    lot = {"case": "E5_N40", "type": "osm", "zone": [40.0, 5.0, 45.0, 10.0],
+           "sources": {"osm": "2026-11-01T00:00:00Z"}, "fichiers": []}
+    monkeypatch.setattr(a.hors_ligne, "lots", lambda: [lot])
+    monkeypatch.setattr(a.hors_ligne, "lot_couvrant", lambda zone: lot)
 
-    def zone(*args, **options):
-        zones.append(args[:4])
+    def zone(manifeste, bornes):
+        zones.append(tuple(bornes))
         return [bloquant]
 
-    monkeypatch.setattr(franchissements, "franchissements_zone", zone)
-
-    def sans_tuiles_maison(tuiles, **options):
-        raise brouter.ErreurBRouter("tuiles maison hors de cet essai")
-
-    # Les essais du moteur standard passent par le repli : jamais de réseau ici.
-    monkeypatch.setattr(a.maison, "preparer", sans_tuiles_maison)
+    monkeypatch.setattr(a.hors_ligne, "franchissements", zone)
     return a, zones, appels, bloquant
 
 
@@ -155,84 +154,11 @@ def test_portions_atkis_sont_signalees_a_verifier():
     assert "ATKIS" in entree["nature"] and "accès à vérifier" in entree["raison"]
 
 
-def test_itineraire_demande_les_tuiles_atkis(simulee, monkeypatch):
-    a, _, _, _ = simulee
-    sources = []
-    def preparer(tuiles, **options):
-        sources.append(options["source"])
-        return "segments-maison", []
-    monkeypatch.setattr(a.maison, "preparer", preparer)
-    monkeypatch.setattr(a, "moteur_maison", lambda segments: 2)
-    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **options:
-                        trace_messages(DETOUR, [(1, 300, "highway=path"),
-                                                (2, 324, "highway=path hike2gpx=atkis"),
-                                                (3, 300, "highway=track")]))
-    resultat = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]],
-                            "source": "atkis", "comparer": False})
-    assert sources == ["atkis"]
-    assert resultat["moteur"] == "maison" and resultat["portions_ign"][0]["source"] == "atkis"
-
-
-def test_itineraire_sur_les_tuiles_maison(simulee, monkeypatch):
-    a, zones, appels, bloquant = simulee
-    monkeypatch.setattr(a.maison, "preparer", lambda tuiles, **o: ("segments-maison", [bloquant]))
-    monkeypatch.setattr(a, "moteur_maison", lambda segments: 2 if segments == "segments-maison" else 0)
-
-    def calculer(port, points, liste=(), **options):
-        appels.append((port, options.get("profil", "hike2gpx"), len(liste)))
-        if port == 2:
-            return trace_messages(DETOUR, [(1, 300, "highway=path"), (2, 324, "highway=path hike2gpx=ign"),
-                                           (3, 300, "highway=track")])
-        return trace((43.3, 6.0), (43.3, 6.01), longueur="800")
-
-    monkeypatch.setattr(brouter, "calculer", calculer)
-    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
-    assert r["moteur"] == "maison" and r["avertissement"] is None
-    # Les franchissements viennent du réseau fusionné, pas d'OSM seul.
-    assert zones == [] and appels == [(2, "hike2gpx", 1), (1, "hiking-mountain", 0)]
-    assert [p["longueur_m"] for p in r["portions_ign"]] == [324]
-    [f] = r["sur_le_trace"]
-    assert f["statut"] == "uncertain" and f["osm"] is None and f["distance_m"] == 300
-    assert [f["cle"] for f in r["naif_traverse"]] == ["x"]
-
-
-def test_itineraire_repli_sur_osm_quand_les_tuiles_maison_echouent(simulee, monkeypatch):
-    a, zones, _, _ = simulee
-    essais = []
-
-    def panne(tuiles, **options):
-        essais.append(tuiles)
-        raise brouter.ErreurBRouter("Fabrication des tuiles impossible (WayLinker)")
-
-    monkeypatch.setattr(a.maison, "preparer", panne)
-    monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o:
-                        trace((43.3, 6.0), (43.35, 6.005), (43.3, 6.01)))
-    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]], "comparer": False})
-    assert r["moteur"] == "standard" and "OSM seul" in r["avertissement"] and "WayLinker" in r["avertissement"]
-    # La zone s'élargit une fois ; les tuiles maison ne sont pas retentées.
-    assert len(essais) == 1 and len(zones) == 2 and r["portions_ign"] == []
-
-
-def test_itineraire_introuvable_sur_les_tuiles_maison_reste_une_erreur(simulee, monkeypatch):
-    a, zones, _, bloquant = simulee
-    monkeypatch.setattr(a.maison, "preparer", lambda tuiles, **o: ("segments-maison", [bloquant]))
-    monkeypatch.setattr(a, "moteur_maison", lambda segments: 2)
-
-    def calculer(port, points, liste=(), **options):
-        if port != 2:
-            pytest.fail("repli sur OSM seul après un itinéraire introuvable")
-        raise brouter.ErreurBRouter("Aucun itinéraire ne respecte les barrières entre ces points.")
-
-    monkeypatch.setattr(brouter, "calculer", calculer)
-    assert "barrières" in a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})["erreur"]
-
-
 def test_itineraire_sans_les_chemins_ign(simulee, monkeypatch):
     a, zones, _, _ = simulee
-    monkeypatch.setattr(a.maison, "preparer", lambda tuiles, **o: pytest.fail("tuiles maison demandées"))
     monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace(*DETOUR))
     r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]], "ign": False, "comparer": False})
-    assert r["moteur"] == "standard" and r["avertissement"] is None and len(zones) == 1
+    assert r["moteur"] == "lot" and r["avertissement"] is None and len(zones) == 1
 
 
 def test_itineraire_refuse_s_il_traverse_encore_un_blocage(simulee, monkeypatch):
@@ -247,7 +173,7 @@ def test_itineraire_refuse_s_il_traverse_encore_un_blocage(simulee, monkeypatch)
 def test_mode_strict_refuse_un_passage_a_verifier_sur_le_trace(simulee, monkeypatch):
     a, _, _, bloquant = simulee
     incertain = {**bloquant, "cle": "y", "statut": "uncertain"}
-    monkeypatch.setattr(franchissements, "franchissements_zone", lambda *args, **o: [incertain])
+    monkeypatch.setattr(a.hors_ligne, "franchissements", lambda manifeste, zone: [incertain])
     monkeypatch.setattr(brouter, "calculer", lambda port, points, liste=(), **o: trace((43.3, 6.0), (43.3, 6.01)))
     points = [[43.3, 6.0], [43.3, 6.01]]
     assert "erreur" not in a.itineraire({"points": points, "comparer": False})
@@ -288,177 +214,36 @@ def test_itineraire_elargit_la_zone_quand_le_trace_en_sort(simulee, monkeypatch)
     assert "erreur" not in r and len(zones) == 2 and zones[1][2] > 43.35
 
 
-def test_itineraire_s_arrete_si_les_barrieres_sont_inconnues(simulee, monkeypatch):
-    a, _, _, _ = simulee
-
-    def panne(*args, **options):
-        raise franchissements.ErreurDonnees("Overpass ne répond pas : barrières non vérifiées.")
-
-    monkeypatch.setattr(franchissements, "franchissements_zone", panne)
-    monkeypatch.setattr(brouter, "calculer", lambda *a, **o: pytest.fail("calcul sans barrières"))
-    reponse = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
-    assert "barrières non vérifiées" in reponse["erreur"] and "extrait_en_cours" not in reponse
-    # La région a un extrait : le calcul l'a lancé de lui-même, la page attendra.
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
-    lancees = []
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: lancees.append(region["id"]) or True)
-    reponse = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
-    assert reponse["extrait_en_cours"] == {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"]}
-    assert lancees == [REGION_PACA["id"]]
-
-
 REGION_PACA = {"id": "provence-alpes-cote-d-azur", "nom": "Provence Alpes-Cote-d'Azur",
                "pbf": "https://download.geofabrik.de/europe/france/provence-alpes-cote-d-azur-latest.osm.pbf",
                "bornes": (42.9, 4.2, 45.2, 7.8),
                "polygones": [[[(4.2, 42.9), (7.8, 42.9), (7.8, 45.2), (4.2, 45.2), (4.2, 42.9)]]]}
 
 
-def test_extrait_signale_le_pays_et_abandonne_l_ancienne_region(tmp_path, monkeypatch):
+def test_extrait_dit_si_la_vue_est_hors_de_france(tmp_path, monkeypatch):
+    # Le contour de la France chez Geofabrik, comme pour les autres pays : plus
+    # d'OSM France, dont les extraits ne servaient qu'au calcul à la volée.
+    france = {**REGION_PACA, "id": "france", "bornes": (41.0, -5.0, 51.0, 10.0),
+              "polygones": [[[(-5.0, 41.0), (10.0, 41.0), (10.0, 51.0), (-5.0, 51.0), (-5.0, 41.0)]]]}
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [france])
     a = appli.Application(tmp_path)
-    monkeypatch.setattr(osmfr, "regions", lambda dossier: [REGION_PACA])
-    abandonnees = []
-    monkeypatch.setattr(geofabrik.Telechargements, "abandonner_hors_tuile",
-                        lambda self, i, j: abandonnees.append((i, j)))
-    france = (43.30, 6.00, 43.34, 6.08)
-    madrid = (40.40, -3.73, 40.43, -3.68)
-    assert a.extrait(france)["hors_france"] is False
-    assert a.extrait(madrid)["hors_france"] is True
-    assert abandonnees == [franchissements.tuile_du_point(43.32, 6.04),
-                           franchissements.tuile_du_point(40.415, -3.705)]
+    assert a.extrait((43.30, 6.00, 43.34, 6.08)) == {"brouter": None, "pays": "fr", "hors_france": False}
+    assert a.extrait((40.40, -3.73, 40.43, -3.68))["hors_france"] is True
+    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [])
+    assert "hors_france" not in a.extrait((43.30, 6.00, 43.34, 6.08)), "index pas encore lu : on ne sait pas"
 
 
-def test_extrait_telecharge_de_lui_meme_quand_la_region_sert(tmp_path, monkeypatch):
-    # Décision de Nico du 2026-10-19 : pas de bouton. Le calque des chemins OSM
-    # (ou un calcul) lance l'extrait ; survoler la carte (/api/extrait) non.
-    a = appli.Application(tmp_path)
-    # Aucun lot du serveur ici : la volée seule (le catalogue, lu une fois par
-    # la première demande, est un petit fichier de GitHub, pas Geofabrik).
-    monkeypatch.setattr(appli.depot, "lire_catalogue", lambda url, ouvrir=None: {"lots": []})
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
-    lancees = []
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: lancees.append(region["id"]) or True)
-    monkeypatch.setattr(franchissements, "voies_affichables", lambda *z, **o: {"voies": [], "barrieres": []})
-    # La requête du calque ne parle jamais à Geofabrik : sa réponse tarde
-    # parfois une minute (2026-10-20), la taille se vérifie en tâche de fond.
-    monkeypatch.setattr(geofabrik.urllib.request, "urlopen",
-                        lambda *a, **o: pytest.fail("Geofabrik interrogé pendant la requête de la page"))
-    vue = (43.30, 6.00, 43.34, 6.08)
-    assert a.extrait(vue) == {"en_cours": None, "brouter": None} and lancees == []
-    assert a.calque_osm(vue)["extrait_en_cours"] == {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"]}
-    assert lancees == [REGION_PACA["id"]]
-    # Hors de toute région, ou région écartée (trop grosse, disque plein) : rien ne part.
-    assert "extrait_en_cours" not in a.calque_osm((60.0, 6.0, 60.01, 6.01))
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: False)
-    assert "extrait_en_cours" not in appli.Application(tmp_path / "autre").calque_osm(vue)
-
-
-def test_une_autre_region_prend_la_place_de_l_extrait_en_cours(tmp_path, monkeypatch):
-    # Nico, 2026-10-20 : passé du Centre à la Bretagne, il attendait la fin du
-    # Centre. La page demandait bien la Bretagne, mais l'extrait en cours,
-    # d'où qu'il soit, était rendu tel quel, sans rien lancer.
-    a = appli.Application(tmp_path)
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
-    lancees = []
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **options: lancees.append(region["id"]) or True)
-    monkeypatch.setattr(franchissements, "voies_affichables", lambda *z, **o: {"voies": [], "barrieres": []})
-    monkeypatch.setattr(geofabrik.Telechargements, "etat",
-                        lambda self: {"id": "centre", "nom": "Centre", "etape": "import"})
-    vue = (43.30, 6.00, 43.34, 6.08)
-    assert a.calque_osm(vue)["extrait_en_cours"]["id"] == REGION_PACA["id"]
-    assert lancees == [REGION_PACA["id"]]
-    # La même région déjà en cours : rien ne repart.
-    monkeypatch.setattr(geofabrik.Telechargements, "etat",
-                        lambda self: {"id": REGION_PACA["id"], "nom": REGION_PACA["nom"], "etape": "import"})
-    assert a.calque_osm(vue)["extrait_en_cours"]["id"] == REGION_PACA["id"] and lancees == [REGION_PACA["id"]]
-
-
-def test_la_cascade_le_departement_puis_sa_region_de_geofabrik(tmp_path, monkeypatch):
-    # Nico, 2026-10-20 : « comme ça, on a la main rapidement sur le var
-    # (garéoult), on peut travailler, pendant ce temps paca se prépare » ;
-    # « dès que paca est dispo, on l'utilise pour ne pas avoir de pb aux
-    # frontières ». Le Var d'OSM France : 83 Mo ; la PACA de Geofabrik : 391 Mo.
-    a = appli.Application(tmp_path)
-    var = {"id": "fr-var", "nom": "Var", "pbf": osmfr.EXTRAITS + "provence_alpes_cote_d_azur/var.osm.pbf",
-           "bornes": (43.0, 5.6, 43.8, 6.95), "voies_coupees": True,
-           "polygones": [[[(5.6, 43.0), (6.95, 43.0), (6.95, 43.8), (5.6, 43.8), (5.6, 43.0)]]]}
-    paca = {**REGION_PACA, "id": "fr-provence-alpes-cote-d-azur", "voies_coupees": True,
-            "pbf": osmfr.EXTRAITS + "provence_alpes_cote_d_azur.osm.pbf"}
-    monkeypatch.setattr(osmfr, "regions", lambda dossier, **options: [paca, var])
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier, **options: [REGION_PACA])
-    lancees = []
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer",
-                        lambda self, region, **options: lancees.append((region["id"], options)) or True)
-    monkeypatch.setattr(franchissements, "voies_affichables", lambda *z, **o: {"voies": [], "barrieres": []})
-    vue = (43.30, 6.00, 43.34, 6.08)
-    # Rien sur le disque : le Var d'abord, la PACA de Geofabrik à sa suite.
-    assert a.calque_osm(vue)["extrait_en_cours"] == {"id": "fr-var", "nom": "Var"}
-    assert lancees == [("fr-var", {"ensuite": REGION_PACA})]
-    # Le Var installé : la page a ses données, la PACA se prépare pour le relayer.
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda dossier, i, j: {**var, "date": "2026-10-19T01:38:06Z"})
-    assert "extrait_en_cours" not in a.calque_osm(vue)
-    assert lancees[-1] == (REGION_PACA["id"], {"relais": True})
-    # Un téléchargement en cours ailleurs : la PACA ne lui prend pas sa place.
-    del lancees[:]
-    monkeypatch.setattr(geofabrik.Telechargements, "etat",
-                        lambda self: {"id": "fr-bouches-du-rhone", "nom": "Bouches-du-Rhone", "etape": "import"})
-    assert "extrait_en_cours" not in a.calque_osm(vue) and lancees == []
-    # La PACA installée : c'est elle qui sert, plus rien ne part.
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda dossier, i, j: REGION_PACA)
-    monkeypatch.setattr(geofabrik.Telechargements, "etat", lambda self: None)
-    assert "extrait_en_cours" not in a.calque_osm(vue) and lancees == []
-    # Le Var en échec, une heure : la région d'OSM France, toujours suivie de la PACA.
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda dossier, i, j: None)
-    geofabrik.telechargements(tmp_path)._echecs["fr-var"] = time.monotonic()
-    assert a.calque_osm(vue)["extrait_en_cours"]["id"] == "fr-provence-alpes-cote-d-azur"
-    assert lancees == [("fr-provence-alpes-cote-d-azur", {"ensuite": REGION_PACA})]
-
-
-def test_un_calque_publie_son_avancement_tuile_apres_tuile(tmp_path, monkeypatch):
-    # La page en tire la barre de sa note (« 2 sur 6 tuiles · 12 s »).
-    a = appli.Application(tmp_path)
-    vus = []
-
-    def lire(*zone, continuer, suivi, **options):
-        for faites in range(3):
-            suivi(faites, 3)
-            vus.append(a.progression()["calques"]["osm"])
-        suivi(3, 3)
-        return {"voies": [], "barrieres": []}
-
-    monkeypatch.setattr(franchissements, "voies_affichables", lire)
-    a.calque_osm((43.30, 6.00, 43.34, 6.08))
-    assert [(v["faites"], v["total"]) for v in vus] == [(0, 3), (1, 3), (2, 3)]
-    assert all(v["duree_s"] >= 0 for v in vus)
-    assert a.progression()["calques"] == {}
-
-
-def test_moteur_et_tuiles_brouter_telecharges_d_eux_memes(simulee, monkeypatch):
-    # Même règle pour BRouter : la tuile manquante part en tâche de fond, le
-    # calcul le dit, et une tuile en échec attend une heure avant un nouvel essai.
+def test_le_moteur_brouter_s_installe_de_lui_meme(simulee, monkeypatch):
+    # Le moteur absent : il s'installe en tâche de fond, et le calcul le dit.
     a, _, _, _ = simulee
-    present, telechargees = set(), []
-
-    def telecharger(nom):
-        telechargees.append(nom)
-        if nom == "E5_N40":
-            raise brouter.ErreurBRouter("Téléchargement impossible : brouter.de injoignable.")
-        present.add(nom)
-
-    monkeypatch.setattr(a.installation, "segment_present", lambda nom: nom in present)
-    monkeypatch.setattr(a.installation, "telecharger_segment", telecharger)
-    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
-    assert r["segments_manquants"] == ["E5_N40"] and r["brouter_en_cours"] == {"moteur": False, "segments": ["E5_N40"]}
-    a._fil_brouter.join(5)
-    assert telechargees == ["E5_N40"] and a.extrait(None)["brouter"] is None
-    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
-    assert r["brouter_en_cours"] is None and telechargees == ["E5_N40"]      # échec récent : pas d'essai
-    # Moteur absent au lancement de la page : il s'installe de lui-même.
     installe = []
     monkeypatch.setattr(a.installation, "installee", lambda: bool(installe))
     monkeypatch.setattr(a.installation, "installer", lambda: installe.append(True))
-    assert a.installer_moteur() == {"brouter_en_cours": {"moteur": True, "segments": []}}
+    r = a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
+    assert r["moteur_absent"] is True and r["brouter_en_cours"] == {"moteur": True, "segments": []}
     a._fil_brouter.join(5)
-    assert installe == [True]
+    assert installe == [True] and a.extrait(None)["brouter"] is None
+    assert a.installer_moteur() == {"brouter_en_cours": None}
 
 
 @pytest.mark.parametrize("requete, attendu", [
@@ -472,72 +257,19 @@ def test_lire_zone(requete, attendu):
     assert appli.lire_zone(requete) == attendu
 
 
-def test_calques_refusent_une_zone_trop_grande_ou_invalide(tmp_path, monkeypatch):
-    a = appli.Application(tmp_path)
-    monkeypatch.setattr(franchissements, "voies_affichables", lambda *z: pytest.fail("lecture inutile"))
-    assert "trop grande" in a.calque_osm((43.0, 6.0, 43.5, 6.5))["erreur"]
-    assert "invalide" in a.calque_osm(None)["erreur"]
+def test_calques_refusent_une_zone_invalide(tmp_path):
+    assert "invalide" in appli.Application(tmp_path).calque_osm(None)["erreur"]
 
 
-def test_calque_bdtopo_et_panne(tmp_path, monkeypatch):
-    from hike2gpx.providers import bdtopo
-    a = appli.Application(tmp_path)
-    monkeypatch.setattr(bdtopo, "troncons_zone", lambda *z, **o: [{"id": "A-0"}])
-    # Les bornes des tuiles lues, que la page n'a pas à redemander.
-    assert a.calque_officiel("ign", (43.31, 6.01, 43.34, 6.04)) == {"troncons": [{"id": "A-0"}],
-                                                          "bornes": (43.3, 6.0, 43.35, 6.05)}
-
-    def panne(*z, **o):
-        raise franchissements.ErreurDonnees("BD TOPO indisponible (hors ligne).")
-
-    monkeypatch.setattr(bdtopo, "troncons_zone", panne)
-    assert a.calque_officiel("ign", (43.3, 6.0, 43.35, 6.05)) == {"erreur": "BD TOPO indisponible (hors ligne)."}
-
-
-def test_une_nouvelle_vue_arrete_la_lecture_de_la_precedente(tmp_path, monkeypatch):
-    # Journal du 2026-10-19 : chaque déplacement de la carte ajoutait sa lecture
-    # Overpass à celles des vues quittées. Ici, la vue B arrive pendant que la
-    # vue A lit sa première tuile : A s'arrête là.
-    a = appli.Application(tmp_path)
-    vue_a, vue_b = (43.31, 6.01, 43.34, 6.06), (43.41, 6.21, 43.44, 6.26)
-    lues = []
-
-    def lire(sud, ouest, nord, est, dossier, continuer, suivi):
-        for tuile in franchissements.tuiles_zone(sud, ouest, nord, est):
-            if not continuer():
-                raise franchissements.VueRemplacee()
-            lues.append(tuile)
-            if (sud, ouest, nord, est) == vue_a:
-                assert a.calque_osm(vue_b)["voies"] == []
-        return {"voies": [], "barrieres": []}
-
-    monkeypatch.setattr(franchissements, "voies_affichables", lire)
-    assert a.calque_osm(vue_a)["code"] == "vue_remplacee"
-    assert lues == [(866, 120), (868, 124), (868, 125)]
-    assert a.calque_osm(vue_b)["bornes"] == (43.4, 6.2, 43.45, 6.3)
-
-
-def test_une_vue_plus_ancienne_arrivee_apres_est_refusee_d_emblee(tmp_path, monkeypatch):
+def test_une_vue_plus_ancienne_arrivee_apres_est_refusee_d_emblee(tmp_path):
     # Calque figé du 2026-10-20 : une requête plus ancienne de la page, arrivée
-    # au serveur après la plus récente, passait pour la vue en cours ; la plus
-    # récente revenait « remplacée » et la page restait sans chemins. La page
-    # date désormais ses vues, et le serveur refuse les plus anciennes.
+    # au serveur après la plus récente, passait pour la vue en cours. La page
+    # date ses vues, et le serveur refuse les plus anciennes.
     a = appli.Application(tmp_path)
-    lues, lances = [], []
-    monkeypatch.setattr(franchissements, "voies_affichables",
-                        lambda *z, **o: lues.append(z[:4]) or {"voies": [], "barrieres": []})
-    monkeypatch.setattr(a, "_extrait_automatique", lambda zone, raison: lances.append(zone))
     vue = (43.30, 6.00, 43.34, 6.08)
-    assert "voies" in a.calque_osm(vue, 1760000000002.5)
+    assert a.calque_osm(vue, 1760000000002.5).get("code") != "vue_remplacee"
     assert a.calque_osm(vue, 1760000000001.0)["code"] == "vue_remplacee"
-    assert len(lues) == 1 and len(lances) == 1         # ni lecture ni extrait pour la périmée
-    assert "voies" in a.calque_osm(vue, 1760000000003.0)
-    # Un arrêt daté remplace ce qui le précède, sans toucher à ce qui le suit.
-    a.arreter_calques({"calques": ["osm"], "vue": 1760000000004.0})
-    assert a.calque_osm(vue, 1760000000003.5)["code"] == "vue_remplacee"
-    assert "voies" in a.calque_osm(vue, 1760000000005.0)
-    assert appli.lire_vue({"vue": ["1760000000005.125"]}) == 1760000000005.125
-    assert [appli.lire_vue(q) for q in ({}, {"vue": ["nan"]}, {"vue": ["x"]})] == [None, None, None]
+    assert a.calque_osm(vue, 1760000000003.0).get("code") != "vue_remplacee"
 
 
 def test_arreter_calques_ne_touche_que_ceux_que_la_page_masque(tmp_path):
@@ -560,48 +292,29 @@ def test_route_denivele(tmp_path, monkeypatch):
     assert a.denivele({}) == {"erreur": "Tracé invalide."}
 
 
-def test_disponibilite_depuis_extrait_ou_overpass(tmp_path, monkeypatch):
+@pytest.mark.zones_reelles
+def test_disponibilite_ne_compte_que_la_zone_de_routage(tmp_path, monkeypatch):
+    # Nico, 2026-11-13 : « le message n'est pas à jour » ; l'infobulle énumérait encore
+    # Overpass et les extraits OSM, quand un tracé ne part plus que d'une zone de routage.
     a = appli.Application(tmp_path)
     zone = (43.3, 6.0, 43.31, 6.01)
     monkeypatch.setattr(a.installation, "installee", lambda: True)
-    monkeypatch.setattr(a.installation, "segment_present", lambda nom: True)
-    monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: False)
-    monkeypatch.setattr(a, "_detail_sources_osm", lambda zone, overpass: {"overpass": "non"})
-    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda *args: [{"nom": "Var"}])
-    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
-    assert a.disponibilite(zone) == {"pret": True, "source": "extrait", "nom": "Var",
-                                    "details": {"overpass": "non"}}
-    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda *args: [])
-    monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: True)
-    assert a.disponibilite(zone) == {"pret": True, "source": "cache", "details": {"overpass": "non"}}
-    monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: False)
-    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: True)
-    assert a.disponibilite(zone)["pret"] is True
-    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
-    assert a.disponibilite(zone)["pret"] is False
-    monkeypatch.setattr(a.installation, "segment_present", lambda nom: False)
-    assert a.disponibilite(zone)["attente"] == "segments"
+    assert a.disponibilite(zone) == {"pret": False, "source": None, "attente": "zone_absente",
+                                    "details": {"lot": {"nom": "E5_N40", "etat": "absent"}}}
+    a._lot = {"actif": True, "case": "E5_N40"}
+    assert a.disponibilite(zone)["details"]["lot"]["etat"] == "preparation"
+    a._lot = {"actif": False}
+    monkeypatch.setattr(a, "_cases_sans_lot", lambda zone: [])
+    monkeypatch.setattr(a, "_cases_sans_calques", lambda zone: ["E5_N40"])
+    d = a.disponibilite(zone)
+    assert d["pret"] is True and d["details"]["lot"]["etat"] == "simple", "la zone simple trace"
+    monkeypatch.setattr(a, "_cases_sans_calques", lambda zone: [])
+    assert a.disponibilite(zone) == {"pret": True, "source": "lot", "nom": "E5_N40",
+                                    "details": {"lot": {"nom": "E5_N40", "etat": "disponible"}}}
     monkeypatch.setattr(a.installation, "installee", lambda: False)
     assert a.disponibilite(zone)["attente"] == "moteur"
     assert a.disponibilite_parcours({"points": [[43.3, 6], [43.31, 6.01]]})["attente"] == "moteur"
-
-
-def test_detail_disponibilite_distingue_extraits_local_et_regional(tmp_path, monkeypatch):
-    a = appli.Application(tmp_path)
-    local = {"id": "fr-var", "nom": "Var", "genre": "departement"}
-    regional = {"id": "provence-alpes-cote-d-azur", "nom": "Provence-Alpes-Côte d’Azur"}
-    monkeypatch.setattr(osmfr, "regions", lambda dossier: [local])
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [regional])
-    monkeypatch.setattr(geofabrik, "region_de_tuile", lambda regions, i, j: regions[0] if regions else None)
-    monkeypatch.setattr(geofabrik, "installes", lambda dossier: [local])
-    class Telechargements:
-        def etat(self):
-            return {"id": regional["id"], "etape": "import"}
-    monkeypatch.setattr(geofabrik, "telechargements", lambda dossier: Telechargements())
-    details = a._detail_sources_osm((43.3, 6.0, 43.31, 6.01), True)
-    assert details == {"overpass": "oui", "local": {"nom": "Var", "etat": "disponible"},
-                       "regional": {"nom": "Provence-Alpes-Côte d’Azur", "etat": "import"}}
-
+    assert a.disponibilite(None)["attente"] == "zone"
 
 
 def test_routes_init_annonce_l_application(tmp_path):
@@ -644,7 +357,7 @@ def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch
     assert "erreur" not in a.itineraire({"points": [[43.3, 6.0], [43.3, 6.01]]})
     assert [v["etape"] for v in vues] == ["itineraire", "comparaison"]
     assert all(v["actif"] and 0 < v["fraction"] < 1 for v in vues)
-    assert a.progression() == {"actif": False, "calques": {}}
+    assert a.progression() == {"actif": False}
 
 
 def test_journal_garde_la_trace_des_calculs(simulee, monkeypatch):
@@ -689,36 +402,29 @@ def donnees_d_essai(dossier):
 
 def test_les_donnees_telechargees_se_voient_et_se_videent(tmp_path, monkeypatch):
     # Nico, 2026-10-20 : « il faudrait une fonction pour vider le cache, dans
-    # les réglages », « utile aussi pour actualiser les données rapidement ».
+    # les réglages ». Les caches d'Overpass d'avant la 0.9.31 ne sont plus que
+    # des restes, à nettoyer (Nico, 2026-11-13 : « supprime tout ce qui traîne
+    # sur overpass et extraits »).
     installes = donnees_d_essai(tmp_path)
     monkeypatch.setattr(geofabrik, "installes", lambda dossier: [e for e in installes if e["base"].exists()])
     a = appli.Application(tmp_path)
     d = a.donnees()
-    assert d["osm"] == {"fichiers": 3, "octets": 6} and d["bdtopo"] == {"fichiers": 1, "octets": 2}
-    assert [(e["id"], e["provisoire"], e["octets"]) for e in d["extraits"]] == [
-        ("fr-var", True, 1000), (REGION_PACA["id"], False, 1000)]
-    assert [s["nom"] for s in d["brouter"]] == ["E5_N40"] and d["restes"] == {"fichiers": 1, "octets": 500}
-    assert d["occupe"] == {"extrait": None, "brouter": False}
-    # Vider : les tuiles se reliront d'elles-mêmes au besoin.
-    assert a.agir_donnees({"action": "vider_osm"})["osm"]["fichiers"] == 0
-    assert not list((tmp_path / "franchissements").iterdir()) and (tmp_path / "bdtopo" / "v1_866_120.json").exists()
+    assert "osm" not in d and d["bdtopo"] == {"fichiers": 1, "octets": 2}
+    assert [(e["id"], e["octets"]) for e in d["extraits"]] == [("fr-var", 1000), (REGION_PACA["id"], 1000)]
+    assert [s["nom"] for s in d["brouter"]] == ["E5_N40"] and d["restes"] == {"fichiers": 4, "octets": 506}
+    assert d["occupe"] == {"brouter": False}
     assert a.agir_donnees({"action": "vider_bdtopo"})["bdtopo"]["fichiers"] == 0
-    # Actualiser : l'extrait repart, l'ancien sert jusqu'à la bascule.
-    lances = []
-    monkeypatch.setattr(geofabrik.Telechargements, "lancer", lambda self, region, **o: lances.append(region["id"]) or True)
-    a.agir_donnees({"action": "actualiser_extrait", "cible": "fr-var"})
-    assert lances == ["fr-var"]
-    # Pendant son téléchargement, l'extrait ne se supprime pas.
-    monkeypatch.setattr(geofabrik.Telechargements, "occupee", lambda self: True)
-    monkeypatch.setattr(geofabrik.Telechargements, "etat", lambda self: {"id": "fr-var", "etape": "import"})
-    assert a.agir_donnees({"action": "supprimer_extrait", "cible": "fr-var"}) == {
-        "erreur": "Cet extrait se télécharge déjà."}
-    monkeypatch.setattr(geofabrik.Telechargements, "occupee", lambda self: False)
+    # Un extrait de la fabrication se supprime, sauf pendant qu'un lot se prépare.
+    a._fil_lot = type("Fil", (), {"is_alive": lambda self: True})()
+    assert "erreur" in a.agir_donnees({"action": "supprimer_extrait", "cible": "fr-var"})
+    a._fil_lot = None
     d = a.agir_donnees({"action": "supprimer_extrait", "cible": "fr-var"})
     assert [e["id"] for e in d["extraits"]] == [REGION_PACA["id"]] and not installes[0]["base"].exists()
     assert a.agir_donnees({"action": "nettoyer"})["restes"]["fichiers"] == 0
+    assert not (tmp_path / "overpass").exists() and not (tmp_path / "franchissements").exists()
     assert a.agir_donnees({"action": "supprimer_extrait", "cible": "inconnu"}) == {"erreur": "Extrait inconnu."}
-    assert a.agir_donnees({"action": "formater"}) == {"erreur": "Action inconnue."}
+    assert a.agir_donnees({"action": "actualiser_extrait", "cible": REGION_PACA["id"]}) == {
+        "erreur": "Action inconnue."}, "un extrait se refait avec son lot"
 
 
 def test_vider_cache_unique_efface_toutes_les_donnees_locales(tmp_path):

@@ -472,10 +472,9 @@ def _installer_extraits(dossier, case, regions, suivi, continuer, preparation=No
                 except geofabrik.ExtraitEcarte as exc:
                     # Une région transversale sans sous-régions (les Alpes, 2,2 Go)
                     # peut encore être trop grosse : ses tuiles, en mer, restent
-                    # sans données. Le message de l'exception parle d'Overpass,
-                    # qui ne sert pas aux lots.
+                    # sans données.
                     journal.warning("Lot %s : extrait %s écarté (%s), ses tuiles restent vides", case,
-                                    region["id"], str(exc).split(",")[0])
+                                    region["id"], exc)
                 faits += 1
                 suivi("extraits", faits, len(regions))
                 if not continuer():
@@ -645,12 +644,11 @@ def _fabrique_bloc(dossier, zone, franchissements=None, troncons=None):
     def lire(i, j):
         # Les bords nord et est d'une tuile sont ceux de ses voisines : rognés,
         # pour ne lire qu'elle. Sinon chaque tuile en lisait quatre, et une
-        # voisine en mer partait vers Overpass (essai GitHub Actions, HTTP 502).
-        # en_ligne=False : un lot ne lit que les extraits, jamais Overpass, trop
-        # instable pour une fabrication en série (Nico, 2026-10-27).
+        # voisine en mer, sans extrait, arrêtait la lecture. Un lot ne lit que
+        # les extraits (Nico, 2026-10-27), Overpass ne servant plus nulle part.
         sud, ouest, nord, est = fr.bornes_tuile(i, j)
         complets = [] if franchissements is None else None
-        voie = fr.voies_affichables(sud, ouest, nord - BORD_DEG, est - BORD_DEG, dossier, en_ligne=False,
+        voie = fr.voies_affichables(sud, ouest, nord - BORD_DEG, est - BORD_DEG, dossier,
                                     franchissements_complets=complets)
         return voie, complets or []
     def bloc(x10, y10):

@@ -70,7 +70,7 @@ REMPLACEMENTS = (
      "assign footaccess     and not foot=private|no\n                      or issidewalk"),
 )
 
-# Tuiles maison (OSM + BD TOPO ou ATKIS, voir fusion.py et maison.py) : une clé
+# Tuiles maison (OSM + BD TOPO ou ATKIS, voir fusion.py et case.py) : une clé
 # dans la table de tags marque les chemins officiels, que le profil maison rend une
 # fois et demie plus coûteux qu'un chemin OSM équivalent.
 CLE_IGN = "hike2gpx;0000000001 " + "\nhike2gpx;0000000001 ".join(SOURCES_OFFICIELLES) + "\n\n"

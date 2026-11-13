@@ -142,16 +142,11 @@ def test_date_du_lot_et_peremption(tmp_path):
 
 
 def sans_reseau(a, monkeypatch):
-    """L'application avec un lot installé : tout accès réseau ou fabrication
-    échoue, et chaque calcul BRouter est noté (port, franchissements, options)."""
+    """L'application avec un lot installé, sans RD5 officielle ; chaque calcul
+    BRouter est noté (port, franchissements, options). Rien ne se lit plus à la
+    volée depuis la 0.9.31 : le calcul ne part que des lots."""
     monkeypatch.setattr(a.installation, "installee", lambda: True)
     monkeypatch.setattr(a.installation, "segment_present", lambda nom: False)    # aucune RD5 officielle
-
-    def interdit(*args, **options):
-        raise AssertionError("aucun accès réseau ni fabrication avec un lot installé")
-    monkeypatch.setattr(a, "_extrait_automatique", interdit)
-    monkeypatch.setattr(a.maison, "preparer", interdit)
-    monkeypatch.setattr(franchissements, "franchissements_zone", interdit)
     appels = []
 
     def calculer(port, points, liste=(), **options):
@@ -177,13 +172,13 @@ def test_itineraire_hors_ligne_sans_reseau_ni_rd5_officielle(tmp_path, monkeypat
         "les franchissements du lot, filtrés sur la zone, et la coche passée au profil"
 
 
+@pytest.mark.zones_reelles
 def test_l_indicateur_compte_le_lot_installe(tmp_path, monkeypatch):
     # Capture de Nico du 2026-10-28 : lot téléchargé, mais « Tracé indisponible »
     # (Overpass muet, extrait régional absent, BRouter en attente).
     a = appli.Application(tmp_path / "donnees")
     a.hors_ligne.installer(fabriquer_lot(tmp_path / "lot"))
     sans_reseau(a, monkeypatch)
-    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
     d = a.disponibilite((43.30, 6.00, 43.31, 6.01))
     assert d["pret"] is True and d["source"] == "lot" and d["nom"] == "E5_N40"
     assert d["details"]["lot"] == {"nom": "E5_N40", "etat": "disponible"}
@@ -207,11 +202,6 @@ def test_itineraire_sur_un_lot_osm(tmp_path, monkeypatch):
 def test_calques_de_la_page_lus_dans_le_lot(tmp_path, monkeypatch):
     a = appli.Application(tmp_path / "donnees")
     a.hors_ligne.installer(fabriquer_lot(tmp_path / "lot"))
-
-    def interdit(*args, **options):
-        raise AssertionError("ni lecture en ligne ni extrait quand un lot couvre la vue")
-    monkeypatch.setattr(a, "_extrait_automatique", interdit)
-    monkeypatch.setattr(franchissements, "voies_affichables", interdit)
     zone = (43.299, 5.999, 43.303, 6.005)
     osm = a.calque_osm(zone)
     # La page lit elle-même les tuiles du lot (tuiles.js) : le serveur ne décode

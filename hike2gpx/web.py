@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, quote, urlsplit
 
 from nico579_commons import maj, serveweb
 
-from . import __version__, bureau, fonds, geofabrik, osmfr, providers
+from . import __version__, bureau, fonds, geofabrik, providers
 from .application import Application, configurer_journal, lire_vue, lire_zone
 
 journal = logging.getLogger(__name__)
@@ -304,10 +304,9 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
     url = f"http://{HOST}:{port}/"
     print(f"hike2gpx {__version__} : {url} (données : {dossier}, journal : {chemin_journal})", flush=True)
     journal.info("hike2gpx %s démarré : %s, données %s", __version__, url, dossier)
-    # Les index des extraits, prêts avant le premier usage : les départements
-    # d'OSM France, les régions de Geofabrik. Chacun ne se refait, en tâche de
+    # L'index des régions de Geofabrik, prêt avant le premier usage : le pays de
+    # la carte, et les extraits d'une fabrication. Il ne se refait, en tâche de
     # fond, que s'il manque ou a plus d'un mois.
-    osmfr.regions(dossier)
     geofabrik.regions(dossier)
     # Bundle publié, premier lancement : l'icône sur le Bureau, une fois.
     bureau.raccourci_au_premier_lancement(application.lire_langue, Path(dossier))

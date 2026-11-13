@@ -1,21 +1,8 @@
-import json
 import math
 
 import pytest
 
 from hike2gpx import franchissements as fr, geofabrik
-
-
-def test_disponibilite_tuile_utilise_le_cache_valide_sans_overpass(tmp_path, monkeypatch):
-    monkeypatch.setattr(geofabrik, "extrait_de_tuile", lambda *args: None)
-    i, j = fr.tuile_du_point(43.3, 6.0)
-    assert not fr.tuile_disponible(i, j, tmp_path, maintenant=lambda: 1000)
-    dossier = tmp_path / "overpass"
-    dossier.mkdir()
-    (dossier / f"v{fr.VERSION_DONNEES}_{i}_{j}.json").write_text(
-        json.dumps({"fetched_at": 900, "elements": []}), encoding="utf-8")
-    assert fr.tuile_disponible(i, j, tmp_path, maintenant=lambda: 1000)
-    assert not fr.tuile_disponible(i, j, tmp_path, maintenant=lambda: 900 + fr.TTL_S + 1)
 
 LAT0, LON0 = 43.3, 6.0
 KX = fr.M_PAR_DEGRE * math.cos(math.radians(LAT0))
@@ -259,27 +246,33 @@ def test_cloture_fermee_autour_d_un_champ_coupe_deux_fois():
         sorted(round(LON0 + x / KX, 6) for x in (-40, 40))
 
 
-def test_voies_affichables_par_genre_sans_les_bordures(tmp_path):
+def extrait_simule(monkeypatch, carte):
+    """La tuile telle qu'un extrait installé la rend : ses éléments, au format d'Overpass."""
+    monkeypatch.setattr(fr, "charger_tuile", lambda i, j, dossier: {"elements": carte.elements, "fetched_at": 1})
+
+
+def test_voies_affichables_par_genre_sans_les_bordures(tmp_path, monkeypatch):
     carte = Carte()
     sentier = carte.chemin((-50, 0), (50, 0))
     piste = carte.chemin((-50, 20), (50, 20), highway="track")
     route = carte.chemin((-50, 40), (50, 40), highway="residential")
     cloture = carte.cloture((0, -30), (0, 30))
     carte.cloture((10, -30), (10, 30), barrier="kerb")
-    calque = fr.voies_affichables(43.31, 6.01, 43.32, 6.02, tmp_path, interroger=lambda texte, **_: carte.elements)
+    extrait_simule(monkeypatch, carte)
+    calque = fr.voies_affichables(43.31, 6.01, 43.32, 6.02, tmp_path)
     assert {v["id"]: v["genre"] for v in calque["voies"]} == {sentier: "sentier", piste: "piste", route: "route"}
     assert [(b["id"], b["nature"]) for b in calque["barrieres"]] == [(cloture, "Clôture")]
     assert calque["voies"][0]["pts"][0] == [round(LAT0, 6), round(LON0 - 50 / KX, 6)]
 
 
-def test_calque_osm_contient_les_franchissements_sans_itineraire(tmp_path):
+def test_calque_osm_contient_les_franchissements_sans_itineraire(tmp_path, monkeypatch):
     carte = Carte()
     portail = carte.noeud(0, 40, barrier="gate")
     carte.voie([carte.noeud(-50, 40), portail, carte.noeud(50, 40)], highway="track")
     carte.chemin((-50, 0), (50, 0))
     cloture = carte.cloture((0, -20), (0, 20))
-    donnees = fr.voies_affichables(43.31, 6.01, 43.32, 6.02, tmp_path,
-                                   interroger=lambda texte, **_: carte.elements)
+    extrait_simule(monkeypatch, carte)
+    donnees = fr.voies_affichables(43.31, 6.01, 43.32, 6.02, tmp_path)
     points = donnees["franchissements"]
     assert any(p["osm"] == f"node/{portail}" and p["statut"] == "uncertain" for p in points)
     assert any(p["osm"] == f"way/{cloture}" and p["statut"] == "blocked" for p in points)
@@ -354,154 +347,18 @@ def test_un_cul_de_sac_un_raccord_fait_un_pont_et_une_amorce_ne_sont_pas_signale
     assert fr.jonctions_manquees(_chemins(route, bretelle, presque), 48.3785, -77.14, 48.39, -77.12) == []
 
 
-def test_tuiles_et_requete():
+def test_tuiles_et_bornes():
     assert fr.tuiles_zone(43.31, 6.01, 43.34, 6.06) == [(866, 120), (866, 121)]
     assert fr.bornes_tuile(866, 120) == (43.3, 6.0, 43.35, 6.05)
     # 43.30 / 0.05 vaut 865.999… : une borne exacte reste dans sa tuile.
     assert fr.tuiles_zone(43.30, 6.00, 43.3499, 6.0499) == [(866, 120)]
-    texte = fr.requete(*fr.bornes_tuile(866, 120))
-    assert "(43.300000,6.000000,43.350000,6.050000)" in texte and "motorway" in texte
-    assert 'rel(bw.voies)["route"~"^(hiking|foot)$"]' in texte
     # Ce qu'un calque lit vraiment : les tuiles entières autour de la vue.
     assert fr.bornes_zone(43.31, 6.01, 43.34, 6.06) == (43.3, 6.0, 43.35, 6.1)
 
 
-def test_cache_de_tuile(tmp_path):
-    appels = []
-
-    def interroger(texte, **_):
-        appels.append(texte)
-        carte = Carte()
-        carte.chemin((-50, 0), (50, 0))
-        carte.cloture((0, -30), (0, 30))
-        return carte.elements
-
-    i, j = 866, 120
-    horloge = [1000.0]
-    options = dict(interroger=interroger, maintenant=lambda: horloge[0])
-    premier = fr.franchissements_tuile(i, j, tmp_path, **options)
-    assert len(appels) == 1 and [f["statut"] for f in premier] == ["blocked"]
-    assert fr.franchissements_tuile(i, j, tmp_path, **options) == premier and len(appels) == 1
-    horloge[0] += fr.TTL_S + 1
-    fr.franchissements_tuile(i, j, tmp_path, **options)
-    assert len(appels) == 2
-    with pytest.raises(fr.ErreurDonnees):
-        fr.charger_tuile(i, j + 1, tmp_path, en_ligne=False)
-
-
-def test_overpass_refus_definitif_et_passager(monkeypatch):
-    import urllib.error
-
-    tentatives = []
-
-    def refuser(demande, timeout):
-        tentatives.append(1)
-        raise urllib.error.HTTPError(fr.ENDPOINT, 429, "Too Many Requests", {}, None)
-
-    monkeypatch.setattr(fr.urllib.request, "urlopen", refuser)
-    with pytest.raises(fr.ErreurDonnees, match="ne répond pas"):
-        fr.interroger("x", attendre=lambda s: None)
-    assert len(tentatives) == fr.TENTATIVES
-
-
-def test_overpass_jamais_plus_de_deux_requetes_a_la_fois(monkeypatch):
-    # overpass-api.de répond 429 au-delà de deux requêtes simultanées par
-    # adresse : six lectures lancées ensemble passent deux par deux.
-    import io
-    import threading
-    import time
-
-    actives, maximum, verrou = [0], [0], threading.Lock()
-
-    def lire(demande, timeout):
-        with verrou:
-            actives[0] += 1
-            maximum[0] = max(maximum[0], actives[0])
-        time.sleep(0.05)
-        with verrou:
-            actives[0] -= 1
-        return io.BytesIO(b'{"elements": []}')
-
-    monkeypatch.setattr(fr.urllib.request, "urlopen", lire)
-    fils = [threading.Thread(target=fr.interroger, args=("x",)) for _ in range(6)]
-    for fil in fils:
-        fil.start()
-    for fil in fils:
-        fil.join()
-    assert maximum[0] == fr.CRENEAUX == 2
-
-
-def test_vue_quittee_renonce_a_overpass(monkeypatch):
-    # Une vue que la carte a quittée n'attend pas de créneau et n'interroge
-    # plus Overpass : c'était l'empilement des calques du 2026-10-19.
-    monkeypatch.setattr(fr.urllib.request, "urlopen", lambda *a, **o: pytest.fail("Overpass interrogé"))
-    with pytest.raises(fr.VueRemplacee):
-        fr.interroger("x", continuer=lambda: False)
-    for _ in range(fr.CRENEAUX):
-        fr._creneaux.acquire()
-    try:
-        with pytest.raises(fr.VueRemplacee):      # créneaux pris : elle renonce à attendre
-            fr.interroger("x", continuer=lambda: False)
-    finally:
-        for _ in range(fr.CRENEAUX):
-            fr._creneaux.release()
-
-
-def test_une_pause_d_overpass_s_arrete_des_que_la_tuile_n_attend_plus(monkeypatch):
-    # Les pauses entre deux essais (15 puis 30 s) s'écoulent seconde par
-    # seconde : une vue quittée, ou un extrait installé entre-temps, les arrête.
-    import urllib.error
-
-    def refuser(demande, timeout):
-        raise urllib.error.HTTPError(fr.ENDPOINT, 502, "Bad Gateway", {}, None)
-
-    monkeypatch.setattr(fr.urllib.request, "urlopen", refuser)
-    pauses = []
-    with pytest.raises(fr.VueRemplacee):
-        fr.interroger("x", attendre=pauses.append, continuer=lambda: len(pauses) < 3)
-    assert pauses == [1, 1, 1]
-
-
-def test_l_extrait_installe_pendant_l_attente_d_overpass_prend_le_relais(tmp_path, monkeypatch):
-    # Essai réel du 2026-10-20 : le Var installé au bout de 39 s, la tuile
-    # suivante attendait encore Overpass, en HTTP 502, jusqu'à 80 s.
-    installe = []
-    tuile = {"version": fr.VERSION_DONNEES, "fetched_at": 0.0, "bornes": fr.bornes_tuile(866, 120),
-             "elements": [], "source": "geofabrik:fr-var:2026-10-19T01:38:06Z"}
-    monkeypatch.setattr(fr, "_couverte", lambda i, j, dossier: bool(installe))
-    monkeypatch.setattr(fr, "tuile_de_l_extrait", lambda i, j, dossier: tuile if installe else None)
-
-    def interroger(texte, continuer, **_):
-        installe.append(True)                   # l'extrait s'installe pendant l'attente
-        if not continuer():
-            raise fr.VueRemplacee()
-        pytest.fail("la tuile attend encore Overpass, l'extrait installé")
-
-    assert fr.charger_tuile(866, 120, tmp_path, interroger=interroger) is tuile
-    # Un extrait présent mais illisible : Overpass, comme avant, sans passer
-    # pour une vue quittée.
-    monkeypatch.setattr(fr, "tuile_de_l_extrait", lambda i, j, dossier: None)
-    vus = []
-
-    def interroger_ensuite(texte, continuer, **_):
-        vus.append(continuer())
-        if not vus[-1]:
-            raise fr.VueRemplacee()
-        return []
-
-    assert fr.charger_tuile(866, 121, tmp_path, interroger=interroger_ensuite)["elements"] == []
-    assert vus == [False, True]
-
-
-def test_calque_osm_s_arrete_avant_la_tuile_suivante(tmp_path):
-    lues = []
-
-    def interroger(texte, **_):
-        lues.append(texte)
-        return []
-
-    restantes = iter([True, False])
-    with pytest.raises(fr.VueRemplacee):
-        fr.voies_affichables(43.31, 6.01, 43.34, 6.06, tmp_path, interroger=interroger,
-                             continuer=lambda: next(restantes, False))
-    assert len(lues) == 1
+def test_une_tuile_sans_extrait_n_est_pas_une_tuile_vide(tmp_path, monkeypatch):
+    # Overpass ne sert plus depuis la 0.9.31 : sans extrait installé, les
+    # barrières de la tuile sont inconnues, et la lecture s'arrête.
+    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda dossier, i, j: [])
+    with pytest.raises(fr.ErreurDonnees, match="Aucun extrait OSM"):
+        fr.charger_tuile(866, 120, tmp_path)

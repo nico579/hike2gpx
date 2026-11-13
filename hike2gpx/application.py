@@ -23,7 +23,7 @@ from nico579_commons import atomique
 from nico579_commons import langue as langue_commune
 
 from . import (__version__, archive, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik,
-               hors_ligne, journaux, maison, mapsforge, osmfr, pare_feu, partage, providers)
+               hors_ligne, journaux, mapsforge, pare_feu, partage, providers)
 from . import emplacement
 from . import lot as tuiles_lot     # « lot » nomme partout un manifeste ; ici, le module des tuiles
 
@@ -225,7 +225,6 @@ class Application:
     def __init__(self, dossier: Path):
         self.dossier = Path(dossier)
         self.installation = brouter.Installation(self.dossier)
-        self.maison = maison.TuilesMaison(self.installation, self.dossier)
         self.hors_ligne = hors_ligne.HorsLigne(self.dossier)
         # Posée par web.servir : relance hike2gpx (après un changement de dossier).
         self.relancer = None
@@ -255,7 +254,6 @@ class Application:
         self._verrou_vues = threading.Lock()
         # Avancement de la vue en cours de chaque calque, pour la barre de la
         # page : {"faites", "total", "debut"} (tuiles), absent hors lecture.
-        self._lectures = {}
         # Moteur et tuiles BRouter téléchargés en tâche de fond (_brouter_automatique).
         self._verrou_brouter = threading.Lock()
         self._fil_brouter = None
@@ -305,8 +303,7 @@ class Application:
         if libre < octets * 1.05:
             return {"erreur": f"Place insuffisante : {octets / 1e9:.1f} Go à déplacer, {libre / 1e9:.1f} Go libres."}
         with self._verrou_lot:
-            if (self._fil_lot is not None and self._fil_lot.is_alive()) or self._brouter_en_cours \
-                    or geofabrik.telechargements(self.dossier).occupee():
+            if (self._fil_lot is not None and self._fil_lot.is_alive()) or self._brouter_en_cours:
                 return {"erreur": "Un téléchargement ou une préparation est en cours : attendez sa fin."}
             self._lot = {"actif": True, "case": "", "etape": "deplacement", "faites": 0, "total": octets,
                          "debut": time.time(), "arreter": False}
@@ -500,12 +497,8 @@ class Application:
         return " ; ".join(f"{NOMS_ETAPES.get(nom, nom)} {duree:.1f} s" for nom, duree in self._temps_etapes.items())
 
     def progression(self) -> dict:
-        """L'étape du calcul en cours, et l'avancement des calques en lecture :
-        tuiles lues sur tant, depuis tant de secondes."""
-        maintenant = time.monotonic()
-        calques = {cle: {"faites": l["faites"], "total": l["total"], "duree_s": round(maintenant - l["debut"], 1)}
-                   for cle, l in list(self._lectures.items())}
-        return {**self._progression, "calques": calques}
+        """L'étape du calcul en cours."""
+        return dict(self._progression)
 
     def lire_journal(self) -> dict:
         """Les dernières lignes du journal des calculs, pour la page."""
@@ -574,18 +567,9 @@ class Application:
             return {"erreur": f"Pas de zone de routage pour la case {', '.join(manquantes)}. Rouvrez "
                               "« Planifier un itinéraire » ici pour la télécharger ou la fabriquer.",
                     "code": "zone_absente", "valeurs": {"cases": ", ".join(manquantes)}}
-        # Un calcul est un usage réel de la région : son extrait OSM part en
-        # tâche de fond s'il manque, Overpass servant en attendant ; de même le
-        # moteur et les tuiles BRouter, sans lesquels il n'y a pas de calcul.
-        # Un lot installé qui couvre la zone suffit : rien à télécharger. Une
-        # zone du serveur ne se télécharge plus d'elle-même : la page la
-        # demande à l'ouverture de la planification (zone_planification ; Nico,
-        # 2026-11-13).
-        couvert = bool(self.hors_ligne.lot_couvrant(zone))
-        extrait = None if couvert else self._extrait_automatique(zone, "calcul d'itinéraire")
         if not self.installation.installee():
             return {"erreur": "Le moteur BRouter n'est pas installé.", "moteur_absent": True,
-                    "brouter_en_cours": self._brouter_automatique(brouter.segments_zone(*zone))}
+                    "brouter_en_cours": self._brouter_automatique([])}
         avertissement = detail_avertissement = None
         journal.info("Itinéraire : %d points, %d tuiles, chemins %s %s, mode strict %s", len(points),
                      len(franchissements.tuiles_zone(*zone)), source.upper(),
@@ -598,61 +582,39 @@ class Application:
                     return {"erreur": f"Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus "
                                       f"{TUILES_MAX}. Découpez le parcours en étapes plus courtes.",
                             "code": "zone_trop_etendue", "valeurs": {"nombre": nombre, "max": TUILES_MAX}}
-                # Règle unique : un lot qui couvre la zone sert seul (hors_ligne.py),
-                # sans réseau ni fabrication ; sinon, le calcul à la volée.
-                lot_local = self.hors_ligne.lot_couvrant(zone)
-                manquants = [] if lot_local else [n for n in brouter.segments_zone(*zone)
-                                                  if not self.installation.segment_present(n)]
-                if manquants:
-                    return {"erreur": "Données BRouter absentes pour cette zone.",
-                            "segments_manquants": manquants, "brouter_en_cours": self._brouter_automatique(manquants)}
-                trace, moteur_utilise = None, "standard"
-                if lot_local:
-                    liste = self.hors_ligne.franchissements(lot_local, zone)
-                    self._avancer("itineraire", 0.82, passe=passe)
-                    if lot_local.get("type") == "osm":
-                        # RD5 officielle : table de tags et profil standards de BRouter.
-                        trace = brouter.calculer(self.moteur_lot_osm(), points, liste, strict=strict)
-                        if ign:
-                            nom_source = providers.source(source).nom
-                            detail_avertissement = f"lot {lot_local['case']} sans chemins officiels"
-                            avertissement = f"Chemins {nom_source} indisponibles, calcul sur OSM seul : "                                             f"{detail_avertissement}"
-                    else:
-                        # RD5 enrichie : la coche autorise ou interdit ses chemins
-                        # officiels par le profil, sans autre lot.
-                        trace = brouter.calculer(self.moteur_maison(self.hors_ligne.segments), points, liste,
-                                                 strict=strict, officiels=ign)
-                    moteur_utilise = "lot"
-                elif ign:
-                    # Tuiles maison : OSM plus les chemins officiels qui y manquent, avec
-                    # les franchissements du réseau fusionné. Si elles ne peuvent se
-                    # faire, le moteur standard calcule sur OSM seul ; un itinéraire
-                    # introuvable sur elles reste une erreur.
-                    def suivi_maison(etape, faites, total, passe=passe):
-                        fraction = {"donnees": 0.05 + 0.45 * faites / max(total, 1), "fusion": 0.5,
-                                    "tuiles": 0.6, "analyse": 0.78}[etape]
-                        self._avancer(etape, fraction, faites, total, passe)
-                    try:
-                        segments, liste = self.maison.preparer(franchissements.tuiles_zone(*zone),
-                                                               suivi=suivi_maison, source=source)
-                        port = self.moteur_maison(segments)
-                    except (franchissements.ErreurDonnees, brouter.ErreurBRouter, OSError, ImportError,
-                            ValueError) as exc:
+                # La zone élargie peut gagner une case sans lot.
+                manquantes = self._cases_sans_lot(zone)
+                if manquantes:
+                    return {"erreur": f"Pas de zone de routage pour la case {', '.join(manquantes)}. Rouvrez "
+                                      "« Planifier un itinéraire » ici pour la télécharger ou la fabriquer.",
+                            "code": "zone_absente", "valeurs": {"cases": ", ".join(manquantes)}}
+                # Les lots des cases du parcours, réunis : leurs RD5 partagent un dossier,
+                # et BRouter passe de l'une à l'autre. Plus de calcul à la volée (Nico,
+                # 2026-11-13 : « supprime tout ce qui traîne sur overpass et extraits »).
+                cases = set(brouter.segments_zone(*zone))
+                lots = [m for m in self.hors_ligne.lots() if m["case"] in cases]
+                lot_local = self.hors_ligne.lot_couvrant(zone) or (lots[0] if lots else None)
+                osm = {m.get("type") == "osm" for m in lots}
+                if len(osm) > 1:
+                    return {"erreur": "Le parcours passe d'une zone de chemins officiels à une zone OSM seule, "
+                                      "que BRouter ne sait pas réunir : découpez-le à la limite des deux zones.",
+                            "code": "zones_melees"}
+                liste = [f for m in lots for f in self.hors_ligne.franchissements(m, zone)]
+                self._avancer("itineraire", 0.82, passe=passe)
+                if osm == {True}:
+                    # RD5 officielle : table de tags et profil standards de BRouter.
+                    trace = brouter.calculer(self.moteur_lot_osm(), points, liste, strict=strict)
+                    if ign:
                         nom_source = providers.source(source).nom
-                        avertissement = f"Chemins {nom_source} indisponibles, calcul sur OSM seul : {exc}"
-                        detail_avertissement = str(exc)
-                        journal.warning("Chemins %s indisponibles : %s", nom_source, exc)
-                        ign = False     # pas de nouvel essai si la zone s'élargit
-                    else:
-                        self._avancer("itineraire", 0.82, passe=passe)
-                        trace = brouter.calculer(port, points, liste, strict=strict)
-                        moteur_utilise = "maison"
-                if trace is None:
-                    liste = franchissements.franchissements_zone(
-                        *zone, self.dossier, suivi=lambda faites, total, passe=passe: self._avancer(
-                            "donnees", 0.05 + 0.6 * faites / max(total, 1), faites, total, passe))
-                    self._avancer("itineraire", 0.7, passe=passe)
-                    trace = brouter.calculer(self.moteur(), points, liste, strict=strict)
+                        detail_avertissement = f"lot {lot_local['case']} sans chemins officiels"
+                        avertissement = f"Chemins {nom_source} indisponibles, calcul sur OSM seul : " \
+                                        f"{detail_avertissement}"
+                else:
+                    # RD5 enrichie : la coche autorise ou interdit ses chemins
+                    # officiels par le profil, sans autre lot.
+                    trace = brouter.calculer(self.moteur_maison(self.hors_ligne.segments), points, liste,
+                                             strict=strict, officiels=ign)
+                moteur_utilise = "lot"
                 coords = trace["geometry"]["coordinates"]
                 etendue = (min(c[1] for c in coords), min(c[0] for c in coords),
                            max(c[1] for c in coords), max(c[0] for c in coords))
@@ -662,13 +624,8 @@ class Application:
                 zone = union(zone, zone_autour([etendue[:2], etendue[2:]], 0.1))
             else:
                 return {"erreur": "Le tracé sort sans cesse de la zone examinée : rapprochez les points."}
-        except (franchissements.ErreurDonnees, brouter.ErreurBRouter) as exc:
-            reponse = {"erreur": str(exc)}
-            if isinstance(exc, franchissements.ErreurDonnees) and extrait:
-                # Overpass en panne, mais l'extrait de la région se télécharge :
-                # la page relancera le calcul une fois l'extrait installé.
-                reponse["extrait_en_cours"] = extrait
-            return reponse
+        except brouter.ErreurBRouter as exc:
+            return {"erreur": str(exc)}
         # Dernier contrôle, indépendant de BRouter : un tracé qui passe encore
         # une coupe interdite n'est jamais rendu (audit B10, amélioration 2).
         passages = sur_le_trace(coords, liste)
@@ -737,68 +694,25 @@ class Application:
             self._vues[cle] = vue
             return vue
 
-    def _calque(self, cle, zone, lire, numero):
-        """Un calque pour la vue de la page, une vue à la fois : la demande
-        d'une nouvelle vue arrête la lecture des tuiles de la précédente, que
-        plus personne ne regarde. Le résultat donne les bornes des tuiles
-        lues, que la page n'a pas à redemander tant que la vue y reste. Tuile
-        après tuile, l'avancement de la vue en cours va dans progression()."""
-        if numero is None:
+    def calque_osm(self, zone, vue=None) -> dict:
+        return self._calque_du_lot("osm", zone, vue)
+
+    def calque_officiel(self, source, zone, vue=None) -> dict:
+        return self._calque_du_lot(providers.source(source).calque, zone, vue)
+
+    def _calque_du_lot(self, calque, zone, vue) -> dict:
+        """Un calque de la vue, lu dans le lot installé qui la couvre : la page
+        lit elle-même ses tuiles (_tuiles_du_lot). Rien ne se lit plus à la
+        volée, ni extrait, ni Overpass, ni service officiel (Nico, 2026-11-13 :
+        « supprime tout ce qui traîne sur overpass et extraits »). La vue
+        d'abord : une vue déjà remplacée ne rend rien."""
+        if self._prendre_vue(calque, vue) is None:
             return {"erreur": "Vue remplacée par une autre.", "code": "vue_remplacee"}
         if zone is None:
             return {"erreur": "Zone invalide."}
-        if (zone[2] - zone[0]) * (zone[3] - zone[1]) > ZONE_CALQUE_MAX_DEG2:
-            return {"erreur": "Zone trop grande : zoomez davantage."}
-        debut = time.monotonic()
-
-        def suivre(faites, total):
-            if self._vues[cle] == numero:
-                self._lectures[cle] = {"numero": numero, "faites": faites, "total": total, "debut": debut}
-
-        try:
-            resultat = lire(*zone, self.dossier, continuer=lambda: self._vues[cle] == numero, suivi=suivre)
-        except franchissements.VueRemplacee:
-            return {"erreur": "Vue remplacée par une autre.", "code": "vue_remplacee"}
-        except franchissements.ErreurDonnees as exc:
-            return {"erreur": str(exc)}
-        finally:
-            # Seulement la sienne : une vue plus récente a peut-être déjà la place.
-            if self._lectures.get(cle, {}).get("numero") == numero:
-                self._lectures.pop(cle, None)
-        return {**resultat, "bornes": franchissements.bornes_zone(*zone)}
-
-    def calque_osm(self, zone, vue=None) -> dict:
-        # La vue d'abord : une vue déjà remplacée ne lance rien, pas même un
-        # extrait. Le calque des chemins OSM (zoom 14 au moins) est un usage
-        # réel de la région : son extrait se télécharge s'il manque.
-        numero = self._prendre_vue("osm", vue)
-        if numero is None:
-            return self._calque("osm", zone, None, None)
-        # Un lot installé qui couvre la vue la montre seul, sans réseau ni extrait.
-        tuiles = self._tuiles_du_lot(zone, "osm")
-        if tuiles:
-            return tuiles
-        sans_zone = self._calque_sans_zone(zone)
-        if sans_zone:
-            return sans_zone
-        extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone else None
-        resultat = self._calque("osm", zone, franchissements.voies_affichables, numero)
-        return {**resultat, "extrait_en_cours": extrait} if extrait else resultat
-
-    def calque_officiel(self, source, zone, vue=None) -> dict:
-        fournisseur = providers.source(source)
-        def lire(*bornes, **options):
-            if not fournisseur.disponible(bornes):
-                return {"troncons": []}
-            return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
-        numero = self._prendre_vue(fournisseur.calque, vue)
-        tuiles = self._tuiles_du_lot(zone, fournisseur.calque) if numero is not None else None
-        if tuiles:
-            return tuiles
-        sans_zone = self._calque_sans_zone(zone) if numero is not None else None
-        if sans_zone:
-            return sans_zone
-        return self._calque(fournisseur.calque, zone, lire, numero)
+        return self._tuiles_du_lot(zone, calque) or self._calque_sans_zone(zone) or \
+            {"erreur": "Vue à cheval sur deux zones de routage : ses chemins s'affichent d'un côté ou de l'autre.",
+             "code": "calques_deux_zones"}
 
     def _calque_sans_zone(self, zone) -> dict | None:
         """Pas de chemins superposés là où une case de la vue n'a pas de lot :
@@ -866,150 +780,53 @@ class Application:
                     self._vues[cle] += 1
         return {"arretes": cles}
 
-    # ---------------------------------------------------------- données OSM hors ligne
-
-    def _extrait_automatique(self, zone, raison: str) -> dict | None:
-        """L'extrait OSM du centre de la zone se télécharge de lui-même, en
-        tâche de fond, dès que la région sert vraiment (un calcul, le calque
-        des chemins OSM) : pas de bouton, décision de Nico du 2026-10-19.
-        Survoler la carte ne suffit pas, sans quoi chaque région traversée
-        partirait. Rien après un échec récent. Taille et place disque se
-        vérifient en tâche de fond (geofabrik._telecharger), et les index ne
-        se téléchargent jamais ici (geofabrik.Index) : le calque ou le calcul
-        n'attendent aucun serveur, Geofabrik tardant parfois une minute.
-
-        En France, une cascade (Nico, 2026-10-20) : le département d'OSM
-        France d'abord, prêt en une quarantaine de secondes, puis sa région de
-        Geofabrik, qui prend le relais dès qu'elle est là, ses voies entières
-        à la frontière. Rend {"id", "nom"} de l'extrait que la zone attend, ou
-        None quand un extrait installé la couvre déjà, relais en préparation
-        compris."""
-        i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
-        installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
-        if installe is not None and not installe.get("voies_coupees"):
-            return None
-        taches = geofabrik.telechargements(self.dossier)
-
-        def plus_petit(regions):
-            # Le plus petit extrait qui contient toute la tuile : une région
-            # écartée ou en échec récent cède à celle qui la contient.
-            return geofabrik.region_de_tuile([r for r in regions if taches.disponible(r["id"])], i, j)
-
-        en_cours = taches.etat()
-        occupee = bool(en_cours) and en_cours["etape"] in ("telechargement", "import")
-        complete = plus_petit(geofabrik.regions(self.dossier))
-        if installe is not None:
-            # Un département d'OSM France sert déjà : sa région de Geofabrik se
-            # prépare pour prendre le relais, sans faire attendre la page ni
-            # prendre la place d'un téléchargement en cours.
-            if complete is not None and not occupee and taches.lancer(complete, relais=True):
-                journal.info("Extrait OSM %s : téléchargement lancé pour prendre le relais de %s (%s)",
-                             complete["id"], installe["id"], raison)
-            return None
-        # Rien sur le disque : le plus rapide d'abord, le département d'OSM
-        # France (sa région en repli, Nico, 2026-10-20 : « départements en
-        # priorité, et région en fall back »), puis Geofabrik hors de France
-        # ou quand OSM France échoue.
-        region = plus_petit(osmfr.regions(self.dossier)) or complete
-        if region is None:
-            return None
-        # La même région déjà en cours : rien à relancer. Une autre : elle cède
-        # la place à celle-ci (Telechargements.lancer, le dernier usage l'emporte).
-        if occupee and en_cours["id"] == region["id"]:
-            return {"id": en_cours["id"], "nom": en_cours["nom"]}
-        ensuite = complete if region.get("voies_coupees") else None
-        if not taches.lancer(region, ensuite=ensuite):
-            return None         # région écartée, ou échec de moins d'une heure
-        journal.info("Extrait OSM %s : téléchargement lancé (%s)", region["id"], raison)
-        return {"id": region["id"], "nom": region["nom"]}
+    # ---------------------------------------------------------- pays de la vue
 
     def extrait(self, zone) -> dict:
-        """Données de la vue : extrait installé et pays. Un téléchargement devenu
-        étranger à la vue est abandonné ; cette lecture n'en lance aucun."""
-        en_cours_brouter = self._brouter_en_cours
-        taches = geofabrik.telechargements(self.dossier)
-        if zone is not None:
-            i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
-            taches.abandonner_hors_tuile(i, j)
-        reponse = {"en_cours": taches.etat(),
-                   "brouter": {**en_cours_brouter, "segments": list(en_cours_brouter["segments"])}
-                   if en_cours_brouter else None}
+        """Le pays de la vue, qui choisit les fonds de la page, et ce que BRouter
+        télécharge. Le nom vient d'avant : l'extrait OSM de la vue, quand il se
+        téléchargeait de lui-même (fini depuis la 0.9.31). hors_france, une fois
+        l'index de Geofabrik lu : son contour de la France, comme pour les
+        autres pays."""
+        en_cours = self._brouter_en_cours
+        reponse = {"brouter": {**en_cours, "segments": list(en_cours["segments"])} if en_cours else None}
         if zone is None:
             return reponse
         lat, lon = (zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2
-        # Le pays de la carte suit son centre, y compris après un déplacement
-        # manuel. Les contours de Geofabrik sont déjà lus pour les extraits OSM.
-        pays = next((r["id"] for r in geofabrik.regions(self.dossier)
-                     if r["id"] in PAYS_CARTES
-                     and geofabrik.contient_point(r, lat, lon)), None)
+        regions = geofabrik.regions(self.dossier)
+        pays = next((r["id"] for r in regions if r["id"] in PAYS_CARTES and geofabrik.contient_point(r, lat, lon)),
+                    None)
         if pays:
             reponse["pays"] = PAYS_CARTES[pays]
-        regions_france = osmfr.regions(self.dossier)
-        if regions_france:
-            reponse["hors_france"] = not any(geofabrik.contient_point(r, lat, lon) for r in regions_france)
-            if not reponse["hors_france"]:
-                reponse["pays"] = "fr"
-        installe = geofabrik.extrait_de_tuile(self.dossier, i, j)
-        if installe:
-            return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
+        if regions:
+            reponse["hors_france"] = pays != "france"
         return reponse
 
-    def _detail_sources_osm(self, zone, overpass) -> dict:
-        """État des deux extraits de la tuile centrale et d'Overpass."""
-        detail = {"overpass": "oui" if overpass is True else "non" if overpass is False else "verification"}
-        if zone is None:
-            return detail
-        i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
-        locaux = [r for r in osmfr.regions(self.dossier) if r.get("genre") == "departement"]
-        local = geofabrik.region_de_tuile(locaux, i, j)
-        regional = geofabrik.region_de_tuile(geofabrik.regions(self.dossier), i, j)
-        installes = {r["id"] for r in geofabrik.installes(self.dossier)}
-        en_cours = geofabrik.telechargements(self.dossier).etat()
-
-        def etat(region):
-            if region is None:
-                return {"etat": "non_applicable"}
-            statut = "disponible" if region["id"] in installes else "absent"
-            if statut == "absent" and en_cours and en_cours.get("id") == region["id"] \
-                    and en_cours.get("etape") in ("telechargement", "import"):
-                statut = en_cours["etape"]
-            return {"nom": region["nom"], "etat": statut}
-
-        return {**detail, "local": etat(local), "regional": etat(regional)}
-
     def disponibilite(self, zone) -> dict:
-        """Prérequis d'un nouveau calcul au centre de la vue ou dans la zone du parcours."""
-        overpass = franchissements.disponibilite_overpass()
-        details = self._detail_sources_osm(zone, overpass)
+        """Prérequis d'un nouveau calcul au centre de la vue ou dans la zone du
+        parcours : la zone de routage de chaque case qu'il touche, et le moteur
+        BRouter. Depuis la 0.9.31, plus de calcul à la volée : ni Overpass, ni
+        extraits OSM ne comptent (Nico, 2026-11-13 : « le message n'est pas à
+        jour », qui les énumérait encore). details["lot"] : les cases, et
+        l'état de leur zone (disponible, simple, preparation, absent)."""
         if zone is None:
-            return {"pret": False, "source": None, "attente": "zone", "details": details}
-        # Un lot installé qui couvre la zone suffit au calcul, RD5 comprise
-        # (règle unique) : l'indicateur le dit au lieu de compter les extraits
-        # et les tuiles BRouter (capture de Nico du 2026-10-28).
-        lot_local = self.hors_ligne.lot_couvrant(zone)
-        if lot_local:
-            details["lot"] = {"nom": lot_local["case"], "etat": "disponible"}
-        elif self._lot.get("actif") and self._lot.get("case") in brouter.segments_zone(*zone):
-            details["lot"] = {"nom": self._lot["case"], "etat": "telechargement"}
+            return {"pret": False, "source": None, "attente": "zone", "details": {}}
+        cases = brouter.segments_zone(*zone)
+        nom = ", ".join(cases)
+        manquantes = self._cases_sans_lot(zone)
+        if manquantes:
+            etat = "preparation" if self._lot.get("actif") and self._lot.get("case") in manquantes else "absent"
+        else:
+            # Une zone simple (la RD5 de brouter.de seule) trace, sans chemins ni franchissements.
+            etat = "simple" if self._cases_sans_calques(zone) else "disponible"
+        details = {"lot": {"nom": nom, "etat": etat}}
         if not self.installation.installee():
             return {"pret": False, "source": None, "attente": "moteur", "details": details}
-        if lot_local:
-            return {"pret": True, "source": "lot", "nom": lot_local["case"], "details": details}
-        if any(not self.installation.segment_present(n) for n in brouter.segments_zone(*zone)):
-            return {"pret": False, "source": None, "attente": "segments", "details": details}
-        tuiles = franchissements.tuiles_zone(*zone)
-        if len(tuiles) > TUILES_MAX:
+        if manquantes:
+            return {"pret": False, "source": None, "attente": "zone_absente", "details": details}
+        if len(franchissements.tuiles_zone(*zone)) > TUILES_MAX:
             return {"pret": False, "source": None, "attente": "zone", "details": details}
-        extraits = [geofabrik.extraits_de_tuile(self.dossier, i, j) for i, j in tuiles]
-        if all(extraits):
-            noms = list(dict.fromkeys(e["nom"] for liste in extraits for e in liste))
-            return {"pret": True, "source": "extrait", "nom": ", ".join(noms), "details": details}
-        if all(extrait or franchissements.tuile_disponible(i, j, self.dossier)
-               for (i, j), extrait in zip(tuiles, extraits)):
-            return {"pret": True, "source": "cache", "details": details}
-        return {"pret": overpass is True, "source": "overpass" if overpass else None,
-                "verification": overpass is None, "attente": "osm" if overpass is not True else None,
-                "details": details}
+        return {"pret": True, "source": "lot", "nom": nom, "details": details}
 
     def disponibilite_parcours(self, payload) -> dict:
         """Même contrôle, sur la zone du prochain calcul plutôt que sur la vue."""
@@ -1030,19 +847,25 @@ class Application:
     def _caches(self) -> dict:
         """Les dossiers des caches de tuiles : ce que Vider efface, et qui se
         relit de lui-même au besoin."""
-        return {"osm": [self.dossier / "overpass", self.dossier / "franchissements"],
-                **{p.calque: [self.dossier / p.calque] for p in providers.SOURCES.values()}}
+        return {p.calque: [self.dossier / p.calque] for p in providers.SOURCES.values()}
+
+    # Les caches du calcul à la volée, fini depuis la 0.9.31 : Overpass et ses analyses.
+    DOSSIERS_PERIMES = ("overpass", "franchissements")
 
     def _restes(self) -> list:
-        """Ce qui traîne au dossier des extraits : l'ancien index de Geofabrik
-        (index-v1.json, avant geofabrik-v1.json) et les fichiers de travail
-        d'un téléchargement interrompu, quand aucun n'est en cours."""
+        """Ce qui traîne : l'ancien index de Geofabrik (index-v1.json, avant
+        geofabrik-v1.json), les fichiers de travail d'un téléchargement
+        interrompu quand aucun lot ne se prépare, et les caches d'Overpass
+        d'avant la 0.9.31."""
         racine = geofabrik.dossier_extraits(self.dossier)
-        if not racine.is_dir():
-            return []
-        occupee = geofabrik.telechargements(self.dossier).occupee()
-        return [p for p in racine.iterdir() if p.is_file()
-                and (p.name == "index-v1.json" or (not occupee and (".part" in p.name or p.suffix == ".pbf")))]
+        occupe = self._fil_lot is not None and self._fil_lot.is_alive()
+        restes = [p for p in racine.iterdir() if p.is_file()
+                  and (p.name == "index-v1.json" or (not occupe and (".part" in p.name or p.suffix == ".pbf")))] \
+            if racine.is_dir() else []
+        for nom in self.DOSSIERS_PERIMES:
+            if (self.dossier / nom).is_dir():
+                restes += [p for p in (self.dossier / nom).rglob("*") if p.is_file()]
+        return restes
 
     def donnees(self) -> dict:
         """Ce que hike2gpx a téléchargé, pour la section des réglages (Nico,
@@ -1057,26 +880,23 @@ class Application:
 
         caches = {nom: mesure([p for d in dossiers if d.is_dir() for p in d.glob("*.json")])
                   for nom, dossiers in self._caches().items()}
-        extraits = [{"id": e["id"], "nom": e["nom"], "date": e["date"], "octets": Path(e["base"]).stat().st_size,
-                     "provisoire": bool(e.get("voies_coupees"))} for e in geofabrik.installes(self.dossier)]
+        # Les extraits que la fabrication des lots a téléchargés et découpés.
+        extraits = [{"id": e["id"], "nom": e["nom"], "date": e["date"], "octets": Path(e["base"]).stat().st_size}
+                    for e in geofabrik.installes(self.dossier)]
         segments = sorted(self.installation.segments.glob("*.rd5")) if self.installation.segments.is_dir() else []
-        en_cours = geofabrik.telechargements(self.dossier)
         return {**caches, "extraits": extraits,
                 "brouter": [{"nom": p.stem, "octets": p.stat().st_size, "date": date(p)} for p in segments],
                 "restes": mesure(self._restes()),
-                "occupe": {"extrait": en_cours.etat()["id"] if en_cours.occupee() else None,
-                           "brouter": bool(self._fil_brouter and self._fil_brouter.is_alive())}}
+                "occupe": {"brouter": bool(self._fil_brouter and self._fil_brouter.is_alive())}}
 
     def agir_donnees(self, corps) -> dict:
-        """Une action de la section : vider un cache, actualiser ou supprimer
-        un extrait, actualiser les tuiles BRouter, nettoyer les restes. Rend
-        le nouvel état de la section, ou {"erreur"}."""
+        """Une action de la section : vider un cache, supprimer un extrait,
+        actualiser les tuiles BRouter, nettoyer les restes. Rend le nouvel
+        état de la section, ou {"erreur"}."""
         corps = corps if isinstance(corps, dict) else {}
         action, cible = corps.get("action"), corps.get("cible")
-        taches = geofabrik.telechargements(self.dossier)
         if action == "vider_cache":
-            if taches.occupee() or (self._fil_brouter and self._fil_brouter.is_alive()) or self._lectures \
-                    or (self._fil_lot and self._fil_lot.is_alive()):
+            if (self._fil_brouter and self._fil_brouter.is_alive()) or (self._fil_lot and self._fil_lot.is_alive()):
                 return {"erreur": "Un téléchargement ou une lecture est en cours. Réessayez après sa fin."}
             if not self._verrou_calcul.acquire(blocking=False):
                 return {"erreur": "Un calcul est en cours. Réessayez après sa fin."}
@@ -1089,7 +909,8 @@ class Application:
                         for dossier in dossiers:
                             for p in dossier.glob("*.json") if dossier.is_dir() else []:
                                 p.unlink(missing_ok=True)
-                    for cache_dir in (self.dossier / "gpx2elev", self.installation.maison):
+                    for cache_dir in (self.dossier / "gpx2elev", self.installation.maison,
+                                      *(self.dossier / nom for nom in self.DOSSIERS_PERIMES)):
                         if cache_dir.is_dir():
                             shutil.rmtree(cache_dir)
                     for p in self.installation.segments.glob("*.rd5"):
@@ -1102,7 +923,7 @@ class Application:
                     # (décision de Nico du 2026-10-28) : ceux du serveur
                     # se retéléchargent vite.
                     self.hors_ligne.vider()
-                    journal.info("Caches locaux OSM, IGN, gpx2elev et BRouter, lots et fonds hors ligne "
+                    journal.info("Caches locaux, gpx2elev et BRouter, extraits, lots et fonds hors ligne "
                                  "vidés depuis les réglages")
                 finally:
                     self._verrou_denivele.release()
@@ -1113,19 +934,15 @@ class Application:
                 for p in dossier.glob("*.json") if dossier.is_dir() else []:
                     p.unlink(missing_ok=True)
             journal.info("Cache %s vidé depuis les réglages", action[6:])
-        elif action in ("actualiser_extrait", "supprimer_extrait"):
+        elif action == "supprimer_extrait":
+            # Il se retélécharge avec son lot, à la prochaine fabrication.
             extrait = next((e for e in geofabrik.installes(self.dossier) if e["id"] == cible), None)
             if extrait is None:
                 return {"erreur": "Extrait inconnu."}
-            if taches.occupee() and taches.etat()["id"] == cible:
-                return {"erreur": "Cet extrait se télécharge déjà."}
-            if action == "supprimer_extrait":
-                geofabrik._effacer(Path(extrait["base"]))
-                journal.info("Extrait OSM %s supprimé depuis les réglages", cible)
-            elif taches.lancer(extrait):
-                journal.info("Extrait OSM %s : actualisation demandée depuis les réglages", cible)
-            else:
-                return {"erreur": "Échec récent : nouvel essai possible dans moins d'une heure."}
+            if self._fil_lot and self._fil_lot.is_alive():
+                return {"erreur": "Un lot se prépare : réessayez après sa fin."}
+            geofabrik._effacer(Path(extrait["base"]))
+            journal.info("Extrait OSM %s supprimé depuis les réglages", cible)
         elif action == "actualiser_brouter":
             erreur = self._actualiser_brouter()
             if erreur:
@@ -1133,7 +950,9 @@ class Application:
         elif action == "nettoyer":
             for p in self._restes():
                 geofabrik._effacer(p)
-            journal.info("Restes du dossier des extraits nettoyés depuis les réglages")
+            for nom in self.DOSSIERS_PERIMES:
+                shutil.rmtree(self.dossier / nom, ignore_errors=True)
+            journal.info("Restes nettoyés depuis les réglages")
         else:
             return {"erreur": "Action inconnue."}
         return self.donnees()

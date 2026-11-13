@@ -194,7 +194,7 @@ Une zone de routage couvre une case de 5° sur 5° (E5_N40, par exemple, va de
 dont le calcul a besoin, sans réseau, chaque fichier vérifié contre l'empreinte
 SHA-256 d'un manifeste. Une règle simple s'applique : quand une zone installée
 couvre tout le parcours, elle sert seule, au calcul comme aux calques de la
-carte ; sinon, le calcul se fait [à la volée](#sans-zone-de-routage--le-calcul-à-la-volée).
+carte. Sans zone, rien ne se calcule (voir [Sans zone de routage](#sans-zone-de-routage)).
 
 Il y a trois façons d'en obtenir une.
 
@@ -206,8 +206,8 @@ Il y a trois façons d'en obtenir une.
   s'ouvre ; la case du Var, 247 Mo, arrive en quelques dizaines de secondes.
   Refusée, la planification ne s'ouvre pas. Une zone installée se met à jour
   par son bouton « Mettre à jour » de « Gestion des itinéraires ». Sur le PC,
-  là où le serveur ne publie rien, la planification s'ouvre sans question :
-  le calcul se fait à la volée.
+  là où le serveur ne publie rien, la planification propose de préparer la
+  zone sur le PC : la zone simple d'abord, la zone étendue ensuite.
 - **Du PC**, partout ailleurs : « Gestion des itinéraires » montre la grille
   des cases ; cliquez celles qu'il vous faut, puis « Télécharger ». Le PC
   prépare la vue affichée ou la case entière.
@@ -279,23 +279,19 @@ franchissements et les calques, tirés de l'extrait OpenStreetMap qu'il a
 téléchargé. Une vue de quelques kilomètres est prête en trois minutes environ.
 La zone se partage ensuite au téléphone comme un fond de carte.
 
-#### Sans zone de routage : le calcul à la volée
+#### Sans zone de routage
 
-Sans zone installée, la page calcule quand même. Elle lit OpenStreetMap dans
-un extrait téléchargé de lui-même autour de l'endroit où l'on travaille : le
-plus petit extrait Geofabrik qui contient la zone, parmi quelque 550 ; en
-France, d'abord le département d'[OSM France](https://download.openstreetmap.fr/extracts/europe/france/)
-(le Var : 83 Mo, prêt en une quarantaine de secondes), puis la région de
-Geofabrik, qui garde entiers les chemins coupés à la limite du département.
-L'extrait est rangé dans une base SQLite par tuile ; lecture instantanée, sans
-quota ni panne. En attendant, ou hors des extraits, le service Overpass répond
-à sa place. En France et en Allemagne, la page refait au fil des zones
-consultées une petite tuile BRouter avec les chemins de la carte nationale.
-Les extraits et les tuiles se renouvellent d'eux-mêmes après le délai choisi
-dans les réglages (30 jours par défaut).
+Sans zone installée, rien ne se calcule à la volée : ni itinéraire, ni chemins
+dessinés sur la carte. « Planifier un itinéraire » propose alors la zone,
+téléchargée du serveur quand il la publie, sinon préparée sur le PC. La
+préparation commence par la zone simple de brouter.de, qui suffit au tracé et
+arrive en une minute environ. La zone étendue, avec ses chemins et ses
+franchissements, se fabrique ensuite en arrière-plan à partir de l'extrait
+Geofabrik de la région, découpé à la case. Les extraits se renouvellent avec
+leur zone, après le délai choisi dans les réglages (30 jours par défaut).
 
-Si OpenStreetMap ne répond pas, le calcul s'arrête : une barrière inconnue ne
-prouve jamais qu'un passage est libre.
+Une barrière inconnue ne prouve jamais qu'un passage est libre : une tuile sans
+données arrête la fabrication au lieu de passer pour vide.
 
 ### Le dénivelé, recalculé par gpx2elev
 

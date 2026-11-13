@@ -147,7 +147,7 @@ function charger(preferences = {}, documentGpx = null) {
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, planifier, ajouterPoint, boucler, basculerPleinEcran,"
     + " appliquerLangue, texteErreur, ts, rafraichirCalques, reglerZoomCalques, borneZoomCalques, CALQUES, afficherExtrait, afficherErreur,"
     + " afficherDisponibilite,"
-     + " debutLecture, finLecture, afficherLectures, afficherDonnees, construireFonds, choisirPays,"
+     + " debutLecture, finLecture, suivreLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, bulleTraceImportee, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
@@ -693,27 +693,26 @@ test("le parcours revient après rechargement et se recalcule", async () => {
 
 test("le voyant suit les données du prochain calcul, pas le tracé affiché", async () => {
   const { page, elements, derniere, minuteurs } = charger();
-  page.afficherDisponibilite({ pret: false, source: null, attente: "osm" });
+  page.afficherDisponibilite({ pret: false, source: null, attente: "zone_absente" });
   assert.equal(elements.get("readinessText").textContent, "Tracé indisponible");
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   page.ajouterPoint({ lat: 43.31, lng: 6.02 });
   const calcul = minuteurs.findLast((m) => m.ms === 250 && !m.annule).callback();
   repondre(derniere(), resultat(6.02));
   await calcul;
-  page.afficherDisponibilite({ pret: false, source: null, attente: "osm" });
+  page.afficherDisponibilite({ pret: false, source: null, attente: "zone_absente" });
   assert.equal(elements.get("readinessText").textContent, "Tracé indisponible");
-  page.afficherDisponibilite({ pret: true, source: "cache", details: {
-    overpass: "oui", local: { nom: "Var", etat: "disponible" },
-    regional: { nom: "Provence-Alpes-Côte d’Azur", etat: "import" },
-  } });
+  // Nico, 2026-11-13 : « le message n'est pas à jour ». La zone de routage et BRouter,
+  // sans plus d'Overpass ni d'extraits OSM.
+  page.afficherDisponibilite({ pret: true, source: "lot", nom: "E5_N40",
+    details: { lot: { nom: "E5_N40", etat: "simple" } } });
   assert.equal(elements.get("readinessText").textContent, "Tracé disponible");
   assert.equal(elements.get("readiness").classList.contains("available"), true);
-  assert.match(elements.get("readinessInfoText").textContent, /Overpass : répond/);
-  assert.match(elements.get("readinessInfoText").textContent, /Extrait OSM local \(Var\) : disponible/);
-  assert.match(elements.get("readinessInfoText").textContent, /Extrait OSM régional .* : import en cours/);
+  assert.equal(elements.get("readinessInfoText").textContent, "Sources du prochain calcul\n"
+    + "Zone de routage (E5_N40) : simple (sans chemins dessinés ni franchissements)\nBRouter : prêt");
   page.appliquerLangue("en");
   assert.equal(elements.get("readinessText").textContent, "Routing available");
-  assert.match(elements.get("readinessInfoText").textContent, /Regional OSM extract .* : importing/);
+  assert.match(elements.get("readinessInfoText").textContent, /Routing area \(E5_N40\) : simple/);
   page.ajouterPoint({ lat: 43.32, lng: 6.03 });
   assert.equal(elements.get("readinessText").textContent, "Routing unavailable");
 });
@@ -1345,86 +1344,25 @@ test("le zoom minimal des calques se règle, reste entre 14 et 19, et se retient
   assert.equal(rouverte.elements.get("zoomCalques").value, "16");
 });
 
-test("données hors ligne : téléchargées d'elles-mêmes, suivies, et le calcul reprend", async () => {
-  // Décision de Nico du 2026-10-19 : aucun bouton. Le serveur télécharge ce
-  // qui manque, la page le montre et relance le calcul qui attendait.
+test("le moteur BRouter manquant se télécharge de lui-même, et le calcul reprend", async () => {
+  // Décision de Nico du 2026-10-19 : aucun bouton. Depuis la 0.9.31, plus
+  // d'extrait OSM ni d'Overpass à attendre : seul le moteur BRouter manque parfois.
   const { page, elements, requetes } = charger();
-  const texte = () => elements.get("extraitTexte").textContent;
   const statut = () => elements.get("statut").textContent;
-  const nom = "Provence Alpes-Cote-d'Azur";
-  const installe = { id: "paca", nom, date: "2026-10-18T20:25:06Z" };
-  page.afficherExtrait({ en_cours: null, brouter: null });
-  assert.equal(elements.get("extraitOsm").hidden, true);
+  page.afficherExtrait({ brouter: null });
   assert.equal(elements.get("brouterEnCours").hidden, true);
-  // Overpass en panne pendant un calcul : le serveur a lancé l'extrait.
-  page.afficherErreur({ erreur: "Overpass ne répond pas : barrières non vérifiées (HTTP 502).",
-    extrait_en_cours: { id: "paca", nom } });
-  assert.equal(statut(), `Overpass ne répond pas ; l'extrait OSM ${nom} se télécharge, le calcul reprendra de lui-même.`);
-  assert.equal(page.etat.donneesAttendues.extrait, "paca");
+  page.afficherErreur({ erreur: "Le moteur BRouter n'est pas installé.", moteur_absent: true,
+    brouter_en_cours: { moteur: true, segments: [] } });
+  assert.equal(statut(), "Téléchargement des données BRouter (moteur BRouter) : le calcul reprendra de lui-même.");
+  assert.equal(page.etat.donneesAttendues, true);
   assert.ok(requetes.some((r) => r.url.startsWith("/api/extrait?")));
-  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "telechargement", fraction: 0.42, voies: 0 }, brouter: null });
-  assert.equal(texte(), `Données OSM hors ligne : téléchargement de l'extrait ${nom}, 42 %`);
-  // Sa barre suit le téléchargement, puis va et vient pendant l'import.
-  const piste = elements.get("extraitPiste");
-  assert.equal(piste.hidden, false);
-  assert.equal(piste.classList.contains("indeterminee"), false);
-  assert.equal(elements.get("extraitBarre").style.width, "42%");
-  page.afficherExtrait({ en_cours: { id: "paca", nom, etape: "import", fraction: 1, voies: 210710 }, brouter: null });
-  assert.match(texte(), /^Données OSM hors ligne : import de l'extrait .*, 210.710 voies lues…$/);
-  assert.equal(piste.classList.contains("indeterminee"), true);
-  assert.equal(elements.get("extraitBarre").style.width, "");
-  // L'extrait est là, mais une tuile BRouter arrive encore : on attend toujours.
-  page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: { moteur: false, segments: ["E0_N45"] } });
-  assert.equal(elements.get("brouterTexte").textContent, "Données BRouter : téléchargement en cours (E0_N45)…");
+  page.afficherExtrait({ brouter: { moteur: true, segments: [] } });
+  assert.equal(elements.get("brouterTexte").textContent, "Données BRouter : téléchargement en cours (moteur BRouter)…");
   assert.equal(elements.get("brouterEnCours").hidden, false);
-  assert.equal(piste.hidden, true);
-  assert.equal(page.etat.donneesAttendues.extrait, "paca");
-  // Tout est arrivé : l'extrait sert, et le calcul qui attendait repart.
-  page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
-  assert.equal(texte(), `Données OSM hors ligne : extrait ${nom} du 18/10/2026, renouvelé tous les 30 jours.`);
+  // Il est là : le calcul qui attendait repart.
+  page.afficherExtrait({ brouter: null });
   assert.equal(elements.get("brouterEnCours").hidden, true);
   assert.equal(page.etat.donneesAttendues, false);
-  page.appliquerLangue("en");
-  assert.equal(texte(), `Offline OSM data: ${nom} extract of 18/10/2026, renewed every 30 days.`);
-  // Moteur et tuile BRouter manquants : même attente, sans bouton.
-  page.appliquerLangue("fr");
-  page.afficherErreur({ erreur: "Données BRouter absentes pour cette zone.", segments_manquants: ["E0_N45"],
-    brouter_en_cours: { moteur: true, segments: ["E0_N45"] } });
-  assert.equal(statut(), "Téléchargement des données BRouter (moteur BRouter, E0_N45) : le calcul reprendra de lui-même.");
-  assert.equal(page.etat.donneesAttendues.extrait, null);
-});
-
-test("cascade : le Var sert aussitôt, la PACA se prépare sans faire attendre", () => {
-  // Nico, 2026-10-20 : « on a la main rapidement sur le var (garéoult), on
-  // peut travailler, pendant ce temps paca se prépare ».
-  const { page, elements, requetes } = charger();
-  const texte = () => elements.get("extraitTexte").textContent;
-  const paca = "Provence Alpes-Cote-d'Azur";
-  const var_ = { id: "fr-var", nom: "Var", date: "2026-10-19T01:38:06Z" };
-  page.afficherErreur({ erreur: "Overpass ne répond pas : barrières non vérifiées (HTTP 502).",
-    extrait_en_cours: { id: "fr-var", nom: "Var" } });
-  page.debutLecture("osm", 1, "chemins OSM");
-  page.afficherExtrait({ en_cours: { id: "fr-var", nom: "Var", etape: "import", fraction: 1, voies: 184075 }, brouter: null });
-  assert.equal(page.etat.donneesAttendues.extrait, "fr-var");
-  const lectures = () => requetes.filter((r) => r.url.startsWith("/api/osm?")).length;
-  const avant = lectures();
-  // Le Var installé, la PACA part dans la seconde : le calcul reprend et le
-  // calque se relit dans le Var, sans attendre la PACA.
-  page.afficherExtrait({ en_cours: { id: "provence-alpes-cote-d-azur", nom: paca, etape: "telechargement",
-    fraction: 0.12, voies: 0, relais: true }, installe: var_, brouter: null });
-  assert.equal(page.etat.donneesAttendues, false);
-  assert.equal(lectures(), avant + 1);
-  assert.equal(texte(), `Données OSM hors ligne : extrait Var du 19/10/2026 ; la région ${paca} se télécharge pour prendre le relais, 12 %`);
-  page.afficherExtrait({ en_cours: { id: "provence-alpes-cote-d-azur", nom: paca, etape: "import",
-    fraction: 1, voies: 210710, relais: true }, installe: var_, brouter: null });
-  assert.match(texte(), /^Données OSM hors ligne : extrait Var du 19\/10\/2026 ; la région .* s'importe pour prendre le relais, 210.710 voies lues…$/);
-  page.appliquerLangue("en");
-  assert.match(texte(), /^Offline OSM data: Var extract of 19\/10\/2026; the .* region is importing to take over, 210.710 ways read…$/);
-  page.appliquerLangue("fr");
-  // La PACA installée : c'est elle qui sert.
-  const installe = { id: "provence-alpes-cote-d-azur", nom: paca, date: "2026-10-18T20:25:06Z" };
-  page.afficherExtrait({ en_cours: { ...installe, etape: "fini", relais: true }, installe, brouter: null });
-  assert.equal(texte(), `Données OSM hors ligne : extrait ${paca} du 18/10/2026, renouvelé tous les 30 jours.`);
 });
 
 // Une tuile MVT minimale, écrite à la main : une couche « voies » (un sentier
@@ -1481,50 +1419,25 @@ test("un lot installé couvre la vue : la page lit et décode ses tuiles elle-m�
   assert.equal(requetes.filter((r) => r.url.startsWith("/calques/")).length, 1, "pas de seconde requête de tuile");
 });
 
-test("chargement des calques : la note suit les tuiles lues, barre comprise", () => {
-  // Nico, 2026-10-20 : « Chargement des chemins OSM… » sans barre de progression.
+test("chargement des calques : une lecture qui dure le dit", () => {
+  // Nico, 2026-11-12 : une lecture brève (un lot installé) ne montre rien ; la
+  // note attend une seconde, puis paraît si la lecture dure. Les tuiles se
+  // lisent dans la page : plus de compte venu du serveur (0.9.31).
   const { page, elements, minuteurs } = charger();
   const note = () => elements.get("noteCalquesTexte")?.textContent ?? "";
   page.debutLecture("osm", 1, "chemins OSM");
-  // Nico, 2026-11-12 : une lecture brève (un lot installé) ne montre rien ;
-  // la note attend une seconde, puis paraît si la lecture dure.
   assert.equal(note(), "");
   assert.equal(minuteurs.at(-1).ms, 1000);
-  page.afficherLectures(null);
-  const piste = elements.get("noteCalquesPiste");
-  assert.equal(note(), "Chargement des chemins OSM… (la première fois, jusqu'à une minute)");
-  assert.equal(piste.hidden, false);
-  assert.equal(piste.classList.contains("indeterminee"), true);
-  page.afficherLectures({ osm: { faites: 2, total: 6, duree_s: 12.4 } });
-  assert.equal(note(), "Chargement des chemins OSM… 2 sur 6 tuiles · 12 s");
-  assert.equal(piste.classList.contains("indeterminee"), false);
-  assert.equal(elements.get("noteCalquesBarre").style.width, "33%");
-  // Deux calques à la fois : une note, leurs tuiles additionnées.
+  page.suivreLectures();
+  assert.equal(note(), "Chargement des chemins OSM…");
+  assert.equal(elements.get("noteCalquesPiste").classList.contains("indeterminee"), true);
   page.debutLecture("bdtopo", 1, "chemins BD TOPO (IGN)");
-  page.afficherLectures({ osm: { faites: 3, total: 6, duree_s: 20 }, bdtopo: { faites: 6, total: 6, duree_s: 3 } });
-  assert.equal(note(), "Chargement des chemins OSM et chemins BD TOPO (IGN)… 9 sur 12 tuiles · 20 s");
+  page.suivreLectures();
+  assert.equal(note(), "Chargement des chemins OSM et chemins BD TOPO (IGN)…");
   // La fin d'une vue périmée ne retire pas la lecture de la vue suivante.
   assert.equal(page.finLecture("osm", 0), true);
   assert.equal(page.finLecture("osm", 1), true);
   assert.equal(page.finLecture("bdtopo", 1), false);
-});
-
-test("extrait installé pendant la lecture des chemins OSM : elle repart sur lui", () => {
-  // Essai du 2026-10-20 : l'extrait Corse installé en 16 s, la lecture partie
-  // avant lui attendait encore Overpass (HTTP 504, 502) deux minutes après.
-  const { page, requetes, carte } = charger();
-  carte.hasLayer = () => true;
-  const lues = (cle) => requetes.filter((r) => r.url.startsWith(`/api/${cle}?`)).length;
-  page.afficherExtrait({ en_cours: { id: "corse", nom: "Corse", etape: "import", fraction: 1, voies: 35811 }, brouter: null });
-  page.rafraichirCalques();
-  assert.equal(lues("osm"), 1);
-  const installe = { id: "corse", nom: "Corse", date: "2026-10-18T20:25:06Z" };
-  page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
-  assert.equal(lues("osm"), 2);
-  assert.equal(lues("bdtopo"), 1);          // la BD TOPO ne dépend pas de l'extrait
-  // Déjà installé : un nouvel état « fini » ne relance rien.
-  page.afficherExtrait({ en_cours: { ...installe, etape: "fini" }, installe, brouter: null });
-  assert.equal(lues("osm"), 2);
 });
 
 test("vues datées : le serveur ne lit que la plus récente, et la note ne reste pas figée", async () => {
@@ -1559,13 +1472,12 @@ test("vues datées : le serveur ne lit que la plus récente, et la note ne reste
 test("un bouton unique vide les caches locaux après confirmation", () => {
   const { page, elements, requetes, confirmations } = charger();
   page.afficherDonnees({
-    osm: { fichiers: 42, octets: 12_400_000 }, bdtopo: { fichiers: 0, octets: 0 },
-    extraits: [{ id: "fr-var", nom: "Var", date: "2026-10-19T01:38:06Z", octets: 69_080_000, provisoire: true },
-      { id: "provence-alpes-cote-d-azur", nom: "Provence Alpes-Cote-d'Azur", date: "2026-10-18T20:25:06Z",
-        octets: 345_800_000, provisoire: false }],
+    bdtopo: { fichiers: 0, octets: 0 },
+    extraits: [{ id: "provence-alpes-cote-d-azur", nom: "Provence Alpes-Cote-d'Azur", date: "2026-10-18T20:25:06Z",
+      octets: 345_800_000 }],
     brouter: [{ nom: "E5_N40", octets: 69_219_770, date: "2026-10-19T09:00:00Z" }],
     restes: { fichiers: 1, octets: 3_600_000 },
-    occupe: { extrait: "provence-alpes-cote-d-azur", brouter: false },
+    occupe: { brouter: true },
   });
   let controles = elements.get("donnees").enfants[0];
   let bouton = controles.enfants[0];
@@ -1573,7 +1485,7 @@ test("un bouton unique vide les caches locaux après confirmation", () => {
   assert.match(controles.enfants[1].enfants[0].textContent, /IGN LiDAR HD|gpx2elev/);
   assert.match(controles.enfants[1].enfants[0].textContent, /tuiles des fonds de carte/);
   assert.equal(bouton.disabled, true);
-  page.afficherDonnees({ occupe: { extrait: null, brouter: false } });
+  page.afficherDonnees({ occupe: { brouter: false } });
   bouton = elements.get("donnees").enfants[0].enfants[0];
   assert.equal(bouton.disabled, false);
   bouton.ecouteurs.click[0]();

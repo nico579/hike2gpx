@@ -120,7 +120,6 @@ if (typeof module !== "undefined") module.exports = { couvertureCartographique, 
   const activityRows = document.getElementById("mapActivityRows");
   const jobs = [
     ["Chemins de la carte", "noteCalques", "noteCalquesTexte", "noteCalquesPiste", "noteCalquesBarre"],
-    ["Extrait OSM", "extraitOsm", "extraitTexte", "extraitPiste", "extraitBarre"],
     ["BRouter", "brouterEnCours", "brouterTexte", "brouterPiste", "brouterBarre"],
     ["Calcul du parcours", "progression", "progressionTexte", "progression", "progressionBarre"],
     ["Zone de routage", "lotHorsLigne", "lotHorsLigneTexte", "lotHorsLignePiste", "lotHorsLigneBarre"],
