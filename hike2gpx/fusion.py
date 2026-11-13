@@ -52,6 +52,27 @@ def _xy(lat, lon, lat0, lon0):
     return ((lon - lon0) * fr.M_PAR_DEGRE * math.cos(math.radians(lat0)), (lat - lat0) * fr.M_PAR_DEGRE)
 
 
+def _boite_elargie(bornes, marge_m):
+    """(sud, ouest, nord, est) élargie d'une marge en mètres, en degrés."""
+    sud, ouest, nord, est = bornes
+    dlat = marge_m / fr.M_PAR_DEGRE
+    dlon = dlat / max(0.01, math.cos(math.radians(max(abs(sud), abs(nord)))))
+    return sud - dlat, ouest - dlon, nord + dlat, est + dlon
+
+
+def _touche(a, b, boite) -> bool:
+    """Le segment a-b touche-t-il la boîte (sud, ouest, nord, est) ?"""
+    sud, ouest, nord, est = boite
+    return not (max(a[0], b[0]) < sud or min(a[0], b[0]) > nord
+                or max(a[1], b[1]) < ouest or min(a[1], b[1]) > est)
+
+
+def _bornes(points):
+    """(sud, ouest, nord, est) d'un ensemble de points (lat, lon)."""
+    return (min(p[0] for p in points), min(p[1] for p in points),
+            max(p[0] for p in points), max(p[1] for p in points))
+
+
 class IndexVoies:
     """Segments des voies OSM praticables, rangés par cases de 0,002° ; les
     distances se mesurent dans un plan local autour du point cherché."""
@@ -107,12 +128,19 @@ class Reseau:
             elif e.get("type") == "relation":
                 self.relations[e["id"]] = [list(e.get("members", [])), dict(e.get("tags", {}))]
 
-    def index(self) -> IndexVoies:
+    def index(self, bornes=None) -> IndexVoies:
+        """Segments des voies OSM praticables, rangés par cases de 0,002°.
+        bornes (sud, ouest, nord, est) : ne garder que les segments qui la
+        touchent ; le raccordement d'une maille ne cherche qu'à 15 m de ses
+        bouts, inutile d'indexer toute la case."""
         index = IndexVoies()
+        boite = _boite_elargie(bornes, RELIE_M) if bornes is not None else None
         for wid, (ids, tags) in self.voies.items():
             if fr._praticable(tags) and not fr._hors_sol(tags):
                 for k in range(len(ids) - 1):
-                    index.ajouter(wid, k, self.noeuds[ids[k]][:2], self.noeuds[ids[k + 1]][:2])
+                    a, b = self.noeuds[ids[k]][:2], self.noeuds[ids[k + 1]][:2]
+                    if boite is None or _touche(a, b, boite):
+                        index.ajouter(wid, k, a, b)
         return index
 
     # ------------------------------------------------------------ IGN
@@ -165,11 +193,19 @@ class Reseau:
         self._liens.append((nid, cible))
         return True
 
-    def segments_osm(self) -> list:
-        """Segments des voies OSM praticables : (lat_a, lon_a, lat_b, lon_b)."""
-        return [(*self.noeuds[ids[k]][:2], *self.noeuds[ids[k + 1]][:2])
-                for ids, tags in self.voies.values() if fr._praticable(tags) and not fr._hors_sol(tags)
-                for k in range(len(ids) - 1)]
+    def segments_osm(self, bornes=None) -> list:
+        """Segments des voies OSM praticables : (lat_a, lon_a, lat_b, lon_b).
+        bornes : ne garder que ceux qui la touchent (marge de COUVERT_M)."""
+        boite = _boite_elargie(bornes, COUVERT_M) if bornes is not None else None
+        resultat = []
+        for ids, tags in self.voies.values():
+            if not fr._praticable(tags) or fr._hors_sol(tags):
+                continue
+            for k in range(len(ids) - 1):
+                a, b = self.noeuds[ids[k]][:2], self.noeuds[ids[k + 1]][:2]
+                if boite is None or _touche(a, b, boite):
+                    resultat.append((*a, *b))
+        return resultat
 
     def ajouter_ign(self, troncons, source="ign", bouts=None, bords=None) -> int:
         """Ajoute les tronçons officiels absents d'OSM ; rend leur nombre.
@@ -184,7 +220,6 @@ class Reseau:
         from .providers import source as fournisseur
         for cle in {source, *(t["source"] for t in troncons if t.get("source"))}:
             fournisseur(cle)
-        index = self.index()
         self._liens = []
         bouts = {} if bouts is None else bouts
         # Les clés de bouts écrites par cet appel, les seules qu'il puisse
@@ -196,7 +231,17 @@ class Reseau:
         bords_vectoriels = defaultdict(list) if bords is None else bords  # extrémités découpées par basemap.de
         ajoutes = 0
         candidats = [t for t in troncons if t.get("nature") not in NATURES_EXCLUES and len(t.get("pts") or []) >= 2]
-        parts = parts_couvertes([t["pts"] for t in candidats], self.segments_osm())
+        if not candidats:
+            return 0
+        points = [p for t in candidats for p in t["pts"]]
+        # Un index des voies OSM ne sert qu'au raccordement des bouts créés, à
+        # 15 m au plus : celui des seuls bouts des tronçons retenus suffit. Une
+        # maille dont aucun tronçon n'est retenu (doublons, mer, hors pays) ne
+        # construit plus d'index du tout (2 s par maille, mesure du 2026-11-13).
+        parts = parts_couvertes([t["pts"] for t in candidats], self.segments_osm(_bornes(points)))
+        bouts_ajoutes = [p for t, part in zip(candidats, parts) if part < PART_COUVERTE_MAX
+                         for p in (t["pts"][0], t["pts"][-1])]
+        index = self.index(_bornes(bouts_ajoutes)) if bouts_ajoutes else None
         for t, part in zip(candidats, parts):
             if part >= PART_COUVERTE_MAX:
                 continue

@@ -208,45 +208,6 @@ class Registre:
                 resultat += sorted(inserts[rang], key=inserts[rang].get)
         return resultat
 
-    def ecrire_pbf(self, source: Path, sortie: Path) -> None:
-        """OSM de la case, raccords et voies ajoutées, dans l'ordre que lisent
-        les outils : nœuds, voies puis relations, chacun par identifiant."""
-        import osmium
-        Path(sortie).unlink(missing_ok=True)
-
-        def noeuds(w):
-            for nid, (lat, lon) in sorted(self.noeuds.items()):
-                w.add_node(osmium.osm.mutable.Node(id=nid, location=osmium.osm.Location(lon, lat), version=1))
-
-        def voies(w):
-            for wid, (ids, tags) in sorted(self.voies.items()):
-                w.add_way(osmium.osm.mutable.Way(id=wid, nodes=ids, tags=tags, version=1))
-
-        etape = "noeuds"
-        with osmium.SimpleWriter(str(sortie)) as w:
-            for o in osmium.FileProcessor(str(source)):
-                genre = o.type_str()
-                if genre == "n":
-                    w.add_node(o)
-                    continue
-                if etape == "noeuds":
-                    noeuds(w)
-                    etape = "voies"
-                if genre == "w":
-                    if o.id in self.raccords:
-                        o = o.replace(nodes=self.noeuds_corriges(o.id, [n.ref for n in o.nodes]))
-                    w.add_way(o)
-                    continue
-                if etape == "voies":
-                    voies(w)
-                    etape = "relations"
-                w.add_relation(o)
-            if etape == "noeuds":
-                noeuds(w)
-            if etape != "relations":
-                voies(w)
-
-
 def troncons_gpkg(gpkg, sud: float, ouest: float, nord: float, est: float, departement: str | None = None) -> list:
     """Tronçons BD TOPO d'un GeoPackage régional qui touchent l'emprise, entiers
     (la maille garde ceux dont le premier point y tombe), au format de la
@@ -300,19 +261,35 @@ class StockOSM:
         return tuple(self.base.execute(f"SELECT coalesce(max(id), 0) FROM {table}").fetchone()[0]
                      for table in ("noeuds", "voies"))
 
-    def ecrire_pbf(self, sortie: Path) -> None:
+    def ecrire_pbf(self, sortie: Path, enrichi: Registre | None = None) -> None:
         """Le PBF de la zone, nœuds, voies puis relations, chacun par identifiant.
-        Une relation ne garde que ses voies présentes, comme fusion.Reseau."""
+        Une relation ne garde que ses voies présentes, comme fusion.Reseau.
+
+        enrichi : le registre de la case, pour écrire directement le PBF compilé
+        — raccords insérés dans les voies OSM et voies ajoutées — au lieu d'un
+        PBF intermédiaire que Registre relisait pour le réécrire (un passage de
+        moins sur plusieurs centaines de Mo par case)."""
         import osmium
         Path(sortie).unlink(missing_ok=True)
+        raccords = enrichi.raccords if enrichi is not None else {}
+        noeuds_ajoutes = enrichi.noeuds if enrichi is not None else {}
+        voies_ajoutees = enrichi.voies if enrichi is not None else {}
         with osmium.SimpleWriter(str(sortie)) as w:
             for nid, lat, lon, tags in self.base.execute("SELECT id, lat, lon, tags FROM noeuds ORDER BY id"):
                 w.add_node(osmium.osm.mutable.Node(id=nid, location=osmium.osm.Location(lon, lat),
                                                    tags=json.loads(tags), version=1))
+            for nid, (lat, lon) in sorted(noeuds_ajoutes.items()):
+                w.add_node(osmium.osm.mutable.Node(id=nid, location=osmium.osm.Location(lon, lat), version=1))
             presentes = set()
             for wid, noeuds, tags in self.base.execute("SELECT id, noeuds, tags FROM voies ORDER BY id"):
                 presentes.add(wid)
-                w.add_way(osmium.osm.mutable.Way(id=wid, nodes=json.loads(noeuds), tags=json.loads(tags), version=1))
+                refs = json.loads(noeuds)
+                if wid in raccords:
+                    refs = enrichi.noeuds_corriges(wid, refs)
+                w.add_way(osmium.osm.mutable.Way(id=wid, nodes=refs, tags=json.loads(tags), version=1))
+            for wid, (ids, tags) in sorted(voies_ajoutees.items()):
+                presentes.add(wid)
+                w.add_way(osmium.osm.mutable.Way(id=wid, nodes=ids, tags=tags, version=1))
             for rid, membres, tags in self.base.execute("SELECT id, membres, tags FROM relations ORDER BY id"):
                 refs = [("w", m["ref"], m.get("role", "")) for m in json.loads(membres)
                         if m.get("type") == "way" and m.get("ref") in presentes]

@@ -72,42 +72,6 @@ def test_coordonnees_dans_la_tuile_y_vers_le_bas(tmp_path):
     assert px == pytest.approx(1024, abs=2) and py == pytest.approx(1024, abs=2)
 
 
-def test_sources_lisent_l_index_osm_par_bloc(tmp_path):
-    import numpy as np
-    from hike2gpx import franchissements as fr, geofabrik
-    base = tmp_path / "case.sqlite"
-    with sqlite3.connect(base) as con:
-        con.executescript(geofabrik.SCHEMA + geofabrik.INDEX_SQL)
-        voies = {1: ({"highway": "path", "sac_scale": "hiking", "name": "x"}, [(43.30, 6.00), (43.31, 6.01)]),
-                 2: ({"highway": "track", "tracktype": "grade3"}, [(43.30, 6.02), (43.30, 6.03)]),
-                 3: ({"highway": "primary"}, [(43.30, 6.00), (43.32, 6.00)]),
-                 4: ({"barrier": "fence"}, [(43.305, 6.01), (43.305, 6.02)]),
-                 5: ({"barrier": "kerb"}, [(43.306, 6.01), (43.306, 6.02)]),
-                 6: ({"highway": "motorway"}, [(43.31, 6.0), (43.31, 6.03)])}
-        for ident, (tags, pts) in voies.items():
-            points = (np.array(pts) * 1e7).round().astype("<i4").tobytes()
-            con.execute("INSERT INTO voies VALUES (?, ?, ?, ?)", (ident, json.dumps(tags), b"", points))
-            for i, j in {fr.tuile_du_point(*p) for p in pts}:
-                con.execute("INSERT INTO tuiles VALUES (?, ?, ?)", (i, j, ident))
-    franchissements_fusion = [
-        {"cle": "a", "lat": 43.301, "lon": 6.025, "statut": "blocked", "nature": "Clôture", "raison": "r",
-         "osm": "way/4", "coupes": []},
-        {"cle": "b", "lat": 43.302, "lon": 6.025, "statut": "passable", "nature": "Portillon", "raison": "r"}]
-    sources = lot.Sources(base, franchissements=franchissements_fusion)
-    couches = sources.bloc(43.29, 5.99, 43.33, 6.04)
-    # Les règles de la page (voies_affichables) : routes comprises, autoroute exclue.
-    assert sorted(p["genre"] for _, p in couches["voies"]) == ["piste", "route", "sentier"]
-    assert next(p for _, p in couches["voies"] if p["genre"] == "sentier") == {"id": 1, "genre": "sentier"}
-    # Une clôture gêne le piéton, une bordure non.
-    assert [p for _, p in couches["barrieres"]] == [{"id": 4, "nature": "Clôture"}]
-    assert [p for _, p in couches["franchissements"]] == [
-        {"cle": "a", "statut": "blocked", "raison": "r", "nature": "Clôture", "osm": "way/4"}]
-    assert couches["troncons"] == []
-    loin = sources.bloc(44.0, 7.0, 44.1, 7.1)
-    assert not any(loin.values())
-    sources.fermer()
-
-
 def test_lire_calque_rend_le_format_de_la_page(tmp_path):
     chemin = tmp_path / "calques.mbtiles"
     case = (43.0, 5.0, 45.0, 10.0)

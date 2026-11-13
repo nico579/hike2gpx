@@ -62,15 +62,13 @@ def test_raccords_de_deux_mailles_reunis_sur_la_meme_voie_osm():
 
 
 def test_pbf_de_la_case_corrige_osm_et_ajoute_les_chemins(tmp_path):
-    source, sortie = tmp_path / "case.osm.pbf", tmp_path / "enrichie.osm.pbf"
-    with osmium.SimpleWriter(str(source)) as w:
-        for g in SENTIER["geometry"]:
-            nid = SENTIER["nodes"][SENTIER["geometry"].index(g)]
-            w.add_node(osmium.osm.mutable.Node(id=nid, location=osmium.osm.Location(g["lon"], g["lat"]), version=1))
-        w.add_way(osmium.osm.mutable.Way(id=1, nodes=SENTIER["nodes"], tags=SENTIER["tags"], version=1))
-        w.add_relation(osmium.osm.mutable.Relation(id=5, members=[("w", 1, "")], tags={"route": "hiking"}, version=1))
+    sortie = tmp_path / "enrichie.osm.pbf"
     registre, _ = fabriquer()
-    registre.ecrire_pbf(source, sortie)
+    stock = case.StockOSM(tmp_path / "stock.sqlite")
+    stock.ajouter([SENTIER, {"type": "relation", "id": 5, "tags": {"route": "hiking"},
+                             "members": [{"type": "way", "ref": 1, "role": ""}]}])
+    stock.ecrire_pbf(sortie, registre)
+    stock.fermer()
     objets = [(o.type_str(), o.id, [n.ref for n in o.nodes] if o.type_str() == "w" else None)
               for o in osmium.FileProcessor(str(sortie))]
     genres = [g for g, _, _ in objets]

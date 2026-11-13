@@ -574,7 +574,11 @@ def importer(pbf: Path, base: Path, region: dict, date: str, *, suivi=None) -> d
                         compte["noeuds"] += 1
                 elif objet.is_way():
                     tags = dict(objet.tags)
-                    chemin = "highway" in tags and not fr._EXCLUES.match(tags["highway"])
+                    # Un bac est routable pour le profil (route=ferry, coût 2,34)
+                    # même sans highway : il doit entrer dans le PBF enrichi,
+                    # sinon une randonnée qui traverse un lac n'a plus de bac.
+                    chemin = (("highway" in tags and not fr._EXCLUES.match(tags["highway"]))
+                              or tags.get("route") == "ferry")
                     if not chemin and "barrier" not in tags:
                         continue
                     ids, lonlat = _geometrie(objet, fabrique, tous_les_noeuds)

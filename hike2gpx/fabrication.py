@@ -92,11 +92,17 @@ def regions_a_installer(dossier, zone: tuple) -> list:
     for i, j in _tuiles(zone):
         if geofabrik.extraits_de_tuile(dossier, i, j):
             continue
+        sud, ouest, nord, est = fr.bornes_tuile(i, j)
+        # Une région dont la boîte ne touche pas la tuile ne peut pas la
+        # contenir : l'écarter d'abord évite 554 tests de contour par tuile
+        # (39 s pour une case de 5° le 2026-11-13, sur l'index réel).
+        proches = [r for r in regions if r["bornes"][0] <= nord and r["bornes"][2] >= sud
+                   and r["bornes"][1] <= est and r["bornes"][3] >= ouest]
         # Une tuile frontalière demande les deux régions voisines, pas le
         # grand extrait qui les contient (geofabrik.regions_de_tuile). Une
         # région déjà installée, mais découpée pour une autre case, ne couvre
         # pas celle-ci : elle se redemande, découpée à la case.
-        for region in geofabrik.regions_de_tuile(regions, i, j):
+        for region in geofabrik.regions_de_tuile(proches, i, j):
             besoins[region["id"]] = region
     return list(besoins.values())
 
@@ -360,11 +366,11 @@ def _enrichir(dossier, installation, case, boite, zone, sortie, source, troncons
         suivi("fusion", len(mailles), len(mailles))
 
         suivi("compilation", 0, 1)
-        stock.ecrire_pbf(travail / "osm.osm.pbf")
+        # Le PBF enrichi s'écrit directement depuis le stock : un passage de
+        # moins sur les données de la case (le PBF OSM intermédiaire n'existe plus).
+        stock.ecrire_pbf(travail / "enrichi.osm.pbf", registre)
     finally:
         stock.fermer()
-    registre.ecrire_pbf(travail / "osm.osm.pbf", travail / "enrichi.osm.pbf")
-    (travail / "osm.osm.pbf").unlink()
     (travail / "osm.sqlite").unlink()
     # Le réseau fusionné de toute la case est écrit : n'en garder que les
     # franchissements. Il restait sinon en mémoire pendant la compilation, que
@@ -620,18 +626,12 @@ def _fusionner_mailles(dossier, registre, mailles, troncons, source, suivi, cont
     registre.identifiants._voie = compteurs["voie"].value
 
 
-def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, *, franchissements=None,
-             troncons=None, part=None):
-    """Les calques de la zone dans sortie/calques.mbtiles. Voies et barrières
-    viennent du code du mode en ligne ; les franchissements de la fusion s'ils
-    sont donnés, sinon de l'analyse en ligne ; troncons ajoute la couche des
-    chemins officiels. Rend (franchissements de l'analyse en ligne, dates OSM).
-    part (i, K) : seulement un bloc sur K, à partir du i-ième, dans sa propre
-    base (nom_part), pour une fabrication répartie sur plusieurs machines ;
-    lot.assembler_calques les réunit."""
-    nom = "calques.mbtiles" if part is None else nom_part(*part)
-    calques = lot.Calques(sortie / nom, case, boite, attribution)
-    tous, dates = {}, set()
+def _fabrique_bloc(dossier, zone, franchissements=None, troncons=None):
+    """La lecture d'un bloc de calques, sans rien écrire : rend bloc(x10, y10)
+    -> (couches, franchissements analysés, dates OSM). Une fonction du module
+    plutôt qu'une fermeture de _calques : un processus fils lancé par spawn
+    (Windows, macOS, l'application) la reconstruit (_calques_init), là où un
+    fils de fork en hérite."""
     a_montrer = None
     if franchissements is not None:
         a_montrer = [(shapely.Point(f["lon"], f["lat"]), {c: f.get(c) for c in ("cle", "statut", "raison", "nature",
@@ -649,8 +649,10 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
         # en_ligne=False : un lot ne lit que les extraits, jamais Overpass, trop
         # instable pour une fabrication en série (Nico, 2026-10-27).
         sud, ouest, nord, est = fr.bornes_tuile(i, j)
-        return (fr.voies_affichables(sud, ouest, nord - BORD_DEG, est - BORD_DEG, dossier, en_ligne=False),
-                fr.franchissements_tuile(i, j, dossier, en_ligne=False) if franchissements is None else [])
+        complets = [] if franchissements is None else None
+        voie = fr.voies_affichables(sud, ouest, nord - BORD_DEG, est - BORD_DEG, dossier, en_ligne=False,
+                                    franchissements_complets=complets)
+        return voie, complets or []
     def bloc(x10, y10):
         """Les couches d'un bloc, ses franchissements analysés et ses dates
         OSM, sans rien écrire : en série ici, ou dans un processus fils."""
@@ -660,18 +662,28 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
                    min(n, zone[2]) + MARGE_LECTURE, min(e, zone[3]) + MARGE_LECTURE)
         couches = {"voies": [], "barrieres": [], "franchissements": [], "jonctions": []}
         jonctions_vues = set()
+        voies_vues = set()
+        barrieres_vues = set()
+        franchissements_vus = set()
         for i, j in _tuiles(lecture):
             extraits = geofabrik.extraits_de_tuile(dossier, i, j)
             if not extraits:            # mer, ou région sans extrait : rien à lire sans réseau
                 continue
             dates_bloc.update(e.get("date") for e in extraits)
             v, franchissements_tuile = lire(i, j)
-            couches["voies"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
-                                  {"id": x["id"], "genre": x["genre"]}) for x in v["voies"]
-                                 if len(x["pts"]) > 1]
-            couches["barrieres"] += [(shapely.LineString([(lo, la) for la, lo in x["pts"]]),
-                                      {"id": x["id"], "nature": x["nature"]}) for x in v["barrieres"]
-                                     if len(x["pts"]) > 1]
+            # Une voie qui traverse deux tuiles revient entière de chacune : une
+            # seule copie, sinon les tuiles du lot se recouvrent (mesuré ×1,05
+            # sur une zone réelle, plus sur les longues voies).
+            for x in v["voies"]:
+                if len(x["pts"]) > 1 and x["id"] not in voies_vues:
+                    voies_vues.add(x["id"])
+                    couches["voies"].append((shapely.LineString([(lo, la) for la, lo in x["pts"]]),
+                                             {"id": x["id"], "genre": x["genre"]}))
+            for x in v["barrieres"]:
+                if len(x["pts"]) > 1 and x["id"] not in barrieres_vues:
+                    barrieres_vues.add(x["id"])
+                    couches["barrieres"].append((shapely.LineString([(lo, la) for la, lo in x["pts"]]),
+                                                 {"id": x["id"], "nature": x["nature"]}))
             # Les chemins non raccordés (franchissements.jonctions_manquees), une fois chacun.
             for x in v.get("jonctions", ()):
                 if x["cle"] not in jonctions_vues:
@@ -682,7 +694,8 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
                           "isole": bool(x.get("isole"))}))
             for f in franchissements_tuile:
                 tous_bloc[f["cle"]] = f
-                if f["statut"] in ("blocked", "uncertain"):
+                if f["statut"] in ("blocked", "uncertain") and f["cle"] not in franchissements_vus:
+                    franchissements_vus.add(f["cle"])
                     couches["franchissements"].append(
                         (shapely.Point(f["lon"], f["lat"]),
                          {c: f.get(c) for c in ("cle", "statut", "raison", "nature", "osm")}))
@@ -701,6 +714,22 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
                          {"id": t["id"], "nature": t.get("nature"), "acces_pieton": t.get("acces_pieton"),
                           "prive": t.get("prive")}))
         return couches, tous_bloc, dates_bloc
+    return bloc
+
+
+def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, *, franchissements=None,
+             troncons=None, part=None):
+    """Les calques de la zone dans sortie/calques.mbtiles. Voies et barrières
+    viennent du code du mode en ligne ; les franchissements de la fusion s'ils
+    sont donnés, sinon de l'analyse en ligne ; troncons ajoute la couche des
+    chemins officiels. Rend (franchissements de l'analyse en ligne, dates OSM).
+    part (i, K) : seulement un bloc sur K, à partir du i-ième, dans sa propre
+    base (nom_part), pour une fabrication répartie sur plusieurs machines ;
+    lot.assembler_calques les réunit."""
+    nom = "calques.mbtiles" if part is None else nom_part(*part)
+    calques = lot.Calques(sortie / nom, case, boite, attribution)
+    tous, dates = {}, set()
+    bloc = _fabrique_bloc(dossier, zone, franchissements, troncons)
 
     blocs = lot.blocs(*zone)
     if part is not None:
@@ -708,8 +737,14 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
         i, k = part
         blocs = blocs[i - 1::k]
     # Comme pour la fusion : un lecteur de tronçons en ligne, avec son cache
-    # sur disque, garde la boucle en série.
+    # sur disque, garde la boucle en série. Sans fork (Windows, macOS,
+    # l'application et ses fils), un lot sans tronçons (un lot OSM) passe par
+    # spawn : 330 blocs à un par un, 13 min pour Montréal sur 4 cœurs, le
+    # 2026-11-13.
+    contexte = "fork"
     processus = processus_paralleles() if troncons is None or hasattr(troncons, "preparer") else 1
+    if processus <= 1 and troncons is None:
+        processus, contexte = processus_spawn(), "spawn"
     try:
         if processus <= 1:
             for k, (x10, y10) in enumerate(blocs):
@@ -725,8 +760,13 @@ def _calques(dossier, case, boite, zone, sortie, attribution, suivi, continuer, 
             # processus fils, le parent seul écrit la base. Près d'une heure
             # sur un cœur pour 300 blocs (E0_N40, 2026-11-01).
             suivi(f"calques en parallèle ({processus} processus)", 0, len(blocs))
-            _CALQUES.update(bloc=bloc, emprise=calques.emprise, troncons=troncons)
-            with ProcessPoolExecutor(processus, mp_context=multiprocessing.get_context("fork")) as groupe:
+            if contexte == "fork":
+                _CALQUES.update(bloc=bloc, emprise=calques.emprise, troncons=troncons)
+                options = {}
+            else:
+                options = {"initializer": _calques_init,
+                           "initargs": (str(dossier), tuple(zone), franchissements, calques.emprise)}
+            with ProcessPoolExecutor(processus, mp_context=multiprocessing.get_context(contexte), **options) as groupe:
                 taches = [groupe.submit(_calque_isole, x10, y10) for x10, y10 in blocs]
                 try:
                     for k, tache in enumerate(as_completed(taches), start=1):
@@ -760,6 +800,20 @@ def nom_part(i: int, k: int) -> str:
 
 # Contexte des calques en parallèle, hérité au fork comme _FUSION.
 _CALQUES: dict = {}
+
+
+def processus_spawn() -> int:
+    """Combien de processus fils lancés par spawn pour les calques d'un lot
+    sans tronçons : les cœurs, au plus PROCESSUS_FUSION_MAX. Chaque fils
+    relit ses modules au démarrage (une ou deux secondes), peu devant 330 blocs."""
+    return max(1, min(PROCESSUS_FUSION_MAX, os.cpu_count() or 1))
+
+
+def _calques_init(dossier: str, zone: tuple, franchissements, emprise) -> None:
+    """Le contexte d'un processus fils lancé par spawn : rien n'en hérite, il
+    reconstruit sa lecture des blocs (voir _calque_isole)."""
+    _CALQUES.update(bloc=_fabrique_bloc(Path(dossier), zone, franchissements, None), emprise=emprise,
+                    troncons=None)
 
 
 def _calque_isole(x10: int, y10: int):
@@ -799,11 +853,19 @@ def renouveler_extraits(dossier, zone: tuple) -> list:
 def lot_a_jour(chemin: Path, *, osm: str | None, fournisseurs: list = (), editions: dict | None = None) -> bool:
     """Le lot déjà fabriqué dans chemin suffit-il ? Même format, mêmes
     fournisseurs, données OSM au moins aussi récentes que les extraits, même
-    édition des tronçons quand elle est connue (un GeoPackage ; le WFS n'en a pas)."""
+    édition des tronçons quand elle est connue (un GeoPackage ; le WFS n'en a pas).
+    Ses fichiers doivent être là et de la taille annoncée : un lot tronqué ou
+    amputé se refait (la taille suffit, sans relire le SHA-256 de centaines de Mo)."""
     try:
         m = json.loads((Path(chemin) / "manifest.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
+    for fichier in m.get("fichiers", ()):
+        try:
+            if (Path(chemin) / fichier["nom"]).stat().st_size != fichier["octets"]:
+                return False
+        except (OSError, KeyError, TypeError):
+            return False
     sources = m.get("sources", {})
     demandes = m.get("fournisseurs_demandes", m.get("fournisseurs", []))
     apportes = m.get("fournisseurs", [])

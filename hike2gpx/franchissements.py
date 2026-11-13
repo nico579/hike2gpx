@@ -764,11 +764,17 @@ def _couvertes_d_abord(tuiles: list, dossier) -> list:
     return sorted(tuiles, key=lambda tuile: geofabrik.region_de_tuile(extraits, *tuile) is None)
 
 
-def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier, **options) -> dict:
+def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier, *,
+                      franchissements_complets: list | None = None, **options) -> dict:
     """Voies praticables (sentier, piste ou route) et barrières qui gênent un
     piéton, telles que les tuiles Overpass les connaissent, pour le calque des
     chemins OSM. Une bordure de trottoir n'y figure pas : elle se franchit.
-    suivi(faites, total), tuile après tuile, pour la barre de la page."""
+    suivi(faites, total), tuile après tuile, pour la barre de la page.
+
+    franchissements_complets : si une liste est donnée, elle reçoit les
+    franchissements entiers de chaque tuile (coupes comprises), en plus du
+    résumé rendu ci-dessous. Les calques d'un lot s'en servent pour ne pas
+    analyser deux fois la même tuile (fabrication._calques)."""
     voies, barrieres, franchissements, chemins = {}, {}, [], {}
     continuer = options.get("continuer", _toujours)
     suivi = options.pop("suivi", None)
@@ -792,9 +798,11 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
             elif "barrier" in tags and "highway" not in tags and regles.status(tags, MODE)[0] != "passable":
                 barrieres[e["id"]] = {"id": e["id"], "nature": regles.LABELS.get(tags["barrier"], "Barrière"),
                                       "pts": ligne}
+        liste = franchissements_tuile(i, j, dossier, donnees=donnees)
+        if franchissements_complets is not None:
+            franchissements_complets.extend(liste)
         franchissements.extend({cle: f[cle] for cle in ("cle", "statut", "raison", "nature", "lat", "lon", "osm")}
-                               for f in franchissements_tuile(i, j, dossier, donnees=donnees)
-                               if f["statut"] in ("blocked", "uncertain"))
+                               for f in liste if f["statut"] in ("blocked", "uncertain"))
         if suivi:
             suivi(k + 1, len(tuiles))
     return {"voies": list(voies.values()), "barrieres": list(barrieres.values()),

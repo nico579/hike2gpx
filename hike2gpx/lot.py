@@ -86,9 +86,16 @@ def encoder_tuile(x: int, y: int, couches: dict, emprise: tuple) -> bytes | None
             continue
         objets = []
         for i in arbre.query(rectangle):
-            morceau = shapely.clip_by_rect(geometries[i], *boite)
-            if morceau.is_empty:
-                continue
+            geometrie = geometries[i]
+            # La plupart des objets tiennent dans la tuile : leur découpe GEOS
+            # ne servirait à rien (mesuré sur un bloc réel, 2026-11-13).
+            x0, y0, x1, y1 = geometrie.bounds
+            if x0 >= boite[0] and y0 >= boite[1] and x1 <= boite[2] and y1 <= boite[3]:
+                morceau = geometrie
+            else:
+                morceau = shapely.clip_by_rect(geometrie, *boite)
+                if morceau.is_empty:
+                    continue
             objets.append({"geometry": shapely.transform(morceau, _vers_mercator), "properties": proprietes[i]})
         if objets:
             calques.append({"name": nom, "features": objets})
@@ -205,69 +212,6 @@ def assembler_calques(parties: list, cible: Path, nom: str, emprise: tuple, attr
     total = calques.tuiles
     calques.fermer()
     return total
-
-
-class Sources:
-    """Ce que montrent les calques d'une case, lu bloc par bloc, avec les règles
-    de la page (franchissements.voies_affichables) : les voies praticables OSM
-    et leur genre, les barrières linéaires qui gênent un piéton, les
-    franchissements bloquants ou à vérifier de la fusion, et les tronçons BD
-    TOPO de l'emprise enrichie. Les calques d'un lot s'affichent ainsi comme
-    ceux que l'application lit en ligne."""
-
-    def __init__(self, base_osm: Path, gpkg: Path | None = None, departement: str | None = None,
-                 emprise_officielle: tuple | None = None, franchissements: list = ()):
-        from . import franchissements as fr, regles
-        self._fr, self._regles = fr, regles
-        self.base = sqlite3.connect(f"file:{Path(base_osm).resolve().as_posix()}?mode=ro", uri=True)
-        self.gpkg, self.departement, self.emprise_officielle = gpkg, departement, emprise_officielle
-        self.franchissements = self._index(
-            [(shapely.Point(f["lon"], f["lat"]), {c: f.get(c) for c in ("cle", "statut", "raison", "nature", "osm")})
-             for f in franchissements if f.get("statut") in ("blocked", "uncertain")])
-
-    @staticmethod
-    def _index(objets: list) -> tuple:
-        return objets, shapely.STRtree([g for g, _ in objets]) if objets else None
-
-    @staticmethod
-    def _dans(index: tuple, boite) -> list:
-        objets, arbre = index
-        return [] if arbre is None else [objets[i] for i in arbre.query(boite)]
-
-    def bloc(self, sud: float, ouest: float, nord: float, est: float) -> dict:
-        fr, regles = self._fr, self._regles
-        (i0, j0), (i1, j1) = fr.tuile_du_point(sud, ouest), fr.tuile_du_point(nord, est)
-        voies, barrieres = [], []
-        for ident, tags, points in self.base.execute(
-                "SELECT DISTINCT v.id, v.tags, v.points FROM tuiles t JOIN voies v ON v.id = t.voie "
-                "WHERE t.i BETWEEN ? AND ? AND t.j BETWEEN ? AND ?", (i0, i1, j0, j1)):
-            tags = json.loads(tags)
-            latlon = np.frombuffer(points, "<i4").reshape(-1, 2) / 1e7
-            if len(latlon) < 2:
-                continue
-            ligne = shapely.LineString(latlon[:, ::-1])
-            if fr._praticable(tags):
-                voies.append((ligne, {"id": ident, "genre": fr.GENRES.get(tags["highway"], "route")}))
-            elif "barrier" in tags and "highway" not in tags and regles.status(tags, fr.MODE)[0] != "passable":
-                barrieres.append((ligne, {"id": ident, "nature": regles.LABELS.get(tags["barrier"], "Barrière")}))
-        officiels = []
-        if self.gpkg and self.emprise_officielle:
-            es, eo, en, ee = self.emprise_officielle
-            if not (en <= sud or es >= nord or ee <= ouest or eo >= est):
-                from .case import troncons_gpkg
-                vus = set()
-                for t in troncons_gpkg(self.gpkg, max(sud, es), max(ouest, eo), min(nord, en), min(est, ee),
-                                       self.departement):
-                    if t["id"] not in vus:
-                        vus.add(t["id"])
-                        officiels.append((shapely.LineString([(lo, la) for la, lo in t["pts"]]),
-                                          {"id": t["id"], "nature": t["nature"],
-                                           "acces_pieton": t.get("acces_pieton"), "prive": t.get("prive")}))
-        return {"voies": voies, "barrieres": barrieres, "troncons": officiels,
-                "franchissements": self._dans(self.franchissements, shapely.box(ouest, sud, est, nord))}
-
-    def fermer(self) -> None:
-        self.base.close()
 
 
 def boite_case(nom: str) -> tuple:
