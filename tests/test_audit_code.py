@@ -135,3 +135,18 @@ def test_a12_les_manifestes_ne_se_relisent_que_s_ils_changent(tmp_path, monkeypa
     assert h.lots()[0]["case"] == "E5_N40" and len(lus) == 1
     manifeste.write_text(json.dumps({"case": "E5_N40", "format": 3, "zone": [1, 2, 3, 4]}), encoding="utf-8")
     assert h.lots()[0]["zone"] == [1, 2, 3, 4] and len(lus) == 2, "un manifeste changé se relit"
+
+
+def test_a14_un_catalogue_d_archive_mal_forme_est_une_erreur_dite_en_clair(tmp_path):
+    # Le catalogue vient d'un autre PC : une forme inattendue levait AttributeError ou
+    # KeyError jusqu'à la page (erreur 500), au lieu d'un message.
+    import zipfile
+    from hike2gpx import archive, depot
+    a = appli.Application(tmp_path / "donnees")
+    for catalogue in ({"format": depot.FORMAT, "lots": ["E5_N40"]},
+                      {"format": depot.FORMAT, "lots": [{"case": "E5_N40", "fichiers": [{"nom": "E5_N40.rd5"}]}]},
+                      {"format": depot.FORMAT, "lots": [], "fonds": "N43E006-scan25"}):
+        chemin = tmp_path / "archive.zip"
+        with zipfile.ZipFile(chemin, "w") as z:
+            z.writestr(archive.CATALOGUE, json.dumps(catalogue))
+        assert "mal formé" in a.importer_archive(chemin)["erreur"], catalogue

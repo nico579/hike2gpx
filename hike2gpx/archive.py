@@ -30,6 +30,7 @@ import json
 import re
 import shutil
 import zipfile
+import zlib
 from pathlib import Path
 
 from . import depot, hors_ligne as module_hors_ligne, lot, mapsforge, partage
@@ -61,6 +62,28 @@ def _copier(archive: zipfile.ZipFile, adresse: str, cible: Path) -> None:
             shutil.copyfileobj(source, destination, partage.BLOC)
     except KeyError as exc:
         raise ErreurArchive(f"{adresse} manque dans l'archive.") from exc
+    except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
+        # Un membre tronqué ou corrompu (CRC, flux) : un message, pas une erreur 500 (audit A14).
+        raise ErreurArchive(f"{adresse} est altéré dans l'archive ({exc}).") from exc
+
+
+def _liste_d_objets(valeur, quoi: str) -> list:
+    """La liste d'objets (dict) que doit être cette partie du catalogue. Le
+    catalogue vient d'un autre PC : une forme inattendue est une erreur dite
+    en clair, plus une AttributeError ou une KeyError (audit A14, 2026-11-13)."""
+    if valeur is None:
+        return []
+    if not isinstance(valeur, list) or not all(isinstance(e, dict) for e in valeur):
+        raise ErreurArchive(f"Catalogue de l'archive mal formé ({quoi}).")
+    return valeur
+
+
+def _fichier(f: dict, quoi: str) -> tuple:
+    """(adresse, nom) d'un fichier du catalogue, tous deux du texte."""
+    adresse, nom = f.get("url"), f.get("nom")
+    if not isinstance(adresse, str) or not isinstance(nom, str):
+        raise ErreurArchive(f"Catalogue de l'archive mal formé ({quoi} sans adresse ni nom).")
+    return adresse, nom
 
 
 def importer(hors_ligne, chemin_zip: Path) -> dict:
@@ -84,11 +107,12 @@ def importer(hors_ligne, chemin_zip: Path) -> dict:
         lots, fonds = [], []
         travail = hors_ligne.racine / ".archive.part"
         try:
-            for entree in catalogue["lots"]:
+            for entree in _liste_d_objets(catalogue["lots"], "zones"):
                 shutil.rmtree(travail, ignore_errors=True)
                 travail.mkdir(parents=True)
-                for f in entree.get("fichiers", []):
-                    _copier(archive, f["url"], travail / Path(f["nom"]).name)
+                for f in _liste_d_objets(entree.get("fichiers"), "fichiers d'une zone"):
+                    adresse, nom = _fichier(f, "un fichier de zone")
+                    _copier(archive, adresse, travail / Path(nom).name)
                 try:
                     lots.append(hors_ligne.installer(travail)["case"])
                 except module_hors_ligne.ErreurLot as exc:
@@ -97,14 +121,15 @@ def importer(hors_ligne, chemin_zip: Path) -> dict:
             shutil.rmtree(travail, ignore_errors=True)
         hors_ligne.dossier_fonds.mkdir(parents=True, exist_ok=True)
         for cle, suffixe in (("fonds", ".mbtiles"), ("cartes", mapsforge.SUFFIXE)):
-            for f in catalogue.get(cle) or []:
+            for f in _liste_d_objets(catalogue.get(cle), cle):
                 nom = f.get("nom")
                 if not isinstance(nom, str) or not _NOM_FOND.fullmatch(nom):
                     raise ErreurArchive("Nom de carte invalide dans l'archive.")
+                adresse, _ = _fichier(f, "une carte")
                 cible = hors_ligne.dossier_fonds / f"{nom}{suffixe}"
                 provisoire = cible.with_name(f".{cible.name}.archive.part")
                 try:
-                    _copier(archive, f["url"], provisoire)
+                    _copier(archive, adresse, provisoire)
                     if provisoire.stat().st_size != f.get("octets") or lot.empreinte(provisoire) != f.get("sha256"):
                         raise ErreurArchive(f"{nom} : fichier altéré dans l'archive.")
                     provisoire.replace(cible)
