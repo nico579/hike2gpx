@@ -109,11 +109,15 @@ _CARRE = re.compile(r"^([NS])(\d{2})([EW])(\d{3})$")
 # attendant sa plus lente ; or le serveur laisse parfois une requête sans
 # réponse jusqu'au délai, 30 s alors, et les 8 connexions attendaient avec
 # elle. Alignés sur lidar2map : file continue, connexions gardées, 15 s.
+# Puis N43E006 en 1 881 s, en dents de scie quand MOBAC tient un plateau : un
+# enregistrement de la base, à 830 Mo, prenait jusqu'à 12 s, et pendant ce
+# temps rien ne relançait les téléchargements. D'où le mode WAL, des
+# enregistrements plus rares, et une file regarnie avant d'écrire.
 DEBIT = 0.0                 # tuiles par seconde au plus ; 0 : pas de bride
 FILS = 8                    # connexions simultanées
 DELAI = 15                  # secondes au plus pour une tuile, avant un nouvel essai
-FENETRE = 4                 # tuiles en vol par connexion
-ENREGISTREMENT = 32         # tuiles reçues entre deux enregistrements de la base
+FENETRE = 32                # tuiles en vol par connexion : quelques secondes d'avance si le disque traîne
+ENREGISTREMENT = 500        # tuiles reçues entre deux enregistrements (lidar2map : 2 000, sans reprise)
 _NOM = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 
 
@@ -301,8 +305,24 @@ def _telecharger_tuile(url: str, ouvrir, debit: _Debit, continuer) -> bytes | No
     raise ErreurFond(f"Tuiles du fond injoignables ({erreur}).") from erreur
 
 
-def _ouvrir_base(chemin: Path) -> sqlite3.Connection:
+def _tuile_jpeg(url: str, ouvrir, debit: _Debit, continuer) -> bytes | None:
+    """Une tuile téléchargée puis réencodée, dans le fil de sa connexion : le
+    fil principal n'a plus qu'à la ranger."""
+    contenu = _telecharger_tuile(url, ouvrir, debit, continuer)
+    return en_jpeg(contenu) if contenu else None
+
+
+def _ouvrir_base(chemin: Path, ecriture: bool = False) -> sqlite3.Connection:
+    """ecriture : le .part d'un téléchargement, en mode WAL (journal en
+    écriture anticipée) et synchronous=NORMAL : un enregistrement ajoute au
+    journal au lieu de réécrire la base, sans risque pour la reprise si
+    l'application s'arrête. lidar2map va plus loin (journal en mémoire,
+    synchronous=OFF), mais jette son .part sur un échec ; hike2gpx le
+    reprend."""
     base = sqlite3.connect(chemin)
+    if ecriture:
+        base.execute("PRAGMA journal_mode=WAL")
+        base.execute("PRAGMA synchronous=NORMAL")
     base.executescript(
         "CREATE TABLE IF NOT EXISTS metadata (name TEXT, value TEXT);"
         "CREATE TABLE IF NOT EXISTS tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER,"
@@ -327,7 +347,7 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
     chemin = Path(chemin)
     chemin.parent.mkdir(parents=True, exist_ok=True)
     partiel = chemin.with_name(chemin.name + ".part")
-    base = _ouvrir_base(partiel)
+    base = _ouvrir_base(partiel, ecriture=True)
     try:
         deja = set(base.execute("SELECT zoom_level, tile_column, tile_row FROM tiles"))
         toutes = tuiles(zone, zooms)
@@ -340,24 +360,27 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
             # File continue, comme lidar2map : FENETRE tuiles en vol par
             # connexion, et chaque tuile reçue en appelle une autre. Une tuile
             # lente n'arrête que sa connexion, quand des paquets attendaient
-            # chacun leur plus lente.
+            # chacun leur plus lente. La file se regarnit avant d'écrire : un
+            # enregistrement lent n'arrête pas les connexions, qui ont de
+            # l'avance.
             en_vol = {}
 
             def remplir():
                 while len(en_vol) < FENETRE * fils and (t := next(a_faire, None)) is not None:
-                    en_vol[pool.submit(_telecharger_tuile, url_tuile(source, *t, cle_ign), ouvrir,
+                    en_vol[pool.submit(_tuile_jpeg, url_tuile(source, *t, cle_ign), ouvrir,
                                        limiteur, continuer)] = t
             remplir()
             recues = 0
             try:
                 while en_vol:
                     finies, _ = concurrent.futures.wait(en_vol, return_when=concurrent.futures.FIRST_COMPLETED)
-                    for tache in finies:
-                        z, x, y = en_vol.pop(tache)
+                    arrivees = [(en_vol.pop(tache), tache) for tache in finies]
+                    remplir()
+                    for (z, x, y), tache in arrivees:
                         contenu = tache.result()
                         if contenu:
                             base.execute("INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
-                                         (z, x, 2 ** z - 1 - y, en_jpeg(contenu)))
+                                         (z, x, 2 ** z - 1 - y, contenu))
                         faites += 1
                         recues += 1
                     if recues >= ENREGISTREMENT:
@@ -365,10 +388,11 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
                         base.commit()
                         recues = 0
                         suivi(faites, len(toutes))
-                    remplir()
             except BaseException:
                 for tache in en_vol:
                     tache.cancel()
+                # Arrêté ou en échec : les tuiles déjà reçues restent acquises pour la reprise.
+                base.commit()
                 raise
         base.commit()
         suivi(faites, len(toutes))
@@ -383,6 +407,9 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
                     "source": source}
         base.executemany("INSERT OR REPLACE INTO metadata VALUES (?, ?)", metadata.items())
         base.commit()
+        # Le journal versé dans la base, puis le mode ordinaire : le fond
+        # achevé tient en un seul fichier, à lire, partager ou archiver.
+        base.execute("PRAGMA journal_mode=DELETE")
     finally:
         base.close()
         if connexions is not None:
