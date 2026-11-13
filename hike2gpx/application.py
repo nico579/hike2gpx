@@ -1261,19 +1261,22 @@ class Application:
     def _echec_recent(self, cle: str) -> bool:
         return time.monotonic() - self._echecs_lots.get(cle, -self.REESSAI_LOT_S) < self.REESSAI_LOT_S
 
-    def _lots_a_telecharger(self, catalogue: dict, zone) -> list:
+    def _lots_a_telecharger(self, catalogue: dict, zone, calcul: bool = False) -> list:
         """Les entrées du catalogue à télécharger pour la zone : le lot de
         chaque case qu'elle touche, quand il manque ici, ou qu'il vient du dépôt
         et que le catalogue en a un plus récent. Un lot préparé sur cet
         ordinateur n'est jamais remplacé tout seul (la page propose sa mise à
-        jour), ni une case retirée à la main pendant la séance."""
+        jour). Une case retirée à la main pendant la séance ne revient pas pour
+        un calque (un survol de la carte la redemanderait aussitôt), mais
+        revient pour un calcul : un itinéraire en a vraiment besoin (Nico,
+        2026-11-13 : « elles ne se retéléchargent pas »)."""
         cases = set(brouter.segments_zone(*zone))
         installes = {m["case"]: m for m in self.hors_ligne.lots()}
         a_faire = []
         for entree in catalogue["lots"]:
             case = entree["case"]
             couverture = entree.get("zone") if entree.get("type") == "osm" else entree.get("emprise_enrichie")
-            if case not in cases or case in self._lots_retires or self._echec_recent(case) \
+            if case not in cases or (case in self._lots_retires and not calcul) or self._echec_recent(case) \
                     or not couverture or not hors_ligne.touche(couverture, zone):
                 continue
             etat = self._etat_au_catalogue(entree, installes.get(case))
@@ -1302,7 +1305,7 @@ class Application:
             if self._fil_lot is not None and self._fil_lot.is_alive():
                 return bool(self._lot.get("auto"))
             cache = getattr(self, "_catalogue", None)
-            a_faire = self._lots_a_telecharger(cache[1], zone) if cache else []
+            a_faire = self._lots_a_telecharger(cache[1], zone, calcul=raison == "calcul d'itinéraire") if cache else []
             auto, proposees, refusees = self._prefs_zones()
             a_faire = [e for e in a_faire if e["case"] not in refusees] if auto else []
             if not a_faire:
@@ -1385,7 +1388,13 @@ class Application:
         try:
             self._arreter_moteurs()       # un moteur garde la RD5 ouverte : Windows refuserait de l'effacer
             octets = self.hors_ligne.supprimer(case, fonds=(corps or {}).get("fonds", True) is not False)
-            self._lots_retires.add(case)    # elle ne revient pas toute seule pendant la séance
+            self._lots_retires.add(case)    # un calque ne la redemande pas pendant la séance
+            # Supprimée, elle n'est plus acceptée : le prochain calcul qui en a
+            # besoin repose la question, au lieu de la retélécharger en silence.
+            prefs = atomique.lire_json(self.preferences, {})
+            if isinstance(prefs, dict) and case in (prefs.get("zones_proposees") or []):
+                prefs["zones_proposees"] = [c for c in prefs["zones_proposees"] if c != case]
+                atomique.ecrire_json(self.preferences, prefs)
         finally:
             self._verrou_calcul.release()
         journal.info("Case %s retirée de l'ordinateur depuis la carte : %d octets libérés", case, octets)

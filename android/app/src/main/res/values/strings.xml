@@ -33,10 +33,9 @@
     <string name="zone_initiale_message">To compute routes with no network, the phone needs the routing area of this region (cell %1$s, %2$s). Download it now? Otherwise it stays available in “Route management”.</string>
     <string name="zone_refuser">No thanks</string>
     <string name="plan_sans_zone_titre">No routing area here</string>
-    <string name="plan_sans_zone_message">The phone computes its routes offline, with a routing area. None is installed for this part of the map: download it in “Route management”, or share it from a PC.</string>
     <string name="plan_point_sans_zone">No routing area here: the point is not placed.</string>
     <string name="reglage_zones_auto">Download routing areas automatically (one question per area)</string>
-    <string name="zone_refusee">Area %1$s not downloaded. You can download it at any time from “Route management”.</string>
+    <string name="zone_refusee">Area %1$s not downloaded. You can download it at any time from “Route management”, “Refused areas” section.</string>
     <string name="menu_itineraires">Route management</string>
     <string name="menu_aide">Help</string>
     <string name="menu_enregistrer">Record a track</string>
@@ -298,4 +297,8 @@
     <string name="stockage_absent">SD card missing: the maps and routing are on it. Put it back, then restart hike2gpx.</string>
     <string name="etat_deplacement">Moving the maps and routing…</string>
     <string name="etat_deplace">Maps and routing moved: %1$s.</string>
+    <string name="itineraires_refusees">Refused areas, to download</string>
+    <string name="plan_sans_zone_serveur">The phone computes its routes offline, with a routing area. Area %1$s is not installed: download it in “Route management”.</string>
+    <string name="plan_sans_zone_refusee">The phone computes its routes offline, with a routing area. Area %1$s was refused: download it in “Route management”, “Refused areas” section.</string>
+    <string name="plan_sans_zone_pc">The phone computes its routes offline, with a routing area, and the server publishes none for this region. Prepare it on a PC (“Route management”, the offline grid), then share it with the phone: QR code, or zip archive.</string>
 </resources>

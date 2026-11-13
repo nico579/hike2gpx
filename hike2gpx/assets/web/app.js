@@ -2100,6 +2100,7 @@ async function supprimerZone(l) {
   if (!confirm(t("zones.confirmer", { nom: l.case, taille: tailleTexte(l.octets) }))) return;
   let r;
   try { r = await api("supprimer_case", { case: l.case, fonds: false }); } catch (e) { r = { erreur: e.message }; }
+  zonesDemandees.delete(l.case);      // supprimée : un calcul pourra la redemander
   if (r.erreur) afficherLot({ case: l.case, erreur: r.erreur });
   else afficherFile(t("zones.supprimee", { nom: l.case, taille: tailleTexte(r.octets || 0) }));
   await chargerLots();

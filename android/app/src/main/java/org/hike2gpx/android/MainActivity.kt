@@ -208,7 +208,11 @@ class MainActivity : Activity() {
     private var offres: List<Offre> = emptyList()
     /** case -> instant (SystemClock) d'un échec ou d'un refus : pas de nouvel essai automatique avant une heure. */
     private val exclues = mutableMapOf<String, Long>()
-    /** Les cases retirées à la main : elles ne reviennent pas toutes seules pendant la séance (comme le PC). */
+    /**
+     * Les cases retirées à la main : un survol de la carte ne les redemande pas
+     * pendant la séance (comme le PC), mais un calcul d'itinéraire, qui en a
+     * vraiment besoin, si (Nico, 2026-11-13 : « elles ne se retéléchargent pas »).
+     */
     private val retirees = mutableSetOf<String>()
     /** Un point posé pendant une tâche : on reprend à sa fin. */
     private var aReprendre = false
@@ -885,7 +889,7 @@ class MainActivity : Activity() {
             aReprendre = true; return
         }
         val maintenant = SystemClock.elapsedRealtime()
-        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees + reglages.zonesRefusees
+        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + reglages.zonesRefusees
         val aFaire = lotsATelecharger(offres, horsLigne.lots(), Zone.autour(points), exclu)
         if (reglages.zonesAuto && aFaire.isNotEmpty()) {
             autoLotDemande = aFaire.first().lot.case
@@ -1240,6 +1244,9 @@ class MainActivity : Activity() {
                 routeur.annuler()
                 val octets = horsLigne.supprimer(lot.case)
                 retirees.add(lot.case)
+                // Supprimée, elle n'est plus acceptée : le prochain calcul qui en a
+                // besoin repose la question, au lieu de la retélécharger en silence.
+                reglages.zonesProposees = reglages.zonesProposees - lot.case
                 etat.text = getString(R.string.etat_supprime, lot.case,
                     Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
@@ -1578,6 +1585,24 @@ class MainActivity : Activity() {
         // Les lots installés, pour la liste des zones en fin de page et pour
         // savoir ce qu'un PC apporte en plus.
         val installes = horsLigne.lots()
+
+        // Les zones du serveur refusées à la question : elles se reprennent ici,
+        // comme le promet la question (sur le PC, c'est la grille hors ligne).
+        val refusees = offres.filter { o -> o.lot.case in reglages.zonesRefusees && installes.none { it.case == o.lot.case } }
+            .distinctBy { it.lot.case }.sortedBy { it.lot.case }
+        if (refusees.isNotEmpty()) {
+            titre(colonne, R.string.itineraires_refusees)
+            for (offre in refusees) colonne.addView(Button(this).apply {
+                text = getString(R.string.itineraires_lot, offre.lot.case, description(offre.lot),
+                    Formatter.formatShortFileSize(this@MainActivity, offre.lot.octets), offre.source.libelle)
+                setOnClickListener {
+                    // Reprise : la zone redevient acceptée, et se renouvellera d'elle-même.
+                    reglages.zonesRefusees = reglages.zonesRefusees - offre.lot.case
+                    reglages.zonesProposees = reglages.zonesProposees + offre.lot.case
+                    telecharger(offre)
+                }
+            }.avecIcone(R.drawable.ic_btn_telecharger))
+        }
 
         // Ce que seul un PC calcule : ses lots absents du serveur et du téléphone.
         titre(colonne, R.string.itineraires_pc)
@@ -2530,10 +2555,23 @@ class MainActivity : Activity() {
     }
 
     /** Sans zone de routage, la planification ne mènerait à rien : on le dit, et où la prendre. */
+    /**
+     * Pas de zone de routage sous la carte : le message dit où la prendre, selon
+     * le cas. Le serveur en publie une : dans « Gestion des itinéraires »
+     * (section « Zones refusées » si elle a été refusée). Il n'en publie pas :
+     * seul un PC la prépare, puis la partage au téléphone (QR code ou archive).
+     */
     private fun expliquerSansZone() {
+        val boite = carte.boundingBox
+        val offre = boite?.let { offreAuCentre(offres, horsLigne.lots(), Zone(it.latSouth, it.lonWest, it.latNorth, it.lonEast), emptySet()) }
+        val message = when {
+            offre == null -> getString(R.string.plan_sans_zone_pc)
+            offre.lot.case in reglages.zonesRefusees -> getString(R.string.plan_sans_zone_refusee, offre.lot.case)
+            else -> getString(R.string.plan_sans_zone_serveur, offre.lot.case)
+        }
         AlertDialog.Builder(this)
             .setTitle(R.string.plan_sans_zone_titre)
-            .setMessage(R.string.plan_sans_zone_message)
+            .setMessage(message)
             .setPositiveButton(R.string.menu_itineraires) { _, _ -> ouvrirItineraires() }
             .setNegativeButton(R.string.fermer, null)
             .show()

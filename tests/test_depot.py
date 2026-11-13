@@ -237,3 +237,31 @@ def test_une_zone_refusee_ou_le_reglage_decoche_ne_se_telecharge_plus(tmp_path, 
     assert a.reglages()["zones_auto"] is False
     assert a._lot_automatique(zone, "essai") is False
     assert not a.lots_hors_ligne()["lots"]
+
+
+def test_une_zone_supprimee_revient_pour_un_calcul_apres_une_question(tmp_path, monkeypatch):
+    # Nico, 2026-11-13 : « j'ai supprimé les zones de routage, et elles ne se
+    # retéléchargent pas automatiquement ». Un survol de la carte ne la
+    # redemande pas pendant la séance ; un calcul, si, après la question.
+    from hike2gpx import application as appli
+    fabriquer_lot(tmp_path / "lots" / "E5_N40")
+    depot.ecrire_catalogue(tmp_path / "lots", tmp_path / "publication")
+    ouvrir, _ = servir(tmp_path / "publication")
+    monkeypatch.setattr(depot.urllib.request, "urlopen", ouvrir)
+    a = appli.Application(tmp_path / "donnees")
+    zone = (43.30, 5.50, 43.31, 5.51)
+    a._lot_automatique(zone, "calcul d'itinéraire")
+    a.repondre_zone({"case": "E5_N40", "accepter": True})
+    a._fil_lot.join(10)
+    assert [m["case"] for m in a.hors_ligne.lots()] == ["E5_N40"]
+    a.supprimer_case({"case": "E5_N40"})
+    assert "E5_N40" not in a._prefs_zones()[1], "supprimée : plus acceptée d'office"
+    # Un calque (le survol) ne la redemande pas pendant la séance.
+    assert a._lot_automatique(zone, "calque des chemins OSM") is False
+    assert "zone_a_proposer" not in a._avec_lot_automatique({})
+    # Un calcul, si : la question revient, puis la zone se télécharge.
+    assert a._lot_automatique(zone, "calcul d'itinéraire") is False
+    assert a._avec_lot_automatique({})["zone_a_proposer"]["case"] == "E5_N40"
+    a.repondre_zone({"case": "E5_N40", "accepter": True})
+    a._fil_lot.join(10)
+    assert [m["case"] for m in a.hors_ligne.lots()] == ["E5_N40"]
