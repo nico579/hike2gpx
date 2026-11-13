@@ -15,8 +15,10 @@ dépôt (depot.py ne publie que des lots, décrits par leur manifeste).
 
 Le téléchargement suit lidar2map, qui fabrique ses fonds ainsi depuis
 longtemps : FILS connexions simultanées, sans autre bride, avec le User-Agent
-du projet. DEBIT reste réglable pour un service qui demanderait d'aller plus
-doucement.
+du projet ; une connexion gardée ouverte par fil (keep-alive) ; une file
+continue, où une tuile lente n'arrête que sa connexion ; DELAI secondes au
+plus par tuile. DEBIT reste réglable pour un service qui demanderait d'aller
+plus doucement.
 """
 from __future__ import annotations
 
@@ -102,8 +104,16 @@ _CARRE = re.compile(r"^([NS])(\d{2})([EW])(\d{3})$")
 # Comme lidar2map (demande de Nico du 2026-11-05) : 8 connexions, sans bride.
 # À 4 connexions et 10 tuiles par seconde au plus, un carré prenait 2 h 30 ;
 # lidar2map fait 55 912 tuiles de SCAN 25 en 20 minutes.
+# Puis, mesuré le 2026-11-13 : 4 872 s pour les 61 508 tuiles de N43E005
+# (12,6 par seconde). Les tuiles partaient par paquets de 256, chacun
+# attendant sa plus lente ; or le serveur laisse parfois une requête sans
+# réponse jusqu'au délai, 30 s alors, et les 8 connexions attendaient avec
+# elle. Alignés sur lidar2map : file continue, connexions gardées, 15 s.
 DEBIT = 0.0                 # tuiles par seconde au plus ; 0 : pas de bride
 FILS = 8                    # connexions simultanées
+DELAI = 15                  # secondes au plus pour une tuile, avant un nouvel essai
+FENETRE = 4                 # tuiles en vol par connexion
+ENREGISTREMENT = 32         # tuiles reçues entre deux enregistrements de la base
 _NOM = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 
 
@@ -201,6 +211,69 @@ class _Debit:
             time.sleep(attente)
 
 
+class _Reponse(io.BytesIO):
+    """Le corps d'une réponse déjà lu, à la manière de celle d'urlopen."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _Connexions:
+    """Un urlopen qui garde une connexion HTTP/1.1 ouverte par fil (keep-alive)
+    et par hôte, comme lidar2map (_wmts_fetch) : urlopen refait une poignée de
+    main TCP et TLS à chaque tuile. Une connexion que le serveur a fermée se
+    rouvre une fois ; un délai dépassé remonte tel quel, pour le nouvel essai
+    de _telecharger_tuile. Un statut d'erreur lève HTTPError, comme urlopen."""
+
+    def __init__(self):
+        self.locales = threading.local()
+        self.ouvertes = []
+        self.verrou = threading.Lock()
+
+    def _connexion(self, schema: str, hote: str, timeout: float):
+        cache = getattr(self.locales, "par_hote", None)
+        if cache is None:
+            cache = self.locales.par_hote = {}
+        if hote not in cache:
+            classe = http.client.HTTPSConnection if schema == "https" else http.client.HTTPConnection
+            cache[hote] = classe(hote, timeout=timeout)
+            with self.verrou:
+                self.ouvertes.append(cache[hote])
+        return cache[hote]
+
+    def _oublier(self, hote: str) -> None:
+        connexion = getattr(self.locales, "par_hote", {}).pop(hote, None)
+        if connexion is not None:
+            connexion.close()
+
+    def __call__(self, requete, timeout=DELAI):
+        parties = urllib.parse.urlsplit(requete.full_url)
+        chemin = parties.path + (f"?{parties.query}" if parties.query else "")
+        for essai in range(2):
+            connexion = self._connexion(parties.scheme, parties.netloc, timeout)
+            try:
+                connexion.request("GET", chemin, headers=dict(requete.header_items()))
+                reponse = connexion.getresponse()
+                contenu = reponse.read()          # lu en entier : la connexion resservira
+                break
+            except (http.client.HTTPException, OSError) as exc:
+                self._oublier(parties.netloc)
+                if essai or isinstance(exc, TimeoutError):
+                    raise
+        if reponse.status >= 300:
+            raise urllib.error.HTTPError(requete.full_url, reponse.status, reponse.reason, reponse.headers, None)
+        return _Reponse(contenu)
+
+    def fermer(self) -> None:
+        with self.verrou:
+            for connexion in self.ouvertes:
+                connexion.close()
+            self.ouvertes.clear()
+
+
 def _telecharger_tuile(url: str, ouvrir, debit: _Debit, continuer) -> bytes | None:
     """Le contenu de la tuile, None hors couverture (404, ou 400 hors de la
     matrice) ; quatre essais, espacés de 2, 4 puis 8 s, sur une coupure ou un
@@ -213,7 +286,7 @@ def _telecharger_tuile(url: str, ouvrir, debit: _Debit, continuer) -> bytes | No
             raise Abandon()
         debit.attendre()
         try:
-            with ouvrir(urllib.request.Request(url, headers=AGENT), timeout=30) as reponse:
+            with ouvrir(urllib.request.Request(url, headers=AGENT), timeout=DELAI) as reponse:
                 return reponse.read()
         except urllib.error.HTTPError as exc:
             if exc.code in (400, 404):
@@ -249,7 +322,8 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
         raise ErreurFond("Le SCAN 25 demande la clé IGN des réglages.")
     suivi = suivi or (lambda faites, total: None)
     continuer = continuer or (lambda: True)
-    ouvrir = ouvrir or urllib.request.urlopen
+    connexions = None if ouvrir else _Connexions()
+    ouvrir = ouvrir or connexions
     chemin = Path(chemin)
     chemin.parent.mkdir(parents=True, exist_ok=True)
     partiel = chemin.with_name(chemin.name + ".part")
@@ -257,24 +331,47 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
     try:
         deja = set(base.execute("SELECT zoom_level, tile_column, tile_row FROM tiles"))
         toutes = tuiles(zone, zooms)
-        a_faire = [(z, x, y) for z, x, y in toutes if (z, x, 2 ** z - 1 - y) not in deja]
-        faites = len(toutes) - len(a_faire)
+        restantes = [(z, x, y) for z, x, y in toutes if (z, x, 2 ** z - 1 - y) not in deja]
+        faites = len(toutes) - len(restantes)
+        a_faire = iter(restantes)
         suivi(faites, len(toutes))
         limiteur = _Debit(debit)
         with concurrent.futures.ThreadPoolExecutor(max_workers=fils) as pool:
-            # Par paquets de 32 tuiles par connexion : quelques Mo en mémoire, et chaque paquet
-            # attend sa tuile la plus lente moins souvent qu'avec de petits paquets.
-            for debut in range(0, len(a_faire), 32 * fils):
-                paquet = a_faire[debut:debut + 32 * fils]
-                contenus = pool.map(lambda t: _telecharger_tuile(url_tuile(source, *t, cle_ign), ouvrir,
-                                                                  limiteur, continuer), paquet)
-                for (z, x, y), contenu in zip(paquet, contenus):
-                    if contenu:
-                        base.execute("INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
-                                     (z, x, 2 ** z - 1 - y, en_jpeg(contenu)))
-                base.commit()
-                faites += len(paquet)
-                suivi(faites, len(toutes))
+            # File continue, comme lidar2map : FENETRE tuiles en vol par
+            # connexion, et chaque tuile reçue en appelle une autre. Une tuile
+            # lente n'arrête que sa connexion, quand des paquets attendaient
+            # chacun leur plus lente.
+            en_vol = {}
+
+            def remplir():
+                while len(en_vol) < FENETRE * fils and (t := next(a_faire, None)) is not None:
+                    en_vol[pool.submit(_telecharger_tuile, url_tuile(source, *t, cle_ign), ouvrir,
+                                       limiteur, continuer)] = t
+            remplir()
+            recues = 0
+            try:
+                while en_vol:
+                    finies, _ = concurrent.futures.wait(en_vol, return_when=concurrent.futures.FIRST_COMPLETED)
+                    for tache in finies:
+                        z, x, y = en_vol.pop(tache)
+                        contenu = tache.result()
+                        if contenu:
+                            base.execute("INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)",
+                                         (z, x, 2 ** z - 1 - y, en_jpeg(contenu)))
+                        faites += 1
+                        recues += 1
+                    if recues >= ENREGISTREMENT:
+                        # Dans le désordre, mais chaque tuile rangée ne se redemande plus.
+                        base.commit()
+                        recues = 0
+                        suivi(faites, len(toutes))
+                    remplir()
+            except BaseException:
+                for tache in en_vol:
+                    tache.cancel()
+                raise
+        base.commit()
+        suivi(faites, len(toutes))
         if base.execute("SELECT COUNT(*) FROM tiles").fetchone()[0] == 0:
             raise ErreurFond("Aucune tuile de ce fond sur cette zone (hors de son pays ?).")
         sud, ouest, nord, est = zone
@@ -288,6 +385,8 @@ def fabriquer(chemin: Path, source: str, zone: tuple, zooms: tuple, cle_ign: str
         base.commit()
     finally:
         base.close()
+        if connexions is not None:
+            connexions.fermer()
     partiel.replace(chemin)
     return decrire(chemin)
 
