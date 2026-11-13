@@ -3,27 +3,10 @@ package org.hike2gpx.android
 import java.io.File
 
 /**
- * Ce qui se télécharge de soi-même, comme sur le PC (application._lots_a_telecharger) :
- * le lot du serveur de chaque case que touche un parcours, quand il manque sur
- * le téléphone ou que le dépôt en a un plus récent. Une case refusée ou en
- * échec n'est pas reprise tant qu'elle figure dans exclues.
- */
-fun lotsATelecharger(offres: List<Offre>, installes: List<Lot>, zone: Zone, exclues: Set<String>): List<Offre> {
-    val parCase = installes.associateBy { it.case }
-    return offres.filter { offre ->
-        val lot = offre.lot
-        val couverture = lot.couverture
-        val present = parCase[lot.case]
-        lot.case !in exclues && couverture != null && zone.touche(couverture) &&
-            (present == null || plusRecent(lot, present))
-    }
-}
-
-/**
- * L'offre du lot qui couvre le centre de la vue, s'il manque ou si le
- * catalogue en a un plus récent ; null sinon. C'est le lot que lit le calque
- * de la carte : afficher un calque est un usage réel de la région, comme sur
- * le PC (`application._lot_automatique` appelé par `calque_osm`).
+ * L'offre du lot qui couvre le centre de la zone, s'il manque ou si le
+ * catalogue en a un plus récent ; null sinon. C'est la zone que propose la
+ * question de « Planifier un itinéraire » là où aucune n'est installée
+ * (MainActivity.demanderZonePour).
  */
 fun offreAuCentre(offres: List<Offre>, installes: List<Lot>, zone: Zone, exclues: Set<String>): Offre? {
     val lat = (zone.sud + zone.nord) / 2
