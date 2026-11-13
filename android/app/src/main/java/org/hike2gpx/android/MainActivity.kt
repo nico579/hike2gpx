@@ -1586,6 +1586,24 @@ class MainActivity : Activity() {
         // savoir ce qu'un PC apporte en plus.
         val installes = horsLigne.lots()
 
+        // Les zones du serveur refusées à la question : elles se reprennent ici,
+        // comme le promet la question (sur le PC, c'est la grille hors ligne).
+        val refusees = offres.filter { o -> o.lot.case in reglages.zonesRefusees && installes.none { it.case == o.lot.case } }
+            .distinctBy { it.lot.case }.sortedBy { it.lot.case }
+        if (refusees.isNotEmpty()) {
+            titre(colonne, R.string.itineraires_refusees)
+            for (offre in refusees) colonne.addView(Button(this).apply {
+                text = getString(R.string.itineraires_lot, offre.lot.case, description(offre.lot),
+                    Formatter.formatShortFileSize(this@MainActivity, offre.lot.octets), offre.source.libelle)
+                setOnClickListener {
+                    // Reprise : la zone redevient acceptée, et se renouvellera d'elle-même.
+                    reglages.zonesRefusees = reglages.zonesRefusees - offre.lot.case
+                    reglages.zonesProposees = reglages.zonesProposees + offre.lot.case
+                    telecharger(offre)
+                }
+            }.avecIcone(R.drawable.ic_btn_telecharger))
+        }
+
         // Ce que seul un PC calcule : ses lots absents du serveur et du téléphone.
         titre(colonne, R.string.itineraires_pc)
         val duPc = lotsDuPc(installes)
