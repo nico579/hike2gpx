@@ -225,7 +225,9 @@ class Application:
         self.dossier = Path(dossier)
         self.installation = brouter.Installation(self.dossier)
         self.maison = maison.TuilesMaison(self.installation, self.dossier)
-        self.hors_ligne = hors_ligne.HorsLigne(self.dossier)
+        # Les cartes et les zones hors ligne, dans le dossier choisi aux réglages
+        # (un autre disque, plus grand) ou dans celui des données.
+        self.hors_ligne = hors_ligne.HorsLigne(self._dossier_hors_ligne())
         # Le dépôt des lots du serveur ; HIKE2GPX_DEPOT en désigne un autre (un
         # PC qui sert ses lots, un essai).
         self.depot_lots = os.environ.get("HIKE2GPX_DEPOT", depot.DEPOT)
@@ -274,7 +276,76 @@ class Application:
         cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
         return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
                 "renouvellement_jours": geofabrik.jours_renouvellement(self.dossier),
-                "zones_auto": self._prefs_zones()[0]}
+                "zones_auto": self._prefs_zones()[0],
+                "dossier_hors_ligne": str(self.hors_ligne.racine.parent)}
+
+    def _dossier_hors_ligne(self) -> Path:
+        """Le dossier qui reçoit hors-ligne/ : celui des préférences, sinon
+        celui des données. Lu avant self.preferences, d'où le chemin écrit ici."""
+        prefs = atomique.lire_json(self.dossier / "preferences.json", {})
+        choisi = prefs.get("dossier_hors_ligne") if isinstance(prefs, dict) else None
+        return Path(choisi) if isinstance(choisi, str) and choisi.strip() else self.dossier
+
+    def deplacer_hors_ligne(self, corps) -> dict:
+        """Déplace les cartes et les zones hors ligne dans le dossier choisi,
+        en tâche de fond, avec sa ligne d'activité. Les moteurs BRouter, qui
+        lisent les segments, s'arrêtent le temps du déplacement et repartent
+        au calcul suivant sur le nouveau dossier ; le partage se referme."""
+        valeur = (corps or {}).get("dossier")
+        if not isinstance(valeur, str) or not valeur.strip():
+            return {"erreur": "Dossier manquant."}
+        dossier = Path(valeur.strip()).expanduser()
+        if not dossier.is_absolute():
+            return {"erreur": "Indiquez un chemin complet (par exemple D:\\Cartes)."}
+        dossier = dossier.resolve()
+        actuel = self.hors_ligne.racine
+        cible = dossier / actuel.name
+        if dossier == actuel.parent.resolve():
+            return {"erreur": "C'est déjà le dossier des données hors ligne."}
+        if cible.resolve().is_relative_to(actuel.resolve()):
+            return {"erreur": "Le dossier choisi est à l'intérieur des données hors ligne."}
+        if cible.exists():
+            return {"erreur": f"{cible} existe déjà : choisissez un autre dossier."}
+        try:
+            dossier.mkdir(parents=True, exist_ok=True)
+            libre = shutil.disk_usage(dossier).free
+        except OSError as exc:
+            return {"erreur": f"Dossier inaccessible : {exc}"}
+        octets = hors_ligne.taille(actuel) if actuel.exists() else 0
+        if libre < octets * 1.05:
+            return {"erreur": f"Place insuffisante : {octets / 1e9:.1f} Go à déplacer, {libre / 1e9:.1f} Go libres."}
+        with self._verrou_lot:
+            if self._fil_lot is not None and self._fil_lot.is_alive():
+                return {"erreur": "Une préparation est en cours : attendez sa fin pour déplacer les données."}
+            self._lot = {"actif": True, "case": "", "etape": "deplacement", "faites": 0, "total": octets,
+                         "debut": time.time(), "arreter": False}
+            self._fil_lot = threading.Thread(target=self._deplacer_hors_ligne, args=(dossier,), daemon=True,
+                                             name="deplacement-hors-ligne")
+            self._fil_lot.start()
+        return {"lot_en_cours": self.lot_en_cours()}
+
+    def _deplacer_hors_ligne(self, dossier: Path) -> None:
+        actuel = self.hors_ligne.racine
+        try:
+            self.partage.fermer()
+            with self._verrou_calcul:
+                self._arreter_moteurs()
+                hors_ligne.deplacer(actuel, dossier / actuel.name,
+                                    suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
+                                    continuer=lambda: not self._lot.get("arreter"))
+                self.hors_ligne = hors_ligne.HorsLigne(dossier)
+                self.partage.hors_ligne = self.hors_ligne
+            prefs = atomique.lire_json(self.preferences, {})
+            prefs = prefs if isinstance(prefs, dict) else {}
+            prefs["dossier_hors_ligne"] = str(dossier)
+            atomique.ecrire_json(self.preferences, prefs)
+            journal.info("Données hors ligne déplacées de %s vers %s", actuel, dossier)
+            self._lot = {"actif": False, "etape": "fini", "deplace": str(dossier)}
+        except hors_ligne.Abandon:
+            self._lot = {"actif": False, "erreur": "Déplacement arrêté : les données restent où elles étaient."}
+        except (OSError, hors_ligne.ErreurLot) as exc:
+            journal.warning("Déplacement des données hors ligne impossible : %s", exc)
+            self._lot = {"actif": False, "erreur": f"Déplacement impossible : {exc}"}
 
     def _prefs_zones(self) -> tuple:
         """(téléchargement automatique, cases déjà proposées, cases refusées) :
@@ -1152,7 +1223,8 @@ class Application:
                 "supprimer_case": self.supprimer_case, "supprimer_fond": self.supprimer_fond,
                 "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot,
                 "preparer_fond": self.preparer_fond, "partage": self.partager,
-                "zone_reponse": self.repondre_zone, **post_langue}
+                "zone_reponse": self.repondre_zone, "deplacer_hors_ligne": self.deplacer_hors_ligne,
+                **post_langue}
         return get, post
 
     CATALOGUE_TTL_S = 600.0

@@ -379,6 +379,17 @@ L'archive reprend le partage au téléphone mis dans un zip : le même catalogue
 où chaque fichier porte sa taille et son empreinte SHA-256, vérifiées avant
 l'installation. Un fichier altéré est refusé.
 
+
+### Choisir où ranger les cartes et les zones
+
+Les cartes et les zones de routage pèsent vite plusieurs Go. Sur le PC, les
+réglages indiquent leur dossier : saisissez-en un autre, sur un disque plus
+grand, puis « Déplacer ». Sur le même disque, c'est instantané ; sur un autre,
+la copie se suit dans la ligne d'activité, et l'original n'est effacé qu'une
+fois la copie complète. Sur le téléphone, les réglages proposent la mémoire du
+téléphone ou la carte SD, avec la place libre de chacune. Si la carte SD est
+retirée, hike2gpx le dit et repart sur la mémoire du téléphone.
+
 ### Les règles des franchissements
 
 Chaque croisement entre un chemin et une barrière est jugé avec les règles de

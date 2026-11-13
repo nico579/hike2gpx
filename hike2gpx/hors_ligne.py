@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 import shutil
 import sqlite3
 from datetime import datetime
@@ -36,6 +37,57 @@ SUFFIXES_FONDS = (".mbtiles", mapsforge.SUFFIXE)
 # (que le lot publié ne change pas) : ce lot est un cache, renouvelé tout seul.
 # Un lot préparé sur l'ordinateur n'en a pas.
 ORIGINE = "origine.json"
+
+
+class Abandon(Exception):
+    """Le déplacement des données arrêté à la demande."""
+
+
+def taille(dossier: Path) -> int:
+    """Les octets d'un dossier, sous-dossiers compris."""
+    return sum(p.stat().st_size for p in Path(dossier).rglob("*") if p.is_file())
+
+
+def deplacer(source: Path, cible: Path, suivi=lambda faites, total: None, continuer=lambda: True) -> None:
+    """Déplace le dossier source (hors-ligne) en cible, absente. Sur le même
+    disque, un renommage, instantané ; sur un autre, une copie fichier par
+    fichier dans cible.part, renommée à la fin, puis l'effacement de la
+    source : une copie interrompue ne laisse jamais deux dossiers valides."""
+    source, cible = Path(source), Path(cible)
+    if cible.exists():
+        raise ErreurLot(f"{cible} existe déjà.")
+    cible.parent.mkdir(parents=True, exist_ok=True)
+    if not source.exists():
+        return
+    try:
+        os.rename(source, cible)
+        return
+    except OSError:
+        pass                        # un autre disque : copie
+    provisoire = cible.with_name(cible.name + ".part")
+    shutil.rmtree(provisoire, ignore_errors=True)
+    total, faites = taille(source), 0
+    try:
+        for chemin in sorted(source.rglob("*")):
+            destination = provisoire / chemin.relative_to(source)
+            if chemin.is_dir():
+                destination.mkdir(parents=True, exist_ok=True)
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with open(chemin, "rb") as a, open(destination, "wb") as b:
+                while bloc := a.read(1 << 20):
+                    if not continuer():
+                        raise Abandon()
+                    b.write(bloc)
+                    faites += len(bloc)
+                    suivi(faites, total)
+            shutil.copystat(chemin, destination)
+        provisoire.mkdir(parents=True, exist_ok=True)
+        provisoire.rename(cible)
+    except BaseException:
+        shutil.rmtree(provisoire, ignore_errors=True)
+        raise
+    shutil.rmtree(source, ignore_errors=True)
 
 
 def touche(boite, zone) -> bool:

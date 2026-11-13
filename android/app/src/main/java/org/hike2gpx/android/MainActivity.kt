@@ -276,7 +276,7 @@ class MainActivity : Activity() {
         MapsForgeTileSource.createInstance(application)
         reglages = Reglages(this)
         reglages.oublierPcs()                   // un PC ne se contacte qu'au scan de son QR code
-        horsLigne = HorsLigne(filesDir)
+        horsLigne = HorsLigne(dossierDonnees())
         fonds = Fonds(horsLigne.racine)
         pays = Pays(assets)
         routeur = Routeur(Reglages.profils(this))
@@ -2025,6 +2025,81 @@ class MainActivity : Activity() {
         if (!enCours.get()) tacheAffichee = false
     }
 
+    // ------------------------------------------------------------------ emplacement des données
+
+    /**
+     * Le dossier qui reçoit hors-ligne/ : la carte SD choisie aux réglages si
+     * elle est là, sinon la mémoire du téléphone. Une carte SD retirée ne fait
+     * pas tomber l'application : elle le dit, et repart sur la mémoire.
+     */
+    private fun dossierDonnees(): File {
+        val choisi = reglages.stockage?.let(::File) ?: return filesDir
+        if (Environment.getExternalStorageState(choisi) == Environment.MEDIA_MOUNTED) return choisi
+        Toast.makeText(this, R.string.stockage_absent, Toast.LENGTH_LONG).show()
+        return filesDir
+    }
+
+    /**
+     * Les emplacements possibles : la mémoire du téléphone, puis chaque carte
+     * SD montée. Sur la carte, le dossier propre à l'application
+     * (getExternalFilesDirs) : ni permission à demander, ni fichier hors de
+     * portée de sqlite et de Mapsforge, qui lisent par chemin.
+     */
+    private fun emplacements(): List<Pair<File, String>> {
+        val liste = mutableListOf(filesDir to getString(R.string.stockage_telephone))
+        getExternalFilesDirs(null).filterNotNull().filter {
+            Environment.isExternalStorageRemovable(it) &&
+                Environment.getExternalStorageState(it) == Environment.MEDIA_MOUNTED
+        }.forEach { liste += it to getString(R.string.stockage_carte_sd) }
+        return liste
+    }
+
+    /** La section des réglages : un bouton par emplacement, l'actuel coché, la place libre de chacun. */
+    private fun choixEmplacement(colonne: LinearLayout) {
+        titre(colonne, R.string.stockage_titre)
+        val actuel = horsLigne.racine.parentFile?.absolutePath
+        val liste = emplacements()
+        val groupe = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        for ((dossier, nom) in liste) {
+            groupe.addView(RadioButton(this).apply {
+                id = View.generateViewId()
+                text = getString(R.string.stockage_ligne, nom,
+                    Formatter.formatShortFileSize(this@MainActivity, dossier.usableSpace))
+                isChecked = dossier.absolutePath == actuel
+                setOnClickListener { if (dossier.absolutePath != actuel) confirmerDeplacement(dossier, nom) }
+            })
+        }
+        colonne.addView(groupe)
+        if (liste.size == 1) colonne.addView(TextView(this).apply { setText(R.string.stockage_sans_sd) })
+    }
+
+    private fun confirmerDeplacement(dossier: File, nom: String) {
+        val octets = HorsLigne.taille(horsLigne.racine)
+        if (dossier.usableSpace < octets + octets / 20) {
+            Toast.makeText(this, getString(R.string.err_place, octets / 1_000_000 + 1), Toast.LENGTH_LONG).show()
+            remplirReglages()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.stockage_titre)
+            .setMessage(getString(R.string.stockage_confirmer, Formatter.formatShortFileSize(this, octets), nom))
+            .setPositiveButton(R.string.stockage_deplacer) { _, _ -> deplacerDonnees(dossier, nom) }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> remplirReglages() }
+            .setOnCancelListener { remplirReglages() }
+            .show()
+    }
+
+    /** Le déplacement en tâche de fond, avec sa barre ; l'écran repart ensuite sur le nouvel emplacement. */
+    private fun deplacerDonnees(dossier: File, nom: String) {
+        tache(R.string.etat_deplacement, true, { continuer ->
+            routeur.annuler()
+            HorsLigne.deplacer(horsLigne.racine, File(dossier, horsLigne.racine.name),
+                suiviTelechargement(getString(R.string.stockage_titre)), continuer)
+            reglages.stockage = if (dossier == filesDir) null else dossier.absolutePath
+            getString(R.string.etat_deplace, nom)
+        }, ensuite = { reussi -> if (reussi) recreate() else remplirReglages() })
+    }
+
     // ------------------------------------------------------------------ réglages
 
     private fun ouvrirReglages() {
@@ -2059,6 +2134,9 @@ class MainActivity : Activity() {
             reglages.zoomCalques = it.roundToInt()
             planifierCalques()
         }
+
+        // Les cartes et les zones pèsent des Go : la carte SD peut les recevoir.
+        choixEmplacement(colonne)
 
         // La clé IGN du SCAN 25, le même réglage que sur le PC.
         titreAvecInfo(colonne, R.string.reglages_cle_ign, R.string.reglages_cle_note)

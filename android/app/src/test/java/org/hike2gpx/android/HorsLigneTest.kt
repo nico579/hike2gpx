@@ -54,6 +54,25 @@ class HorsLigneTest {
         assertEquals(listOf("E5_N40"), h.lots().map { it.case })
     }
 
+    @Test fun les_donnees_se_deplacent_vers_un_autre_emplacement() {
+        // Nico, 2026-11-13 : « sur Android, stocker sur la carte SD peut aider ».
+        val h = HorsLigne(dossier.newFolder())
+        h.installer(lot())
+        val carteSd = dossier.newFolder()
+        val cible = File(carteSd, h.racine.name)
+        HorsLigne.deplacer(h.racine, cible)
+        assertFalse(h.racine.exists())
+        assertEquals(listOf("E5_N40"), HorsLigne(carteSd).lots().map { it.case })
+        assertTrue(File(HorsLigne(carteSd).segments, "E5_N40.rd5").isFile)
+        // Une cible déjà occupée : rien ne bouge.
+        try {
+            HorsLigne.deplacer(cible, cible)
+            fail("une cible existante ne doit pas être écrasée")
+        } catch (e: java.io.IOException) {
+            assertTrue(cible.isDirectory)
+        }
+    }
+
     @Test fun lot_osm_dans_ses_propres_segments() {
         val h = HorsLigne(dossier.newFolder())
         h.installer(lot("enrichi"))

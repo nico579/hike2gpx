@@ -221,10 +221,12 @@ class Handler(serveweb.Handler):
         """/fonds/<nom>/<z>/<x>/<y> : une tuile d'un fond de carte installé
         (fonds.py), que la page affiche sans réseau. 404 hors du fond."""
         morceaux = chemin.split("/")[2:]
-        if len(morceaux) != 4 or not all(m.isascii() and m.isdigit() for m in morceaux[1:]) or self.hors_ligne is None:
+        # Le dossier hors ligne de l'application : il peut avoir été déplacé (réglages).
+        hors_ligne = self.application.hors_ligne if self.application is not None else self.hors_ligne
+        if len(morceaux) != 4 or not all(m.isascii() and m.isdigit() for m in morceaux[1:]) or hors_ligne is None:
             self.send_error(404)
             return
-        fichier = self.hors_ligne.chemin_fond(morceaux[0])
+        fichier = hors_ligne.chemin_fond(morceaux[0])
         z, x, y = (int(m) for m in morceaux[1:])
         try:
             tuile = fonds.lire_tuile(fichier, z, x, y) if fichier and z <= 24 else None

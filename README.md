@@ -362,6 +362,16 @@ The archive is the phone share put in a zip: the same catalogue, where each
 file carries its size and SHA-256 fingerprint, checked before installing. A
 damaged file is refused.
 
+
+### Choosing where the maps and areas are stored
+
+Maps and routing areas quickly weigh several GB. On the PC, the settings show
+their folder: enter another one, on a bigger disk, then "Move". On the same
+disk it is instant; on another, the copy shows in the activity row, and the
+original is only deleted once the copy is complete. On the phone, the settings
+offer the phone storage or the SD card, with the free space of each. If the SD
+card is removed, hike2gpx says so and falls back to the phone storage.
+
 ### Crossing rules
 
 Each crossing between a path and a barrier is judged with the rules of
