@@ -393,7 +393,7 @@ débranché, hike2gpx le signale dans son journal et repart sur l'emplacement
 standard.
 
 Sur le téléphone, les réglages proposent la mémoire du téléphone ou la carte
-SD, avec la place libre de chacune. Les cartes, les zones et le relief y
+SD, avec la place libre de chacune. Les cartes, le routage et le relief y
 passent ; si la carte SD est retirée, hike2gpx le dit et repart sur la
 mémoire du téléphone.
 
