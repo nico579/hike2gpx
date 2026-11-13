@@ -1194,10 +1194,12 @@ async function suivreLectures() {
   if (lectures.size && !minuterieLectures) minuterieLectures = setTimeout(suivreLectures, 700);
 }
 
+// Une lecture brève (un lot installé, une vue déjà lue) ne montre rien : la
+// note ne paraît que si la lecture dure encore au bout d'une seconde.
+const DELAI_NOTE_LECTURE = 1000;
 function debutLecture(cle, numero, nom) {
   lectures.set(cle, { numero, nom });
-  afficherLectures(null);
-  if (!minuterieLectures) minuterieLectures = setTimeout(suivreLectures, 700);
+  if (!minuterieLectures) minuterieLectures = setTimeout(suivreLectures, DELAI_NOTE_LECTURE);
 }
 
 // Rend vrai s'il reste la lecture d'un autre calque.
@@ -1259,6 +1261,9 @@ async function chargerCalque(cle, zone) {
   let donnees;
   try {
     donnees = await api(`${cle}?${parametres}`, undefined, annulation.signal);
+    // Un lot installé couvre la vue : la page lit et décode ses tuiles elle-même
+    // (tuiles.js), comme le téléphone, au lieu de les attendre décodées en Python.
+    if (donnees.tuiles) donnees = await lireCalqueDuLot(donnees);
   } catch (e) {
     finLecture(cle, numero);
     if (numero === calque.sequence) noteCalques(`${nom} : ${e.message}`);

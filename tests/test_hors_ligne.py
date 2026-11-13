@@ -214,11 +214,19 @@ def test_calques_de_la_page_lus_dans_le_lot(tmp_path, monkeypatch):
     monkeypatch.setattr(franchissements, "voies_affichables", interdit)
     zone = (43.299, 5.999, 43.303, 6.005)
     osm = a.calque_osm(zone)
-    # La page ne redemande rien dans les bornes annoncées : le lot les lit en entier.
-    assert osm["bornes"] == franchissements.bornes_zone(*zone)
-    assert {v["genre"] for v in osm["voies"]} == {"sentier", "piste"}
+    # La page lit elle-même les tuiles du lot (tuiles.js) : le serveur ne décode
+    # rien, il annonce les tuiles de la vue et leurs bornes, qu'elle n'a pas à
+    # redemander tant qu'elle y reste.
+    assert osm["bornes"] == list(franchissements.bornes_zone(*zone))
+    assert osm["lot"]["case"] == "E5_N40" and osm["couches"]["voies"] == "voies"
+    assert osm["tuiles"] == [list(t) for t in lot.tuiles_emprise(lot.ZOOM, *franchissements.bornes_zone(*zone))]
+    # Chaque tuile se sert telle quelle, et porte les chemins du lot.
+    voies = lot.lire_calque(a.hors_ligne.racine / "E5_N40" / "calques.mbtiles", "osm", *osm["bornes"])["voies"]
+    assert {v["genre"] for v in voies} == {"sentier", "piste"}
+    assert any(a.tuile_calques("E5_N40", x, y) for x, y in osm["tuiles"]), "une tuile vide n est pas rangée (204)"
+    assert a.tuile_calques("../E5_N40", 1, 1) is None and a.tuile_calques("W5_N40", 1, 1) is None
     officiel = a.calque_officiel("ign", zone)
-    assert {t["nature"] for t in officiel["troncons"]} == {"Chemin"}
+    assert officiel["couches"] == {"troncons_bdtopo": "troncons", "troncons": "troncons"}
     # Hors de l'emprise enrichie, les chemins officiels ne viennent pas du lot.
     assert a.hors_ligne.lot_du_calque((44.5, 7.5, 44.51, 7.51), "bdtopo") is None
     assert a.hors_ligne.lot_du_calque((44.5, 7.5, 44.51, 7.51), "osm")["case"] == "E5_N40"
@@ -231,3 +239,35 @@ def test_routes_des_lots(tmp_path):
     assert post["installer_lot"]({"chemin": str(tmp_path / "absent")})["erreur"]
     reponse = post["installer_lot"]({"chemin": str(fabriquer_lot(tmp_path / "lot"))})
     assert reponse["installe"] == "E5_N40" and reponse["lots"][0]["emprise_enrichie"] == EMPRISE
+
+
+def test_la_page_recoit_les_tuiles_brutes_du_lot(tmp_path):
+    # Nico, 2026-11-12 : le PC attendait 1 à 2,5 s par déplacement quand le
+    # téléphone n'attend rien ; la page lit désormais les tuiles elle-même.
+    import http.client
+
+    from hike2gpx import web
+    a = appli.Application(tmp_path / "donnees")
+    a.hors_ligne.installer(fabriquer_lot(tmp_path / "lot"))
+    tuiles = a.calque_osm((43.299, 5.999, 43.303, 6.005))["tuiles"]
+    x, y = next((x, y) for x, y in tuiles if a.tuile_calques("E5_N40", x, y))
+    serveur, port = web.demarrer(a, port=8860, plage=20)
+    try:
+        def lire(chemin, entetes=None):
+            c = http.client.HTTPConnection(web.HOST, port, timeout=10)
+            c.request("GET", chemin, headers=entetes or {"Sec-Fetch-Site": "same-origin"})
+            r = c.getresponse()
+            corps = r.read()
+            c.close()
+            return r, corps
+        r, corps = lire(f"/calques/E5_N40/{x}/{y}?v=1")
+        assert r.status == 200 and r.getheader("Content-Type") == "application/vnd.mapbox-vector-tile"
+        brut = gzip.decompress(corps) if r.getheader("Content-Encoding") == "gzip" else corps
+        assert b"voies" in brut, "la tuile MVT telle que le lot la garde"
+        assert lire("/calques/E5_N40/1/1")[0].status == 204, "une tuile absente : rien"
+        assert lire("/calques/..%2FE5_N40/1/1")[0].status in (204, 404)
+        assert lire(f"/calques/E5_N40/{x}/{y}", {"Sec-Fetch-Site": "cross-site"})[0].status == 403
+        assert lire("/tuiles.js")[0].status == 200
+    finally:
+        serveur.shutdown()
+        serveur.server_close()

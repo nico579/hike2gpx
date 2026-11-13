@@ -81,7 +81,7 @@ function charger(preferences = {}, documentGpx = null) {
   itineraires.hidden = true;
   elements.set("pane-itineraires", itineraires);
   const contexte = vm.createContext({
-    console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance,
+    console, URL, URLSearchParams, Blob, Date, Number, String, AbortController, performance, TextDecoder,
     CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail; } },
     DOMParser: class { parseFromString() { return documentGpx; } },
     document: { getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
@@ -140,6 +140,8 @@ function charger(preferences = {}, documentGpx = null) {
   }
   vm.runInContext('window.HIKE2GPX_MAP_PROVIDERS.autre = '
     + '{ defaultBase: "osm", overlays: [], bases: () => ({}) };', contexte);
+  // tuiles.js avant app.js, comme dans la page : le décodeur des tuiles d'un lot.
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "hike2gpx", "assets", "web", "tuiles.js"), "utf8"), contexte);
   const source = path.join(__dirname, "..", "hike2gpx", "assets", "web", "app.js");
   vm.runInContext(fs.readFileSync(source, "utf8")
     + "\nglobalThis.page = { etat, calculer, planifierCalcul, planifier, ajouterPoint, boucler, basculerPleinEcran,"
@@ -150,7 +152,7 @@ function charger(preferences = {}, documentGpx = null) {
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, bulleTraceImportee, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
-    + " basculerPartage, selectionGrille, adresseArchive, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
+    + " bornesTuile, basculerPartage, selectionGrille, adresseArchive, enregistrerReglages, lireNomTrace, couleurKml, proposerZone, majLegende, coucheCalque,"
     + " setFleches: (valeur) => { flechesTrace = valeur; } };", contexte);
   const derniere = () => requetes.filter((r) => r.url === "/api/itineraire").at(-1);
   return { page: contexte.page, elements, document: contexte.document, derniere, corps, requetes, carte,
@@ -1414,11 +1416,70 @@ test("cascade : le Var sert aussitôt, la PACA se prépare sans faire attendre",
   assert.equal(texte(), `Données OSM hors ligne : extrait ${paca} du 18/10/2026, renouvelé tous les 30 jours.`);
 });
 
+// Une tuile MVT minimale, écrite à la main : une couche « voies » (un sentier
+// qui sort de la tuile) et une couche « franchissements » (un point).
+function tuileMvt() {
+  const varint = (n) => { const o = []; while (n > 127) { o.push((n & 127) | 128); n >>>= 7; } o.push(n); return o; };
+  const zz = (n) => (n << 1) ^ (n >> 31);
+  const champ = (numero, octets) => [...varint((numero << 3) | 2), ...varint(octets.length), ...octets];
+  const texte = (numero, s) => champ(numero, [...Buffer.from(s, "utf8")]);
+  const paquet = (numero, valeurs) => champ(numero, valeurs.flatMap(varint));
+  const valeur = (s) => texte(1, s);
+  const objet = (type, balises, commandes) => [...paquet(2, balises), 24, type, ...paquet(4, commandes)];
+  // Le sentier : de (1000, 1000) à (5000, 1000), recoupé au bord droit (4096).
+  const voies = [...texte(1, "voies"),
+    ...champ(2, objet(2, [0, 0], [9, zz(1000), zz(1000), 10, zz(4000), zz(0)])),
+    ...texte(3, "genre"), ...champ(4, valeur("sentier")), 40, ...varint(4096), 120, 2];
+  const points = [...texte(1, "franchissements"),
+    ...champ(2, objet(1, [0, 0, 1, 1], [9, zz(2048), zz(2048)])),
+    ...texte(3, "cle"), ...texte(3, "statut"), ...champ(4, valeur("noeud-1")), ...champ(4, valeur("blocked")),
+    40, ...varint(4096), 120, 2];
+  return new Uint8Array([...champ(3, voies), ...champ(3, points)]);
+}
+
+test("un lot installé couvre la vue : la page lit et décode ses tuiles elle-même", async () => {
+  // Nico, 2026-11-12 : « le pc est bien plus puissant que le téléphone, et il attend plus ».
+  const { page, requetes, carte } = charger();
+  carte.hasLayer = () => true;
+  page.rafraichirCalques();
+  const vue = requetes.findLast((r) => r.url.startsWith("/api/osm?"));
+  repondre(vue, { lot: { case: "E5_N40", date: 7 }, tuiles: [[8465, 5973]], bornes: [43.3, 6.0, 43.35, 6.05],
+    couches: { voies: "voies", barrieres: "barrieres", franchissements: "franchissements", jonctions: "jonctions" } });
+  await tic();
+  const tuile = requetes.findLast((r) => r.url.startsWith("/calques/"));
+  assert.equal(tuile.url, "/calques/E5_N40/8465/5973?v=7", "la tuile brute, datée du lot");
+  const octets = tuileMvt();
+  tuile.resolve({ ok: true, status: 200, arrayBuffer: async () => octets.buffer });
+  for (let i = 0; i < 5; i++) await tic();
+  const dessins = page.CALQUES.osm.groupe.layers;
+  const sentier = dessins.find((c) => c.options.leg === "osm");
+  assert.ok(sentier, "le sentier est dessiné");
+  assert.equal(sentier.options.dashArray, "6 4", "avec le style d'un sentier");
+  const b = page.bornesTuile(8465, 5973);
+  const lons = sentier.points.map(([, lon]) => lon);
+  assert.ok(Math.abs(Math.max(...lons) - b.e) < 1e-9, "recoupé au bord de la tuile");
+  assert.ok(Math.min(...lons) > b.w);
+  assert.ok(dessins.some((c) => c.options.fillColor && c.options.leg !== "osm"), "le franchissement aussi");
+  // La même vue ne redemande rien : la tuile est gardée décodée.
+  page.CALQUES.osm.charge = null;
+  page.rafraichirCalques();
+  repondre(requetes.findLast((r) => r.url.startsWith("/api/osm?")), { lot: { case: "E5_N40", date: 7 },
+    tuiles: [[8465, 5973]], bornes: [43.3, 6.0, 43.35, 6.05],
+    couches: { voies: "voies", barrieres: "barrieres", franchissements: "franchissements", jonctions: "jonctions" } });
+  for (let i = 0; i < 5; i++) await tic();
+  assert.equal(requetes.filter((r) => r.url.startsWith("/calques/")).length, 1, "pas de seconde requête de tuile");
+});
+
 test("chargement des calques : la note suit les tuiles lues, barre comprise", () => {
   // Nico, 2026-10-20 : « Chargement des chemins OSM… » sans barre de progression.
-  const { page, elements } = charger();
-  const note = () => elements.get("noteCalquesTexte").textContent;
+  const { page, elements, minuteurs } = charger();
+  const note = () => elements.get("noteCalquesTexte")?.textContent ?? "";
   page.debutLecture("osm", 1, "chemins OSM");
+  // Nico, 2026-11-12 : une lecture brève (un lot installé) ne montre rien ;
+  // la note attend une seconde, puis paraît si la lecture dure.
+  assert.equal(note(), "");
+  assert.equal(minuteurs.at(-1).ms, 1000);
+  page.afficherLectures(null);
   const piste = elements.get("noteCalquesPiste");
   assert.equal(note(), "Chargement des chemins OSM… (la première fois, jusqu'à une minute)");
   assert.equal(piste.hidden, false);

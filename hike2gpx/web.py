@@ -48,6 +48,7 @@ def url_couverture_pays(langue: str = "fr") -> str:
 class Handler(serveweb.Handler):
     fichiers_statiques = {**serveweb.FICHIERS_STATIQUES,
                           "/presentation.js": ("presentation.js", "text/javascript; charset=utf-8"),
+                          "/tuiles.js": ("tuiles.js", "text/javascript; charset=utf-8"),
                           "/presentation.css": ("presentation.css", "text/css; charset=utf-8"),
                           "/leaflet/leaflet.js": ("leaflet/leaflet.js", "text/javascript; charset=utf-8"),
                            "/leaflet/leaflet.css": ("leaflet/leaflet.css", "text/css; charset=utf-8"),
@@ -96,6 +97,12 @@ class Handler(serveweb.Handler):
                 return
             self.envoyer_tuile(chemin)
             return
+        if chemin.startswith("/calques/"):
+            if not self.hote_autorise() or self.requete_inter_sites():
+                self.send_error(403)
+                return
+            self.envoyer_tuile_calques(chemin)
+            return
         if chemin == "/archive.zip":
             if not self.hote_autorise() or self.requete_inter_sites():
                 self.send_error(403)
@@ -112,6 +119,34 @@ class Handler(serveweb.Handler):
 
     hors_ligne = None       # posé par demarrer : les fonds de carte installés
     application = None      # posée par demarrer : l'archive zip des cases (archive.py)
+
+    def envoyer_tuile_calques(self, chemin: str) -> None:
+        """/calques/<case>/<x>/<y> : une tuile des calques d'un lot installé,
+        telle que calques.mbtiles la garde, que la page décode elle-même
+        (tuiles.js). Gzippée, elle part avec Content-Encoding : le navigateur
+        la décompresse seul. 204 sans tuile, 404 hors d'un lot."""
+        morceaux = chemin.split("/")[2:]
+        if len(morceaux) != 3 or not all(m.isascii() and m.isdigit() for m in morceaux[1:]) or self.application is None:
+            self.send_error(404)
+            return
+        try:
+            tuile = self.application.tuile_calques(morceaux[0], int(morceaux[1]), int(morceaux[2]))
+        except sqlite3.Error:
+            tuile = None
+        if tuile is None:
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/vnd.mapbox-vector-tile")
+        if tuile[:2] == b"\x1f\x8b":           # la signature du gzip
+            self.send_header("Content-Encoding", "gzip")
+        # L'adresse porte la date du lot (?v=) : un lot réinstallé change d'adresse.
+        self.send_header("Cache-Control", "private, max-age=86400")
+        self.send_header("Content-Length", str(len(tuile)))
+        self.end_headers()
+        self.wfile.write(tuile)
 
     def envoyer_archive(self) -> None:
         """/archive.zip?lots=E5_N40,…&carres=N43E006,…&source=scan25 : l'archive
