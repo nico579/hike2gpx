@@ -50,6 +50,11 @@ class ArchiveTest {
             generateSequence { z.nextEntry?.name }.toList()
         }
         assertEquals("catalog.json", noms.first())
+        // Sans compression, comme le PC : le débit du disque, pas celui de Deflate.
+        val methodes = ZipInputStream(ByteArrayInputStream(octets)).use { z ->
+            generateSequence { z.nextEntry?.method }.toSet()
+        }
+        assertEquals(setOf(ZipEntry.STORED), methodes)
         assertEquals(setOf("E5_N40/E5_N40.rd5", "E5_N40/calques.mbtiles", "E5_N40/manifest.json",
             "fonds/N43E006-scan25.mbtiles"), noms.drop(1).toSet())
 

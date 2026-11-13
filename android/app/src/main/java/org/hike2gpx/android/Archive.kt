@@ -8,7 +8,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
 import java.time.Instant
-import java.util.zip.Deflater
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -78,14 +78,18 @@ object Archive {
         val total = fichiers.values.sumOf { it.length() }
         var faits = 0L
         val zip = ZipOutputStream(sortie)
-        // Deflate au plus rapide, comme le PC : des tuiles JPEG n'y gagnent presque rien.
-        zip.setLevel(Deflater.BEST_SPEED)
-        zip.putNextEntry(ZipEntry(CATALOGUE))
-        zip.write(catalogue.toString(1).toByteArray(Charsets.UTF_8))
+        // Sans compression, comme le PC (archive.py) : des tuiles JPEG ou une RD5
+        // n'y perdent que 7 %, et la compression divisait le débit par neuf. Une
+        // entrée non compressée exige sa taille et son CRC avant ses données :
+        // c'est aussi ce qui la rend lisible en flux par ZipInputStream.
+        val texte = catalogue.toString(1).toByteArray(Charsets.UTF_8)
+        zip.putNextEntry(entreeStockee(CATALOGUE, texte.size.toLong(), CRC32().apply { update(texte) }.value))
+        zip.write(texte)
         zip.closeEntry()
         val bloc = ByteArray(BLOC)
         for ((adresse, chemin) in fichiers) {
-            zip.putNextEntry(ZipEntry(adresse))
+            if (!continuer()) throw Abandon()
+            zip.putNextEntry(entreeStockee(adresse, chemin.length(), crc32(chemin, bloc)))
             chemin.inputStream().use { entree ->
                 while (true) {
                     if (!continuer()) throw Abandon()
@@ -164,4 +168,25 @@ object Archive {
     /** Le nom proposé pour l'archive : hike2gpx-N43E006-scan25-et-2.zip. */
     fun nomPropose(noms: List<String>): String =
         "hike2gpx-${noms.firstOrNull() ?: "cartes"}${if (noms.size > 1) "-et-${noms.size - 1}" else ""}.zip"
+
+    /** Une entrée non compressée, sa taille et son CRC posés avant ses données. */
+    private fun entreeStockee(nom: String, octets: Long, crc: Long) = ZipEntry(nom).apply {
+        method = ZipEntry.STORED
+        size = octets
+        compressedSize = octets
+        this.crc = crc
+    }
+
+    /** Le CRC-32 d'un fichier, d'une passe : le zip non compressé le veut avant les données. */
+    private fun crc32(fichier: File, bloc: ByteArray): Long {
+        val crc = CRC32()
+        fichier.inputStream().use { entree ->
+            while (true) {
+                val n = entree.read(bloc)
+                if (n < 0) break
+                crc.update(bloc, 0, n)
+            }
+        }
+        return crc.value
+    }
 }
