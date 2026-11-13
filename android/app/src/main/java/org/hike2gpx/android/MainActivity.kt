@@ -208,7 +208,11 @@ class MainActivity : Activity() {
     private var offres: List<Offre> = emptyList()
     /** case -> instant (SystemClock) d'un échec ou d'un refus : pas de nouvel essai automatique avant une heure. */
     private val exclues = mutableMapOf<String, Long>()
-    /** Les cases retirées à la main : elles ne reviennent pas toutes seules pendant la séance (comme le PC). */
+    /**
+     * Les cases retirées à la main : un survol de la carte ne les redemande pas
+     * pendant la séance (comme le PC), mais un calcul d'itinéraire, qui en a
+     * vraiment besoin, si (Nico, 2026-11-13 : « elles ne se retéléchargent pas »).
+     */
     private val retirees = mutableSetOf<String>()
     /** Un point posé pendant une tâche : on reprend à sa fin. */
     private var aReprendre = false
@@ -885,7 +889,7 @@ class MainActivity : Activity() {
             aReprendre = true; return
         }
         val maintenant = SystemClock.elapsedRealtime()
-        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + retirees + reglages.zonesRefusees
+        val exclu = exclues.filterValues { maintenant - it < REESSAI_MS }.keys + reglages.zonesRefusees
         val aFaire = lotsATelecharger(offres, horsLigne.lots(), Zone.autour(points), exclu)
         if (reglages.zonesAuto && aFaire.isNotEmpty()) {
             autoLotDemande = aFaire.first().lot.case
@@ -1240,6 +1244,9 @@ class MainActivity : Activity() {
                 routeur.annuler()
                 val octets = horsLigne.supprimer(lot.case)
                 retirees.add(lot.case)
+                // Supprimée, elle n'est plus acceptée : le prochain calcul qui en a
+                // besoin repose la question, au lieu de la retélécharger en silence.
+                reglages.zonesProposees = reglages.zonesProposees - lot.case
                 etat.text = getString(R.string.etat_supprime, lot.case,
                     Formatter.formatShortFileSize(this, octets))
                 remplirReglages()
