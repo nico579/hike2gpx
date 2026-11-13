@@ -315,6 +315,14 @@ def servir(dossier: Path, port: int = PORT, ouvrir: bool = True, icone: bool = T
         arret.set()
         journal.info("hike2gpx arrêté")
 
+    def relancer():
+        """Après un changement du dossier des données : comme « Redémarrer » de
+        l'icône, l'arrêt puis un nouveau processus, qui démarre sur la copie."""
+        arreter()
+        from nico579_commons import relance
+        relance.relancer(bureau.commande_relance(), nom="hike2gpx", cwd=os.getcwd())
+    application.relancer = lambda: threading.Thread(target=relancer, name="relance").start()
+
     verificateur.veiller(arret)
     if ouvrir:
         webbrowser.open(url)

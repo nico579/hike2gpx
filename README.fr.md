@@ -380,15 +380,22 @@ où chaque fichier porte sa taille et son empreinte SHA-256, vérifiées avant
 l'installation. Un fichier altéré est refusé.
 
 
-### Choisir où ranger les cartes et les zones
+### Choisir où ranger les données
 
-Les cartes et les zones de routage pèsent vite plusieurs Go. Sur le PC, les
-réglages indiquent leur dossier : saisissez-en un autre, sur un disque plus
-grand, puis « Déplacer ». Sur le même disque, c'est instantané ; sur un autre,
-la copie se suit dans la ligne d'activité, et l'original n'est effacé qu'une
-fois la copie complète. Sur le téléphone, les réglages proposent la mémoire du
-téléphone ou la carte SD, avec la place libre de chacune. Si la carte SD est
-retirée, hike2gpx le dit et repart sur la mémoire du téléphone.
+Cartes, zones de routage, extraits OSM, relief : les données téléchargées
+pèsent vite plusieurs Go. Sur le PC, les réglages indiquent le dossier des
+données ; saisissez-en un autre, sur un disque plus grand, puis « Déplacer ».
+Tout le dossier est copié, préférences et journaux compris, avec son
+avancement dans la ligne d'activité ; hike2gpx redémarre ensuite sur la
+copie et efface l'ancien dossier. À l'emplacement standard ne reste qu'un
+petit fichier, `emplacement.json`, qui mène au nouveau. Si le disque est
+débranché, hike2gpx le signale dans son journal et repart sur l'emplacement
+standard.
+
+Sur le téléphone, les réglages proposent la mémoire du téléphone ou la carte
+SD, avec la place libre de chacune. Les cartes, les zones et le relief y
+passent ; si la carte SD est retirée, hike2gpx le dit et repart sur la
+mémoire du téléphone.
 
 ### Les règles des franchissements
 

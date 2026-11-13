@@ -10,11 +10,10 @@ import time
 from pathlib import Path
 
 from nico579_commons import environnement
-from nico579_commons.dossiers import Dossiers
 
-from . import __version__, brouter, franchissements, providers
+from . import __version__, brouter, emplacement, franchissements, providers
 
-DOSSIERS = Dossiers("hike2gpx", variable_home="HIKE2GPX_HOME")
+DOSSIERS = emplacement.DOSSIERS
 # --stage de bundles, vers les étapes de fabrication.fabriquer_lots.
 ETAPES_CLI = {"all": "tout", "data": "donnees", "compute": "calcul", "layers": "calques", "finish": "fin"}
 
@@ -140,6 +139,11 @@ def main(argv=None) -> int:
         print("fini", json.dumps(compte), flush=True)
         return 0
     dossier = DOSSIERS.dossier_etat()
+    # Un dossier des données déplacé aux réglages : le pointeur de
+    # l'emplacement standard y mène (HIKE2GPX_HOME, s'il est fourni, l'emporte).
+    if not emplacement.force():
+        dossier = emplacement.dossier_effectif(dossier)
+        emplacement.nettoyer(DOSSIERS.dossier_etat_standard(), dossier)
 
     if args.commande == "installer":
         installation = brouter.Installation(dossier)

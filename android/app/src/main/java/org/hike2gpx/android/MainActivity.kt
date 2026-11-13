@@ -120,6 +120,8 @@ import kotlin.math.roundToInt
 class MainActivity : Activity() {
     private lateinit var reglages: Reglages
     private lateinit var horsLigne: HorsLigne
+    // Le dossier des données téléchargées : la mémoire du téléphone ou la carte SD (réglages).
+    private lateinit var donnees: File
     private lateinit var fonds: Fonds
     private lateinit var routeur: Routeur
     private lateinit var calques: Calques
@@ -276,13 +278,14 @@ class MainActivity : Activity() {
         MapsForgeTileSource.createInstance(application)
         reglages = Reglages(this)
         reglages.oublierPcs()                   // un PC ne se contacte qu'au scan de son QR code
-        horsLigne = HorsLigne(dossierDonnees())
+        donnees = dossierDonnees()
+        horsLigne = HorsLigne(donnees)
         fonds = Fonds(horsLigne.racine)
         pays = Pays(assets)
         routeur = Routeur(Reglages.profils(this))
         calques = Calques(horsLigne)
-        relief = Mapterhorn(filesDir)
-        reliefTrace = Mapterhorn(filesDir, reseau = false)
+        relief = Mapterhorn(donnees)
+        reliefTrace = Mapterhorn(donnees, reseau = false)
         val premierLancement = !reglages.vueConnue
         construire()
         if (premierLancement) centrerSurIp()
@@ -1209,7 +1212,7 @@ class MainActivity : Activity() {
         tache(R.string.etat_telechargement, true, { continuer ->
             runOnUiThread { etat.text = getString(R.string.etat_telechargement_lot, lot.case,
                 Formatter.formatShortFileSize(this, lot.octets)) }
-            val travail = File(File(filesDir, "telechargements"), lot.case)
+            val travail = File(File(donnees, "telechargements"), lot.case)
             Depot().telecharger(lot, offre.source, travail,
                 suiviTelechargement(getString(R.string.etat_zone_routage, lot.case)), continuer)
             runOnUiThread { progression.isIndeterminate = true }
@@ -1439,7 +1442,7 @@ class MainActivity : Activity() {
     /** Le fond téléchargé et installé, déjà confirmé (un bouton, ou la récupération d'un PC). */
     private fun installerFond(source: Source, fond: Fond) {
         tache(R.string.etat_telechargement, true, { continuer ->
-            val travail = File(filesDir, "telechargements")
+            val travail = File(donnees, "telechargements")
             val recu = Depot().telechargerFond(fond, source, travail,
                 suiviTelechargement(getString(R.string.etat_zone_carte, fond.nom)), continuer)
             fonds.installer(recu, fond)
@@ -1518,7 +1521,7 @@ class MainActivity : Activity() {
             routeur.annuler()
             val entree = contentResolver.openInputStream(adresse) ?: throw IOException(nom)
             val r = entree.use {
-                Archive.importer(it, horsLigne, fonds, File(filesDir, "archive"), suiviTelechargement(nom), continuer)
+                Archive.importer(it, horsLigne, fonds, File(donnees, "archive"), suiviTelechargement(nom), continuer)
             }
             retirees.removeAll(r.lots.toSet())
             getString(R.string.etat_archive_importee, r.fonds.size, r.lots.size)
@@ -2057,7 +2060,7 @@ class MainActivity : Activity() {
     /** La section des réglages : un bouton par emplacement, l'actuel coché, la place libre de chacun. */
     private fun choixEmplacement(colonne: LinearLayout) {
         titre(colonne, R.string.stockage_titre)
-        val actuel = horsLigne.racine.parentFile?.absolutePath
+        val actuel = donnees.absolutePath
         val liste = emplacements()
         val groupe = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
         for ((dossier, nom) in liste) {
@@ -2073,8 +2076,11 @@ class MainActivity : Activity() {
         if (liste.size == 1) colonne.addView(TextView(this).apply { setText(R.string.stockage_sans_sd) })
     }
 
+    /** Ce qui suit les données : les cartes et les zones, et le relief gardé du parcours. */
+    private fun dossiersDeplaces(): List<File> = listOf(horsLigne.racine, File(donnees, "gpx2elev")).filter { it.exists() }
+
     private fun confirmerDeplacement(dossier: File, nom: String) {
-        val octets = HorsLigne.taille(horsLigne.racine)
+        val octets = dossiersDeplaces().sumOf { HorsLigne.taille(it) }
         if (dossier.usableSpace < octets + octets / 20) {
             Toast.makeText(this, getString(R.string.err_place, octets / 1_000_000 + 1), Toast.LENGTH_LONG).show()
             remplirReglages()
@@ -2093,8 +2099,12 @@ class MainActivity : Activity() {
     private fun deplacerDonnees(dossier: File, nom: String) {
         tache(R.string.etat_deplacement, true, { continuer ->
             routeur.annuler()
-            HorsLigne.deplacer(horsLigne.racine, File(dossier, horsLigne.racine.name),
-                suiviTelechargement(getString(R.string.stockage_titre)), continuer)
+            for (source in dossiersDeplaces())
+                HorsLigne.deplacer(source, File(dossier, source.name),
+                    suiviTelechargement(getString(R.string.stockage_titre)), continuer)
+            // Les téléchargements interrompus ne suivent pas : ils reprendront de zéro.
+            File(donnees, "telechargements").deleteRecursively()
+            File(donnees, "archive").deleteRecursively()
             reglages.stockage = if (dossier == filesDir) null else dossier.absolutePath
             getString(R.string.etat_deplace, nom)
         }, ensuite = { reussi -> if (reussi) recreate() else remplirReglages() })
@@ -2352,7 +2362,7 @@ class MainActivity : Activity() {
 
     /** Ce que le vidage efface : lots et fonds, téléchargements interrompus, tuiles en ligne gardées par osmdroid. */
     private fun caches(): List<File> =
-        listOf(horsLigne.racine, File(filesDir, "telechargements"), File(filesDir, "gpx2elev"),
+        listOf(horsLigne.racine, File(donnees, "telechargements"), File(donnees, "gpx2elev"),
             File(cacheDir, "osmdroid"))
 
     private fun octetsCaches(): Long = caches().sumOf { d -> d.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
@@ -3065,7 +3075,7 @@ class MainActivity : Activity() {
         if (points.size < 2) return null
         // Une instance neuve : le calcul du tracé peut lire le relief en même
         // temps, et Mapterhorn n'est pas partagé entre deux tâches.
-        val sources = sourcesRelief(Mapterhorn(filesDir, reseau = reseauDisponible()))
+        val sources = sourcesRelief(Mapterhorn(donnees, reseau = reseauDisponible()))
         return try {
             val (enrichis, profil) = Gpx.enrichir(points, sources)
             Gpx.ecrireTrace(enrichis, fichier.nameWithoutExtension,
