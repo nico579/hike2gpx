@@ -14,23 +14,12 @@ from test_partage import preparer, tuiles_telles_quelles  # noqa: F401  (la fixt
 TOUT = {"lots": ["E5_N40"], "carres": ["E5_N40"], "source": None}
 
 
-class FluxSansRetour(io.RawIOBase):
-    """La réponse HTTP : on y écrit, mais on ne sait ni où on en est ni revenir."""
-    def __init__(self):
-        self.contenu = bytearray()
-
-    def writable(self):
-        return True
-
-    def write(self, b):
-        self.contenu += b
-        return len(b)
-
-
 def exporter(h, selection=TOUT) -> bytes:
-    flux = FluxSansRetour()
-    archive.ecrire(h, flux, selection)
-    return bytes(flux.contenu)
+    cible = h.racine.parent / "export.zip"
+    archive.ecrire(h, cible, selection)
+    contenu = cible.read_bytes()
+    cible.unlink()
+    return contenu
 
 
 def test_une_archive_exportee_s_importe_a_l_identique_sur_un_autre_pc(tmp_path):
@@ -38,6 +27,10 @@ def test_une_archive_exportee_s_importe_a_l_identique_sur_un_autre_pc(tmp_path):
     contenu = exporter(source)
     noms = zipfile.ZipFile(io.BytesIO(contenu)).namelist()
     assert noms[0] == "catalog.json" and "fonds/E5_N40-scan25.mbtiles" in noms and "E5_N40/E5_N40.rd5" in noms
+    # Sans compression, chaque taille avant ses données (bit 3 éteint) : ce que
+    # ZipInputStream, le lecteur en flux d'Android, exige d'une entrée non compressée.
+    for entree in zipfile.ZipFile(io.BytesIO(contenu)).infolist():
+        assert entree.compress_type == zipfile.ZIP_STORED and not entree.flag_bits & 0x08, entree.filename
     (tmp_path / "ami.zip").write_bytes(contenu)
     ami = hors_ligne.HorsLigne(tmp_path / "ami")
     assert archive.importer(ami, tmp_path / "ami.zip") == {"lots": ["E5_N40"], "fonds": ["E5_N40-scan25"]}

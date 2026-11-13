@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import sqlite3
 import subprocess
 import tempfile
@@ -150,9 +151,9 @@ class Handler(serveweb.Handler):
 
     def envoyer_archive(self) -> None:
         """/archive.zip?lots=E5_N40,…&carres=N43E006,…&source=scan25 : l'archive
-        de la sélection, que le navigateur enregistre. Elle s'écrit au fil de
-        l'envoi, sans fichier intermédiaire ni taille annoncée : la fin de la
-        connexion marque la fin du zip, comme en HTTP/1.0."""
+        de la sélection, que le navigateur enregistre. Elle s'écrit d'abord dans
+        un fichier à côté des lots (archive.py dit pourquoi), puis part avec sa
+        taille : le navigateur montre un vrai pourcentage."""
         requete = parse_qs(urlsplit(self.path).query)
 
         def liste(cle):
@@ -165,17 +166,26 @@ class Handler(serveweb.Handler):
         noms = selection["lots"] + [f"{c}-{selection['source']}" if selection["source"] else c
                                     for c in selection["carres"]]
         nom = f"hike2gpx-{noms[0]}{f'-et-{len(noms) - 1}' if len(noms) > 1 else ''}.zip"
-        self.send_response(200)
-        self.send_header("Content-Type", "application/zip")
-        self.send_header("Content-Disposition", f'attachment; filename="{nom}"')
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Connection", "close")
-        self.end_headers()
-        self.close_connection = True
+        racine = self.application.hors_ligne.racine
+        racine.mkdir(parents=True, exist_ok=True)
+        descripteur, chemin_zip = tempfile.mkstemp(prefix=".archive-envoi-", suffix=".zip.part", dir=racine)
+        os.close(descripteur)
+        provisoire = Path(chemin_zip)
         try:
-            self.application.exporter_archive(self.wfile, selection)
-        except OSError as exc:          # téléchargement annulé dans le navigateur
+            self.application.exporter_archive(provisoire, selection)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", f'attachment; filename="{nom}"')
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(provisoire.stat().st_size))
+            self.end_headers()
+            with open(provisoire, "rb") as f:
+                shutil.copyfileobj(f, self.wfile, 1 << 20)
+        except OSError as exc:          # téléchargement annulé dans le navigateur, disque plein
             journal.info("Archive interrompue : %s", exc)
+            self.close_connection = True
+        finally:
+            provisoire.unlink(missing_ok=True)
 
     def do_POST(self):
         if urlsplit(self.path).path == "/api/importer_archive":
