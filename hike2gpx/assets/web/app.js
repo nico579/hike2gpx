@@ -167,27 +167,19 @@ const TEXTES = {
     "disponibilite.oui": "Tracé disponible",
     "disponibilite.non": "Tracé indisponible",
     "disponibilite.attente.moteur": "Installation de BRouter en cours",
-    "disponibilite.attente.segments": "Cases BRouter en cours de téléchargement",
-    "disponibilite.attente.osm": "Données OSM ou Overpass en attente",
     "disponibilite.attente.source": "Chemins officiels indisponibles dans cette zone",
     "disponibilite.attente.zone": "Zone du parcours à préciser",
+    "disponibilite.attente.zone_absente": "Pas de zone de routage ici : « Planifier un itinéraire » la télécharge ou la fabrique",
     "disponibilite.info.titre": "Sources du prochain calcul",
     "disponibilite.info.verification": "Vérification des données en cours…",
-    "disponibilite.info.overpass": "Overpass",
-    "disponibilite.info.lot": "Zone de routage hors ligne",
-    "disponibilite.info.local": "Extrait OSM local",
-    "disponibilite.info.regional": "Extrait OSM régional",
+    "disponibilite.info.lot": "Zone de routage",
     "disponibilite.info.brouter": "BRouter",
     "disponibilite.info.pret": "prêt",
     "disponibilite.info.attente": "en attente",
-    "disponibilite.etat.oui": "répond",
-    "disponibilite.etat.non": "ne répond pas",
-    "disponibilite.etat.verification": "vérification en cours",
-    "disponibilite.etat.disponible": "disponible",
-    "disponibilite.etat.absent": "absent",
-    "disponibilite.etat.telechargement": "téléchargement en cours",
-    "disponibilite.etat.import": "import en cours",
-    "disponibilite.etat.non_applicable": "sans objet",
+    "disponibilite.etat.disponible": "installée",
+    "disponibilite.etat.absent": "absente",
+    "disponibilite.etat.simple": "simple (sans chemins dessinés ni franchissements)",
+    "disponibilite.etat.preparation": "en préparation",
     "statut.donneesIndisponibles": "Données OSM indisponibles pour ce tracé. Nouvelle tentative automatique après téléchargement.",
     "donnees.titre": "Données téléchargées",
     "donnees.note": "Tout se retélécharge de soi-même au besoin : vider ou supprimer libère de la place, actualiser donne des données fraîches.",
@@ -467,27 +459,19 @@ const TEXTES = {
     "disponibilite.oui": "Routing available",
     "disponibilite.non": "Routing unavailable",
     "disponibilite.attente.moteur": "BRouter installation in progress",
-    "disponibilite.attente.segments": "BRouter cells downloading",
-    "disponibilite.attente.osm": "Waiting for OSM data or Overpass",
     "disponibilite.attente.source": "Official paths unavailable in this area",
     "disponibilite.attente.zone": "Route area needs to be specified",
+    "disponibilite.attente.zone_absente": "No routing area here: \"Plan a route\" downloads or builds it",
     "disponibilite.info.titre": "Sources for the next route",
     "disponibilite.info.verification": "Checking data…",
-    "disponibilite.info.overpass": "Overpass",
-    "disponibilite.info.lot": "Offline routing area",
-    "disponibilite.info.local": "Local OSM extract",
-    "disponibilite.info.regional": "Regional OSM extract",
+    "disponibilite.info.lot": "Routing area",
     "disponibilite.info.brouter": "BRouter",
     "disponibilite.info.pret": "ready",
     "disponibilite.info.attente": "waiting",
-    "disponibilite.etat.oui": "responding",
-    "disponibilite.etat.non": "not responding",
-    "disponibilite.etat.verification": "checking",
-    "disponibilite.etat.disponible": "available",
-    "disponibilite.etat.absent": "absent",
-    "disponibilite.etat.telechargement": "downloading",
-    "disponibilite.etat.import": "importing",
-    "disponibilite.etat.non_applicable": "not applicable",
+    "disponibilite.etat.disponible": "installed",
+    "disponibilite.etat.absent": "missing",
+    "disponibilite.etat.simple": "simple (no drawn paths or crossings)",
+    "disponibilite.etat.preparation": "being prepared",
     "statut.donneesIndisponibles": "OSM data unavailable for this route. Automatic retry after download.",
     "donnees.titre": "Downloaded data",
     "donnees.note": "Everything downloads again by itself when needed: clearing or deleting frees space, refreshing brings fresh data.",
@@ -947,26 +931,20 @@ function afficherDisponibilite(d) {
   $("readiness").classList.toggle("available", pret);
   $("readiness").classList.toggle("unavailable", !pret);
   $("readinessText").textContent = t(pret ? "disponibilite.oui" : "disponibilite.non");
-  $("readiness").title = pret ? (d.source === "lot" ? `${t("disponibilite.info.lot")} : ${d.nom}`
-    : `OSM : ${d.source === "extrait" ? d.nom : d.source === "cache" ? "cache" : "Overpass"}`)
-    : t(`disponibilite.attente.${d?.attente || "osm"}`);
+  $("readiness").title = pret ? `${t("disponibilite.info.lot")} : ${d.nom}`
+    : t(`disponibilite.attente.${d?.attente || "zone_absente"}`);
   $("readinessInfo").setAttribute("aria-label", t("disponibilite.info.titre"));
   const details = d?.details;
   if (!details) {
     $("readinessInfoText").textContent = t("disponibilite.info.verification");
     return;
   }
-  const extrait = (cle) => {
-    const source = details[cle] || { etat: "non_applicable" };
-    return `${t(`disponibilite.info.${cle}`)}${source.nom ? ` (${source.nom})` : ""} : `
-      + t(`disponibilite.etat.${source.etat}`);
-  };
-  // Un lot installé (ou qui se télécharge) passe en tête : il sert seul.
+  // Depuis la 0.9.31, un tracé ne part que de la zone de routage de ses cases
+  // et de BRouter : plus d'Overpass ni d'extraits OSM (Nico, 2026-11-13).
+  const lot = details.lot;
   $("readinessInfoText").textContent = [t("disponibilite.info.titre"),
-    ...(details.lot ? [extrait("lot")] : []),
-    `${t("disponibilite.info.overpass")} : ${t(`disponibilite.etat.${details.overpass}`)}`,
-    extrait("local"), extrait("regional"),
-    `${t("disponibilite.info.brouter")} : ${t(d.attente === "moteur" || d.attente === "segments"
+    ...(lot ? [`${t("disponibilite.info.lot")} (${lot.nom}) : ${t(`disponibilite.etat.${lot.etat}`)}`] : []),
+    `${t("disponibilite.info.brouter")} : ${t(d.attente === "moteur"
       ? "disponibilite.info.attente" : "disponibilite.info.pret")}`].join("\n");
 }
 

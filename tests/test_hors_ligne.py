@@ -177,6 +177,7 @@ def test_itineraire_hors_ligne_sans_reseau_ni_rd5_officielle(tmp_path, monkeypat
         "les franchissements du lot, filtrés sur la zone, et la coche passée au profil"
 
 
+@pytest.mark.zones_reelles
 def test_l_indicateur_compte_le_lot_installe(tmp_path, monkeypatch):
     # Capture de Nico du 2026-10-28 : lot téléchargé, mais « Tracé indisponible »
     # (Overpass muet, extrait régional absent, BRouter en attente).

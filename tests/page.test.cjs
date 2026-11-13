@@ -693,27 +693,26 @@ test("le parcours revient après rechargement et se recalcule", async () => {
 
 test("le voyant suit les données du prochain calcul, pas le tracé affiché", async () => {
   const { page, elements, derniere, minuteurs } = charger();
-  page.afficherDisponibilite({ pret: false, source: null, attente: "osm" });
+  page.afficherDisponibilite({ pret: false, source: null, attente: "zone_absente" });
   assert.equal(elements.get("readinessText").textContent, "Tracé indisponible");
   page.ajouterPoint({ lat: 43.3, lng: 6 });
   page.ajouterPoint({ lat: 43.31, lng: 6.02 });
   const calcul = minuteurs.findLast((m) => m.ms === 250 && !m.annule).callback();
   repondre(derniere(), resultat(6.02));
   await calcul;
-  page.afficherDisponibilite({ pret: false, source: null, attente: "osm" });
+  page.afficherDisponibilite({ pret: false, source: null, attente: "zone_absente" });
   assert.equal(elements.get("readinessText").textContent, "Tracé indisponible");
-  page.afficherDisponibilite({ pret: true, source: "cache", details: {
-    overpass: "oui", local: { nom: "Var", etat: "disponible" },
-    regional: { nom: "Provence-Alpes-Côte d’Azur", etat: "import" },
-  } });
+  // Nico, 2026-11-13 : « le message n'est pas à jour ». La zone de routage et BRouter,
+  // sans plus d'Overpass ni d'extraits OSM.
+  page.afficherDisponibilite({ pret: true, source: "lot", nom: "E5_N40",
+    details: { lot: { nom: "E5_N40", etat: "simple" } } });
   assert.equal(elements.get("readinessText").textContent, "Tracé disponible");
   assert.equal(elements.get("readiness").classList.contains("available"), true);
-  assert.match(elements.get("readinessInfoText").textContent, /Overpass : répond/);
-  assert.match(elements.get("readinessInfoText").textContent, /Extrait OSM local \(Var\) : disponible/);
-  assert.match(elements.get("readinessInfoText").textContent, /Extrait OSM régional .* : import en cours/);
+  assert.equal(elements.get("readinessInfoText").textContent, "Sources du prochain calcul\n"
+    + "Zone de routage (E5_N40) : simple (sans chemins dessinés ni franchissements)\nBRouter : prêt");
   page.appliquerLangue("en");
   assert.equal(elements.get("readinessText").textContent, "Routing available");
-  assert.match(elements.get("readinessInfoText").textContent, /Regional OSM extract .* : importing/);
+  assert.match(elements.get("readinessInfoText").textContent, /Routing area \(E5_N40\) : simple/);
   page.ajouterPoint({ lat: 43.32, lng: 6.03 });
   assert.equal(elements.get("readinessText").textContent, "Routing unavailable");
 });

@@ -560,48 +560,29 @@ def test_route_denivele(tmp_path, monkeypatch):
     assert a.denivele({}) == {"erreur": "Tracé invalide."}
 
 
-def test_disponibilite_depuis_extrait_ou_overpass(tmp_path, monkeypatch):
+@pytest.mark.zones_reelles
+def test_disponibilite_ne_compte_que_la_zone_de_routage(tmp_path, monkeypatch):
+    # Nico, 2026-11-13 : « le message n'est pas à jour » ; l'infobulle énumérait encore
+    # Overpass et les extraits OSM, quand un tracé ne part plus que d'une zone de routage.
     a = appli.Application(tmp_path)
     zone = (43.3, 6.0, 43.31, 6.01)
     monkeypatch.setattr(a.installation, "installee", lambda: True)
-    monkeypatch.setattr(a.installation, "segment_present", lambda nom: True)
-    monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: False)
-    monkeypatch.setattr(a, "_detail_sources_osm", lambda zone, overpass: {"overpass": "non"})
-    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda *args: [{"nom": "Var"}])
-    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
-    assert a.disponibilite(zone) == {"pret": True, "source": "extrait", "nom": "Var",
-                                    "details": {"overpass": "non"}}
-    monkeypatch.setattr(geofabrik, "extraits_de_tuile", lambda *args: [])
-    monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: True)
-    assert a.disponibilite(zone) == {"pret": True, "source": "cache", "details": {"overpass": "non"}}
-    monkeypatch.setattr(franchissements, "tuile_disponible", lambda *args: False)
-    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: True)
-    assert a.disponibilite(zone)["pret"] is True
-    monkeypatch.setattr(franchissements, "disponibilite_overpass", lambda: False)
-    assert a.disponibilite(zone)["pret"] is False
-    monkeypatch.setattr(a.installation, "segment_present", lambda nom: False)
-    assert a.disponibilite(zone)["attente"] == "segments"
+    assert a.disponibilite(zone) == {"pret": False, "source": None, "attente": "zone_absente",
+                                    "details": {"lot": {"nom": "E5_N40", "etat": "absent"}}}
+    a._lot = {"actif": True, "case": "E5_N40"}
+    assert a.disponibilite(zone)["details"]["lot"]["etat"] == "preparation"
+    a._lot = {"actif": False}
+    monkeypatch.setattr(a, "_cases_sans_lot", lambda zone: [])
+    monkeypatch.setattr(a, "_cases_sans_calques", lambda zone: ["E5_N40"])
+    d = a.disponibilite(zone)
+    assert d["pret"] is True and d["details"]["lot"]["etat"] == "simple", "la zone simple trace"
+    monkeypatch.setattr(a, "_cases_sans_calques", lambda zone: [])
+    assert a.disponibilite(zone) == {"pret": True, "source": "lot", "nom": "E5_N40",
+                                    "details": {"lot": {"nom": "E5_N40", "etat": "disponible"}}}
     monkeypatch.setattr(a.installation, "installee", lambda: False)
     assert a.disponibilite(zone)["attente"] == "moteur"
     assert a.disponibilite_parcours({"points": [[43.3, 6], [43.31, 6.01]]})["attente"] == "moteur"
-
-
-def test_detail_disponibilite_distingue_extraits_local_et_regional(tmp_path, monkeypatch):
-    a = appli.Application(tmp_path)
-    local = {"id": "fr-var", "nom": "Var", "genre": "departement"}
-    regional = {"id": "provence-alpes-cote-d-azur", "nom": "Provence-Alpes-Côte d’Azur"}
-    monkeypatch.setattr(osmfr, "regions", lambda dossier: [local])
-    monkeypatch.setattr(geofabrik, "regions", lambda dossier: [regional])
-    monkeypatch.setattr(geofabrik, "region_de_tuile", lambda regions, i, j: regions[0] if regions else None)
-    monkeypatch.setattr(geofabrik, "installes", lambda dossier: [local])
-    class Telechargements:
-        def etat(self):
-            return {"id": regional["id"], "etape": "import"}
-    monkeypatch.setattr(geofabrik, "telechargements", lambda dossier: Telechargements())
-    details = a._detail_sources_osm((43.3, 6.0, 43.31, 6.01), True)
-    assert details == {"overpass": "oui", "local": {"nom": "Var", "etat": "disponible"},
-                       "regional": {"nom": "Provence-Alpes-Côte d’Azur", "etat": "import"}}
-
+    assert a.disponibilite(None)["attente"] == "zone"
 
 
 def test_routes_init_annonce_l_application(tmp_path):

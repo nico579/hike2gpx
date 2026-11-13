@@ -954,62 +954,31 @@ class Application:
             return {**reponse, "installe": {"id": installe["id"], "nom": installe["nom"], "date": installe["date"]}}
         return reponse
 
-    def _detail_sources_osm(self, zone, overpass) -> dict:
-        """État des deux extraits de la tuile centrale et d'Overpass."""
-        detail = {"overpass": "oui" if overpass is True else "non" if overpass is False else "verification"}
-        if zone is None:
-            return detail
-        i, j = franchissements.tuile_du_point((zone[0] + zone[2]) / 2, (zone[1] + zone[3]) / 2)
-        locaux = [r for r in osmfr.regions(self.dossier) if r.get("genre") == "departement"]
-        local = geofabrik.region_de_tuile(locaux, i, j)
-        regional = geofabrik.region_de_tuile(geofabrik.regions(self.dossier), i, j)
-        installes = {r["id"] for r in geofabrik.installes(self.dossier)}
-        en_cours = geofabrik.telechargements(self.dossier).etat()
-
-        def etat(region):
-            if region is None:
-                return {"etat": "non_applicable"}
-            statut = "disponible" if region["id"] in installes else "absent"
-            if statut == "absent" and en_cours and en_cours.get("id") == region["id"] \
-                    and en_cours.get("etape") in ("telechargement", "import"):
-                statut = en_cours["etape"]
-            return {"nom": region["nom"], "etat": statut}
-
-        return {**detail, "local": etat(local), "regional": etat(regional)}
-
     def disponibilite(self, zone) -> dict:
-        """Prérequis d'un nouveau calcul au centre de la vue ou dans la zone du parcours."""
-        overpass = franchissements.disponibilite_overpass()
-        details = self._detail_sources_osm(zone, overpass)
+        """Prérequis d'un nouveau calcul au centre de la vue ou dans la zone du
+        parcours : la zone de routage de chaque case qu'il touche, et le moteur
+        BRouter. Depuis la 0.9.31, plus de calcul à la volée : ni Overpass, ni
+        extraits OSM ne comptent (Nico, 2026-11-13 : « le message n'est pas à
+        jour », qui les énumérait encore). details["lot"] : les cases, et
+        l'état de leur zone (disponible, simple, preparation, absent)."""
         if zone is None:
-            return {"pret": False, "source": None, "attente": "zone", "details": details}
-        # Un lot installé qui couvre la zone suffit au calcul, RD5 comprise
-        # (règle unique) : l'indicateur le dit au lieu de compter les extraits
-        # et les tuiles BRouter (capture de Nico du 2026-10-28).
-        lot_local = self.hors_ligne.lot_couvrant(zone)
-        if lot_local:
-            details["lot"] = {"nom": lot_local["case"], "etat": "disponible"}
-        elif self._lot.get("actif") and self._lot.get("case") in brouter.segments_zone(*zone):
-            details["lot"] = {"nom": self._lot["case"], "etat": "telechargement"}
+            return {"pret": False, "source": None, "attente": "zone", "details": {}}
+        cases = brouter.segments_zone(*zone)
+        nom = ", ".join(cases)
+        manquantes = self._cases_sans_lot(zone)
+        if manquantes:
+            etat = "preparation" if self._lot.get("actif") and self._lot.get("case") in manquantes else "absent"
+        else:
+            # Une zone simple (la RD5 de brouter.de seule) trace, sans chemins ni franchissements.
+            etat = "simple" if self._cases_sans_calques(zone) else "disponible"
+        details = {"lot": {"nom": nom, "etat": etat}}
         if not self.installation.installee():
             return {"pret": False, "source": None, "attente": "moteur", "details": details}
-        if lot_local:
-            return {"pret": True, "source": "lot", "nom": lot_local["case"], "details": details}
-        if any(not self.installation.segment_present(n) for n in brouter.segments_zone(*zone)):
-            return {"pret": False, "source": None, "attente": "segments", "details": details}
-        tuiles = franchissements.tuiles_zone(*zone)
-        if len(tuiles) > TUILES_MAX:
+        if manquantes:
+            return {"pret": False, "source": None, "attente": "zone_absente", "details": details}
+        if len(franchissements.tuiles_zone(*zone)) > TUILES_MAX:
             return {"pret": False, "source": None, "attente": "zone", "details": details}
-        extraits = [geofabrik.extraits_de_tuile(self.dossier, i, j) for i, j in tuiles]
-        if all(extraits):
-            noms = list(dict.fromkeys(e["nom"] for liste in extraits for e in liste))
-            return {"pret": True, "source": "extrait", "nom": ", ".join(noms), "details": details}
-        if all(extrait or franchissements.tuile_disponible(i, j, self.dossier)
-               for (i, j), extrait in zip(tuiles, extraits)):
-            return {"pret": True, "source": "cache", "details": details}
-        return {"pret": overpass is True, "source": "overpass" if overpass else None,
-                "verification": overpass is None, "attente": "osm" if overpass is not True else None,
-                "details": details}
+        return {"pret": True, "source": "lot", "nom": nom, "details": details}
 
     def disponibilite_parcours(self, payload) -> dict:
         """Même contrôle, sur la zone du prochain calcul plutôt que sur la vue."""
