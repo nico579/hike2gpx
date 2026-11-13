@@ -56,7 +56,7 @@ const TEXTES = {
     "horsLigne.deplacement": "Copie des données{compte}, depuis {duree}",
     "horsLigne.deplace": "Données copiées dans {dossier} : hike2gpx redémarre, rechargez la page dans quelques secondes.",
     "zones.planifier": "Pour planifier ici, hike2gpx a besoin de la zone de routage de cette région (case {nom}, {taille}). La télécharger ? La page s'ouvrira à la fin du téléchargement.",
-    "zones.fabriquer": "Pour planifier ici, hike2gpx a besoin de la zone de routage de cette région, et le serveur n'en publie pas pour la case {nom}. La fabriquer sur ce PC ? Comptez de quelques minutes à une demi-heure selon la densité de la région. La page s'ouvrira à la fin.",
+    "zones.fabriquer": "Le serveur ne publie pas de zone de routage pour la case {nom}. La préparer sur ce PC ? D'abord la zone simple de brouter.de ({taille}) : la planification s'ouvre dès qu'elle est là, en une minute environ. Ensuite, en arrière-plan, la zone étendue (chemins sur la carte, franchissements), de quelques minutes à une demi-heure ; « Arrêter » garde la zone simple.",
     "horsLigne.legendeInstalle": "sur ce PC",
     "horsLigne.legendeSelection": "sélectionné",
     "horsLigne.legendeEnCours": "en cours",
@@ -269,6 +269,7 @@ const TEXTES = {
     "horsLigne.plusTard": "Plus tard",
     "horsLigne.erreur": "Préparation de {nom} interrompue : {erreur}",
     "horsLigne.etape.debut": "démarrage",
+    "horsLigne.etape.simple": "zone simple de brouter.de",
     "horsLigne.etape.rd5": "itinéraires BRouter",
     "horsLigne.etape.extraits": "extraits OSM",
     "horsLigne.etape.calques": "chemins et franchissements",
@@ -317,6 +318,8 @@ const TEXTES = {
     "erreur.zone_absente": "Pas de zone de routage pour la case {cases}. Rouvrez « Planifier un itinéraire » ici pour la télécharger ou la fabriquer.",
     "erreur.serveur_zones_injoignable": "Pas de zone de routage ici, et le serveur des zones est injoignable.",
     "erreur.calques_sans_zone": "Pas de zone de routage ici : les chemins s'afficheront avec elle (« Planifier un itinéraire »).",
+    "erreur.calques_zone_simple": "Zone de routage simple ici : les chemins s'afficheront avec la zone étendue.",
+    "erreur.brouter_absent": "brouter.de n'a pas de zone de routage pour la case {case} (la mer, ou pas de réseau).",
     "erreur.itineraire_refuse": "Itinéraire refusé : le tracé passe un franchissement {mot} ({nature}, à {distance} du départ).",
     "mot.bloquant": "bloquant",
     "mot.strict": "à vérifier, en mode strict",
@@ -353,7 +356,7 @@ const TEXTES = {
     "horsLigne.deplacement": "Copying the data{compte}, for {duree}",
     "horsLigne.deplace": "Data copied to {dossier}: hike2gpx is restarting, reload the page in a few seconds.",
     "zones.planifier": "To plan here, hike2gpx needs the routing area of this region (cell {nom}, {taille}). Download it? The page will open when the download is done.",
-    "zones.fabriquer": "To plan here, hike2gpx needs the routing area of this region, and the server does not publish one for cell {nom}. Build it on this PC? Allow from a few minutes to half an hour depending on how dense the region is. The page will open when it is done.",
+    "zones.fabriquer": "The server does not publish a routing area for cell {nom}. Prepare it on this PC? First the simple area from brouter.de ({taille}): planning opens as soon as it is there, in about a minute. Then, in the background, the extended area (paths on the map, crossings), from a few minutes to half an hour; \"Stop\" keeps the simple area.",
     "horsLigne.legendeInstalle": "on this PC",
     "horsLigne.legendeSelection": "selected",
     "horsLigne.legendeEnCours": "in progress",
@@ -566,6 +569,7 @@ const TEXTES = {
     "horsLigne.plusTard": "Later",
     "horsLigne.erreur": "Preparation of {nom} interrupted: {erreur}",
     "horsLigne.etape.debut": "starting",
+    "horsLigne.etape.simple": "simple area from brouter.de",
     "horsLigne.etape.rd5": "BRouter routing data",
     "horsLigne.etape.extraits": "OSM extracts",
     "horsLigne.etape.calques": "paths and crossings",
@@ -614,6 +618,8 @@ const TEXTES = {
     "erreur.zone_absente": "No routing area for cell {cases}. Reopen \"Plan a route\" here to download or build it.",
     "erreur.serveur_zones_injoignable": "No routing area here, and the area server cannot be reached.",
     "erreur.calques_sans_zone": "No routing area here: paths will show once it is installed (\"Plan a route\").",
+    "erreur.calques_zone_simple": "Simple routing area here: paths will show with the extended area.",
+    "erreur.brouter_absent": "brouter.de has no routing area for cell {case} (the sea, or no network).",
     "erreur.itineraire_refuse": "Route refused: it passes a {mot} crossing ({nature}, {distance} from the start).",
     "mot.bloquant": "blocking",
     "mot.strict": "to-check (strict mode)",
@@ -1276,7 +1282,7 @@ async function chargerCalque(cle, zone) {
     if (!autres) noteCalques("");
     return;
   }
-  if (donnees.code === "calques_sans_zone") {
+  if (donnees.code === "calques_sans_zone" || donnees.code === "calques_zone_simple") {
     // Pas de lot ici : la carte de fond seule, sans les chemins de la vue d'avant.
     calque.groupe.clearLayers();
     calque.charge = null;
@@ -2306,6 +2312,14 @@ async function suivreLot() {
     return;
   }
   afficherLot(lotEnCours);
+  if (lotEnCours.actif && lotEnCours.simple_installee && apresLot) {
+    // La zone simple est là : la planification s'ouvre sans attendre la zone
+    // étendue, qui continue en arrière-plan.
+    const suite = apresLot;
+    apresLot = null;
+    await chargerLots();
+    suite();
+  }
   if (lotEnCours.actif) {
     lotSuivi = true;
     minuterieLot = setTimeout(suivreLot, 2000);
@@ -2327,10 +2341,11 @@ async function suivreLot() {
 }
 
 // Rend vrai quand la préparation est partie.
-async function preparerCase(nom, zone = null) {
+async function preparerCase(nom, zone = null, options = {}) {
   carte.closePopup();
   // Le serveur prend tous les fournisseurs nationaux qui touchent la zone.
-  const reponse = await api("preparer_lot", zone ? { case: nom, zone } : { case: nom });
+  // options.simple : la zone simple de brouter.de d'abord, puis la zone étendue.
+  const reponse = await api("preparer_lot", { case: nom, ...(zone ? { zone } : {}), ...options });
   if (reponse.erreur) {
     afficherLot({ case: nom, erreur: reponse.erreur });
     return false;
@@ -3124,14 +3139,14 @@ async function verifierZonePlanification() {
     return;
   }
   if (r.fabriquer) {
-    if (!confirm(t("zones.fabriquer", { nom: r.fabriquer.case }))) {
+    if (!confirm(t("zones.fabriquer", { nom: r.fabriquer.case, taille: tailleTexte(r.fabriquer.octets) }))) {
       ouvrirPage("");
       return;
     }
     ouvrirPage("");               // la carte et la ligne d'activité, le temps de la fabrication
     apresLot = () => ouvrirPage("trace");
     try {
-      if (!(await preparerCase(r.fabriquer.case))) apresLot = null;
+      if (!(await preparerCase(r.fabriquer.case, null, { simple: true }))) apresLot = null;
     } catch (e) {
       apresLot = null;
       afficherStatut(() => t("statut.erreur", { message: e.message }), true);

@@ -152,8 +152,13 @@ def test_la_planification_demande_la_zone_du_serveur_quand_aucune_n_est_la(tmp_p
     zone = (43.30, 5.50, 43.31, 5.51)
     # Hors des cases du serveur (Montréal, Nico, 2026-11-13 : « j'ai pas le message de
     # création du lot par le pc ») : la page propose de fabriquer le lot ici, rien ne part seul ;
-    # puis, ce lot en préparation, elle l'attend.
-    assert a.zone_planification({"lat": 47.0, "lon": 2.0}) == {"fabriquer": {"case": "E0_N45"}}
+    # puis, ce lot en préparation, elle l'attend. La zone simple de brouter.de part d'abord :
+    # sa taille pour la question ; sans elle (la mer, pas de réseau), rien à préparer.
+    from hike2gpx import brouter
+    monkeypatch.setattr(brouter, "taille_segment", lambda nom: None)
+    assert a.zone_planification({"lat": 47.0, "lon": 2.0})["code"] == "brouter_absent"
+    monkeypatch.setattr(brouter, "taille_segment", lambda nom: 120_000_000 if nom == "E0_N45" else None)
+    assert a.zone_planification({"lat": 47.0, "lon": 2.0}) == {"fabriquer": {"case": "E0_N45", "octets": 120_000_000}}
     assert a._fil_lot is None
     a._lot = {"actif": True, "case": "E0_N45"}
     assert a.zone_planification({"lat": 47.0, "lon": 2.0}) == {"attendre": {"case": "E0_N45"}}
@@ -220,3 +225,38 @@ def test_une_edition_illisible_est_signalee_sans_passer_pour_absente():
     assert lignes == [("E0_N40", "?", None)]
     assert problemes == ["E0_N40 : édition OSM illisible (None)"]
     assert "| E0_N40 | ? | ? (!) |" in depot.tableau_fraicheur(lignes, problemes, 14)
+
+
+@pytest.mark.zones_reelles
+def test_la_zone_simple_ouvre_la_planification_avant_la_zone_etendue(tmp_path, monkeypatch):
+    # Nico, 2026-11-13 : « pour ne pas bloquer la planification, sur le pc on commence par la
+    # zone simple brouter (vite téléchargée), et en parallèle, la zone étendue se calcule ».
+    from hike2gpx import application as appli, fabrication
+    a = appli.Application(tmp_path / "donnees")
+
+    def telecharger(nom, vers=None):
+        vers.mkdir(parents=True, exist_ok=True)
+        (vers / f"{nom}.rd5").write_bytes(b"rd5 de brouter.de")
+        return vers / f"{nom}.rd5"
+    monkeypatch.setattr(a.installation, "telecharger_segment", telecharger)
+    monkeypatch.setattr(a, "_arreter_moteurs", lambda: None)
+    vu = {}
+
+    def fabriquer(dossier, installation, case, sortie, **options):
+        # La zone étendue commence : la zone simple est déjà là, la page a pu s'ouvrir.
+        vu["simple"] = a.lot_en_cours().get("simple_installee")
+        vu["couverte"] = a.hors_ligne.lot_couvrant((45.5, -73.6, 45.5, -73.6)) is not None
+        raise fabrication.Abandon()            # « Arrêter »
+    monkeypatch.setattr(fabrication, "fabriquer", fabriquer)
+    assert "lot_en_cours" in a.preparer_lot({"case": "W75_N45", "simple": True})
+    a._fil_lot.join(10)
+    assert vu == {"simple": True, "couverte": True}
+    assert a.lot_en_cours()["erreur"] == "Fabrication arrêtée."
+    # Arrêtée, la zone étendue laisse la zone simple : le tracé passe, sans chemins dessinés
+    # ni franchissements, et sans rien lire à la volée.
+    zone = (45.50, -73.61, 45.51, -73.60)
+    assert a._cases_sans_lot(zone) == []
+    assert a.calque_osm(zone, vue=1.0)["code"] == "calques_zone_simple"
+    manifeste = a.hors_ligne.lot_couvrant(zone)
+    assert manifeste["sources"] == {"rd5": "brouter.de"}
+    assert a.hors_ligne.franchissements(manifeste, zone) == []

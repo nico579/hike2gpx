@@ -1684,30 +1684,41 @@ test("sans zone publiée par le serveur, la planification propose de la fabrique
   // création du lot par le pc ».
   const { page, requetes, confirmations, evenements } = charger();
   const ouvertures = () => evenements.filter((e) => e === "hike2gpx:ouvrir-page").length;
+  const fabriquer = { fabriquer: { case: "W75_N45", octets: 120e6 } };
   confirmations.reponse = false;
   page.planifier(true);
-  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), { fabriquer: { case: "W75_N45" } });
+  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), fabriquer);
   await tic();
   await tic();
-  assert.match(confirmations.at(-1), /case W75_N45\. La fabriquer sur ce PC/);
+  assert.match(confirmations.at(-1), /case W75_N45\. La préparer sur ce PC \? D'abord la zone simple de brouter\.de \(120 Mo\)/);
   assert.equal(ouvertures(), 1, "refusée, la page se referme");
   assert.equal(requetes.some((r) => r.url === "/api/preparer_lot"), false);
+  // Acceptée : la zone simple d'abord, puis la zone étendue (Nico : « pour ne pas bloquer la
+  // planification, sur le pc on commence par la zone simple brouter »).
   confirmations.reponse = true;
   page.planifier(true);
-  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), { fabriquer: { case: "W75_N45" } });
+  repondre(requetes.findLast((r) => r.url === "/api/zone_planification"), fabriquer);
   await tic();
   await tic();
   const preparation = requetes.findLast((r) => r.url === "/api/preparer_lot");
-  assert.deepEqual(JSON.parse(preparation.options.body), { case: "W75_N45" });
+  assert.deepEqual(JSON.parse(preparation.options.body), { case: "W75_N45", simple: true });
   repondre(preparation, { lot_en_cours: { actif: true, case: "W75_N45", etape: "debut" } });
   await tic();
   await tic();
-  assert.equal(ouvertures(), 2, "la carte et la ligne d'activité, le temps de la fabrication");
+  assert.equal(ouvertures(), 2, "la carte et la ligne d'activité, le temps de la zone simple");
+  // La zone simple installée : la page s'ouvre, la zone étendue continue.
+  repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"),
+    { actif: true, case: "W75_N45", etape: "extraits", simple_installee: true });
+  for (let k = 0; k < 6; k++) await tic();
+  for (const r of requetes.filter((r) => r.url === "/api/hors_ligne" && !r.repondue)) { r.repondue = true; repondre(r, { lots: [], fonds: [] }); }
+  for (let k = 0; k < 6; k++) await tic();
+  assert.equal(ouvertures(), 3, "la page s'ouvre sur la zone simple");
+  // La zone étendue finie ne rouvre rien de plus.
   repondre(requetes.findLast((r) => r.url === "/api/lot_en_cours"), { actif: false, case: "W75_N45", etape: "fini" });
   for (let k = 0; k < 6; k++) await tic();
   for (const r of requetes.filter((r) => r.url === "/api/hors_ligne" && !r.repondue)) { r.repondue = true; repondre(r, { lots: [], fonds: [] }); }
   for (let k = 0; k < 6; k++) await tic();
-  assert.equal(ouvertures(), 3, "la page se rouvre, le lot fabriqué");
+  assert.equal(ouvertures(), 3);
   // Ni zone ici ni serveur joignable : pas de données de routage, la page se referme
   // (Nico : « on avait dit qu'on bloquait la planification, si pas de données »).
   page.planifier(true);
