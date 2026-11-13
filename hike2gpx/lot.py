@@ -288,16 +288,30 @@ def couche_officielle(calque: str) -> str:
     return f"troncons_{calque}"
 
 
+def couches_du_calque(calque: str) -> dict:
+    """Couche du lot -> clé de la page, pour un calque ; un lot de format 2
+    n'a qu'une couche « troncons », celle de la BD TOPO. La page s'en sert
+    aussi quand elle lit elle-même les tuiles du lot (tuiles.js)."""
+    return {c: c for c in CALQUES[calque]} if calque in CALQUES \
+        else {couche_officielle(calque): "troncons", "troncons": "troncons"}
+
+
+def lire_tuile(mbtiles: Path, x: int, y: int) -> bytes | None:
+    """Les octets d'une tuile du zoom 14 du lot, tels quels (MVT, souvent
+    gzippé) : la page les décode elle-même. None si la tuile manque."""
+    with closing(sqlite3.connect(f"file:{Path(mbtiles).as_posix()}?mode=ro", uri=True)) as base:
+        ligne = base.execute("SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? "
+                             "AND tile_row = ?", (ZOOM, x, 2 ** ZOOM - 1 - y)).fetchone()
+    return ligne[0] if ligne else None
+
+
 def lire_calque(mbtiles: Path, calque: str, sud: float, ouest: float, nord: float, est: float) -> dict:
     """Le calque de la vue lu dans les tuiles du lot, au format des routes de la
     page : voies, barrières et tronçons avec leurs points [lat, lon], et les
     franchissements avec leur position. Une ligne coupée par plusieurs tuiles
     revient en morceaux, que la page dessine bout à bout : chacun est recoupé
     aux bords de sa tuile, sans la marge, pour ne rien dessiner deux fois."""
-    # Couche du lot -> clé de la page ; un lot de format 2 n'a qu'une couche
-    # « troncons », celle de la BD TOPO.
-    couches = {c: c for c in CALQUES[calque]} if calque in CALQUES \
-        else {couche_officielle(calque): "troncons", "troncons": "troncons"}
+    couches = couches_du_calque(calque)
     resultat = {c: [] for c in couches.values()}
     vus = set()
     chemin = Path(mbtiles).resolve()
