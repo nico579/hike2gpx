@@ -375,7 +375,7 @@ unplugged, hike2gpx notes it in its log and falls back to the standard
 location.
 
 On the phone, the settings offer the phone storage or the SD card, with the
-free space of each. Maps, areas and relief move there; if the SD card is
+free space of each. Maps, routing and relief move there; if the SD card is
 removed, hike2gpx says so and falls back to the phone storage.
 
 ### Crossing rules

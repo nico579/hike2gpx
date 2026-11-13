@@ -286,14 +286,14 @@
     <string name="point_naviguer">Naviguer avec une autre application</string>
     <string name="point_copie">Coordonnées copiées.</string>
     <string name="point_sans_application">Aucune application de navigation sur ce téléphone.</string>
-    <string name="stockage_titre">Emplacement des cartes et des zones</string>
+    <string name="stockage_titre">Emplacement des cartes et du routage</string>
     <string name="stockage_telephone">Mémoire du téléphone</string>
     <string name="stockage_carte_sd">Carte SD</string>
     <string name="stockage_ligne">%1$s · %2$s libres</string>
     <string name="stockage_sans_sd">Aucune carte SD détectée.</string>
-    <string name="stockage_confirmer">Déplacer les cartes et les zones hors ligne (%1$s) vers : %2$s ?</string>
+    <string name="stockage_confirmer">Déplacer les cartes et le routage hors ligne (%1$s) vers : %2$s ?</string>
     <string name="stockage_deplacer">Déplacer</string>
-    <string name="stockage_absent">Carte SD absente : les cartes et les zones sont dessus. Remettez-la, puis relancez hike2gpx.</string>
-    <string name="etat_deplacement">Déplacement des cartes et des zones…</string>
-    <string name="etat_deplace">Cartes et zones déplacées : %1$s.</string>
+    <string name="stockage_absent">Carte SD absente : les cartes et le routage sont dessus. Remettez-la, puis relancez hike2gpx.</string>
+    <string name="etat_deplacement">Déplacement des cartes et du routage…</string>
+    <string name="etat_deplace">Cartes et routage déplacés : %1$s.</string>
 </resources>
