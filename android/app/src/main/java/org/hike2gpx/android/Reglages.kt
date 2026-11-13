@@ -38,6 +38,11 @@ class Reglages(context: Context) {
         get() = preferences.getString(CLE_IGN, "") ?: ""
         set(v) = preferences.edit().putString(CLE_IGN, v.trim()).apply()
 
+    /** Le dossier qui reçoit hors-ligne/ (une carte SD) ; null : la mémoire du téléphone. */
+    var stockage: String?
+        get() = preferences.getString(STOCKAGE, null)
+        set(v) = preferences.edit().putString(STOCKAGE, v).apply()
+
     var strict: Boolean
         get() = preferences.getBoolean(STRICT, false)
         set(v) = preferences.edit().putBoolean(STRICT, v).apply()
@@ -143,6 +148,7 @@ class Reglages(context: Context) {
         private const val PCS = "pcs"                               // ancienne liste des PC, effacée
         private const val FOND = "fond"
         private const val CLE_IGN = "cle_ign"
+        private const val STOCKAGE = "stockage"
         private const val STRICT = "strict"
         private const val OFFICIELS = "officiels"
         private const val CALQUE_OSM = "calque_osm"

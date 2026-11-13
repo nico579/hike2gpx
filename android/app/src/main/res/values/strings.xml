@@ -288,4 +288,14 @@
     <string name="point_naviguer">Navigate with another app</string>
     <string name="point_copie">Coordinates copied.</string>
     <string name="point_sans_application">No navigation app on this phone.</string>
+    <string name="stockage_titre">Location of the maps and areas</string>
+    <string name="stockage_telephone">Phone storage</string>
+    <string name="stockage_carte_sd">SD card</string>
+    <string name="stockage_ligne">%1$s · %2$s free</string>
+    <string name="stockage_sans_sd">No SD card detected.</string>
+    <string name="stockage_confirmer">Move the offline maps and areas (%1$s) to: %2$s?</string>
+    <string name="stockage_deplacer">Move</string>
+    <string name="stockage_absent">SD card missing: the maps and areas are on it. Put it back, then restart hike2gpx.</string>
+    <string name="etat_deplacement">Moving the maps and areas…</string>
+    <string name="etat_deplace">Maps and areas moved: %1$s.</string>
 </resources>

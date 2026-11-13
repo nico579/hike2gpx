@@ -24,6 +24,7 @@ from nico579_commons import langue as langue_commune
 
 from . import (__version__, archive, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik,
                hors_ligne, journaux, maison, mapsforge, osmfr, pare_feu, partage, providers)
+from . import emplacement
 from . import lot as tuiles_lot     # « lot » nomme partout un manifeste ; ici, le module des tuiles
 
 journal = logging.getLogger(__name__)
@@ -226,6 +227,8 @@ class Application:
         self.installation = brouter.Installation(self.dossier)
         self.maison = maison.TuilesMaison(self.installation, self.dossier)
         self.hors_ligne = hors_ligne.HorsLigne(self.dossier)
+        # Posée par web.servir : relance hike2gpx (après un changement de dossier).
+        self.relancer = None
         # Le dépôt des lots du serveur ; HIKE2GPX_DEPOT en désigne un autre (un
         # PC qui sert ses lots, un essai).
         self.depot_lots = os.environ.get("HIKE2GPX_DEPOT", depot.DEPOT)
@@ -274,7 +277,68 @@ class Application:
         cle = prefs.get("cle_ign") if isinstance(prefs, dict) else None
         return {"cle_ign": cle if isinstance(cle, str) and _CLE_IGN.match(cle) else "",
                 "renouvellement_jours": geofabrik.jours_renouvellement(self.dossier),
-                "zones_auto": self._prefs_zones()[0]}
+                "zones_auto": self._prefs_zones()[0],
+                "dossier_donnees": str(self.dossier)}
+
+    def deplacer_donnees(self, corps) -> dict:
+        """Déplace tout le dossier des données (emplacement.py) dans
+        <dossier choisi>/hike2gpx-data : la copie tourne en tâche de fond,
+        avec sa ligne d'activité ; à la fin, le pointeur est posé et hike2gpx
+        se relance sur la copie, qui efface l'ancien dossier."""
+        valeur = (corps or {}).get("dossier")
+        if not isinstance(valeur, str) or not valeur.strip():
+            return {"erreur": "Dossier manquant."}
+        dossier = Path(valeur.strip()).expanduser()
+        if not dossier.is_absolute():
+            return {"erreur": "Indiquez un chemin complet (par exemple D:\\Cartes)."}
+        actuel = self.dossier.resolve()
+        cible = dossier.resolve() / actuel.name
+        if cible == actuel:
+            return {"erreur": "C'est déjà le dossier des données."}
+        if cible.is_relative_to(actuel):
+            return {"erreur": "Le dossier choisi est à l'intérieur des données."}
+        if emplacement.force():
+            return {"erreur": "HIKE2GPX_HOME impose le dossier des données : changez cette variable."}
+        standard = emplacement.standard()
+        if cible.exists() and (cible != standard or any(e.name != emplacement.POINTEUR for e in cible.iterdir())):
+            return {"erreur": f"{cible} existe déjà : choisissez un autre dossier."}
+        try:
+            cible.parent.mkdir(parents=True, exist_ok=True)
+            libre = shutil.disk_usage(cible.parent).free
+        except OSError as exc:
+            return {"erreur": f"Dossier inaccessible : {exc}"}
+        octets = emplacement.taille(actuel)
+        if libre < octets * 1.05:
+            return {"erreur": f"Place insuffisante : {octets / 1e9:.1f} Go à déplacer, {libre / 1e9:.1f} Go libres."}
+        with self._verrou_lot:
+            if (self._fil_lot is not None and self._fil_lot.is_alive()) or self._brouter_en_cours \
+                    or geofabrik.telechargements(self.dossier).occupee():
+                return {"erreur": "Un téléchargement ou une préparation est en cours : attendez sa fin."}
+            self._lot = {"actif": True, "case": "", "etape": "deplacement", "faites": 0, "total": octets,
+                         "debut": time.time(), "arreter": False}
+            self._fil_lot = threading.Thread(target=self._deplacer_donnees, args=(cible, standard), daemon=True,
+                                             name="deplacement-donnees")
+            self._fil_lot.start()
+        return {"lot_en_cours": self.lot_en_cours()}
+
+    def _deplacer_donnees(self, cible: Path, standard: Path) -> None:
+        try:
+            self.partage.fermer()
+            with self._verrou_calcul:
+                emplacement.copier(self.dossier, cible,
+                                   suivi=lambda faites, total: self._lot.update(faites=faites, total=total),
+                                   continuer=lambda: not self._lot.get("arreter"))
+            emplacement.basculer(standard, self.dossier, cible)
+            journal.info("Données copiées de %s vers %s ; relance", self.dossier, cible)
+            self._lot = {"actif": False, "etape": "fini", "deplace": str(cible),
+                         "relance": self.relancer is not None}
+            if self.relancer is not None:
+                self.relancer()
+        except emplacement.Abandon:
+            self._lot = {"actif": False, "erreur": "Déplacement arrêté : les données restent où elles étaient."}
+        except OSError as exc:
+            journal.warning("Déplacement des données impossible : %s", exc)
+            self._lot = {"actif": False, "erreur": f"Déplacement impossible : {exc}"}
 
     def _prefs_zones(self) -> tuple:
         """(téléchargement automatique, cases déjà proposées, cases refusées) :
@@ -1152,7 +1216,8 @@ class Application:
                 "supprimer_case": self.supprimer_case, "supprimer_fond": self.supprimer_fond,
                 "arreter_lot": self.arreter_lot, "telecharger_lot": self.telecharger_lot,
                 "preparer_fond": self.preparer_fond, "partage": self.partager,
-                "zone_reponse": self.repondre_zone, **post_langue}
+                "zone_reponse": self.repondre_zone, "deplacer_donnees": self.deplacer_donnees,
+                **post_langue}
         return get, post
 
     CATALOGUE_TTL_S = 600.0

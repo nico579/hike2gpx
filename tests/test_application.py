@@ -51,9 +51,9 @@ def test_sur_le_trace_seulement_si_le_trace_coupe_la_coupe():
 
 def test_reglages_cle_ign(tmp_path):
     a = appli.Application(tmp_path)
-    assert a.reglages() == {"cle_ign": "", "renouvellement_jours": 30, "zones_auto": True}
-    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30, "zones_auto": True}
-    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30, "zones_auto": True}
+    assert a.reglages() == {"cle_ign": "", "renouvellement_jours": 30, "zones_auto": True, "dossier_donnees": str(tmp_path)}
+    assert a.enregistrer_reglages({"cle_ign": " cle_essai-1 "}) == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30, "zones_auto": True, "dossier_donnees": str(tmp_path)}
+    assert appli.Application(tmp_path).reglages() == {"cle_ign": "cle_essai-1", "renouvellement_jours": 30, "zones_auto": True, "dossier_donnees": str(tmp_path)}
     assert a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 45})["renouvellement_jours"] == 45
     assert "erreur" in a.enregistrer_reglages({"cle_ign": "cle_essai-1", "renouvellement_jours": 0})
     assert "erreur" in a.enregistrer_reglages({"cle_ign": "<script>"})
@@ -630,7 +630,7 @@ def test_routes_init_annonce_l_application(tmp_path):
     # supprimer_case : retirer de l'ordinateur le lot et les fonds d'une case.
     assert set(post) == {"itineraire", "disponibilite", "reglages", "moteur", "denivele", "communes", "langue",
                          "arreter_calques", "donnees", "ouvrir_journaux", "installer_lot", "preparer_lot",
-                         "arreter_lot", "telecharger_lot", "preparer_fond", "partage", "supprimer_case", "supprimer_fond", "zone_reponse"}
+                         "arreter_lot", "telecharger_lot", "preparer_fond", "partage", "supprimer_case", "supprimer_fond", "zone_reponse", "deplacer_donnees"}
 
 
 def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
@@ -641,7 +641,7 @@ def test_langue_choisie_gardee_dans_les_preferences(tmp_path):
     assert get["langue"]()["code"] is None
     assert post["langue"]({"code": "en"})["enregistre"]
     autre = appli.Application(tmp_path)
-    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test", "renouvellement_jours": 30, "zones_auto": True}
+    assert autre.routes()[0]["langue"]()["code"] == "en" and autre.reglages() == {"cle_ign": "cle_test", "renouvellement_jours": 30, "zones_auto": True, "dossier_donnees": str(tmp_path)}
 
 
 def test_progression_publiee_pendant_le_calcul_puis_effacee(simulee, monkeypatch):

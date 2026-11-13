@@ -146,6 +146,53 @@ class HorsLigne(dossier: File) {
     companion object {
         val FORMATS_LUS = listOf(2, 3)
 
+        /** Les octets d'un dossier, sous-dossiers compris. */
+        fun taille(dossier: File): Long = dossier.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+        /**
+         * Déplace hors-ligne/ d'un emplacement à l'autre (la mémoire du
+         * téléphone, une carte SD), comme hors_ligne.deplacer sur le PC : un
+         * renommage sur le même volume ; sinon une copie dans cible.part,
+         * renommée à la fin, puis l'effacement de la source. Une copie
+         * interrompue ne laisse jamais deux dossiers valides.
+         */
+        fun deplacer(source: File, cible: File, suivi: (Long, Long) -> Unit = { _, _ -> },
+                     continuer: () -> Boolean = { true }) {
+            if (cible.exists()) throw java.io.IOException("${cible.path} existe déjà")
+            cible.parentFile?.mkdirs()
+            if (!source.exists() || source.renameTo(cible)) return
+            val provisoire = File(cible.parentFile, "${cible.name}.part")
+            provisoire.deleteRecursively()
+            val total = taille(source)
+            var faites = 0L
+            val bloc = ByteArray(1 shl 20)
+            try {
+                for (f in source.walkTopDown()) {
+                    val destination = File(provisoire, f.relativeTo(source).path)
+                    if (f.isDirectory) { destination.mkdirs(); continue }
+                    destination.parentFile?.mkdirs()
+                    f.inputStream().use { entree ->
+                        destination.outputStream().use { sortie ->
+                            while (true) {
+                                if (!continuer()) throw Abandon()
+                                val n = entree.read(bloc)
+                                if (n < 0) break
+                                sortie.write(bloc, 0, n)
+                                faites += n
+                                suivi(faites, total)
+                            }
+                        }
+                    }
+                }
+                provisoire.mkdirs()
+                if (!provisoire.renameTo(cible)) throw java.io.IOException("${provisoire.path} : renommage impossible")
+            } catch (e: Throwable) {
+                provisoire.deleteRecursively()
+                throw e
+            }
+            source.deleteRecursively()
+        }
+
         private fun deplacer(de: File, vers: File) {
             vers.delete()
             if (!de.renameTo(vers)) {

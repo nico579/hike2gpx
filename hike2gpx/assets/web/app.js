@@ -49,6 +49,13 @@ const TEXTES = {
     "horsLigne.fondAucun": "Le fond affiché ne se garde pas hors ligne. Choisissez dans la liste du haut : {liste}.",
     "reglages.afficherLegende": "Afficher la légende",
     "reglages.zonesAuto": "Télécharger automatiquement les zones de routage (une question par zone)",
+    "reglages.dossierDonnees": "Dossier des données",
+    "reglages.deplacer": "Déplacer",
+    "reglages.dossierNote": "Les cartes, les zones et les extraits OSM pèsent des Go : un autre disque peut les recevoir. Indiquez le dossier, puis « Déplacer » ; hike2gpx redémarre sur la copie.",
+    "reglages.confirmerDeplacement": "Déplacer toutes les données de hike2gpx dans {dossier} ?\n\nLa copie peut durer quelques minutes ; hike2gpx redémarre ensuite sur elle et efface l'ancien dossier.",
+    "horsLigne.titreDeplacement": "Dossier des données",
+    "horsLigne.deplacement": "Copie des données{compte}, depuis {duree}",
+    "horsLigne.deplace": "Données copiées dans {dossier} : hike2gpx redémarre, rechargez la page dans quelques secondes.",
     "zones.question": "Pour calculer sans réseau, avec les chemins de la carte nationale, hike2gpx peut télécharger la zone de routage de cette région (case {nom}, {taille}). La télécharger maintenant ?",
     "zones.refusee": "Zone {nom} non téléchargée. Vous pourrez la télécharger à tout moment depuis « Gestion des itinéraires ».",
     "horsLigne.legendeInstalle": "sur ce PC",
@@ -339,6 +346,13 @@ const TEXTES = {
     "horsLigne.fondAucun": "The base map shown cannot be kept offline. Choose in the list above: {liste}.",
     "reglages.afficherLegende": "Show the legend",
     "reglages.zonesAuto": "Download routing areas automatically (one question per area)",
+    "reglages.dossierDonnees": "Data folder",
+    "reglages.deplacer": "Move",
+    "reglages.dossierNote": "Maps, areas and OSM extracts weigh GBs: another disk can take them. Enter the folder, then \"Move\"; hike2gpx restarts on the copy.",
+    "reglages.confirmerDeplacement": "Move all hike2gpx data to {dossier}?\n\nThe copy may take a few minutes; hike2gpx then restarts on it and deletes the old folder.",
+    "horsLigne.titreDeplacement": "Data folder",
+    "horsLigne.deplacement": "Copying the data{compte}, for {duree}",
+    "horsLigne.deplace": "Data copied to {dossier}: hike2gpx is restarting, reload the page in a few seconds.",
     "zones.question": "To compute with no network, with the paths of the national map, hike2gpx can download the routing area of this region (cell {nom}, {taille}). Download it now?",
     "zones.refusee": "Area {nom} not downloaded. You can download it at any time from “Route management”.",
     "horsLigne.legendeInstalle": "on this PC",
@@ -2255,19 +2269,23 @@ function afficherLot(r) {
   let message = "";
   if (r.actif) {
     // Un téléchargement compte en octets, une fabrication en tuiles ou mailles.
-    const compte = !r.total ? "" : r.etape === "telechargement"
+    const compte = !r.total ? "" : r.etape === "telechargement" || r.etape === "deplacement"
       ? ` ${tailleTexte(r.faites)} / ${tailleTexte(r.total)}` : ` ${r.faites}/${r.total}`;
     const duree = dureeTexte(r.duree_s || 0);
-    message = r.auto && r.etape === "telechargement" ? t("horsLigne.automatique", { nom, compte, duree })
+    message = r.etape === "deplacement" ? t("horsLigne.deplacement", { compte, duree })
+      : r.auto && r.etape === "telechargement" ? t("horsLigne.automatique", { nom, compte, duree })
       : t("horsLigne.avancement", { nom, etape: t(`horsLigne.etape.${r.etape}`), compte, duree });
   } else if (r.erreur) {
     message = t("horsLigne.erreur", { nom, erreur: ts(r.erreur) });
+  } else if (r.etape === "fini" && r.deplace) {
+    message = t("horsLigne.deplace", { dossier: r.deplace });
+    etat.dossierDonnees = $("dossierDonnees").value = r.deplace;
   } else if (r.etape === "fini") {
     message = r.fond ? t("horsLigne.fondFini", { nom: r.fond }) : t("horsLigne.fini", { nom });
   }
   $("lotHorsLigneTexte").textContent = message;
   // Le titre de la ligne d'activité sur la carte : la carte en cours ou la zone de routage.
-  $("lotHorsLigne").dataset.titre = r.source
+  $("lotHorsLigne").dataset.titre = r.etape === "deplacement" || r.deplace ? t("horsLigne.titreDeplacement") : r.source
     ? t("horsLigne.titreCarte", { fond: (etat.fondsHorsLigne || {})[r.source] || r.source })
     : t("horsLigne.titreZone");
   $("lotHorsLigne").hidden = !message;
@@ -3204,6 +3222,20 @@ async function enregistrerReglages() {
   }
 }
 document.addEventListener("hike2gpx:reglages-fermes", enregistrerReglages);
+// Le dossier des cartes et des zones hors ligne : le serveur les déplace en tâche
+// de fond, et la ligne d'activité suit le déplacement comme une préparation.
+$("deplacerDonnees").addEventListener("click", async () => {
+  const dossier = $("dossierDonnees").value.trim();
+  if (!dossier || dossier === etat.dossierDonnees) return;
+  if (!confirm(t("reglages.confirmerDeplacement", { dossier }))) return;
+  try {
+    const r = await api("deplacer_donnees", { dossier });
+    if (r.erreur) { afficherStatut(() => ts(r.erreur), true); return; }
+    suivreLot();
+  } catch (e) {
+    afficherStatut(() => t("statut.erreur", { message: e.message }), true);
+  }
+});
 $("ouvrirDossierJournaux").addEventListener("click", async () => {
   const bouton = $("ouvrirDossierJournaux");
   bouton.disabled = true;
@@ -3343,6 +3375,7 @@ async function demarrer() {
     $("renouvellementJours").value = etat.renouvellementJours;
     etat.zonesAuto = reglages.zones_auto !== false;
     $("zonesAuto").checked = etat.zonesAuto;
+    etat.dossierDonnees = $("dossierDonnees").value = reglages.dossier_donnees || "";
     await verifierBrouter();
   } catch (e) {
     afficherStatut(() => t("serveur.injoignable", { message: e.message }), true);

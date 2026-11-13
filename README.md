@@ -362,6 +362,22 @@ The archive is the phone share put in a zip: the same catalogue, where each
 file carries its size and SHA-256 fingerprint, checked before installing. A
 damaged file is refused.
 
+
+### Choosing where the data is stored
+
+Maps, routing areas, OSM extracts, relief: downloaded data quickly weighs
+several GB. On the PC, the settings show the data folder; enter another one,
+on a bigger disk, then "Move". The whole folder is copied, preferences and
+logs included, with its progress in the activity row; hike2gpx then restarts
+on the copy and deletes the old folder. Only a small file, `emplacement.json`,
+stays at the standard location and leads to the new one. If the disk is
+unplugged, hike2gpx notes it in its log and falls back to the standard
+location.
+
+On the phone, the settings offer the phone storage or the SD card, with the
+free space of each. Maps, areas and relief move there; if the SD card is
+removed, hike2gpx says so and falls back to the phone storage.
+
 ### Crossing rules
 
 Each crossing between a path and a barrier is judged with the rules of
