@@ -1,8 +1,7 @@
-"""Ligne de commande : hike2gpx [serve | installer | analyser | bundles]."""
+"""Ligne de commande : hike2gpx [serve | installer | bundles | ...]."""
 from __future__ import annotations
 
 import argparse
-import collections
 import json
 import re
 import sys
@@ -11,7 +10,7 @@ from pathlib import Path
 
 from nico579_commons import environnement
 
-from . import __version__, brouter, emplacement, franchissements, providers
+from . import __version__, brouter, emplacement, providers
 
 DOSSIERS = emplacement.DOSSIERS
 # --stage de bundles, vers les étapes de fabrication.fabriquer_lots.
@@ -41,9 +40,6 @@ def main(argv=None) -> int:
     serve.add_argument("--sans-icone", action="store_true", help="pas d'icône dans la zone de notification")
     installer = sous.add_parser("installer", help="installe BRouter et des tuiles de données (E5_N40...)")
     installer.add_argument("segments", nargs="*", help="tuiles BRouter à télécharger")
-    analyser = sous.add_parser("analyser", help="compte les franchissements d'une zone")
-    for nom in ("sud", "ouest", "nord", "est"):
-        analyser.add_argument(nom, type=float)
     # Les lots hors ligne en série, sur un serveur : la fabrication même de la
     # page (fabrication.py), options en anglais (Nico, 2026-10-27).
     bundles = sous.add_parser("bundles", help="build offline bundles of BRouter cells, one after the other",
@@ -181,13 +177,6 @@ def main(argv=None) -> int:
         print(rapport.compte_rendu(jobs, contenu, args.cells.split(), run=args.run_url, ref=args.ref,
                                    version=__version__, maintenant=time.time(), jours_max=args.max_age),
               end="", flush=True)
-        return 0
-    if args.commande == "analyser":
-        liste = franchissements.franchissements_zone(args.sud, args.ouest, args.nord, args.est, dossier)
-        compte = collections.Counter((f["statut"], f["nature"], f["raison"]) for f in liste)
-        print(f"{len(liste)} franchissements")
-        for (statut, nature, raison), n in compte.most_common():
-            print(f"{n:6d}  {statut:9s}  {nature:18s}  {raison}")
         return 0
     from . import web
     web.servir(dossier, getattr(args, "port", None) or web.PORT, not getattr(args, "sans_navigateur", False),

@@ -180,8 +180,8 @@ A routing area covers a 5° by 5° cell (E5_N40, for instance, spans 5° to 10°
 and 40° to 45° N: Provence and Corsica). It holds everything the routing needs,
 with no network, each file checked against the SHA-256 fingerprint of a
 manifest. One simple rule applies: when an installed area covers the whole
-route, it is used alone, for the routing as for the map layers; otherwise, the
-routing runs [on the fly](#without-a-routing-area-routing-on-the-fly).
+route, it is used alone, for the routing as for the map layers. With no area,
+nothing is computed (see [Without a routing area](#without-a-routing-area)).
 
 There are three ways to get one.
 
@@ -192,8 +192,8 @@ There are three ways to get one.
   page opens; the Var cell, 247 MB, arrives in a few tens of seconds. Refused,
   planning does not open. An installed area updates through its "Update"
   button in "Route management". On the PC, where the server publishes
-  nothing, planning opens without a question: the route is computed on the
-  fly.
+  nothing, planning offers to prepare the area on the PC: the simple area
+  first, then the extended area.
 - **From the PC**, everywhere else: "Route management" shows the grid of
   cells; click the ones you need, then "Download". The PC prepares the view on
   screen or the whole cell.
@@ -262,22 +262,19 @@ taken from the OpenStreetMap extract it downloaded. A view of a few kilometres
 is ready in about three minutes. The area is then shared with the phone like a
 base map.
 
-#### Without a routing area: routing on the fly
+#### Without a routing area
 
-With no area installed, the page still computes. It reads OpenStreetMap from an
-extract downloaded by itself around the place you work on: the smallest
-Geofabrik extract that contains the area, among some 550; in France, first the
-department from [OSM France](https://download.openstreetmap.fr/extracts/europe/france/)
-(the Var: 83 MB, ready in about forty seconds), then Geofabrik's region, which
-keeps whole the paths cut at the department border. The extract is stored in an
-SQLite database by tile: instant reading, with no quota or outage. Meanwhile,
-or outside the extracts, the Overpass service answers instead. In France and
-Germany, the page rebuilds, as the areas are viewed, a small BRouter tile with
-the paths of the national map. Extracts and tiles renew themselves after the
-delay chosen in the settings (30 days by default).
+With no area installed, nothing is computed on the fly: no route, and no paths
+drawn on the map. "Plan a route" then offers the area, downloaded from the
+server when it publishes one, otherwise prepared on the PC. The preparation
+starts with the simple area from brouter.de, which is enough to route and
+arrives in about a minute. The extended area, with its paths and crossings, is
+then built in the background from the Geofabrik extract of the region, cropped
+to the cell. Extracts renew with their area, after the delay chosen in the
+settings (30 days by default).
 
-If OpenStreetMap does not answer, the routing stops: an unknown barrier never
-proves that a passage is free.
+An unknown barrier never proves that a passage is free: a tile without data
+stops the build instead of passing for empty.
 
 ### Elevation, recomputed by gpx2elev
 

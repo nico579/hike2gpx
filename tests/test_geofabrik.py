@@ -3,7 +3,6 @@ format d'Overpass, téléchargement vérifié, tâche de fond."""
 import hashlib
 import io
 import json
-import re
 import sys
 import time
 import urllib.error
@@ -125,29 +124,17 @@ def test_un_bac_sans_highway_entre_dans_l_extrait(tmp_path):
     assert len(voies[900]["geometry"]) == 2, "les nœuds du bac ont leur position"
 
 
-def test_charger_tuile_prend_l_extrait_sans_overpass(tmp_path):
+def test_charger_tuile_lit_l_extrait(tmp_path):
     carte, _, _ = carte_d_essai()
     installer_carte(tmp_path, carte)
-    jamais = lambda *a, **o: pytest.fail("Overpass interrogé")
-    tuile = fr.charger_tuile(866, 120, tmp_path, interroger=jamais)
+    tuile = fr.charger_tuile(866, 120, tmp_path)
     assert tuile["source"] == f"geofabrik:essai:{DATE}" and tuile["fetched_at"] == geofabrik.horodatage(
         {"date": DATE})
-    # Hors connexion aussi, et l'analyse en cache reste valable d'un appel à l'autre.
-    assert fr.charger_tuile(866, 120, tmp_path, en_ligne=False, interroger=jamais)["elements"] == tuile["elements"]
-    premiere = fr.franchissements_tuile(866, 120, tmp_path, interroger=jamais)
-    assert fr.franchissements_tuile(866, 120, tmp_path, interroger=jamais) == premiere
-    # Une tuile hors de la région reste à Overpass.
-    assert fr.charger_tuile(900, 120, tmp_path, interroger=lambda texte, **_: [])["elements"] == []
-
-
-def test_le_calque_lit_d_abord_les_tuiles_de_l_extrait(tmp_path):
-    # La barre de la page file avec elles, puis attend Overpass pour les tuiles
-    # qu'aucun extrait ne contient tout entières (au bord d'une région).
-    carte, _, _ = carte_d_essai()
-    installer_carte(tmp_path, carte)
-    tuiles = [(900, 120), (866, 120), (901, 120), (866, 121)]
-    assert fr._couvertes_d_abord(tuiles, tmp_path) == [(866, 120), (866, 121), (900, 120), (901, 120)]
-    assert fr._couvertes_d_abord(tuiles, tmp_path / "vide") == tuiles
+    assert fr.franchissements_tuile(866, 120, tmp_path) == fr.franchissements_tuile(866, 120, tmp_path, donnees=tuile)
+    # Hors de la région, pas de données : Overpass ne sert plus (0.9.31), et une
+    # tuile sans données n'est pas une tuile vide.
+    with pytest.raises(fr.ErreurDonnees):
+        fr.charger_tuile(900, 120, tmp_path)
 
 
 def test_la_plus_petite_region_qui_contient_toute_la_tuile():
@@ -318,113 +305,6 @@ def test_extrait_trop_gros_ecarte_sans_nouvel_essai(tmp_path, monkeypatch):
     with pytest.raises(geofabrik.ExtraitEcarte, match="trop gros"):
         geofabrik._telecharger(url, tmp_path / "essai.osm.pbf", ouvrir=ouvrir, attendre=pytest.fail)
 
-    def trop_gros(dossier, region, **options):
-        raise geofabrik.ExtraitEcarte("extrait trop gros (2.1 Go), Overpass reste la source")
-
-    monkeypatch.setattr(geofabrik, "installer", trop_gros)
-    taches = geofabrik.Telechargements(tmp_path)
-    assert taches.lancer(REGION)
-    taches._fil.join(10)
-    assert taches.etat()["etape"] == "erreur" and "trop gros" in taches.etat()["erreur"]
-    assert not taches.lancer(REGION)
-
-
-def test_panne_dite_en_clair_avec_l_heure_du_nouvel_essai(tmp_path, monkeypatch):
-    def panne(dossier, region, **options):
-        raise TimeoutError("The read operation timed out")
-
-    monkeypatch.setattr(geofabrik, "installer", panne)
-    taches = geofabrik.Telechargements(tmp_path)
-    assert taches.lancer(REGION)
-    taches._fil.join(10)
-    assert re.fullmatch(r"Geofabrik ne répond pas \(délai dépassé\) ; nouvel essai après \d\d:\d\d",
-                        taches.etat()["erreur"])
-    assert not taches.lancer(REGION)       # pas avant une heure
-
-
-def test_le_dernier_usage_l_emporte(tmp_path, monkeypatch):
-    # Nico, 2026-10-20 : passé du Centre à la Bretagne, il attendait la fin du
-    # Centre, devenu inutile. La région qui sert désormais prend la place.
-    abandonnes = []
-
-    def installer(dossier, region, suivi=None, continuer=None, **options):
-        while continuer():
-            if region["id"] == "bretagne":
-                return {"date": DATE}
-            time.sleep(0.01)
-        abandonnes.append(region["id"])
-        raise geofabrik.Abandon()
-
-    monkeypatch.setattr(geofabrik, "installer", installer)
-    taches = geofabrik.Telechargements(tmp_path)
-    centre, bretagne = {**REGION, "id": "centre", "nom": "Centre"}, {**REGION, "id": "bretagne", "nom": "Bretagne"}
-    assert taches.lancer(centre)
-    assert not taches.lancer(centre)                # la même région ne repart pas
-    premier = taches._fil
-    assert taches.lancer(bretagne)
-    premier.join(5)
-    taches._fil.join(5)
-    assert not premier.is_alive() and abandonnes == ["centre"]
-    assert taches.etat() == {"id": "bretagne", "nom": "Bretagne", "etape": "fini", "fraction": 0.0, "voies": 0,
-                             "relais": False, "date": DATE}
-    # Un abandon n'est pas un échec : le Centre repart aussitôt s'il resert.
-    assert taches.lancer(centre)
-    second = taches._fil
-    assert taches.lancer(bretagne)
-    second.join(5)
-    taches._fil.join(5)
-    assert abandonnes == ["centre", "centre"]
-
-
-def test_quitter_une_region_abandonne_son_import(tmp_path, monkeypatch):
-    abandonnes = []
-
-    def installer(dossier, region, continuer=None, **options):
-        while continuer():
-            time.sleep(0.01)
-        abandonnes.append(region["id"])
-        raise geofabrik.Abandon()
-
-    monkeypatch.setattr(geofabrik, "installer", installer)
-    taches = geofabrik.Telechargements(tmp_path)
-    assert taches.lancer(REGION)
-    fil = taches._fil
-    assert not taches.abandonner_hors_tuile(*fr.tuile_du_point(43.3, 6.0))
-    assert taches.abandonner_hors_tuile(*fr.tuile_du_point(40.4, -3.7))
-    fil.join(5)
-    assert abandonnes == ["essai"]
-    assert taches.etat() is None
-    assert taches.lancer(REGION)  # l'abandon ne bloque pas un usage ultérieur
-    assert taches.abandonner_hors_tuile(*fr.tuile_du_point(40.4, -3.7))
-    taches._fil.join(5)
-
-
-def test_une_erreur_en_s_arretant_n_est_pas_un_echec(tmp_path, monkeypatch):
-    # Essai réel du 2026-10-20 : en abandonnant l'Auvergne, l'effacement de son
-    # index des nœuds a buté sur Windows (WinError 5) et compté comme un échec :
-    # la région ne pouvait plus repartir avant une heure.
-    def installer(dossier, region, continuer=None, **options):
-        while continuer():
-            if region["id"] == "alsace":
-                return {"date": DATE}
-            time.sleep(0.01)
-        raise PermissionError(5, "Accès refusé")
-
-    monkeypatch.setattr(geofabrik, "installer", installer)
-    taches = geofabrik.Telechargements(tmp_path)
-    auvergne, alsace = {**REGION, "id": "auvergne", "nom": "Auvergne"}, {**REGION, "id": "alsace", "nom": "Alsace"}
-    assert taches.lancer(auvergne)
-    premier = taches._fil
-    assert taches.lancer(alsace)
-    premier.join(5)
-    taches._fil.join(5)
-    assert "auvergne" not in taches._echecs and taches.etat()["etape"] == "fini"
-    assert taches.lancer(auvergne)                  # aucune heure d'attente
-    second = taches._fil
-    assert taches.lancer(alsace)
-    second.join(5)
-    taches._fil.join(5)
-
 
 def test_l_installation_efface_ce_qu_une_autre_a_laisse(tmp_path, monkeypatch):
     # Un import abandonné, ou un téléchargement coupé par l'arrêt du programme,
@@ -475,30 +355,6 @@ def test_un_telechargement_abandonne_ne_laisse_rien(tmp_path):
     assert not list(tmp_path.iterdir())
 
 
-def test_installation_en_tache_de_fond_puis_renouvellement(tmp_path, monkeypatch):
-    carte, _, _ = carte_d_essai()
-    pbf = tmp_path / "source.osm.pbf"
-    ecrire_pbf(pbf, carte)
-    contenu = pbf.read_bytes()
-    fichiers = {REGION["pbf"]: contenu, REGION["pbf"] + ".md5": hashlib.md5(contenu).hexdigest().encode()}
-    monkeypatch.setattr(geofabrik.urllib.request, "urlopen", faux_geofabrik(fichiers))
-    taches = geofabrik.Telechargements(tmp_path / "donnees")
-    assert taches.lancer(REGION)
-    taches._fil.join(30)
-    assert taches.etat()["etape"] == "fini" and taches.etat()["date"] == DATE
-    extrait = geofabrik.extrait_de_tuile(tmp_path / "donnees", 866, 120)
-    assert extrait["date"] == DATE and not list(geofabrik.dossier_extraits(tmp_path / "donnees").glob("*.pbf"))
-    # L'import a tourné dans un processus à part : rien ne reste de son index.
-    assert not list(geofabrik.dossier_extraits(tmp_path / "donnees").glob("*.noeuds"))
-    # Plus vieil que RENOUVELLEMENT_S, l'extrait part se renouveler ; l'ancien sert.
-    lances = []
-    monkeypatch.setattr(taches, "lancer", lances.append)
-    taches.renouveler_si_perime(extrait)
-    vieux = {**extrait, "date": "2026-09-01T00:00:00Z"}
-    taches.renouveler_si_perime(vieux)
-    assert lances == [vieux]
-
-
 def test_l_index_de_geofabrik_ne_fait_jamais_attendre(tmp_path, monkeypatch):
     # Rapport du 2026-10-20 : l'index se téléchargeait pendant la requête de
     # la page, sous verrou, une minute parfois. Il se prépare désormais en
@@ -519,52 +375,6 @@ def test_l_index_de_geofabrik_ne_fait_jamais_attendre(tmp_path, monkeypatch):
     assert len(preparations) == 1
     plus_tard = time.time() + geofabrik.INDEX_TTL_S + 1
     assert geofabrik.regions(tmp_path, maintenant=lambda: plus_tard) == regions and len(preparations) == 2
-
-
-def test_la_region_de_geofabrik_prend_le_relais_du_departement(tmp_path, monkeypatch):
-    # Nico, 2026-10-20 : « dès que paca est dispo, on l'utilise pour ne pas
-    # avoir de pb aux frontières ». Le Var d'OSM France, plus petit, ne sert
-    # qu'en attendant : ses voies s'arrêtent net à sa frontière.
-    carte, _, _ = carte_d_essai()
-    pbf = tmp_path / "essai.osm.pbf"
-    ecrire_pbf(pbf, carte)
-    base = geofabrik.dossier_extraits(tmp_path) / "fr-essai.sqlite"
-    base.parent.mkdir(parents=True, exist_ok=True)
-    geofabrik.importer(pbf, base, {**REGION, "id": "fr-essai", "voies_coupees": True}, DATE)
-    assert geofabrik.installes(tmp_path)[0]["voies_coupees"] is True        # gardé dans la base
-    var = {**region("fr-var", 43.0, 5.6, 43.8, 6.95), "voies_coupees": True}
-    paca = region("paca", 43.2, 4.2, 45.2, 7.8)
-    monkeypatch.setattr(geofabrik, "installes", lambda dossier: [var])
-    assert geofabrik.extrait_de_tuile(tmp_path, 866, 120)["id"] == "fr-var"
-    monkeypatch.setattr(geofabrik, "installes", lambda dossier: [var, paca])
-    assert geofabrik.extrait_de_tuile(tmp_path, 866, 120)["id"] == "paca"
-    assert geofabrik.extrait_de_tuile(tmp_path, 860, 115)["id"] == "fr-var"    # au sud de cette PACA d'essai
-
-
-def test_le_departement_installe_sa_region_part_aussitot(tmp_path, monkeypatch):
-    # Nico, 2026-10-20 : « dès que le fichier var est disponible, on attaque
-    # paca ». La région part dans la foulée, marquée relais pour la page.
-    installees = []
-
-    def installer(dossier, region, continuer=None, **options):
-        installees.append(region["id"])
-        return {"date": DATE}
-
-    monkeypatch.setattr(geofabrik, "installer", installer)
-    taches = geofabrik.Telechargements(tmp_path)
-    var = {**REGION, "id": "fr-var", "nom": "Var", "voies_coupees": True}
-    paca = {**REGION, "id": "paca", "nom": "PACA"}
-    assert taches.lancer(var, ensuite=paca)
-    for _ in range(5):              # le fil du Var lance celui de la PACA
-        fil = taches._fil
-        fil.join(5)
-        if fil is taches._fil:
-            break
-    assert installees == ["fr-var", "paca"]
-    assert taches.etat() == {"id": "paca", "nom": "PACA", "etape": "fini", "fraction": 0.0, "voies": 0,
-                             "relais": True, "date": DATE}
-    # Un autre usage a pris la place entre-temps : la suite ne part pas.
-    assert not taches.lancer(paca, apres=taches._numero - 1)
 
 
 # Une tuile de 0,05° coupée par la frontière franco-suisse : ni Rhône-Alpes ni

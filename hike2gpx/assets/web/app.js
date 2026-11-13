@@ -180,12 +180,8 @@ const TEXTES = {
     "disponibilite.etat.absent": "absente",
     "disponibilite.etat.simple": "simple (sans chemins dessinés ni franchissements)",
     "disponibilite.etat.preparation": "en préparation",
-    "statut.donneesIndisponibles": "Données OSM indisponibles pour ce tracé. Nouvelle tentative automatique après téléchargement.",
     "donnees.titre": "Données téléchargées",
     "donnees.note": "Tout se retélécharge de soi-même au besoin : vider ou supprimer libère de la place, actualiser donne des données fraîches.",
-    "donnees.osm": "Chemins OSM lus sur Overpass : {n} tuiles, {taille}",
-    "donnees.extrait": "Extrait {nom} du {date}, {taille}",
-    "donnees.extrait.provisoire": "Extrait {nom} du {date}, {taille}, en attendant sa région",
     "donnees.brouter": "Cases BRouter {noms} : {taille}",
     "donnees.restes": "Fichiers inutiles : {taille}",
     "donnees.vider": "Vider",
@@ -202,7 +198,7 @@ const TEXTES = {
     "donnees.confirmer": "Supprimer l'extrait {nom} ? Il se retéléchargera de lui-même s'il resert.",
     "donnees.viderTout": "Vider le cache",
     "donnees.aideCache": "Détail des caches vidés",
-    "donnees.detailCache": "Ce bouton efface les réponses Overpass et les franchissements OSM, les chemins officiels, les extraits OSM téléchargés, les données BRouter et les modèles d'altitude gpx2elev. Ils seront retéléchargés au besoin. Les tuiles des fonds de carte, conservées dans le cache du navigateur, ne sont pas effacées.",
+    "donnees.detailCache": "Ce bouton efface les zones de routage et leurs extraits OSM, les fonds de carte hors ligne, les chemins officiels lus, les données BRouter et les modèles d'altitude gpx2elev. Les zones se retéléchargent ou se refabriquent depuis « Planifier un itinéraire ». Les tuiles des fonds de carte, conservées dans le cache du navigateur, ne sont pas effacées.",
     "donnees.confirmerTout": "Vider les données locales OSM, IGN, gpx2elev et BRouter, ainsi que les zones de routage et les fonds hors ligne ? Les données en ligne et les zones de routage du serveur seront retéléchargées au besoin ; les zones de routage et les fonds préparés sur cet ordinateur seront à refaire. Les tuiles de fond de carte affichées restent dans le cache du navigateur.",
     "donnees.vide": "Cache local vidé, zones de routage et fonds hors ligne compris. Les tuiles du fond de carte affiché restent gérées par le navigateur.",
     "donnees.infoCache": "Les tuiles IGN et OSM du fond de carte restent dans le cache du navigateur.",
@@ -231,18 +227,10 @@ const TEXTES = {
     "denivele.indisponible": "Dénivelé indisponible : gpx2elev, {erreur}",
     "denivele.source": "Source des altitudes du parcours : {modele} · calcul gpx2elev (pas 5 m, lissage 20 m, seuil 2 m).",
     "calque.osm": "Chemins OSM",
-    "calque.chargement": "Chargement des {nom}… (la première fois, jusqu'à une minute)",
-    "calque.avancement": "Chargement des {nom}… {faites} sur {total} tuiles · {duree} s",
+    "calque.chargement": "Chargement des {nom}…",
     "liaison.et": " et ",
     "calque.zoom": "Zoomez davantage (niveau {niveau}) pour voir les chemins.",
     "reglages.zoomCalques": "Zoom minimal",
-    "extrait.telechargement": "Données OSM hors ligne : téléchargement de l'extrait {nom}, {pourcent} %",
-    "extrait.import": "Données OSM hors ligne : import de l'extrait {nom}, {voies} voies lues…",
-    "extrait.relais.telechargement": "Données OSM hors ligne : extrait {nom} du {date} ; la région {region} se télécharge pour prendre le relais, {pourcent} %",
-    "extrait.relais.import": "Données OSM hors ligne : extrait {nom} du {date} ; la région {region} s'importe pour prendre le relais, {voies} voies lues…",
-    "extrait.installe": "Données OSM hors ligne : extrait {nom} du {date}, renouvelé tous les {jours} jours.",
-    "extrait.erreur": "Extrait {nom} non installé : {message}",
-    "extrait.attente": "Overpass ne répond pas ; l'extrait OSM {nom} se télécharge, le calcul reprendra de lui-même.",
     "fond.osmRando": "OSM rando",
     "fond.osm": "OSM",
     "fond.satellite": "Satellite",
@@ -311,6 +299,8 @@ const TEXTES = {
     "erreur.serveur_zones_injoignable": "Pas de zone de routage ici, et le serveur des zones est injoignable.",
     "erreur.calques_sans_zone": "Pas de zone de routage ici : les chemins s'afficheront avec elle (« Planifier un itinéraire »).",
     "erreur.calques_zone_simple": "Zone de routage simple ici : les chemins s'afficheront avec la zone étendue.",
+    "erreur.calques_deux_zones": "Vue à cheval sur deux zones de routage : ses chemins s'affichent d'un côté ou de l'autre.",
+    "erreur.zones_melees": "Le parcours passe d'une zone de chemins officiels à une zone OSM seule, que BRouter ne sait pas réunir : découpez-le à la limite des deux zones.",
     "erreur.brouter_absent": "brouter.de n'a pas de zone de routage pour la case {case} (la mer, ou pas de réseau).",
     "erreur.itineraire_refuse": "Itinéraire refusé : le tracé passe un franchissement {mot} ({nature}, à {distance} du départ).",
     "mot.bloquant": "bloquant",
@@ -472,12 +462,8 @@ const TEXTES = {
     "disponibilite.etat.absent": "missing",
     "disponibilite.etat.simple": "simple (no drawn paths or crossings)",
     "disponibilite.etat.preparation": "being prepared",
-    "statut.donneesIndisponibles": "OSM data unavailable for this route. Automatic retry after download.",
     "donnees.titre": "Downloaded data",
     "donnees.note": "Everything downloads again by itself when needed: clearing or deleting frees space, refreshing brings fresh data.",
-    "donnees.osm": "OSM paths read from Overpass: {n} tiles, {taille}",
-    "donnees.extrait": "{nom} extract of {date}, {taille}",
-    "donnees.extrait.provisoire": "{nom} extract of {date}, {taille}, until its region arrives",
     "donnees.brouter": "BRouter cells {noms}: {taille}",
     "donnees.restes": "Leftover files: {taille}",
     "donnees.vider": "Clear",
@@ -494,7 +480,7 @@ const TEXTES = {
     "donnees.confirmer": "Delete the {nom} extract? It will download again by itself if needed.",
     "donnees.viderTout": "Clear cache",
     "donnees.aideCache": "Details of cleared caches",
-    "donnees.detailCache": "This clears Overpass responses and OSM crossings, official paths, downloaded OSM extracts, BRouter data and gpx2elev elevation models. They are downloaded again when needed. Background map tiles held in the browser cache are not cleared.",
+    "donnees.detailCache": "This clears the routing areas and their OSM extracts, the offline background maps, the official paths read, BRouter data and gpx2elev elevation models. Areas download or build again from \"Plan a route\". Background map tiles held in the browser cache are not cleared.",
     "donnees.confirmerTout": "Clear local OSM, IGN, gpx2elev and BRouter data, and the offline routing areas and maps? Online data and the server's routing areas will download again when needed; routing areas and maps prepared on this computer will have to be made again. Displayed background map tiles remain in the browser cache.",
     "donnees.vide": "Local cache cleared, offline routing areas and maps included. Displayed background map tiles remain managed by the browser.",
     "donnees.infoCache": "IGN and OSM background map tiles remain in the browser cache.",
@@ -523,18 +509,10 @@ const TEXTES = {
     "denivele.indisponible": "Elevation unavailable: gpx2elev, {erreur}",
     "denivele.source": "Route elevation source: {modele} · gpx2elev calculation (5 m sampling, 20 m smoothing, 2 m threshold).",
     "calque.osm": "OSM paths",
-    "calque.chargement": "Loading the {nom}… (the first time, up to a minute)",
-    "calque.avancement": "Loading the {nom}… {faites} of {total} tiles · {duree} s",
+    "calque.chargement": "Loading the {nom}…",
     "liaison.et": " and ",
     "calque.zoom": "Zoom in further (level {niveau}) to see the paths.",
     "reglages.zoomCalques": "Minimum zoom",
-    "extrait.telechargement": "Offline OSM data: downloading the {nom} extract, {pourcent} %",
-    "extrait.import": "Offline OSM data: importing the {nom} extract, {voies} ways read…",
-    "extrait.relais.telechargement": "Offline OSM data: {nom} extract of {date}; the {region} region is downloading to take over, {pourcent} %",
-    "extrait.relais.import": "Offline OSM data: {nom} extract of {date}; the {region} region is importing to take over, {voies} ways read…",
-    "extrait.installe": "Offline OSM data: {nom} extract of {date}, renewed every {jours} days.",
-    "extrait.erreur": "{nom} extract not installed: {message}",
-    "extrait.attente": "Overpass is not responding; the {nom} OSM extract is downloading, the calculation will resume by itself.",
     "fond.osmRando": "OSM hiking",
     "fond.osm": "OSM",
     "fond.satellite": "Satellite",
@@ -603,6 +581,8 @@ const TEXTES = {
     "erreur.serveur_zones_injoignable": "No routing area here, and the area server cannot be reached.",
     "erreur.calques_sans_zone": "No routing area here: paths will show once it is installed (\"Plan a route\").",
     "erreur.calques_zone_simple": "Simple routing area here: paths will show with the extended area.",
+    "erreur.calques_deux_zones": "View straddling two routing areas: its paths show on one side or the other.",
+    "erreur.zones_melees": "The route goes from an area with official paths to an OSM-only area, which BRouter cannot join: split it at the border of the two areas.",
     "erreur.brouter_absent": "brouter.de has no routing area for cell {case} (the sea, or no network).",
     "erreur.itineraire_refuse": "Route refused: it passes a {mot} crossing ({nature}, {distance} from the start).",
     "mot.bloquant": "blocking",
@@ -650,11 +630,8 @@ const SERVEUR_EN = {
   "Nom de tuile invalide.": "Invalid tile name.",
   "Clé IGN invalide : lettres, chiffres, _ et - seulement.": "Invalid IGN key: letters, digits, _ and - only.",
   "Données OSM ou chemins officiels de la zone indisponibles.": "OSM or official path data for this area unavailable.",
-  "Hors connexion : les barrières de cette zone n'ont jamais été chargées.": "Offline: the barriers of this area were never loaded.",
-  "Réponse Overpass trop volumineuse : barrières non vérifiées.": "Overpass response too large: barriers not checked.",
   "Extrait inconnu.": "Unknown extract.",
-  "Cet extrait se télécharge déjà.": "This extract is already downloading.",
-  "Échec récent : nouvel essai possible dans moins d'une heure.": "Recent failure: a new try will be possible within the hour.",
+  "Un lot se prépare : réessayez après sa fin.": "A bundle is being prepared: try again once it is done.",
   "Un téléchargement BRouter est déjà en cours.": "A BRouter download is already running.",
   "Aucune tuile BRouter à actualiser.": "No BRouter tile to refresh.",
   "Action inconnue.": "Unknown action.",
@@ -1147,32 +1124,15 @@ function noteCalques(message, fraction) {
   majPiste("noteCalques", message ? fraction : undefined);
 }
 
-// Calques en cours de lecture (clé -> numéro de la vue et nom) : leur note
-// montre l'avancement que publie le serveur (/api/progression : tuiles lues
-// sur tant), relu toutes les 0,7 s tant qu'une lecture dure.
+// Calques en cours de lecture (clé -> numéro de la vue et nom) : la page lit
+// elle-même les tuiles du lot installé ; une lecture qui dure le dit.
 const lectures = new Map();
 let minuterieLectures = null;
 
-function afficherLectures(calques) {
-  const noms = [...lectures.values()].map((l) => l.nom).join(t("liaison.et"));
-  const suivis = [...lectures.keys()].map((cle) => calques?.[cle]).filter((l) => l?.total);
-  if (!suivis.length) {
-    noteCalques(t("calque.chargement", { nom: noms }), null);
-    return;
-  }
-  const faites = suivis.reduce((somme, l) => somme + l.faites, 0);
-  const total = suivis.reduce((somme, l) => somme + l.total, 0);
-  const duree = Math.round(Math.max(...suivis.map((l) => l.duree_s)));
-  noteCalques(t("calque.avancement", { nom: noms, faites, total, duree }), faites / total);
-}
-
-async function suivreLectures() {
+function suivreLectures() {
   minuterieLectures = null;
-  try {
-    const p = await api("progression");
-    if (lectures.size) afficherLectures(p.calques);
-  } catch (e) { /* la barre n'est qu'une indication : le tour suivant réessaie */ }
-  if (lectures.size && !minuterieLectures) minuterieLectures = setTimeout(suivreLectures, 700);
+  if (lectures.size) noteCalques(t("calque.chargement",
+    { nom: [...lectures.values()].map((l) => l.nom).join(t("liaison.et")) }), null);
 }
 
 // Une lecture brève (un lot installé, une vue déjà lue) ne montre rien : la
@@ -1253,14 +1213,13 @@ async function chargerCalque(cle, zone) {
   const autres = finLecture(cle, numero);
   if (numero !== calque.sequence || !carte.hasLayer(calque.groupe)) return;
   calque.annulation = null;
-  if (donnees.extrait_en_cours) majExtrait();   // le serveur vient de lancer l'extrait de la région
   if (donnees.code === "vue_remplacee") {
     // Remplacée par la vue d'une autre page ouverte sur le même serveur : la
     // note ne reste pas sur un chargement qui ne viendra pas.
     if (!autres) noteCalques("");
     return;
   }
-  if (donnees.code === "calques_sans_zone" || donnees.code === "calques_zone_simple") {
+  if (donnees.code?.startsWith("calques_")) {
     // Pas de lot ici : la carte de fond seule, sans les chemins de la vue d'avant.
     calque.groupe.clearLayers();
     calque.charge = null;
@@ -1425,27 +1384,15 @@ function afficherOptionChemins() {
     { nom: routable ? fournisseur.paths.label : nomCalque(couche) });
 }
 
-// ------------------------------------------------------------ données OSM hors ligne
+// ------------------------------------------------------------ pays de la vue et BRouter
 
-// L'extrait OSM du centre de la carte (le département d'OSM France, osmfr.py,
-// sinon une région de Geofabrik, geofabrik.py), en cours de téléchargement ou
-// installé. Le serveur le télécharge de lui-même
-// dès qu'un calcul ou le calque des chemins OSM sert dans la région ; une fois
-// installé, il y remplace Overpass.
+// Le pays du centre de la carte, qui choisit ses fonds, et ce que BRouter
+// télécharge (le moteur, une case). L'adresse s'appelle encore « extrait » :
+// elle disait l'extrait OSM de la vue, téléchargé de lui-même jusqu'à la 0.9.31.
 const ZOOM_EXTRAIT = 10;
 let minuterieExtrait = null;
 let sequenceExtrait = 0;
 let essaisPays = 0;
-
-function dateCourte(iso) {
-  return new Date(iso).toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR");
-}
-
-// Ce que le serveur télécharge en ce moment : l'extrait OSM, le moteur ou des
-// tuiles BRouter.
-function extraitActif(r) {
-  return Boolean(r?.en_cours && ["telechargement", "import"].includes(r.en_cours.etape));
-}
 
 function brouterActif(r) {
   return Boolean(r?.brouter && (r.brouter.moteur || r.brouter.segments?.length));
@@ -1459,7 +1406,7 @@ function quoiBrouter(b) {
 async function majExtrait(forcer = false) {
   clearTimeout(minuterieExtrait);
   const numero = ++sequenceExtrait;
-  const enCours = extraitActif(etat.extrait) || brouterActif(etat.extrait) || etat.donneesAttendues;
+  const enCours = brouterActif(etat.extrait) || etat.donneesAttendues;
   if (carte.getZoom() < ZOOM_EXTRAIT && !enCours && !forcer) { afficherExtrait(null); return; }
   const parametres = new URLSearchParams(Object.entries(zoneVue()).map(([k, v]) => [k, v.toFixed(5)]));
   try {
@@ -1475,7 +1422,7 @@ async function majExtrait(forcer = false) {
       ++essaisPays;
     }
     afficherExtrait(resultat);
-    // L'index des contours français peut encore se préparer au premier usage.
+    // L'index des contours de Geofabrik peut encore se préparer au premier usage.
     if (essaisPays && essaisPays <= 30 && !minuterieExtrait) {
       minuterieExtrait = setTimeout(() => majExtrait(true), 3000);
     }
@@ -1483,47 +1430,13 @@ async function majExtrait(forcer = false) {
 }
 
 function afficherExtrait(r) {
-  const avant = extraitActif(etat.extrait) ? etat.extrait.en_cours.id : null;
-  const avantInstalle = Boolean(etat.extrait?.installe);
   etat.extrait = r;
-  if (r?.installe && !avantInstalle) actualiserDisponibilite();
-  const e = r?.en_cours;
-  const actif = extraitActif(r);
-  // L'extrait suivi jusqu'ici a fini, même si la région de Geofabrik part
-  // aussitôt prendre le relais du département (cascade du 2026-10-20).
-  const fini = avant !== null && !(actif && e.id === avant);
-  // L'extrait vient de s'installer pendant que les chemins OSM se lisaient
-  // encore : leur lecture, partie avant lui, attendait Overpass (deux minutes
-  // le 2026-10-20) ; relancée, elle lit l'extrait.
-  if (fini && r?.installe && lectures.has("osm")) chargerCalque("osm", zoneVue());
-  const nombre = (n) => Number(n).toLocaleString(langue === "en" ? "en-GB" : "fr-FR");
-  if (actif && e.relais && r?.installe) {
-    // Le département sert déjà ; sa région se prépare pour prendre le relais.
-    const sert = { nom: r.installe.nom, date: dateCourte(r.installe.date), region: e.nom };
-    $("extraitTexte").textContent = e.etape === "telechargement"
-      ? t("extrait.relais.telechargement", { ...sert, pourcent: Math.round(100 * e.fraction) })
-      : t("extrait.relais.import", { ...sert, voies: nombre(e.voies) });
-  } else if (actif) {
-    $("extraitTexte").textContent = e.etape === "telechargement"
-      ? t("extrait.telechargement", { nom: e.nom, pourcent: Math.round(100 * e.fraction) })
-      : t("extrait.import", { nom: e.nom, voies: nombre(e.voies) });
-  } else if (r?.installe) {
-    $("extraitTexte").textContent = t("extrait.installe", { nom: r.installe.nom, date: dateCourte(r.installe.date),
-      jours: etat.renouvellementJours ?? 30 });
-  } else if (e?.etape === "erreur") {
-    $("extraitTexte").textContent = t("extrait.erreur", { nom: e.nom, message: e.erreur });
-  }
-  $("extraitOsm").hidden = !(actif || r?.installe || e?.etape === "erreur");
-  // Le téléchargement a sa fraction ; l'import, dont on ne sait pas le nombre
-  // de voies d'avance, un segment qui va et vient.
-  majPiste("extrait", actif ? (e.etape === "telechargement" ? e.fraction : null) : undefined);
   const moteur = brouterActif(r);
   if (moteur) $("brouterTexte").textContent = t("brouter.enCours", { quoi: quoiBrouter(r.brouter) });
   $("brouterEnCours").hidden = !moteur;
-  if (actif || moteur) minuterieExtrait = setTimeout(majExtrait, 1500);
-  // Les données qu'attendait un calcul sont arrivées : le calcul reprend,
-  // sans attendre la région qui se prépare ensuite pour prendre le relais.
-  if (etat.donneesAttendues && !moteur && !(actif && e.id === etat.donneesAttendues.extrait)) {
+  if (moteur) minuterieExtrait = setTimeout(majExtrait, 1500);
+  // Le moteur qu'attendait un calcul est arrivé : le calcul reprend.
+  if (etat.donneesAttendues && !moteur) {
     etat.donneesAttendues = false;
     if (etat.points.length >= 2) planifierCalcul();
   }
@@ -2622,20 +2535,13 @@ function boutonAction(libelle, action) {
 
 function afficherErreur(reponse) {
   effacerResultat();
-  const osmIndisponible = /Overpass|barrières non vérifiées|OSM.*indisponibles/i.test(reponse.erreur || "");
-  afficherStatut(() => osmIndisponible ? t("statut.donneesIndisponibles") : texteErreur(reponse), true);
-  // Il manquait des données : le serveur les télécharge de lui-même (moteur et
-  // tuiles BRouter, ou l'extrait OSM quand Overpass est en panne), et le
-  // calcul reprendra une fois qu'elles seront là. Aucun bouton à cliquer.
+  afficherStatut(() => texteErreur(reponse), true);
+  // Le moteur BRouter manquait : il s'installe de lui-même, et le calcul
+  // reprendra une fois qu'il sera là. Aucun bouton à cliquer.
   const b = reponse.brouter_en_cours;
   if (b && (b.moteur || b.segments?.length)) {
     afficherStatut(() => t("brouter.attente", { quoi: quoiBrouter(b) }));
-    etat.donneesAttendues = { extrait: null };
-  } else if (reponse.extrait_en_cours) {
-    afficherStatut(() => t("extrait.attente", { nom: reponse.extrait_en_cours.nom }));
-    // L'extrait attendu, nommé : la région qui part ensuite prendre son relais
-    // ne fait pas attendre le calcul.
-    etat.donneesAttendues = { extrait: reponse.extrait_en_cours.id };
+    etat.donneesAttendues = true;
   }
   majExtrait(true);
   actualiserDisponibilite();
@@ -3336,7 +3242,7 @@ function afficherDonnees(d) {
   const libelle = document.createElement("span");
   libelle.textContent = t("donnees.viderTout");
   bouton.append(pictogramme("corbeille"), libelle);
-  bouton.disabled = Boolean(occupe.extrait || occupe.brouter);
+  bouton.disabled = Boolean(occupe.brouter);
   bouton.addEventListener("click", () => agirDonnees("vider_cache", null, t("donnees.confirmerTout")));
   const controles = document.createElement("div");
   controles.className = "cache-controls";

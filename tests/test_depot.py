@@ -176,7 +176,7 @@ def test_la_planification_demande_la_zone_du_serveur_quand_aucune_n_est_la(tmp_p
     # (Nico, 2026-11-13 : « Supprimer » l'affichage à la volée).
     assert a.calque_osm(zone, vue=1.0)["code"] == "calques_sans_zone"
     assert a.calque_officiel("ign", zone, vue=1.0)["code"] == "calques_sans_zone"
-    assert not geofabrik.telechargements(a.dossier).etat(), "aucun extrait parti"
+    assert not geofabrik.installes(a.dossier), "aucun extrait parti"
     # Acceptée : la page la télécharge, puis s'ouvre.
     assert "lot_en_cours" in a.telecharger_lot({"case": "E5_N40"})
     a._fil_lot.join(10)
