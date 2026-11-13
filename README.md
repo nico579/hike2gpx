@@ -192,8 +192,10 @@ There are three ways to get one.
   when the server publishes a newer one; the Var cell, 247 MB, arrives in a few
   tens of seconds. Refused, it is no longer offered and stays available in
   "Route management". The "Download routing areas automatically" box in the
-  settings, on the computer as on the phone, turns off all automatic
-  downloads.
+  settings turns off all automatic downloads. On the phone, nothing downloads
+  by itself: "Plan a route" asks for the area when none is installed, and
+  opens once it is downloaded; refused, planning does not open. An installed
+  area renews through its "Update" button.
 - **From the PC**, everywhere else: "Route management" shows the grid of
   cells; click the ones you need, then "Download". The PC prepares the view on
   screen or the whole cell.

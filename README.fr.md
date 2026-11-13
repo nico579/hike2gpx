@@ -206,8 +206,12 @@ Il y a trois façons d'en obtenir une.
   le serveur en publie une plus récente ; la case du Var, 247 Mo, arrive en
   quelques dizaines de secondes. Refusée, elle ne se propose plus et reste
   disponible dans « Gestion des itinéraires ». La coche « Télécharger
-  automatiquement les zones de routage » des réglages, sur le PC comme sur le
-  téléphone, coupe tout téléchargement automatique.
+  automatiquement les zones de routage » des réglages coupe tout
+  téléchargement automatique. Sur le téléphone, rien ne se télécharge de
+  soi-même : « Planifier un itinéraire » demande la zone quand aucune n'est
+  installée, et s'ouvre une fois la zone téléchargée ; refusée, la
+  planification ne s'ouvre pas. Une zone installée se renouvelle par son
+  bouton « Mettre à jour ».
 - **Du PC**, partout ailleurs : « Gestion des itinéraires » montre la grille
   des cases ; cliquez celles qu'il vous faut, puis « Télécharger ». Le PC
   prépare la vue affichée ou la case entière.

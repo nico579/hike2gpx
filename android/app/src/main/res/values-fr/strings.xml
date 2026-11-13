@@ -27,13 +27,7 @@
     <string name="import_denivele">Dénivelé : + %1$d m / − %2$d m (%3$s)</string>
     <string name="import_denivele_nom">Dénivelé : + %1$d m</string>
     <string name="import_duree">Durée : %1$s</string>
-    <string name="zone_initiale_titre">Zone de routage</string>
-    <string name="zone_initiale_message">Pour calculer des itinéraires sans réseau, le téléphone a besoin de la zone de routage de cette région (case %1$s, %2$s). La télécharger maintenant ? Sinon, elle reste disponible dans « Gestion des itinéraires ».</string>
-    <string name="zone_refuser">Non merci</string>
     <string name="plan_sans_zone_titre">Pas de zone de routage ici</string>
-    <string name="plan_point_sans_zone">Pas de zone de routage ici : le point n’est pas posé.</string>
-    <string name="reglage_zones_auto">Télécharger automatiquement les zones de routage (une question par zone)</string>
-    <string name="zone_refusee">Zone %1$s non téléchargée. Vous pourrez la télécharger à tout moment depuis « Gestion des itinéraires », section « Zones refusées ».</string>
     <string name="menu_itineraires">Gestion des itinéraires</string>
     <string name="menu_aide">Aide</string>
     <string name="menu_enregistrer">Enregistrer un parcours</string>
@@ -130,7 +124,6 @@
     <string name="supprimer">Supprimer</string>
     <string name="confirmer_suppression">Retirer cette zone de routage du téléphone ? Elle ne reviendra pas d’elle-même avant le prochain lancement.</string>
     <string name="confirmer_telechargement">%1$s depuis %2$s. Préférez le Wi-Fi.</string>
-    <string name="confirmer_donnees_mobiles">La zone de routage de la case %1$s (%2$s, %3$s) couvre ce parcours. La télécharger sur les données mobiles ?</string>
 
     <string name="titre_cache">Cache</string>
     <string name="vider_cache">Vider le cache (%1$s)</string>
@@ -295,11 +288,9 @@
     <string name="stockage_absent">Carte SD absente : les cartes et le routage sont dessus. Remettez-la, puis relancez hike2gpx.</string>
     <string name="etat_deplacement">Déplacement des cartes et du routage…</string>
     <string name="etat_deplace">Cartes et routage déplacés : %1$s.</string>
-    <string name="itineraires_refusees">Zones refusées, à télécharger</string>
-    <string name="plan_sans_zone_serveur">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage. La zone %1$s n’est pas installée : téléchargez-la dans « Gestion des itinéraires ».</string>
-    <string name="plan_sans_zone_refusee">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage. La zone %1$s a été refusée : téléchargez-la dans « Gestion des itinéraires », section « Zones refusées ».</string>
     <string name="plan_sans_zone_pc">Le téléphone calcule ses itinéraires hors ligne, avec une zone de routage, et le serveur n’en publie pas pour cette région. Préparez-la sur un PC (« Gestion des itinéraires », grille hors ligne), puis partagez-la au téléphone : QR code, ou archive zip.</string>
     <string name="plan_zone_brouter">Le serveur de hike2gpx ne publie pas de zone de routage pour cette région, mais BRouter en a la zone de base (case %1$s, %2$s) : les itinéraires se calculent avec, sans les chemins dessinés sur la carte ni les franchissements à vérifier. Un PC peut préparer la zone complète et la partager. La télécharger ?</string>
     <string name="err_brouter_absent">brouter.de n’a pas de zone de routage pour la case %1$s (la mer, ou pas de réseau).</string>
     <string name="err_brouter_altere">La zone de routage %1$s de brouter.de est incomplète : téléchargez-la de nouveau.</string>
+    <string name="plan_zone_serveur">Pour planifier ici, le téléphone a besoin de la zone de routage de cette région (case %1$s, %2$s). La télécharger ?</string>
 </resources>
