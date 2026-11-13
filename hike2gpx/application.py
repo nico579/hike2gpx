@@ -24,6 +24,7 @@ from nico579_commons import langue as langue_commune
 
 from . import (__version__, archive, brouter, communes, depot, fabrication, fonds, franchissements, geofabrik,
                hors_ligne, journaux, maison, mapsforge, osmfr, pare_feu, partage, providers)
+from . import lot as tuiles_lot     # « lot » nomme partout un manifeste ; ici, le module des tuiles
 
 journal = logging.getLogger(__name__)
 
@@ -726,9 +727,9 @@ class Application:
         # un calcul ; un lot installé qui couvre la vue la montre seul, sans
         # réseau ni extrait.
         lot_attendu = self._lot_automatique(zone, "calque des chemins OSM") if zone else False
-        lire_lot = self._lecture_du_lot(zone, "osm")
-        if lire_lot:
-            return self._avec_lot_automatique(self._calque("osm", zone, lire_lot, numero))
+        tuiles = self._tuiles_du_lot(zone, "osm")
+        if tuiles:
+            return self._avec_lot_automatique(tuiles)
         if lot_attendu:                 # rien à la volée : la page relit le calque à l'arrivée du lot
             return self._avec_lot_automatique({"attente_lot": True})
         extrait = self._extrait_automatique(zone, "calque des chemins OSM") if zone and not lot_attendu else None
@@ -743,20 +744,40 @@ class Application:
             return {"troncons": fournisseur.module.troncons_zone(*bornes, **options)}
         numero = self._prendre_vue(fournisseur.calque, vue)
         lot_attendu = self._lot_automatique(zone, f"calque {fournisseur.nom}") if numero is not None and zone else False
-        lire_lot = self._lecture_du_lot(zone, fournisseur.calque)
-        if lot_attendu and not lire_lot:
+        tuiles = self._tuiles_du_lot(zone, fournisseur.calque) if numero is not None else None
+        if tuiles:
+            return self._avec_lot_automatique(tuiles)
+        if lot_attendu:
             return self._avec_lot_automatique({"attente_lot": True})
-        return self._avec_lot_automatique(self._calque(fournisseur.calque, zone, lire_lot or lire, numero))
+        return self._avec_lot_automatique(self._calque(fournisseur.calque, zone, lire, numero))
 
-    def _lecture_du_lot(self, zone, calque):
-        """Lecture du calque dans un lot installé qui couvre la zone, ou None.
-        Le lot lit toutes les tuiles de 0,05° de la vue, celles dont _calque
-        renvoie les bornes : la page ne redemande rien tant qu'elle y reste."""
-        manifeste = self.hors_ligne.lot_du_calque(franchissements.bornes_zone(*zone), calque) if zone else None
+    def _tuiles_du_lot(self, zone, calque) -> dict | None:
+        """Un lot installé couvre la vue : la page lit elle-même ses tuiles
+        (tuiles.js, route /calques/<case>/<x>/<y>), comme le téléphone, au lieu
+        de les attendre décodées ici. Décodées en Python, elles coûtaient 1 à
+        2,5 s par déplacement ; V8 les lit quinze fois plus vite. Rend la liste
+        des tuiles du zoom 14 de la vue, la table des couches du calque et les
+        bornes lues, que la page n'a pas à redemander tant qu'elle y reste ;
+        None sans lot."""
+        if zone is None:
+            return None
+        bornes = franchissements.bornes_zone(*zone)
+        manifeste = self.hors_ligne.lot_du_calque(bornes, calque)
         if manifeste is None:
             return None
-        return lambda *bornes, **options: self.hors_ligne.calque(
-            manifeste, calque, franchissements.bornes_zone(*bornes[:4]))
+        if (zone[2] - zone[0]) * (zone[3] - zone[1]) > ZONE_CALQUE_MAX_DEG2:
+            return {"erreur": "Zone trop grande : zoomez davantage."}
+        chemin = self.hors_ligne.racine / manifeste["case"] / "calques.mbtiles"
+        return {"lot": {"case": manifeste["case"], "date": chemin.stat().st_mtime_ns},
+                "couches": tuiles_lot.couches_du_calque(calque),
+                "tuiles": [list(t) for t in tuiles_lot.tuiles_emprise(tuiles_lot.ZOOM, *bornes)], "bornes": list(bornes)}
+
+    def tuile_calques(self, case: str, x: int, y: int) -> bytes | None:
+        """Les octets d'une tuile des calques d'un lot installé, pour la page."""
+        if not re.fullmatch(r"[EW]\d{1,3}_[NS]\d{1,2}", case) or not (0 <= x < 2 ** tuiles_lot.ZOOM and 0 <= y < 2 ** tuiles_lot.ZOOM):
+            return None
+        chemin = self.hors_ligne.racine / case / "calques.mbtiles"
+        return tuiles_lot.lire_tuile(chemin, x, y) if chemin.is_file() else None
 
     def arreter_calques(self, corps=None) -> dict:
         """La page n'affiche plus ces calques (zoom trop faible, calque masqué) :
