@@ -138,28 +138,46 @@ def test_un_depot_injoignable_n_empeche_rien(tmp_path, monkeypatch):
     assert reponse["lots"] == [] and "illisible" in reponse["erreur"]
 
 
+@pytest.mark.zones_reelles
 def test_la_planification_demande_la_zone_du_serveur_quand_aucune_n_est_la(tmp_path, monkeypatch):
     # Nico, 2026-11-13 : plus de téléchargement automatique ; « il suffit de laisser le
     # menu de planification disponible, mais avec une question sur le téléchargement si
     # aucune zone est là localement ».
-    from hike2gpx import application as appli
+    from hike2gpx import application as appli, geofabrik
     fabriquer_lot(tmp_path / "lots" / "E5_N40")
     depot.ecrire_catalogue(tmp_path / "lots", tmp_path / "publication")
     ouvrir, _ = servir(tmp_path / "publication")
     monkeypatch.setattr(depot.urllib.request, "urlopen", ouvrir)
     a = appli.Application(tmp_path / "donnees")
     zone = (43.30, 5.50, 43.31, 5.51)
-    # Hors des cases du serveur : la page s'ouvre, le calcul à la volée prend le relais.
-    assert a.zone_planification({"lat": 47.0, "lon": 2.0}) == {"ouvrir": True}
+    # Hors des cases du serveur (Montréal, Nico, 2026-11-13 : « j'ai pas le message de
+    # création du lot par le pc ») : la page propose de fabriquer le lot ici, rien ne part seul ;
+    # puis, ce lot en préparation, elle l'attend.
+    assert a.zone_planification({"lat": 47.0, "lon": 2.0}) == {"fabriquer": {"case": "E0_N45"}}
+    assert a._fil_lot is None
+    a._lot = {"actif": True, "case": "E0_N45"}
+    assert a.zone_planification({"lat": 47.0, "lon": 2.0}) == {"attendre": {"case": "E0_N45"}}
+    a._lot = {"actif": False}
     # Une case publiée et absente : la page propose d'abord, et rien ne part seul.
     r = a.zone_planification({"lat": 43.305, "lon": 5.505})
     assert r["proposer"]["case"] == "E5_N40" and r["proposer"]["octets"] > 0
     assert a._fil_lot is None
+    # Sans sa zone, pas de tracé (Nico, 2026-11-13 : « on avait dit qu'on bloquait la
+    # planification, si pas de données ») : le calcul refuse, sans rien télécharger.
+    trace = a.itineraire({"points": [[43.305, 5.505], [43.306, 5.506]], "comparer": False})
+    assert trace["code"] == "zone_absente" and trace["valeurs"] == {"cases": "E5_N40"}
+    assert a._fil_lot is None
+    # Ni chemins superposés à la volée : ni extrait de toute la région, ni Overpass
+    # (Nico, 2026-11-13 : « Supprimer » l'affichage à la volée).
+    assert a.calque_osm(zone, vue=1.0)["code"] == "calques_sans_zone"
+    assert a.calque_officiel("ign", zone, vue=1.0)["code"] == "calques_sans_zone"
+    assert not geofabrik.telechargements(a.dossier).etat(), "aucun extrait parti"
     # Acceptée : la page la télécharge, puis s'ouvre.
     assert "lot_en_cours" in a.telecharger_lot({"case": "E5_N40"})
     a._fil_lot.join(10)
     assert a.lot_en_cours()["etape"] == "fini" and a.hors_ligne.origine("E5_N40") == {"depot": a.depot_lots}
     assert a.zone_planification({"lat": 43.305, "lon": 5.505}) == {"ouvrir": True}
+    assert a._cases_sans_lot((43.305, 5.505, 43.306, 5.506)) == [], "la zone installée, le tracé passe"
     # Plus récent au serveur : un lot du dépôt est à renouveler (bouton « Mettre à jour »), un lot préparé ici non.
     a._catalogue[1]["lots"][0]["sources"] = {"osm": "2026-11-01T00:00:00Z"}
     assert [e["case"] for e in a._lots_a_telecharger(a._catalogue[1], zone)] == ["E5_N40"]

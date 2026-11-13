@@ -21,6 +21,16 @@ def calques_en_serie(monkeypatch, request):
         monkeypatch.setattr(fabrication, "processus_spawn", lambda: 1)
 
 
+@pytest.fixture(autouse=True)
+def zones_de_routage_presentes(monkeypatch, request):
+    """Les essais du calcul tournent sans lot installé : chaque case passe pour
+    couverte. Le refus d'un tracé sans zone de routage a son propre essai
+    (marqueur zones_reelles), qui s'en dispense."""
+    if "zones_reelles" not in request.keywords:
+        from hike2gpx import application
+        monkeypatch.setattr(application.Application, "_cases_sans_lot", lambda self, zone: [])
+
+
 # Fixtures de test_fabrication.py servies à tous les fichiers (la fabrication
 # répartie, les calques en parallèle) : les importer fichier par fichier les
 # faisait passer pour des redéfinitions aux yeux de ruff (F811).

@@ -56,6 +56,7 @@ const TEXTES = {
     "horsLigne.deplacement": "Copie des données{compte}, depuis {duree}",
     "horsLigne.deplace": "Données copiées dans {dossier} : hike2gpx redémarre, rechargez la page dans quelques secondes.",
     "zones.planifier": "Pour planifier ici, hike2gpx a besoin de la zone de routage de cette région (case {nom}, {taille}). La télécharger ? La page s'ouvrira à la fin du téléchargement.",
+    "zones.fabriquer": "Pour planifier ici, hike2gpx a besoin de la zone de routage de cette région, et le serveur n'en publie pas pour la case {nom}. La fabriquer sur ce PC ? Comptez de quelques minutes à une demi-heure selon la densité de la région. La page s'ouvrira à la fin.",
     "horsLigne.legendeInstalle": "sur ce PC",
     "horsLigne.legendeSelection": "sélectionné",
     "horsLigne.legendeEnCours": "en cours",
@@ -313,6 +314,9 @@ const TEXTES = {
     "gpx.trace": " ; tracé hike2gpx.",
     "gpx.aVerifier": "À vérifier : {nature}",
     "erreur.zone_trop_etendue": "Zone trop étendue : {nombre} tuiles de 0,05° à examiner, au plus {max}. Découpez le parcours en étapes plus courtes.",
+    "erreur.zone_absente": "Pas de zone de routage pour la case {cases}. Rouvrez « Planifier un itinéraire » ici pour la télécharger ou la fabriquer.",
+    "erreur.serveur_zones_injoignable": "Pas de zone de routage ici, et le serveur des zones est injoignable.",
+    "erreur.calques_sans_zone": "Pas de zone de routage ici : les chemins s'afficheront avec elle (« Planifier un itinéraire »).",
     "erreur.itineraire_refuse": "Itinéraire refusé : le tracé passe un franchissement {mot} ({nature}, à {distance} du départ).",
     "mot.bloquant": "bloquant",
     "mot.strict": "à vérifier, en mode strict",
@@ -349,6 +353,7 @@ const TEXTES = {
     "horsLigne.deplacement": "Copying the data{compte}, for {duree}",
     "horsLigne.deplace": "Data copied to {dossier}: hike2gpx is restarting, reload the page in a few seconds.",
     "zones.planifier": "To plan here, hike2gpx needs the routing area of this region (cell {nom}, {taille}). Download it? The page will open when the download is done.",
+    "zones.fabriquer": "To plan here, hike2gpx needs the routing area of this region, and the server does not publish one for cell {nom}. Build it on this PC? Allow from a few minutes to half an hour depending on how dense the region is. The page will open when it is done.",
     "horsLigne.legendeInstalle": "on this PC",
     "horsLigne.legendeSelection": "selected",
     "horsLigne.legendeEnCours": "in progress",
@@ -606,6 +611,9 @@ const TEXTES = {
     "gpx.trace": "; route by hike2gpx.",
     "gpx.aVerifier": "To check: {nature}",
     "erreur.zone_trop_etendue": "Area too large: {nombre} tiles of 0.05° to examine, {max} at most. Split the route into shorter stages.",
+    "erreur.zone_absente": "No routing area for cell {cases}. Reopen \"Plan a route\" here to download or build it.",
+    "erreur.serveur_zones_injoignable": "No routing area here, and the area server cannot be reached.",
+    "erreur.calques_sans_zone": "No routing area here: paths will show once it is installed (\"Plan a route\").",
     "erreur.itineraire_refuse": "Route refused: it passes a {mot} crossing ({nature}, {distance} from the start).",
     "mot.bloquant": "blocking",
     "mot.strict": "to-check (strict mode)",
@@ -1266,6 +1274,13 @@ async function chargerCalque(cle, zone) {
     // Remplacée par la vue d'une autre page ouverte sur le même serveur : la
     // note ne reste pas sur un chargement qui ne viendra pas.
     if (!autres) noteCalques("");
+    return;
+  }
+  if (donnees.code === "calques_sans_zone") {
+    // Pas de lot ici : la carte de fond seule, sans les chemins de la vue d'avant.
+    calque.groupe.clearLayers();
+    calque.charge = null;
+    noteCalques(texteErreur(donnees));
     return;
   }
   if (donnees.erreur) {
@@ -2311,16 +2326,18 @@ async function suivreLot() {
   }
 }
 
+// Rend vrai quand la préparation est partie.
 async function preparerCase(nom, zone = null) {
   carte.closePopup();
   // Le serveur prend tous les fournisseurs nationaux qui touchent la zone.
   const reponse = await api("preparer_lot", zone ? { case: nom, zone } : { case: nom });
   if (reponse.erreur) {
     afficherLot({ case: nom, erreur: reponse.erreur });
-    return;
+    return false;
   }
   if (minuterieLot) clearTimeout(minuterieLot);
   suivreLot();
+  return true;
 }
 
 async function arreterLot() {
@@ -3076,9 +3093,10 @@ function planifier(actif) {
 // Plus de téléchargement automatique (Nico, 2026-11-13 : « il suffit de laisser
 // le menu de planification disponible, mais avec une question sur le
 // téléchargement si aucune zone est là localement ») : la page s'ouvre là où une
-// zone est installée, ou là où le serveur n'en publie pas (le calcul à la volée
-// prend le relais) ; sinon une question. Refusée, la page se referme ;
-// acceptée, la zone se télécharge, et la page se rouvre à la fin (suivreLot).
+// zone est installée ; sinon une question. Refusée, la page se referme ;
+// acceptée, la zone se télécharge, ou se fabrique sur ce PC quand le serveur
+// n'en publie pas (Montréal, Nico, 2026-11-13 : « j'ai pas le message de
+// création du lot par le pc »), et la page se rouvre à la fin (suivreLot).
 let apresLot = null;
 function ouvrirPage(nom) {
   if (typeof CustomEvent !== "undefined") document.dispatchEvent(new CustomEvent("hike2gpx:ouvrir-page", { detail: nom }));
@@ -3091,7 +3109,36 @@ async function verifierZonePlanification() {
   } catch (e) {
     return;                       // le calcul dira ce qui manque
   }
-  if (!r.proposer || !planification) return;
+  if (!planification) return;
+  if (r.erreur) {
+    // Pas de données de routage ici, et pas moyen d'en avoir : la page reste fermée.
+    ouvrirPage("");
+    afficherStatut(() => texteErreur(r), true);
+    return;
+  }
+  if (r.attendre) {
+    // Ce lot se prépare déjà : la page se rouvrira à sa fin.
+    ouvrirPage("");
+    apresLot = () => ouvrirPage("trace");
+    if (!minuterieLot) suivreLot();
+    return;
+  }
+  if (r.fabriquer) {
+    if (!confirm(t("zones.fabriquer", { nom: r.fabriquer.case }))) {
+      ouvrirPage("");
+      return;
+    }
+    ouvrirPage("");               // la carte et la ligne d'activité, le temps de la fabrication
+    apresLot = () => ouvrirPage("trace");
+    try {
+      if (!(await preparerCase(r.fabriquer.case))) apresLot = null;
+    } catch (e) {
+      apresLot = null;
+      afficherStatut(() => t("statut.erreur", { message: e.message }), true);
+    }
+    return;
+  }
+  if (!r.proposer) return;
   if (!confirm(t("zones.planifier", { nom: r.proposer.case, taille: tailleTexte(r.proposer.octets) }))) {
     ouvrirPage("");
     return;
