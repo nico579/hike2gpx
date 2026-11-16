@@ -100,3 +100,10 @@ def test_assembler_reprend_tuiles_et_champs(tmp_path):
         assert base.execute("SELECT COUNT(*) FROM tiles").fetchone()[0] == total > 1
         champs = json.loads(base.execute("SELECT value FROM metadata WHERE name='json'").fetchone()[0])
     assert champs["vector_layers"][0]["fields"] == {"id": "Number", "nature": "String", "genre": "String"}
+
+
+def test_une_etape_inconnue_est_refusee_d_emblee(tmp_path):
+    # Audit BRouter B09 (2026-11-13) : elle retombait sur la relecture de
+    # l'état, puis reconstruisait tous les calques sans rien dire.
+    with pytest.raises(ValueError, match="étape inconnue"):
+        fabrication.fabriquer(tmp_path, None, "E5_N40", tmp_path / "lot", etape="calque")

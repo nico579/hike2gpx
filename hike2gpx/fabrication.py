@@ -223,6 +223,10 @@ def fabriquer(dossier, installation: brouter.Installation, case: str, sortie: Pa
     part (_, K) (réunit les K parts, écrit le manifeste). Les deux premières
     rendent None. « tout », le défaut, fait tout d'un coup, comme
     l'application."""
+    # « donnees » se traite avant (fabriquer_lots) ; une étape inconnue
+    # reconstruirait sinon tous les calques sans rien dire (audit BRouter B09).
+    if etape not in ("tout", "calcul", "calques", "fin"):
+        raise ValueError(f"étape inconnue : {etape}")
     suivi = suivi or (lambda etape, faites, total: None)
     continuer = continuer or (lambda: True)
     boite = lot.boite_case(case)
