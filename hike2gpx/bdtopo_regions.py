@@ -15,7 +15,6 @@ archives régionales, GeoPackage « tous thèmes », quatre fois par an :
 from __future__ import annotations
 
 import logging
-import http.client
 import re
 import shutil
 import sqlite3
@@ -60,23 +59,10 @@ ESSAIS_ATOM, PAUSE_ATOM_S = 5, 10.0
 
 
 def _atom(url: str, ouvrir=urllib.request.urlopen, pause=time.sleep) -> ET.Element:
-    """Le flux ATOM de l'IGN. Une erreur 5xx ou 429, un délai, une coupure ou
-    un XML tronqué se retentent ; une autre erreur 4xx ne guérit pas."""
-    derniere = None
-    for essai in range(ESSAIS_ATOM):
-        try:
-            with ouvrir(urllib.request.Request(url, headers=AGENT), timeout=60) as reponse:
-                return ET.fromstring(reponse.read())
-        except urllib.error.HTTPError as exc:
-            if exc.code < 500 and exc.code != 429:
-                raise
-            derniere = exc
-        except (OSError, ET.ParseError, http.client.HTTPException) as exc:     # délai, coupure, XML tronqué
-            derniere = exc
-        if essai < ESSAIS_ATOM - 1:
-            journal.info("BD TOPO : flux des éditions en échec (%s), nouvel essai", derniere)
-            pause(PAUSE_ATOM_S * (essai + 1))
-    raise derniere
+    """Le flux ATOM de l'IGN, avec les nouveaux essais d'en_bloc.lire : un 504
+    passager de la Géoplateforme a fait tomber deux cases le 2026-11-03."""
+    return en_bloc.lire(url, ET.fromstring, entetes=AGENT, ouvrir=ouvrir, pause=pause, essais=ESSAIS_ATOM,
+                        pause_s=PAUSE_ATOM_S, nom="BD TOPO : flux des éditions")
 
 
 def derniere_edition(region: str, lire=_atom) -> dict:

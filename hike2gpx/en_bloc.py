@@ -16,6 +16,7 @@ import shutil
 import threading
 import time
 import sqlite3
+import urllib.error
 import urllib.request
 from contextlib import closing
 from pathlib import Path
@@ -30,6 +31,34 @@ ESSAIS = 3
 
 class ErreurArchive(RuntimeError):
     pass
+
+
+def lire(url: str, analyser, *, entetes=None, ouvrir=None, pause=None, essais: int = ESSAIS,
+         pause_s: float = 5.0, delai_s: float = 60, nom: str = "") :
+    """analyser(corps) d'une petite réponse : un flux ATOM (ET.fromstring), un
+    catalogue JSON (json.loads). Une erreur 5xx ou 429, un délai, une coupure
+    ou un document tronqué se retentent, essais fois, après pause_s, 2 × pause_s… ;
+    une autre erreur 4xx ne guérit pas et remonte tout de suite. La dernière
+    erreur remonte telle quelle. ouvrir et pause : urlopen et time.sleep, lus
+    à l'appel (les essais les remplacent)."""
+    ouvrir = ouvrir or urllib.request.urlopen
+    pause = pause or time.sleep
+    derniere = None
+    for essai in range(essais):
+        try:
+            with ouvrir(urllib.request.Request(url, headers=entetes or AGENT), timeout=delai_s) as reponse:
+                return analyser(reponse.read())
+        except urllib.error.HTTPError as exc:
+            if exc.code < 500 and exc.code != 429:
+                raise
+            derniere = exc
+        except (OSError, ValueError, SyntaxError, http.client.HTTPException) as exc:
+            # délai, coupure, JSON tronqué (ValueError), XML tronqué (ET.ParseError, un SyntaxError)
+            derniere = exc
+        if essai < essais - 1:
+            journal.info("%s : essai %d en échec (%s), nouvel essai", nom or url, essai + 1, derniere)
+            pause(pause_s * (essai + 1))
+    raise derniere
 
 
 _verrous_global = threading.Lock()

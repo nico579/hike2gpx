@@ -30,7 +30,6 @@ import re
 import shutil
 import sqlite3
 import struct
-import urllib.request
 import zipfile
 from contextlib import closing
 from pathlib import Path
@@ -53,8 +52,7 @@ TABLE, GEOMETRIE, CLE = "Weg", "geom", "fid"
 
 
 def _json(url: str) -> dict:
-    with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT), timeout=60) as reponse:
-        return json.loads(reponse.read())
+    return en_bloc.lire(url, json.loads, entetes=AGENT, nom="swissTLM3D : catalogue STAC")
 
 
 def _taille(url: str) -> int:

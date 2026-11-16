@@ -25,7 +25,6 @@ import logging
 import re
 import shutil
 import sqlite3
-import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 from contextlib import closing
@@ -51,8 +50,7 @@ GEOMETRIE, CLE = "Shape", "OBJECTID"
 
 
 def _atom(url: str) -> ET.Element:
-    with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT), timeout=60) as reponse:
-        return ET.fromstring(reponse.read())
+    return en_bloc.lire(url, ET.fromstring, entetes=AGENT, nom="ZABAGED : flux des éditions")
 
 
 def derniere_edition(lire=_atom, taille=None) -> dict:

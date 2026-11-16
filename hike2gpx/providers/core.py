@@ -29,22 +29,11 @@ def lire_json(url: str, nom: str, delai_s: float = 120.0):
     GitHub Actions du 2026-10-27), un délai dépassé ou une erreur 5xx finit
     toujours par arriver, et ne doit pas perdre une heure de fabrication.
     Une erreur 4xx, elle, ne guérit pas en réessayant."""
-    demande = urllib.request.Request(url, headers={"User-Agent": f"hike2gpx/{__version__}"})
-    derniere = None
-    for essai in range(ESSAIS):
-        try:
-            with urllib.request.urlopen(demande, timeout=delai_s) as reponse:
-                return json.loads(reponse.read())
-        except urllib.error.HTTPError as exc:
-            if exc.code < 500 and exc.code != 429:
-                raise ErreurDonnees(f"{nom} indisponible ({exc}).") from exc
-            derniere = exc
-        except (OSError, ValueError, http.client.HTTPException) as exc:     # délai, coupure, JSON tronqué
-            derniere = exc
-        if essai < ESSAIS - 1:
-            journal.info("%s : essai %d en échec (%s), nouvel essai", nom, essai + 1, derniere)
-            time.sleep(PAUSE_S * (essai + 1))
-    raise ErreurDonnees(f"{nom} indisponible ({derniere}).") from derniere
+    try:
+        return en_bloc.lire(url, json.loads, entetes={"User-Agent": f"hike2gpx/{__version__}"}, essais=ESSAIS,
+                            pause_s=PAUSE_S, delai_s=delai_s, nom=nom)
+    except (OSError, ValueError, http.client.HTTPException) as exc:
+        raise ErreurDonnees(f"{nom} indisponible ({exc}).") from exc
 
 
 def _json(url):
