@@ -141,8 +141,9 @@ def fournisseurs_de_zone(dossier, zone: tuple) -> list:
 
 
 def nom_case(sud: int, ouest: int) -> str:
-    """Le nom BRouter de la case de 5° dont le coin sud-ouest est donné (E5_N40)."""
-    return f"{'W' if ouest < 0 else 'E'}{abs(ouest)}_{'S' if sud < 0 else 'N'}{abs(sud)}"
+    """Le nom BRouter de la case de 5° dont le coin sud-ouest est donné (E5_N40) :
+    celui que donne brouter.nom_segment à un point de la case."""
+    return brouter.nom_segment(sud, ouest)
 
 
 def cases_des_fournisseurs(dossier, fournisseurs=None) -> list:

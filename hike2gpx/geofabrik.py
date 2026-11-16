@@ -628,9 +628,10 @@ def _effacer(chemin: Path, essais: int = 30) -> None:
     journal.warning("Fichier de travail laissé, encore pris : %s", chemin)
 
 
-def _surveiller(processus, continuer) -> None:
-    """Met fin à l'import dès que continuer() devient faux. Un fil à part :
-    l'import ne dit rien tant qu'il lit les nœuds, sa sortie ne suffit pas."""
+def surveiller(processus, continuer) -> None:
+    """Met fin au processus dès que continuer() devient faux. Un fil à part :
+    l'import ne dit rien tant qu'il lit les nœuds, sa sortie ne suffit pas.
+    Sert aussi à mapsforge (Osmosis)."""
     while processus.poll() is None:
         if not continuer():
             processus.terminate()
@@ -654,7 +655,7 @@ def _importer_a_part(pbf: Path, base: Path, region: dict, date: str, suivi=None,
                               stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, text=True, encoding="utf-8",
                               errors="replace", cwd=racine, **options) as processus:
             if continuer:
-                threading.Thread(target=_surveiller, args=(processus, continuer), daemon=True,
+                threading.Thread(target=surveiller, args=(processus, continuer), daemon=True,
                                  name="geofabrik-import-surveillance").start()
             for ligne in processus.stdout:
                 mots = ligne.split(maxsplit=1)

@@ -87,7 +87,8 @@ class Projection:
         return self.lat0 + y / M_PAR_DEGRE, self.lon0 + x / self.kx
 
 
-def _sous(a, b):
+def sous(a, b):
+    """a - b, en coordonnées (x, y) ; servi aussi à fusion."""
     return a[0] - b[0], a[1] - b[1]
 
 
@@ -104,7 +105,7 @@ def _cote(p, a, b) -> int:
     longueur = _dist(a, b)
     if longueur == 0:
         return 0
-    ecart = _vect(_sous(b, a), _sous(p, a)) / longueur
+    ecart = _vect(sous(b, a), sous(p, a)) / longueur
     return 0 if abs(ecart) <= EPS_M else (1 if ecart > 0 else -1)
 
 
@@ -112,12 +113,12 @@ def _intersection(a, b, c, d):
     """Paramètres (t, u) du point commun des segments ab et cd, ou None.
     Deux segments parallèles ne se coupent pas : une clôture qui longe un
     chemin ne le bloque pas."""
-    r, s = _sous(b, a), _sous(d, c)
+    r, s = sous(b, a), sous(d, c)
     lr, ls = math.hypot(*r), math.hypot(*s)
     den = _vect(r, s)
     if lr == 0 or ls == 0 or abs(den) <= 1e-9 * lr * ls:
         return None
-    ca = _sous(c, a)
+    ca = sous(c, a)
     t, u = _vect(ca, s) / den, _vect(ca, r) / den
     if -EPS_M / lr <= t <= 1 + EPS_M / lr and -EPS_M / ls <= u <= 1 + EPS_M / ls:
         return min(1.0, max(0.0, t)), min(1.0, max(0.0, u))
@@ -125,7 +126,7 @@ def _intersection(a, b, c, d):
 
 
 def _distance_segment(p, a, b) -> float:
-    v = _sous(b, a)
+    v = sous(b, a)
     l2 = v[0] * v[0] + v[1] * v[1]
     t = 0.0 if l2 == 0 else max(0.0, min(1.0, ((p[0] - a[0]) * v[0] + (p[1] - a[1]) * v[1]) / l2))
     return math.hypot(p[0] - a[0] - t * v[0], p[1] - a[1] - t * v[1])
@@ -321,7 +322,7 @@ def analyser(elements, mode: str = MODE) -> list:
 
     def coupe_lien(p, q):
         """Coupe d'un lien de voie qui part du nœud p vers q."""
-        v = _sous(q, p)
+        v = sous(q, p)
         longueur = math.hypot(*v)
         recul = min(RECUL_M, 0.45 * longueur)
         return coupe((p[0] + v[0] / longueur * recul, p[1] + v[1] / longueur * recul), v)
@@ -392,14 +393,14 @@ def analyser(elements, mode: str = MODE) -> list:
                         tags_o = noeuds[no].get("tags", {})
                         statut, raison = ajuster((statut_o, raison_o), [v], tags_o)
                         enregistrer(("ouverture", no, v["id"]), statut, raison, tags_o, f"node/{no}", p, [v],
-                                    [coupe(p, _sous(e, a))])
+                                    [coupe(p, sous(e, a))])
                     continue
                 statut, raison = ajuster(jugement, [v], tags_b)
                 # Un sommet de barrière partagé par deux morceaux de la même
                 # clôture ne compte qu'une fois.
                 cle = ("pli", cle_sommet, v["id"]) if cle_sommet is not None \
                     else ("ligne", b["id"], v["id"], round(p[0] * 2), round(p[1] * 2))
-                enregistrer(cle, statut, raison, tags_b, f"way/{b['id']}", p, [v], [coupe(p, _sous(e, a))])
+                enregistrer(cle, statut, raison, tags_b, f"way/{b['id']}", p, [v], [coupe(p, sous(e, a))])
 
     # 2. Sommets de voie posés sur une barrière (nœud commun non étiqueté,
     #    carrefour, voie qui s'arrête sur la clôture et qu'une autre prolonge).

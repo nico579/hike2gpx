@@ -222,14 +222,6 @@ def nettoyer(outils: Outils, dossier_cartes: Path | None = None) -> int:
     return octets
 
 
-def _surveiller(processus, continuer) -> None:
-    while processus.poll() is None:
-        if not continuer():
-            processus.terminate()
-            return
-        time.sleep(0.5)
-
-
 def fabriquer(dossier, chemin: Path, zone: tuple, *, suivi=None, continuer=None) -> dict:
     """Fabrique la carte du carré dans chemin et la décrit. suivi(etape,
     faites, total) : « outils », « extraits » (en centièmes) puis « carte »
@@ -267,7 +259,7 @@ def fabriquer(dossier, chemin: Path, zone: tuple, *, suivi=None, continuer=None)
         with enfants.demarrer(commande(outils, pbfs, partiel, zone), stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, text=True, encoding="utf-8",
                               errors="replace", **isolement(outils), **options) as processus:
-            threading.Thread(target=_surveiller, args=(processus, continuer), daemon=True,
+            threading.Thread(target=geofabrik.surveiller, args=(processus, continuer), daemon=True,
                              name="mapsforge-surveillance").start()
             for ligne in processus.stdout:
                 fin = (fin + [ligne.rstrip()])[-20:]

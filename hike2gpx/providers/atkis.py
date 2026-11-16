@@ -9,25 +9,20 @@ from __future__ import annotations
 
 import logging
 import math
-import threading
-import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from pathlib import Path
-
-from nico579_commons import atomique
 
 from .. import __version__
-from ..franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
+from ..franchissements import ErreurDonnees, bornes_tuile
 from . import basemap_atkis
+from .core import TTL_S, TuilesOfficielles  # noqa: F401  (TTL_S : atkis.TTL_S)
 
 journal = logging.getLogger(__name__)
 WFS_NS = "{http://www.opengis.net/wfs/2.0}"
 GML_NS = "{http://www.opengis.net/gml/3.2}"
 PAGE = 1000
 PAGES_MAX = 20
-TTL_S = 30 * 86400
 VERSION_CACHE = 2
 
 # Bornes larges : une tuile de frontière interroge les deux WFS et chacun
@@ -46,15 +41,6 @@ SOURCES = {
            "types": (("AX_WegPfadSteig", "Weg/Pfad/Steig"),
                      ("AX_Fahrwegachse", "Wirtschaftsweg"))},
 }
-
-_verrou_global = threading.Lock()
-_verrous = {}
-
-
-def _verrou(cle):
-    with _verrou_global:
-        return _verrous.setdefault(cle, threading.Lock())
-
 
 def _intersecte(a, b):
     return a[0] <= b[2] and a[2] >= b[0] and a[1] <= b[3] and a[3] >= b[1]
@@ -130,43 +116,10 @@ def lire_tuile(i, j, interroger=interroger):
     return troncons
 
 
-def lire_cache(i, j, dossier):
-    cache = atomique.lire_json(Path(dossier) / "atkis" / f"v{VERSION_CACHE}_{i}_{j}.json", None)
-    if isinstance(cache, dict) and isinstance(cache.get("troncons"), list) \
-            and isinstance(cache.get("fetched_at"), (int, float)):
-        return cache
-    return None
-
-
-def charger_tuile(i, j, dossier, *, en_ligne=True, interroger=interroger, maintenant=time.time):
-    chemin = Path(dossier) / "atkis" / f"v{VERSION_CACHE}_{i}_{j}.json"
-    with _verrou((i, j)):
-        cache = lire_cache(i, j, dossier)
-        if cache and (not en_ligne or maintenant() - cache["fetched_at"] < TTL_S):
-            return cache["troncons"]
-        if not en_ligne:
-            raise ErreurDonnees("Hors connexion : chemins ATKIS de cette zone jamais chargés.")
-        debut = time.monotonic()
-        troncons = lire_tuile(i, j, interroger)
-        journal.info("ATKIS : tuile %d_%d lue en %.1f s (%d tronçons)", i, j,
-                     time.monotonic() - debut, len(troncons))
-        atomique.ecrire_json(chemin, {"version": VERSION_CACHE, "fetched_at": maintenant(),
-                                    "troncons": troncons}, indent=None)
-        return troncons
-
-
-def troncons_zone(sud, ouest, nord, est, dossier, *, continuer=None, suivi=None, **options):
-    vus, resultat = set(), []
-    tuiles = tuiles_zone(sud, ouest, nord, est)
-    if suivi:
-        suivi(0, len(tuiles))
-    for k, (i, j) in enumerate(tuiles):
-        if continuer and not continuer():
-            raise VueRemplacee()
-        for troncon in charger_tuile(i, j, dossier, **options):
-            if troncon["id"] not in vus:
-                vus.add(troncon["id"])
-                resultat.append(troncon)
-        if suivi:
-            suivi(k + 1, len(tuiles))
-    return resultat
+# Le cache et le parcours des tuiles, communs aux sources officielles. La
+# lambda relit lire_tuile à chaque appel : les essais peuvent la remplacer.
+_TUILES = TuilesOfficielles("atkis", lambda i, j, **options: lire_tuile(i, j, **options),
+                            par_tuile=True, version=VERSION_CACHE, nom="ATKIS")
+lire_cache = _TUILES.lire_cache
+charger_tuile = _TUILES.charger_tuile
+troncons_zone = _TUILES.troncons_zone

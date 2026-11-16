@@ -13,9 +13,13 @@ import hashlib
 import http.client
 import logging
 import shutil
+import threading
 import time
 import sqlite3
+import urllib.error
 import urllib.request
+import zipfile
+import zlib
 from contextlib import closing
 from pathlib import Path
 
@@ -29,6 +33,46 @@ ESSAIS = 3
 
 class ErreurArchive(RuntimeError):
     pass
+
+
+def lire(url: str, analyser, *, entetes=None, ouvrir=None, pause=None, essais: int = ESSAIS,
+         pause_s: float = 5.0, delai_s: float = 60, nom: str = "") :
+    """analyser(corps) d'une petite réponse : un flux ATOM (ET.fromstring), un
+    catalogue JSON (json.loads). Une erreur 5xx ou 429, un délai, une coupure
+    ou un document tronqué se retentent, essais fois, après pause_s, 2 × pause_s… ;
+    une autre erreur 4xx ne guérit pas et remonte tout de suite. La dernière
+    erreur remonte telle quelle. ouvrir et pause : urlopen et time.sleep, lus
+    à l'appel (les essais les remplacent)."""
+    ouvrir = ouvrir or urllib.request.urlopen
+    pause = pause or time.sleep
+    derniere = None
+    for essai in range(essais):
+        try:
+            with ouvrir(urllib.request.Request(url, headers=entetes or AGENT), timeout=delai_s) as reponse:
+                return analyser(reponse.read())
+        except urllib.error.HTTPError as exc:
+            if exc.code < 500 and exc.code != 429:
+                raise
+            derniere = exc
+        except (OSError, ValueError, SyntaxError, http.client.HTTPException) as exc:
+            # délai, coupure, JSON tronqué (ValueError), XML tronqué (ET.ParseError, un SyntaxError)
+            derniere = exc
+        if essai < essais - 1:
+            journal.info("%s : essai %d en échec (%s), nouvel essai", nom or url, essai + 1, derniere)
+            pause(pause_s * (essai + 1))
+    raise derniere
+
+
+_verrous_global = threading.Lock()
+_verrous = {}
+
+
+def verrou(cle) -> threading.Lock:
+    """Le verrou de cette clé, le même à chaque appel : deux fils qui
+    téléchargent la même chose (un powiat, une tuile) le font l'un après
+    l'autre, le second trouvant le travail du premier."""
+    with _verrous_global:
+        return _verrous.setdefault(cle, threading.Lock())
 
 
 class _SansPlages(ErreurArchive):
@@ -240,3 +284,120 @@ def lignes_gpkg(gpkg, table: str, colonnes: tuple, epsg: int, sud: float, ouest:
         resultat.append((attributs, k, [[round(la, 7), round(lo, 7)] for lo, la in zip(lons[debut:fin], lats[debut:fin])]))
         debut = fin
     return resultat
+
+
+# --- Fabrique commune des lecteurs nationaux (audit D2, D3, D10, D12, D13) ---
+# BD TOPO par régions, BDOT10k par powiats, Basis-DLM par Länder, swissTLM3D
+# et ZABAGED suivent la même séquence : téléchargement, extraction, base
+# allégée aux seuls chemins, purge des éditions plus anciennes.
+
+def base_reduite(base: Path, anciens: str, fabriquer) -> Path:
+    """La base allégée base, fabriquée une fois : fabriquer(travail, cible)
+    télécharge et réduit dans un dossier de travail, effacé ensuite quoi qu'il
+    arrive, et cible ne prend le nom de base qu'achevée. Les bases plus
+    anciennes de la même source (anciens, un motif glob à côté de base) sont
+    effacées ensuite."""
+    base = Path(base)
+    if base.is_file():
+        return base
+    travail = base.parent / f".{base.name}"
+    try:
+        travail.mkdir(parents=True, exist_ok=True)
+        cible = travail / base.name
+        fabriquer(travail, cible)
+        cible.replace(base)
+    finally:
+        shutil.rmtree(travail, ignore_errors=True)
+    for ancien in base.parent.glob(anciens):
+        if ancien != base and ancien.is_file():
+            ancien.unlink()
+    return base
+
+
+def extraire(archive: Path, dossier: Path, choisir) -> list:
+    """Les membres de l'archive que retient choisir({nom: ZipInfo}) -> [ZipInfo],
+    décompressés à plat dans dossier ; zipfile contrôle le CRC en lisant. Les
+    noms sont comparés en « / » : une archive faite sous Windows garde des
+    « \\ » que zipfile ne convertit qu'en lisant sous Windows (swissTLM3D,
+    essai 42644919578). Une archive altérée lève ErreurArchive."""
+    sortie = []
+    try:
+        with zipfile.ZipFile(archive) as z:
+            for membre in choisir({m.filename.replace("\\", "/"): m for m in z.infolist()}):
+                dossier.mkdir(parents=True, exist_ok=True)
+                cible = dossier / Path(membre.filename.replace("\\", "/")).name
+                with z.open(membre) as source, open(cible, "wb") as f:
+                    shutil.copyfileobj(source, f, BLOC)
+                sortie.append(cible)
+    except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
+        raise ErreurArchive(f"{archive.name} : archive altérée ({exc}).") from exc
+    return sortie
+
+
+def garder_couches(gpkg: Path, cible: Path, couches, *, geometrie: str, cle: str) -> int:
+    """Les tables gardées d'un GeoPackage complet, copiées dans la base cible
+    avec leur index RTree, pour lignes_gpkg. couches : [(source, table,
+    colonnes, condition, parametres)] ; colonnes déclare les colonnes gardées
+    hors clé et géométrie (« cleabs TEXT, nature TEXT ») ; condition filtre les
+    lignes (la clause WHERE, sans le mot, « » pour toutes), et l'index ne garde
+    alors que les lignes copiées. La clé reste la clé primaire : l'index RTree
+    renvoie des clés, et un CREATE TABLE … AS SELECT l'aurait réduite à une
+    colonne ordinaire, que chaque lecture d'emprise aurait parcourue en
+    entier. Rend le nombre de lignes gardées."""
+    gardes = 0
+    with closing(sqlite3.connect(str(cible), uri=True)) as base:     # uri : ATTACH en lecture seule
+        base.execute("ATTACH DATABASE ? AS complet", (f"file:{Path(gpkg).resolve().as_posix()}?mode=ro",))
+        for source, table, colonnes, condition, parametres in couches:
+            noms = ", ".join(c.split()[0] for c in colonnes.split(","))
+            rtree, rtree_source = f"rtree_{table}_{geometrie}", f"rtree_{source}_{geometrie}"
+            try:
+                base.execute(f'CREATE TABLE "{table}" ({cle} INTEGER PRIMARY KEY, {colonnes}, {geometrie} BLOB)')
+                base.execute(f'INSERT INTO "{table}" SELECT {cle}, {noms}, {geometrie} FROM complet."{source}"'
+                             + (f" WHERE {condition}" if condition else ""), parametres)
+                base.execute(f'CREATE VIRTUAL TABLE "{rtree}" USING rtree(id, minx, maxx, miny, maxy)')
+                if condition:
+                    base.execute(f'INSERT INTO "{rtree}" SELECT r.id, r.minx, r.maxx, r.miny, r.maxy '
+                                 f'FROM complet."{rtree_source}" r JOIN "{table}" t ON t.{cle} = r.id')
+                else:
+                    base.execute(f'INSERT INTO "{rtree}" SELECT id, minx, maxx, miny, maxy '
+                                 f'FROM complet."{rtree_source}"')
+            except sqlite3.OperationalError as exc:
+                raise ErreurArchive(f"{Path(gpkg).name} : pas de {source} lisible ({exc}).") from exc
+            gardes += base.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+        base.commit()
+        base.execute("DETACH DATABASE complet")
+    return gardes
+
+
+class LecteurEdition:
+    """Le lecteur d'une source nationale publiée d'une seule édition
+    (swissTLM3D, ZABAGED), pour fabrication.fabriquer(troncons=…) : l'édition
+    n'est cherchée qu'une fois, et l'archive n'est téléchargée qu'à la
+    première emprise qui en a besoin. derniere_edition() et
+    geopackage(dossier, edition) sont les fonctions du fournisseur ; la
+    sous-classe lit les chemins d'une emprise (__call__)."""
+
+    def __init__(self, dossier, derniere_edition, geopackage):
+        self.dossier = dossier
+        self._derniere_edition, self._geopackage = derniere_edition, geopackage
+        self._edition = None
+        self._base = None
+
+    def edition(self) -> dict:
+        if self._edition is None:
+            self._edition = self._derniere_edition()
+        return self._edition
+
+    def date(self, sud: float, ouest: float, nord: float, est: float) -> str:  # noqa: ARG002 (interface des lecteurs)
+        """L'édition pour le manifeste."""
+        return self.edition()["date"]
+
+    def preparer(self, sud: float, ouest: float, nord: float, est: float) -> None:  # noqa: ARG002
+        """Télécharge d'avance l'édition, sans rien lire, comme
+        bdtopo_regions.Lecteur.preparer : l'étape « données » du serveur la
+        range ainsi dans son artefact, et la fusion en damier
+        (fabrication._lecteur) ne s'active que si chaque lecteur sait le faire.
+        Sans elle, le calcul puis chaque part des calques retéléchargeaient
+        l'archive (6,7 Go pour ZABAGED), et la fusion restait maille par maille."""
+        if self._base is None:
+            self._base = self._geopackage(self.dossier, self.edition())
