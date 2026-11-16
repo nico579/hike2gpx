@@ -136,7 +136,7 @@ class Reseau:
         index = IndexVoies()
         boite = _boite_elargie(bornes, RELIE_M) if bornes is not None else None
         for wid, (ids, tags) in self.voies.items():
-            if fr._praticable(tags) and not fr._hors_sol(tags):
+            if fr.praticable(tags) and not fr._hors_sol(tags):
                 for k in range(len(ids) - 1):
                     a, b = self.noeuds[ids[k]][:2], self.noeuds[ids[k + 1]][:2]
                     if boite is None or _touche(a, b, boite):
@@ -199,7 +199,7 @@ class Reseau:
         boite = _boite_elargie(bornes, COUVERT_M) if bornes is not None else None
         resultat = []
         for ids, tags in self.voies.values():
-            if not fr._praticable(tags) or fr._hors_sol(tags):
+            if not fr.praticable(tags) or fr._hors_sol(tags):
                 continue
             for k in range(len(ids) - 1):
                 a, b = self.noeuds[ids[k]][:2], self.noeuds[ids[k + 1]][:2]

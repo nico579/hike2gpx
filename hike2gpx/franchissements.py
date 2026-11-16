@@ -46,6 +46,11 @@ VOIES_EXCLUES = ("motorway", "motorway_link", "trunk", "trunk_link", "constructi
                  "bus_guideway", "busway", "elevator", "corridor", "via_ferrata",
                  "services", "rest_area", "emergency_bay")
 _EXCLUES = re.compile("^(" + "|".join(VOIES_EXCLUES) + ")$")
+# Exclues d'ordinaire, mais praticables avec foot=yes : le profil BRouter peut
+# les emprunter (une via ferrata, un quai, un passage couvert, le bas-côté
+# d'une route rapide ouvert aux piétons). Sans elles, un lot enrichi perdait
+# ces voies (audit BRouter B05, décision de Nico du 2026-11-16).
+VOIES_SI_PIETONS = ("motorway", "motorway_link", "trunk", "trunk_link", "platform", "corridor", "via_ferrata")
 
 DEMI_COUPE_M = 0.5        # demi-longueur d'une coupe, de part et d'autre de la voie
 RECUL_M = 2.0             # coupe d'un lien posée à cette distance du nœud barrière
@@ -163,8 +168,14 @@ class _Grille:
 
 # ------------------------------------------------------------- étiquettes
 
-def _praticable(tags) -> bool:
-    return "highway" in tags and not _EXCLUES.match(tags["highway"])
+def praticable(tags) -> bool:
+    """Une voie du réseau piéton : toute highway hors VOIES_EXCLUES, et celles
+    de VOIES_SI_PIETONS qui portent foot=yes. La seule règle, que suivent les
+    franchissements, la fusion et l'import Geofabrik."""
+    voie = tags.get("highway")
+    if voie is None:
+        return False
+    return not _EXCLUES.match(voie) or (voie in VOIES_SI_PIETONS and tags.get("foot") == "yes")
 
 
 def _hors_sol(tags) -> bool:
@@ -222,7 +233,7 @@ def analyser(elements, mode: str = MODE) -> list:
     balises = {m.get("ref") for e in elements
                if e.get("type") == "relation" and e.get("tags", {}).get("route") in ("hiking", "foot")
                for m in e.get("members", ()) if m.get("type") == "way"}
-    voies = [(e, pts) for e, pts in lignes if _praticable(e.get("tags", {}))]
+    voies = [(e, pts) for e, pts in lignes if praticable(e.get("tags", {}))]
     barrieres = [(e, pts) for e, pts in lignes
                  if "barrier" in e.get("tags", {}) and "highway" not in e.get("tags", {})]
     if not voies:
@@ -551,7 +562,7 @@ def voies_affichables(sud: float, ouest: float, nord: float, est: float, dossier
             ligne = [[round(lat, 6), round(lon, 6)] for lat, lon in points]
             if "highway" in tags:
                 chemins[e["id"]] = (tags, e["nodes"], points)
-            if _praticable(tags):
+            if praticable(tags):
                 voies[e["id"]] = {"id": e["id"], "genre": GENRES.get(tags["highway"], "route"), "pts": ligne}
             elif "barrier" in tags and "highway" not in tags and regles.status(tags, MODE)[0] != "passable":
                 barrieres[e["id"]] = {"id": e["id"], "nature": regles.LABELS.get(tags["barrier"], "Barrière"),
@@ -589,7 +600,7 @@ def jonctions_manquees(chemins: dict, sud: float, ouest: float, nord: float, est
     import shapely
     import shapely.ops
 
-    praticables = [(ident, c) for ident, c in chemins.items() if _praticable(c[0])]
+    praticables = [(ident, c) for ident, c in chemins.items() if praticable(c[0])]
     if not praticables:
         return []
     # Le nombre de voies distinctes qui passent par chaque nœud : une voie dont
