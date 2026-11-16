@@ -182,9 +182,9 @@ class Reseau:
         v = (b[0] - a[0], b[1] - a[1])
         t = max(0.0, min(1.0, -(a[0] * v[0] + a[1] * v[1]) / (v[0] ** 2 + v[1] ** 2 or 1)))
         q = (a[0] + t * v[0], a[1] + t * v[1])
-        if math.hypot(*_sous(q, a)) < 1:
+        if math.hypot(*fr.sous(q, a)) < 1:
             cible = ids[k]
-        elif math.hypot(*_sous(q, b)) < 1:
+        elif math.hypot(*fr.sous(q, b)) < 1:
             cible = ids[k + 1]
         else:
             cible = self._nouveau_noeud(lat + q[1] / fr.M_PAR_DEGRE,
@@ -319,25 +319,31 @@ class Reseau:
         return elements
 
     def ecrire_pbf(self, chemin) -> None:
-        import osmium     # chargé à la première fabrication, pas au démarrage
-        from pathlib import Path
-        Path(chemin).unlink(missing_ok=True)
-        with osmium.SimpleWriter(str(chemin)) as w:
-            for nid in sorted(self.noeuds):
-                lat, lon, tags = self.noeuds[nid]
-                w.add_node(osmium.osm.mutable.Node(id=nid, location=osmium.osm.Location(lon, lat), tags=tags, version=1))
-            for wid in sorted(self.voies):
-                ids, tags = self.voies[wid]
-                w.add_way(osmium.osm.mutable.Way(id=wid, nodes=ids, tags=tags, version=1))
-            for rid in sorted(self.relations):
-                membres, tags = self.relations[rid]
-                refs = [("w", m["ref"], m.get("role", "")) for m in membres
-                        if m.get("type") == "way" and m.get("ref") in self.voies]
-                w.add_relation(osmium.osm.mutable.Relation(id=rid, members=refs, tags=tags, version=1))
+        ecrire_pbf(chemin,
+                   ((nid, *self.noeuds[nid]) for nid in sorted(self.noeuds)),
+                   ((wid, *self.voies[wid]) for wid in sorted(self.voies)),
+                   ((rid, *self.relations[rid]) for rid in sorted(self.relations)))
 
 
-def _sous(a, b):
-    return a[0] - b[0], a[1] - b[1]
+def ecrire_pbf(chemin, noeuds, voies, relations) -> None:
+    """Un PBF OSM, nœuds (id, lat, lon, tags), voies (id, nœuds, tags) puis
+    relations (id, membres, tags), chacun dans l'ordre donné (par identifiant,
+    comme l'attend osmium). Une relation ne garde que ses voies écrites. Le
+    seul écrivain PBF : Reseau et case.StockOSM lui passent leurs objets."""
+    import osmium     # chargé à la première fabrication, pas au démarrage
+    from pathlib import Path
+    Path(chemin).unlink(missing_ok=True)
+    with osmium.SimpleWriter(str(chemin)) as w:
+        for nid, lat, lon, tags in noeuds:
+            w.add_node(osmium.osm.mutable.Node(id=nid, location=osmium.osm.Location(lon, lat), tags=tags, version=1))
+        presentes = set()
+        for wid, ids, tags in voies:
+            presentes.add(wid)
+            w.add_way(osmium.osm.mutable.Way(id=wid, nodes=ids, tags=tags, version=1))
+        for rid, membres, tags in relations:
+            refs = [("w", m["ref"], m.get("role", "")) for m in membres
+                    if m.get("type") == "way" and m.get("ref") in presentes]
+            w.add_relation(osmium.osm.mutable.Relation(id=rid, members=refs, tags=tags, version=1))
 
 
 def _echantillons(points, pas_m=PAS_M):

@@ -269,31 +269,27 @@ class StockOSM:
         — raccords insérés dans les voies OSM et voies ajoutées — au lieu d'un
         PBF intermédiaire que Registre relisait pour le réécrire (un passage de
         moins sur plusieurs centaines de Mo par case)."""
-        import osmium
-        Path(sortie).unlink(missing_ok=True)
         raccords = enrichi.raccords if enrichi is not None else {}
         noeuds_ajoutes = enrichi.noeuds if enrichi is not None else {}
         voies_ajoutees = enrichi.voies if enrichi is not None else {}
-        with osmium.SimpleWriter(str(sortie)) as w:
+
+        def noeuds():
             for nid, lat, lon, tags in self.base.execute("SELECT id, lat, lon, tags FROM noeuds ORDER BY id"):
-                w.add_node(osmium.osm.mutable.Node(id=nid, location=osmium.osm.Location(lon, lat),
-                                                   tags=json.loads(tags), version=1))
+                yield nid, lat, lon, json.loads(tags)
             for nid, (lat, lon) in sorted(noeuds_ajoutes.items()):
-                w.add_node(osmium.osm.mutable.Node(id=nid, location=osmium.osm.Location(lon, lat), version=1))
-            presentes = set()
-            for wid, noeuds, tags in self.base.execute("SELECT id, noeuds, tags FROM voies ORDER BY id"):
-                presentes.add(wid)
-                refs = json.loads(noeuds)
-                if wid in raccords:
-                    refs = enrichi.noeuds_corriges(wid, refs)
-                w.add_way(osmium.osm.mutable.Way(id=wid, nodes=refs, tags=json.loads(tags), version=1))
-            for wid, (ids, tags) in sorted(voies_ajoutees.items()):
-                presentes.add(wid)
-                w.add_way(osmium.osm.mutable.Way(id=wid, nodes=ids, tags=tags, version=1))
+                yield nid, lat, lon, {}
+
+        def voies():
+            for wid, refs, tags in self.base.execute("SELECT id, noeuds, tags FROM voies ORDER BY id"):
+                refs = json.loads(refs)
+                yield wid, enrichi.noeuds_corriges(wid, refs) if wid in raccords else refs, json.loads(tags)
+            yield from ((wid, ids, tags) for wid, (ids, tags) in sorted(voies_ajoutees.items()))
+
+        def relations():
             for rid, membres, tags in self.base.execute("SELECT id, membres, tags FROM relations ORDER BY id"):
-                refs = [("w", m["ref"], m.get("role", "")) for m in json.loads(membres)
-                        if m.get("type") == "way" and m.get("ref") in presentes]
-                w.add_relation(osmium.osm.mutable.Relation(id=rid, members=refs, tags=json.loads(tags), version=1))
+                yield rid, json.loads(membres), json.loads(tags)
+
+        fusion.ecrire_pbf(sortie, noeuds(), voies(), relations())
 
     def fermer(self) -> None:
         self.base.close()
