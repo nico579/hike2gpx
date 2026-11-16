@@ -41,7 +41,7 @@ def preparer(dossier):
                          {"osm": "2026-10-25T21:21:21Z"}, type="osm", zone=[43.0, 5.0, 44.0, 6.0])
     h.installer(source)
     fonds.fabriquer(h.dossier_fonds / "E5_N40-scan25.mbtiles", "scan25", ZONE, (12, 12), "cle", debit=0,
-                    ouvrir=lambda requete, timeout=None: Reponse(b"\xff\xd8 tuile " + requete.full_url[-30:].encode()))
+                    ouvrir=lambda requete, timeout=None: Reponse(b"\xff\xd8\xff tuile " + requete.full_url[-30:].encode()))
     return h
 
 

@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from nico579_commons import tuiles as reseau
+
 from hike2gpx import fonds, lot, web
 from hike2gpx.application import Application
 
@@ -46,7 +48,7 @@ def service(absentes=(), statut=None):
             raise urllib.error.HTTPError(requete.full_url, code, "refus", {}, None)
         return Reponse(JPEG + repr(tuile).encode())
     ouvrir.demandes = demandes
-    ouvrir.fermer = lambda: None        # comme fonds._Connexions, qu'il remplace
+    ouvrir.fermer = lambda: None        # comme reseau.Connexions, qu'il remplace
     return ouvrir
 
 
@@ -77,7 +79,7 @@ def test_les_fonds_hors_ligne_sont_ceux_de_la_page():
 def test_l_application_prepare_le_fond_affiche(tmp_path, monkeypatch):
     a = Application(tmp_path)
     ouvrir = service()
-    monkeypatch.setattr(fonds, "_Connexions", lambda: ouvrir)
+    monkeypatch.setattr(reseau, "Connexions", lambda: ouvrir)
     monkeypatch.setattr(fonds, "DEBIT", 0)
     monkeypatch.setattr(fonds, "ZOOMS_CARRE", (7, 8))        # quelques tuiles, pas 60 000
     assert "erreur" in a.preparer_fond({"carres": ["N43E006"], "source": "satellite"}), \
@@ -175,7 +177,7 @@ def test_un_fond_arrete_reprend_ou_il_en_etait(tmp_path, monkeypatch):
 def test_un_refus_passager_ne_coupe_pas_le_fond(tmp_path, monkeypatch):
     # Constaté sur une case : un 401 isolé au milieu de milliers de tuiles acceptées.
     attentes = []
-    monkeypatch.setattr(fonds.time, "sleep", attentes.append)
+    monkeypatch.setattr(reseau.time, "sleep", attentes.append)
     sain, refus = service(), [True]
 
     def ouvrir(requete, timeout=None):
@@ -189,7 +191,7 @@ def test_un_refus_passager_ne_coupe_pas_le_fond(tmp_path, monkeypatch):
 
 def test_cle_refusee_et_zone_hors_de_france(tmp_path, monkeypatch):
     attentes = []
-    monkeypatch.setattr(fonds.time, "sleep", attentes.append)
+    monkeypatch.setattr(reseau.time, "sleep", attentes.append)
     with pytest.raises(fonds.ErreurFond, match="clé"):
         fonds.fabriquer(tmp_path / "a.mbtiles", "scan25", ZONE, (12, 12), "cle", ouvrir=service(statut=403), debit=0)
     with pytest.raises(fonds.ErreurFond, match="clé IGN"):
@@ -225,53 +227,6 @@ def test_une_tuile_lente_ne_retient_que_sa_connexion(tmp_path):
     base.close()
 
 
-def test_les_connexions_gardees_resservent_et_se_rouvrent():
-    # Comme lidar2map : une connexion par fil et par hôte, réutilisée de tuile en tuile ;
-    # une connexion que le serveur a fermée se rouvre une fois.
-    ouvertes = []
-
-    class Connexion:
-        def __init__(self, hote, timeout):
-            self.hote, self.requetes, self.fermee = hote, [], False
-            ouvertes.append(self)
-
-        def request(self, methode, chemin, headers):
-            if len(ouvertes) == 1 and len(self.requetes) == 2:
-                raise http.client.RemoteDisconnected("fermée par le serveur")
-            self.requetes.append((methode, chemin, headers))
-
-        def getresponse(self):
-            statut = 404 if "absente" in self.requetes[-1][1] else 200
-            return type("R", (), {"status": statut, "reason": "", "headers": {}, "read": lambda s: JPEG})()
-
-        def close(self):
-            self.fermee = True
-    connexions = fonds._Connexions()
-    import unittest.mock
-    with unittest.mock.patch.object(fonds.http.client, "HTTPSConnection", Connexion):
-        demande = urllib.request.Request("https://data.geopf.fr/wmts?tuile=1", headers=fonds.AGENT)
-        for _ in range(3):
-            with connexions(demande) as reponse:
-                assert reponse.read() == JPEG
-        with pytest.raises(urllib.error.HTTPError) as refus:
-            connexions(urllib.request.Request("https://data.geopf.fr/wmts?absente", headers=fonds.AGENT))
-        assert refus.value.code == 404
-    assert len(ouvertes) == 2, "une seule réouverture, après la fermeture par le serveur"
-    assert len(ouvertes[0].requetes) == 2 and len(ouvertes[1].requetes) == 2
-    assert ouvertes[0].requetes[0][2]["User-agent"].startswith("hike2gpx/")
-    connexions.fermer()
-    assert all(c.fermee for c in ouvertes)
-
-
-def test_le_debit_reste_modere():
-    limiteur = fonds._Debit(50.0)
-    import time
-    debut = time.monotonic()
-    for _ in range(11):
-        limiteur.attendre()
-    assert time.monotonic() - debut >= 0.15, "11 requêtes à 50/s : 0,2 s (à la granularité de l'horloge près)"
-
-
 def test_noms_de_fonds_surs():
     assert fonds.nom_fond("N43E006", "scan25") == "N43E006-scan25"
     for nom in ("../preferences", "a/b", "a\\b", "..", "", "x" * 81, "é"):
@@ -282,7 +237,7 @@ def test_l_application_prepare_un_fond_et_le_liste(tmp_path, monkeypatch):
     a = Application(tmp_path)
     a.enregistrer_reglages({"cle_ign": "ma_cle"})
     ouvrir = service()
-    monkeypatch.setattr(fonds, "_Connexions", lambda: ouvrir)
+    monkeypatch.setattr(reseau, "Connexions", lambda: ouvrir)
     monkeypatch.setattr(fonds, "DEBIT", 0)
     monkeypatch.setattr(fonds, "ZOOMS_CARRE", (7, 8))
     for faux in ({"carres": ["../x"]}, {"carres": []}, {"case": "E5_N40"}, {"carres": "N43E006"}):
@@ -343,7 +298,7 @@ def test_un_fond_n_entre_jamais_dans_une_publication(tmp_path):
 
 def test_l_onglet_retire_le_routage_seul_ou_un_carre(tmp_path, monkeypatch):
     a = Application(tmp_path)
-    monkeypatch.setattr(fonds, "_Connexions", service)
+    monkeypatch.setattr(reseau, "Connexions", service)
     monkeypatch.setattr(fonds, "DEBIT", 0)
     monkeypatch.setattr(fonds, "ZOOMS_CARRE", (7, 7))
     a.preparer_fond({"carres": ["N43E005", "N43E006"], "source": "plan"})

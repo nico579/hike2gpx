@@ -214,9 +214,9 @@ defusedxml==0.7.1 \
     # via
     #   -r requirements.txt
     #   gpx2elev
-gpx2elev==0.6.4 \
-    --hash=sha256:167e4e0a93192d4760142036bf79ac5992eaee563ca1685ab6d1275005039cc1 \
-    --hash=sha256:6f112754ed49cec5b5e2c56bc7b8f8b77950ad6ed8a750b0e8759e8444a7a331
+gpx2elev==0.6.5 \
+    --hash=sha256:493858fe4a919b66592d76fd9d49da034b5873ca443148bcdc2bb4f0ec2153f0 \
+    --hash=sha256:c2ee80c07a4e5ea5dd2f3422ae3095716e914cc54f8310398bd640be94f96353
     # via -r requirements.txt
 idna==3.20 \
     --hash=sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44 \
@@ -236,9 +236,9 @@ mapbox-vector-tile==2.2.0 \
     --hash=sha256:9fbf2e94890429ccdaf8e047019dccadd9deb03f5b2ae9b5c5561d27a20a0eb3 \
     --hash=sha256:d26ad320ade60cc6c0b66edc6ee4b6f53663aedf0b444b115c6ba68e9ba1e6d1
     # via -r requirements.txt
-nico579-commons==0.6.2 \
-    --hash=sha256:457c65dc7df46bec3a923e94c9dd0de6d6b723d61723aeb0b646caa1fd8f42da \
-    --hash=sha256:4e3606a1795d82c28d6c4cd0ca0738ef87862cf8ad92ac5536338bc3af65fb22
+nico579-commons==0.7.0 \
+    --hash=sha256:36a4325cc037910a8ac6d0d45b4a369bf78d91e1470384f2d9326366b947f3c4 \
+    --hash=sha256:70fe0ebd1d576a6dfe9896cabb2f1f818b40333f5e28a9eeb853423b59e85cea
     # via
     #   -r requirements.txt
     #   gpx2elev
