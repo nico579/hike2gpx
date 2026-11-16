@@ -206,6 +206,40 @@ def test_un_transfert_coupe_n_est_jamais_publie(tmp_path, monkeypatch):
     assert not installation.segment_present("E5_N40")
 
 
+def test_un_telechargement_coupe_reprend_la_ou_il_en_etait(tmp_path, monkeypatch):
+    # Audit BRouter B07 (2026-11-13) : une coupure à 90 % d'une RD5 recommençait à zéro.
+    contenu = b"0123456789"
+    demandes = []
+
+    def ouvrir(demande, timeout):
+        demandes.append(demande.get_header("Range"))
+        if len(demandes) == 1:
+            return Reponse(contenu[:4], 10)             # coupé après 4 octets sur 10
+        suite = Reponse(contenu[4:], 6)
+        suite.status = 206
+        suite.headers["Content-Range"] = "bytes 4-9/10"
+        return suite
+
+    monkeypatch.setattr(brouter.urllib.request, "urlopen", ouvrir)
+    cible = brouter._telecharger("https://x/a.rd5", tmp_path / "a.rd5", hashlib.sha256(contenu).hexdigest(),
+                                 pause=lambda s: None)
+    assert cible.read_bytes() == contenu
+    assert demandes == [None, "bytes=4-"], "le second essai demande la suite, pas tout le fichier"
+    assert [p.name for p in tmp_path.iterdir()] == ["a.rd5"], "aucun fichier partiel ne reste"
+
+
+def test_une_plage_inattendue_fait_repartir_de_zero(tmp_path, monkeypatch):
+    contenu = b"0123456789"
+    reponses = [Reponse(contenu[:4], 10), Reponse(b"???", 3), Reponse(contenu, 10)]
+    reponses[1].status = 206
+    reponses[1].headers["Content-Range"] = "bytes 0-2/10"     # pas la suite demandée
+
+    monkeypatch.setattr(brouter.urllib.request, "urlopen", lambda demande, timeout: reponses.pop(0))
+    cible = brouter._telecharger("https://x/b.rd5", tmp_path / "b.rd5", hashlib.sha256(contenu).hexdigest(),
+                                 pause=lambda s: None)
+    assert cible.read_bytes() == contenu and not reponses
+
+
 def test_un_504_passager_se_retente_un_404_non(tmp_path, monkeypatch):
     # Run du 2026-11-08 : un 504 des releases GitHub sur l'archive de BRouter
     # a fait tomber les huit fins de lot d'un coup.
