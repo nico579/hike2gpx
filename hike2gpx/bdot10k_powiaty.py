@@ -26,7 +26,6 @@ import logging
 import re
 import shutil
 import sqlite3
-import threading
 import time
 import urllib.parse
 import urllib.request
@@ -87,22 +86,13 @@ def _taille(url: str) -> int:
     return en_bloc.taille(url)      # une seule copie, qui échoue sans Content-Length (audit A04)
 
 
-_verrou_global = threading.Lock()
-_verrous = {}
-
-
-def _verrou(teryt: str) -> threading.Lock:
-    with _verrou_global:
-        return _verrous.setdefault(teryt, threading.Lock())
-
-
 def geopackage(dossier, powiat: dict) -> Path:
     """Les voies piétonnes du powiat à sa date de mise à jour, téléchargées une
     fois et gardées dans dossier/bdot10k-powiaty ; les versions plus anciennes
     du powiat sont effacées. Un seul téléchargement à la fois par powiat :
     deux vues de la page voisines le demandent parfois ensemble, et deux
     téléchargements dans le même dossier de travail s'écraseraient."""
-    with _verrou(powiat["teryt"]):
+    with en_bloc.verrou(("bdot10k", powiat["teryt"])):
         return _geopackage(dossier, powiat)
 
 

@@ -13,6 +13,7 @@ import hashlib
 import http.client
 import logging
 import shutil
+import threading
 import time
 import sqlite3
 import urllib.request
@@ -29,6 +30,18 @@ ESSAIS = 3
 
 class ErreurArchive(RuntimeError):
     pass
+
+
+_verrous_global = threading.Lock()
+_verrous = {}
+
+
+def verrou(cle) -> threading.Lock:
+    """Le verrou de cette clé, le même à chaque appel : deux fils qui
+    téléchargent la même chose (un powiat, une tuile) le font l'un après
+    l'autre, le second trouvant le travail du premier."""
+    with _verrous_global:
+        return _verrous.setdefault(cle, threading.Lock())
 
 
 class _SansPlages(ErreurArchive):

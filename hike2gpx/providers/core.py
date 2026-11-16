@@ -5,7 +5,6 @@ import http.client
 import json
 import logging
 import math
-import threading
 import time
 import urllib.error
 import urllib.parse
@@ -15,21 +14,12 @@ from pathlib import Path
 
 from nico579_commons import atomique
 
-from .. import __version__
+from .. import __version__, en_bloc
 from ..franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
 
 journal = logging.getLogger(__name__)
 TTL_S = 30 * 86400
 PAGE = 2000
-_verrou = threading.Lock()
-_verrous = {}
-
-
-def _tuile_verrou(cle):
-    with _verrou:
-        return _verrous.setdefault(cle, threading.Lock())
-
-
 ESSAIS, PAUSE_S = 3, 5.0
 
 
@@ -120,7 +110,7 @@ class TuilesOfficielles:
             and isinstance(cache.get("fetched_at"), (int, float)) else None
 
     def charger_tuile(self, i, j, dossier, *, en_ligne=True, maintenant=time.time, **options):
-        with _tuile_verrou((self.cle, i, j)):
+        with en_bloc.verrou((self.cle, i, j)):
             cache = self.lire_cache(i, j, dossier)
             if cache and (not en_ligne or maintenant() - cache["fetched_at"] < TTL_S):
                 return cache["troncons"]
