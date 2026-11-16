@@ -27,10 +27,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-import shutil
 import sqlite3
 import struct
-import zipfile
 from contextlib import closing
 from pathlib import Path
 
@@ -84,54 +82,29 @@ def geopackage(dossier, edition: dict | None = None) -> Path:
     """Les chemins swissTLM3D de l'édition, téléchargés une fois et gardés dans
     dossier/swisstlm3d-national ; les éditions plus anciennes sont effacées."""
     edition = edition or derniere_edition()
-    racine = Path(dossier) / DOSSIER
-    base = racine / f"{edition['nom']}.chemins.sqlite"
-    if base.is_file():
-        return base
-    travail = racine / f".{edition['nom']}"
-    try:
-        travail.mkdir(parents=True, exist_ok=True)
+
+    def fabriquer(travail: Path, cible: Path) -> None:
         fichier = edition["fichiers"][0]
         archive = travail / fichier["url"].rsplit("/", 1)[-1]
         journal.info("swissTLM3D : téléchargement de %s (%.0f Mo)", archive.name, fichier["octets"] / 1e6)
         en_bloc.telecharger(fichier, archive, essais=8, plages=PLAGES)
         shp = _extraire(archive, travail / "extrait")
         archive.unlink()
-        mince = travail / "chemins.sqlite"
-        gardes = _garder_les_chemins(shp, mince)
-        journal.info("swissTLM3D : %d chemins gardés", gardes)
-        mince.replace(base)
-    finally:
-        shutil.rmtree(travail, ignore_errors=True)
-    for ancien in racine.glob("swisstlm3d_*.chemins.sqlite"):
-        if ancien != base:
-            ancien.unlink()
-    return base
+        journal.info("swissTLM3D : %d chemins gardés", _garder_les_chemins(shp, cible))
+    return en_bloc.base_reduite(Path(dossier) / DOSSIER / f"{edition['nom']}.chemins.sqlite",
+                                "swisstlm3d_*.chemins.sqlite", fabriquer)
 
 
 def _extraire(archive: Path, dossier: Path) -> Path:
     """Les trois fichiers de la couche des routes (.shp, .shx, .dbf),
-    décompressés dans dossier ; zipfile contrôle le CRC en lisant. Rend le
-    chemin du .shp.
-
-    L'archive de swisstopo est faite sous Windows : ses noms gardent des
-    barres obliques inverses (TLM_STRASSEN\\swissTLM3D_…). zipfile ne les
-    convertit qu'en lisant sous Windows ; sous Linux, sur le serveur, le nom
-    avec « / » n'existait pas (essai 42644919578). Les noms sont donc
-    comparés une fois normalisés."""
-    dossier.mkdir(parents=True, exist_ok=True)
-    try:
-        with zipfile.ZipFile(archive) as z:
-            par_nom = {m.filename.replace("\\", "/"): m for m in z.infolist()}
-            for extension in (".shp", ".shx", ".dbf"):
-                membre = COUCHE + extension
-                if membre not in par_nom:
-                    raise ErreurArchive(f"Pas de {membre} dans {archive.name}.")
-                with z.open(par_nom[membre]) as source, open(dossier / Path(membre).name, "wb") as f:
-                    shutil.copyfileobj(source, f, en_bloc.BLOC)
-    except zipfile.BadZipFile as exc:
-        raise ErreurArchive(f"{archive.name} : archive altérée ({exc}).") from exc
-    return dossier / (Path(COUCHE).name + ".shp")
+    décompressés dans dossier. Rend le chemin du .shp. L'archive de swisstopo
+    est faite sous Windows : en_bloc.extraire en compare les noms en « / »."""
+    def choisir(membres: dict) -> list:
+        for extension in (".shp", ".shx", ".dbf"):
+            if COUCHE + extension not in membres:
+                raise ErreurArchive(f"Pas de {COUCHE + extension} dans {archive.name}.")
+        return [membres[COUCHE + extension] for extension in (".shp", ".shx", ".dbf")]
+    return en_bloc.extraire(archive, dossier, choisir)[0]
 
 
 def _blob(srs: int, parties: list) -> bytes:
@@ -178,31 +151,13 @@ def _garder_les_chemins(shp: Path, cible: Path) -> int:
     return gardes
 
 
-class Lecteur:
+class Lecteur(en_bloc.LecteurEdition):
     """Lecture des chemins swissTLM3D d'une emprise dans la base nationale,
-    pour fabrication.fabriquer(troncons={"swisstlm3d": ...}). L'archive n'est
-    téléchargée qu'à la première emprise qui en a besoin."""
+    pour fabrication.fabriquer(troncons={"swisstlm3d": ...})."""
 
     def __init__(self, dossier):
-        self.dossier = dossier
-        self._edition = None
-        self._base = None
-
-    def edition(self) -> dict:
-        if self._edition is None:
-            self._edition = derniere_edition()
-        return self._edition
-
-    def date(self, sud: float, ouest: float, nord: float, est: float) -> str:
-        """L'édition de swissTLM3D pour le manifeste."""
-        return self.edition()["date"]
-
-    def preparer(self, sud: float, ouest: float, nord: float, est: float) -> None:
-        """Télécharge d'avance l'édition, sans rien lire : l'étape « données »
-        la range dans son artefact, et la fusion en damier ne s'active que si
-        chaque lecteur de la case sait le faire (fabrication._lecteur)."""
-        if self._base is None:
-            self._base = geopackage(self.dossier, self.edition())
+        # Les lambdas relisent les fonctions du module à chaque appel : les essais les remplacent.
+        super().__init__(dossier, lambda: derniere_edition(), lambda d, e: geopackage(d, e))
 
     def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
         self.preparer(sud, ouest, nord, est)

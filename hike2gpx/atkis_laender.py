@@ -26,14 +26,10 @@ from __future__ import annotations
 
 import logging
 import re
-import shutil
-import sqlite3
 import urllib.request
-from contextlib import closing
 from pathlib import Path
 
 from . import __version__, en_bloc
-from .en_bloc import ErreurArchive
 from .providers.basemap_atkis import CLASSES
 
 journal = logging.getLogger(__name__)
@@ -84,51 +80,24 @@ def geopackage(dossier, land: str, fichier: dict, taille=None) -> Path:
     """Les chemins du Land à la date du fichier, téléchargés une fois et gardés
     dans dossier/atkis-laender ; les dates plus anciennes du Land sont
     effacées."""
-    racine = Path(dossier) / DOSSIER
-    base = racine / f"{land}_{fichier['date']}.chemins.sqlite"
-    if base.is_file():
-        return base
-    travail = racine / f".{land}"
-    try:
-        travail.mkdir(parents=True, exist_ok=True)
+    def fabriquer(travail: Path, cible: Path) -> None:
         complet = travail / fichier["url"].rsplit("/", 1)[-1]
         a_telecharger = {"url": fichier["url"], "octets": (taille or _taille)(fichier["url"]), "md5": None}
         journal.info("Basis-DLM : téléchargement de %s (%.0f Mo)", complet.name, a_telecharger["octets"] / 1e6)
         en_bloc.telecharger(a_telecharger, complet, essais=8, plages=PLAGES)
-        mince = travail / "chemins.sqlite"
-        gardes = _garder_les_chemins(complet, mince)
-        journal.info("Basis-DLM %s : %d chemins gardés", land, gardes)
-        mince.replace(base)
-    finally:
-        shutil.rmtree(travail, ignore_errors=True)
-    for ancien in racine.glob(f"{land}_*.chemins.sqlite"):
-        if ancien != base:
-            ancien.unlink()
-    return base
+        journal.info("Basis-DLM %s : %d chemins gardés", land, _garder_les_chemins(complet, cible))
+    return en_bloc.base_reduite(Path(dossier) / DOSSIER / f"{land}_{fichier['date']}.chemins.sqlite",
+                                f"{land}_*.chemins.sqlite", fabriquer)
 
 
 def _garder_les_chemins(gpkg: Path, cible: Path) -> int:
     """Les voies des classes de chemins (CLASSES) et leur index RTree, avec les
     seules colonnes que lit la fusion ; fid reste la clé que rend l'index."""
     classes = sorted(CLASSES)
-    marques = ", ".join("?" for _ in classes)
-    with closing(sqlite3.connect(str(cible), uri=True)) as base:     # uri : ATTACH en lecture seule
-        base.execute("ATTACH DATABASE ? AS complet", (f"file:{gpkg.resolve().as_posix()}?mode=ro",))
-        try:
-            base.execute(f'CREATE TABLE "{TABLE}" ({CLE} INTEGER PRIMARY KEY, id TEXT, land TEXT, ebene INTEGER, '
-                         f'klasse TEXT, {GEOMETRIE} BLOB)')
-            base.execute(f'INSERT INTO "{TABLE}" SELECT {CLE}, id, land, ebene, klasse, {GEOMETRIE} '
-                         f'FROM complet."{SOURCE}" WHERE klasse IN ({marques})', classes)
-            rtree = f"rtree_{TABLE}_{GEOMETRIE}"
-            base.execute(f'CREATE VIRTUAL TABLE "{rtree}" USING rtree(id, minx, maxx, miny, maxy)')
-            base.execute(f'INSERT INTO "{rtree}" SELECT r.id, r.minx, r.maxx, r.miny, r.maxy '
-                         f'FROM complet."rtree_{SOURCE}_{GEOMETRIE}" r JOIN "{TABLE}" t ON t.{CLE} = r.id')
-        except sqlite3.OperationalError as exc:
-            raise ErreurArchive(f"{gpkg.name} : pas de {SOURCE} lisible ({exc}).") from exc
-        base.commit()
-        gardes = base.execute(f'SELECT COUNT(*) FROM "{TABLE}"').fetchone()[0]
-        base.execute("DETACH DATABASE complet")
-    return gardes
+    return en_bloc.garder_couches(
+        gpkg, cible, [(SOURCE, TABLE, "id TEXT, land TEXT, ebene INTEGER, klasse TEXT",
+                       f"klasse IN ({', '.join('?' for _ in classes)})", classes)],
+        geometrie=GEOMETRIE, cle=CLE)
 
 
 class Lecteur:

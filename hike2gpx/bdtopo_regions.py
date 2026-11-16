@@ -17,14 +17,12 @@ from __future__ import annotations
 import logging
 import re
 import shutil
-import sqlite3
 import subprocess
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from contextlib import closing
 from pathlib import Path
 
 from . import __version__, en_bloc
@@ -111,9 +109,8 @@ def geopackage(dossier, region: str, edition: dict | None = None) -> Path:
     commande = shutil.which("7z") or shutil.which("7za")
     if commande is None:
         raise ErreurArchive("La commande 7z est nécessaire pour la BD TOPO par régions (paquet p7zip).")
-    travail = racine / f".{edition['nom']}"
-    try:
-        travail.mkdir(parents=True, exist_ok=True)
+
+    def fabriquer(travail: Path, cible: Path) -> None:
         parties = []
         for fichier in edition["fichiers"]:
             partie = travail / fichier["url"].rsplit("/", 1)[-1]
@@ -133,35 +130,17 @@ def geopackage(dossier, region: str, edition: dict | None = None) -> Path:
         trouves = sorted(extrait.rglob("*.gpkg"), key=lambda p: p.stat().st_size)
         if not trouves:
             raise ErreurArchive(f"Pas de GeoPackage dans {parties[0].name}.")
-        mince = travail / "troncons.sqlite"
-        _garder_les_troncons(trouves[-1], mince)
-        mince.replace(base)
-    finally:
-        shutil.rmtree(travail, ignore_errors=True)
-    for ancien in racine.glob(f"BDTOPO_*_{region}_*"):
-        if ancien != base:
-            ancien.unlink()
-    return base
+        _garder_les_troncons(trouves[-1], cible)
+    return en_bloc.base_reduite(base, f"BDTOPO_*_{region}_*", fabriquer)
 
 
 def _garder_les_troncons(gpkg: Path, cible: Path) -> None:
-    """La table des tronçons de route et son index RTree, copiés du GeoPackage
-    complet dans une base à part, avec les seules colonnes que lit la fusion.
-    La clé fid y reste la clé primaire : l'index RTree renvoie des fid, et un
-    CREATE TABLE … AS SELECT l'aurait réduite à une colonne ordinaire, que
-    chaque lecture d'emprise aurait parcourue en entier."""
-    with closing(sqlite3.connect(str(cible), uri=True)) as base:     # uri : ATTACH en lecture seule
-        base.execute("ATTACH DATABASE ? AS complet", (f"file:{gpkg.resolve().as_posix()}?mode=ro",))
-        base.execute("CREATE TABLE troncon_de_route (fid INTEGER PRIMARY KEY, cleabs TEXT, nature TEXT, "
-                     "acces_pieton TEXT, prive INTEGER, insee_commune_gauche TEXT, insee_commune_droite TEXT, "
-                     "geometrie BLOB)")
-        base.execute("INSERT INTO troncon_de_route SELECT fid, cleabs, nature, acces_pieton, prive, "
-                     "insee_commune_gauche, insee_commune_droite, geometrie FROM complet.troncon_de_route")
-        base.execute("CREATE VIRTUAL TABLE rtree_troncon_de_route_geometrie USING rtree(id, minx, maxx, miny, maxy)")
-        base.execute("INSERT INTO rtree_troncon_de_route_geometrie "
-                     "SELECT id, minx, maxx, miny, maxy FROM complet.rtree_troncon_de_route_geometrie")
-        base.commit()
-        base.execute("DETACH DATABASE complet")
+    """La table des tronçons de route et son index RTree, avec les seules
+    colonnes que lit la fusion ; fid reste la clé que rend l'index."""
+    en_bloc.garder_couches(gpkg, cible, [(
+        "troncon_de_route", "troncon_de_route",
+        "cleabs TEXT, nature TEXT, acces_pieton TEXT, prive INTEGER, insee_commune_gauche TEXT, "
+        "insee_commune_droite TEXT", "", ())], geometrie="geometrie", cle="fid")
 
 
 class Lecteur:

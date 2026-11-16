@@ -24,13 +24,11 @@ from __future__ import annotations
 
 import logging
 import re
-import shutil
 import sqlite3
 import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-import zipfile
 from contextlib import closing
 from pathlib import Path
 
@@ -97,52 +95,28 @@ def geopackage(dossier, powiat: dict) -> Path:
 
 
 def _geopackage(dossier, powiat: dict) -> Path:
-    racine = Path(dossier) / DOSSIER
-    base = racine / f"{powiat['teryt']}_{powiat['date']}.sciezki.sqlite"
-    if base.is_file():
-        return base
-    travail = racine / f".{powiat['teryt']}"
-    try:
-        travail.mkdir(parents=True, exist_ok=True)
+    def fabriquer(travail: Path, cible: Path) -> None:
         archive = travail / f"{powiat['teryt']}_GPKG.zip"
         fichier = {"url": powiat["url"], "octets": _taille(powiat["url"]), "md5": None}
         journal.info("BDOT10k : téléchargement de %s (%.0f Mo)", archive.name, fichier["octets"] / 1e6)
         en_bloc.telecharger(fichier, archive)
-        try:
-            with zipfile.ZipFile(archive) as z:
-                membres = [m for m in z.infolist() if m.filename.endswith(f"__{TABLE}.gpkg")]
-                if not membres:
-                    raise ErreurArchive(f"Pas de {TABLE} dans {archive.name}.")
-                gpkg = travail / f"{TABLE}.gpkg"
-                with z.open(membres[0]) as source, open(gpkg, "wb") as f:
-                    shutil.copyfileobj(source, f, en_bloc.BLOC)
-        except zipfile.BadZipFile as exc:
-            raise ErreurArchive(f"{archive.name} : archive altérée ({exc}).") from exc
-        mince = travail / "sciezki.sqlite"
-        _garder_les_voies(gpkg, mince)
-        mince.replace(base)
-    finally:
-        shutil.rmtree(travail, ignore_errors=True)
-    for ancien in racine.glob(f"{powiat['teryt']}_*.sciezki.sqlite"):
-        if ancien != base:
-            ancien.unlink()
-    return base
+
+        def choisir(membres: dict) -> list:
+            gardes = [m for nom, m in membres.items() if nom.endswith(f"__{TABLE}.gpkg")]
+            if not gardes:
+                raise ErreurArchive(f"Pas de {TABLE} dans {archive.name}.")
+            return gardes[:1]
+        gpkg = en_bloc.extraire(archive, travail / "extrait", choisir)[0]
+        _garder_les_voies(gpkg, cible)
+    return en_bloc.base_reduite(Path(dossier) / DOSSIER / f"{powiat['teryt']}_{powiat['date']}.sciezki.sqlite",
+                                f"{powiat['teryt']}_*.sciezki.sqlite", fabriquer)
 
 
 def _garder_les_voies(gpkg: Path, cible: Path) -> None:
     """La table des voies piétonnes et cyclables et son index RTree, avec les
     seules colonnes que lisent le filtre et la fusion ; id reste la clé."""
-    with closing(sqlite3.connect(str(cible), uri=True)) as base:     # uri : ATTACH en lecture seule
-        base.execute("ATTACH DATABASE ? AS complet", (f"file:{gpkg.resolve().as_posix()}?mode=ro",))
-        base.execute(f'CREATE TABLE "{TABLE}" ({CLE} INTEGER PRIMARY KEY, LOKALNYID TEXT, RODZAJ TEXT, '
-                     f'KATEGORIAISTNIENIA TEXT, {GEOMETRIE} BLOB)')
-        base.execute(f'INSERT INTO "{TABLE}" SELECT {CLE}, LOKALNYID, RODZAJ, KATEGORIAISTNIENIA, {GEOMETRIE} '
-                     f'FROM complet."{TABLE}"')
-        rtree = f"rtree_{TABLE}_{GEOMETRIE}"
-        base.execute(f'CREATE VIRTUAL TABLE "{rtree}" USING rtree(id, minx, maxx, miny, maxy)')
-        base.execute(f'INSERT INTO "{rtree}" SELECT id, minx, maxx, miny, maxy FROM complet."{rtree}"')
-        base.commit()
-        base.execute("DETACH DATABASE complet")
+    en_bloc.garder_couches(gpkg, cible, [(TABLE, TABLE, "LOKALNYID TEXT, RODZAJ TEXT, KATEGORIAISTNIENIA TEXT",
+                                          "", ())], geometrie=GEOMETRIE, cle=CLE)
 
 
 class Lecteur:

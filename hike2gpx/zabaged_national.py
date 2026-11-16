@@ -23,11 +23,7 @@ from __future__ import annotations
 
 import logging
 import re
-import shutil
-import sqlite3
 import xml.etree.ElementTree as ET
-import zipfile
-from contextlib import closing
 from pathlib import Path
 
 from . import __version__, en_bloc
@@ -80,93 +76,46 @@ def geopackage(dossier, edition: dict | None = None) -> Path:
     gardés dans dossier/zabaged-national ; les éditions plus anciennes sont
     effacées."""
     edition = edition or derniere_edition()
-    racine = Path(dossier) / DOSSIER
-    base = racine / f"{edition['nom']}.chemins.sqlite"
-    if base.is_file():
-        return base
-    travail = racine / f".{edition['nom']}"
-    try:
-        travail.mkdir(parents=True, exist_ok=True)
+
+    def fabriquer(travail: Path, cible: Path) -> None:
         fichier = edition["fichiers"][0]
         archive = travail / fichier["url"].rsplit("/", 1)[-1]
         journal.info("ZABAGED : téléchargement de %s (%.0f Mo)", archive.name, fichier["octets"] / 1e6)
         en_bloc.telecharger(fichier, archive, essais=8, plages=PLAGES)
         gpkg = _extraire(archive, travail / "extrait")
         archive.unlink()                # de la place pour la réduction
-        mince = travail / "chemins.sqlite"
-        _garder_les_chemins(gpkg, mince)
-        mince.replace(base)
-    finally:
-        shutil.rmtree(travail, ignore_errors=True)
-    for ancien in racine.glob("ZABAGED-*.chemins.sqlite"):
-        if ancien != base:
-            ancien.unlink()
-    return base
+        _garder_les_chemins(gpkg, cible)
+    return en_bloc.base_reduite(Path(dossier) / DOSSIER / f"{edition['nom']}.chemins.sqlite",
+                                "ZABAGED-*.chemins.sqlite", fabriquer)
 
 
 def _extraire(archive: Path, dossier: Path) -> Path:
     """Le GeoPackage de l'archive (le plus gros s'il y en a plusieurs),
-    décompressé dans dossier ; zipfile contrôle le CRC en lisant."""
-    try:
-        with zipfile.ZipFile(archive) as z:
-            membres = [m for m in z.infolist() if m.filename.lower().endswith(".gpkg")]
-            if not membres:
-                raise ErreurArchive(f"Pas de GeoPackage dans {archive.name}.")
-            membre = max(membres, key=lambda m: m.file_size)
-            dossier.mkdir(parents=True, exist_ok=True)
-            cible = dossier / Path(membre.filename).name
-            journal.info("ZABAGED : décompression de %s (%.0f Mo)", cible.name, membre.file_size / 1e6)
-            with z.open(membre) as source, open(cible, "wb") as f:
-                shutil.copyfileobj(source, f, en_bloc.BLOC)
-    except zipfile.BadZipFile as exc:
-        raise ErreurArchive(f"{archive.name} : archive altérée ({exc}).") from exc
-    return cible
+    décompressé dans dossier."""
+    def choisir(membres: dict) -> list:
+        gpkg = [m for nom, m in membres.items() if nom.lower().endswith(".gpkg")]
+        if not gpkg:
+            raise ErreurArchive(f"Pas de GeoPackage dans {archive.name}.")
+        membre = max(gpkg, key=lambda m: m.file_size)
+        journal.info("ZABAGED : décompression de %s (%.0f Mo)", Path(membre.filename).name, membre.file_size / 1e6)
+        return [membre]
+    return en_bloc.extraire(archive, dossier, choisir)[0]
 
 
 def _garder_les_chemins(gpkg: Path, cible: Path) -> None:
-    """Les tables des sentiers et des chemins et leurs index RTree, copiées du
-    GeoPackage national dans une base à part, avec la seule colonne que lit la
-    fusion. OBJECTID reste la clé primaire, que l'index RTree renvoie."""
-    with closing(sqlite3.connect(str(cible), uri=True)) as base:     # uri : ATTACH en lecture seule
-        base.execute("ATTACH DATABASE ? AS complet", (f"file:{gpkg.resolve().as_posix()}?mode=ro",))
-        for table in COUCHES:
-            base.execute(f'CREATE TABLE "{table}" ({CLE} INTEGER PRIMARY KEY, fid_zbg TEXT, {GEOMETRIE} BLOB)')
-            base.execute(f'INSERT INTO "{table}" SELECT {CLE}, fid_zbg, {GEOMETRIE} FROM complet."{table}"')
-            rtree = f"rtree_{table}_{GEOMETRIE}"
-            base.execute(f'CREATE VIRTUAL TABLE "{rtree}" USING rtree(id, minx, maxx, miny, maxy)')
-            base.execute(f'INSERT INTO "{rtree}" SELECT id, minx, maxx, miny, maxy FROM complet."{rtree}"')
-        base.commit()
-        base.execute("DETACH DATABASE complet")
+    """Les tables des sentiers et des chemins et leurs index RTree, avec la
+    seule colonne que lit la fusion. OBJECTID reste la clé primaire."""
+    en_bloc.garder_couches(gpkg, cible, [(table, table, "fid_zbg TEXT", "", ()) for table in COUCHES],
+                           geometrie=GEOMETRIE, cle=CLE)
 
 
-class Lecteur:
+class Lecteur(en_bloc.LecteurEdition):
     """Lecture des chemins ZABAGED d'une emprise dans le GeoPackage national,
-    pour fabrication.fabriquer(troncons={"zabaged": ...}). L'archive n'est
-    téléchargée qu'à la première emprise qui en a besoin."""
+    pour fabrication.fabriquer(troncons={"zabaged": ...})."""
 
     def __init__(self, dossier):
-        self.dossier = dossier
-        self._edition = None
-        self._base = None
-
-    def edition(self) -> dict:
-        if self._edition is None:
-            self._edition = derniere_edition()
-        return self._edition
-
-    def date(self, sud: float, ouest: float, nord: float, est: float) -> str:
-        """L'édition de ZABAGED pour le manifeste."""
-        return self.edition()["date"]
-
-    def preparer(self, sud: float, ouest: float, nord: float, est: float) -> None:
-        """Télécharge d'avance l'édition, sans rien lire, comme
-        bdtopo_regions.Lecteur.preparer : l'étape « données » du serveur la
-        range ainsi dans son artefact, et la fusion en damier
-        (fabrication._lecteur) ne s'active que si chaque lecteur sait le faire.
-        Sans elle, le calcul puis chaque part des calques retéléchargeaient
-        les 6,7 Go, et la fusion restait maille par maille."""
-        if self._base is None:
-            self._base = geopackage(self.dossier, self.edition())
+        # Les lambdas relisent les fonctions du module à chaque appel : les essais les remplacent.
+        super().__init__(dossier, lambda: derniere_edition(), lambda d, e: geopackage(d, e))
 
     def __call__(self, sud: float, ouest: float, nord: float, est: float) -> list:
         self.preparer(sud, ouest, nord, est)
