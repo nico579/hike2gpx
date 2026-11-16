@@ -12,15 +12,10 @@ from __future__ import annotations
 
 import logging
 import math
-import threading
-import time
 import urllib.parse
-from pathlib import Path
 
-from nico579_commons import atomique
-
-from ..franchissements import ErreurDonnees, VueRemplacee, bornes_tuile, tuiles_zone
-from .core import lire_json
+from ..franchissements import ErreurDonnees, VueRemplacee, bornes_tuile  # noqa: F401  (bdtopo.VueRemplacee)
+from .core import TTL_S, TuilesOfficielles, lire_json  # noqa: F401  (TTL_S : bdtopo.TTL_S)
 
 journal = logging.getLogger(__name__)
 
@@ -28,18 +23,8 @@ WFS = "https://data.geopf.fr/wfs/ows"
 COUCHE = "BDTOPO_V3:troncon_de_route"
 PAGE = 5000                 # le service ne rend pas davantage par requête
 PAGES_MAX = 20
-TTL_S = 30 * 86400
 VERSION_CACHE = 1
 ATTRIBUTS = ("nature", "acces_pieton", "acces_vehicule_leger", "prive")
-
-_verrou_global = threading.Lock()
-_verrous = {}
-
-
-def _verrou(cle) -> threading.Lock:
-    with _verrou_global:
-        return _verrous.setdefault(cle, threading.Lock())
-
 
 def interroger(parametres: dict, delai_s: float = 120.0) -> dict:
     donnees = lire_json(WFS + "?" + urllib.parse.urlencode(parametres), "BD TOPO", delai_s)
@@ -87,51 +72,10 @@ def lire_tuile(i: int, j: int, interroger=interroger) -> list:
     raise ErreurDonnees("BD TOPO : trop de tronçons dans cette zone.")
 
 
-def lire_cache(i: int, j: int, dossier):
-    """Contenu du cache d'une tuile ({"fetched_at", "troncons"}), sans réseau, ou None."""
-    cache = atomique.lire_json(Path(dossier) / "bdtopo" / f"v{VERSION_CACHE}_{i}_{j}.json", None)
-    if isinstance(cache, dict) and isinstance(cache.get("troncons"), list) \
-            and isinstance(cache.get("fetched_at"), (int, float)):
-        return cache
-    return None
-
-
-def charger_tuile(i: int, j: int, dossier, *, en_ligne: bool = True, interroger=interroger,
-                  maintenant=time.time) -> list:
-    chemin = Path(dossier) / "bdtopo" / f"v{VERSION_CACHE}_{i}_{j}.json"
-    with _verrou(("bdtopo", i, j)):
-        cache = atomique.lire_json(chemin, None)
-        if isinstance(cache, dict) and isinstance(cache.get("troncons"), list) \
-                and isinstance(cache.get("fetched_at"), (int, float)) \
-                and (not en_ligne or maintenant() - cache["fetched_at"] < TTL_S):
-            return cache["troncons"]
-        if not en_ligne:
-            raise ErreurDonnees("Hors connexion : chemins BD TOPO de cette zone jamais chargés.")
-        debut = time.monotonic()
-        troncons = lire_tuile(i, j, interroger)
-        journal.info("BD TOPO : tuile %d_%d lue en %.1f s (%d tronçons)", i, j, time.monotonic() - debut,
-                     len(troncons))
-        atomique.ecrire_json(chemin, {"version": VERSION_CACHE, "fetched_at": maintenant(),
-                                      "troncons": troncons}, indent=None)
-        return troncons
-
-
-def troncons_zone(sud: float, ouest: float, nord: float, est: float, dossier, *, continuer=None,
-                  suivi=None, **options) -> list:
-    """Tronçons des tuiles de la zone ; un tronçon à cheval sur deux tuiles
-    n'est rendu qu'une fois. continuer() faux (vue quittée) arrête la lecture ;
-    suivi(faites, total), tuile après tuile, pour la barre de la page."""
-    vus, resultat = set(), []
-    tuiles = tuiles_zone(sud, ouest, nord, est)
-    if suivi:
-        suivi(0, len(tuiles))
-    for k, (i, j) in enumerate(tuiles):
-        if continuer and not continuer():
-            raise VueRemplacee()
-        for t in charger_tuile(i, j, dossier, **options):
-            if t["id"] not in vus:
-                vus.add(t["id"])
-                resultat.append(t)
-        if suivi:
-            suivi(k + 1, len(tuiles))
-    return resultat
+# Le cache et le parcours des tuiles, communs aux sources officielles. La
+# lambda relit lire_tuile à chaque appel : les essais peuvent la remplacer.
+_TUILES = TuilesOfficielles("bdtopo", lambda i, j, **options: lire_tuile(i, j, **options),
+                            par_tuile=True, version=VERSION_CACHE, nom="BD TOPO")
+lire_cache = _TUILES.lire_cache
+charger_tuile = _TUILES.charger_tuile
+troncons_zone = _TUILES.troncons_zone

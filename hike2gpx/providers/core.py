@@ -94,15 +94,22 @@ class Source:
 
 
 class TuilesOfficielles:
-    """Cache et parcours de tuiles communs aux nouveaux services officiels."""
+    """Cache et parcours de tuiles communs aux services officiels : un cache
+    JSON par tuile de 0,05°, renouvelé après TTL_S, et le parcours d'une zone
+    sans doublon. Un module de fournisseur en expose les méthodes sous ses
+    propres noms (lire_cache, charger_tuile, troncons_zone)."""
 
-    def __init__(self, cle, lire, *, avec_dossier=False, version=1):
-        """avec_dossier : lire reçoit aussi le dossier des données, pour un
+    def __init__(self, cle, lire, *, avec_dossier=False, version=1, par_tuile=False, nom=None):
+        """lire(sud, ouest, nord, est, **options) rend les tronçons d'une tuile ;
+        par_tuile : lire(i, j, **options), avec les indices de la tuile.
+        avec_dossier : lire reçoit aussi le dossier des données, pour un
         service dont les fichiers se gardent sur disque (BDOT10k par powiats).
         version : à augmenter quand la source ou le format des tronçons
-        change, pour ne pas mêler d'anciennes tuiles en cache aux nouvelles."""
-        self.cle, self.lire = cle, lire
-        self.avec_dossier, self.version = avec_dossier, version
+        change, pour ne pas mêler d'anciennes tuiles en cache aux nouvelles.
+        nom : celui des messages (la clé par défaut). Les options de
+        charger_tuile et troncons_zone (interroger=, pour les essais) vont à lire."""
+        self.cle, self.lire, self.nom = cle, lire, nom or cle
+        self.avec_dossier, self.version, self.par_tuile = avec_dossier, version, par_tuile
 
     def _chemin(self, i, j, dossier):
         return Path(dossier) / self.cle / f"v{self.version}_{i}_{j}.json"
@@ -112,28 +119,35 @@ class TuilesOfficielles:
         return cache if isinstance(cache, dict) and isinstance(cache.get("troncons"), list) \
             and isinstance(cache.get("fetched_at"), (int, float)) else None
 
-    def charger_tuile(self, i, j, dossier, *, en_ligne=True, maintenant=time.time):
+    def charger_tuile(self, i, j, dossier, *, en_ligne=True, maintenant=time.time, **options):
         with _tuile_verrou((self.cle, i, j)):
             cache = self.lire_cache(i, j, dossier)
             if cache and (not en_ligne or maintenant() - cache["fetched_at"] < TTL_S):
                 return cache["troncons"]
             if not en_ligne:
-                raise ErreurDonnees(f"Hors connexion : chemins {self.cle} de cette zone jamais chargés.")
-            troncons = self.lire(*bornes_tuile(i, j), dossier) if self.avec_dossier \
-                else self.lire(*bornes_tuile(i, j))
+                raise ErreurDonnees(f"Hors connexion : chemins {self.nom} de cette zone jamais chargés.")
+            debut = time.monotonic()
+            arguments = (i, j) if self.par_tuile else bornes_tuile(i, j)
+            if self.avec_dossier:
+                arguments = (*arguments, dossier)
+            troncons = self.lire(*arguments, **options)
             atomique.ecrire_json(self._chemin(i, j, dossier),
                                 {"fetched_at": maintenant(), "troncons": troncons}, indent=None)
-            journal.info("%s : tuile %d_%d, %d tronçons", self.cle, i, j, len(troncons))
+            journal.info("%s : tuile %d_%d lue en %.1f s (%d tronçons)", self.nom, i, j,
+                         time.monotonic() - debut, len(troncons))
             return troncons
 
-    def troncons_zone(self, sud, ouest, nord, est, dossier, *, continuer=None, suivi=None):
+    def troncons_zone(self, sud, ouest, nord, est, dossier, *, continuer=None, suivi=None, **options):
+        """Tronçons des tuiles de la zone ; un tronçon à cheval sur deux tuiles
+        n'est rendu qu'une fois. continuer() faux (vue quittée) arrête la lecture ;
+        suivi(faites, total), tuile après tuile, pour la barre de la page."""
         tuiles, vus, resultat = tuiles_zone(sud, ouest, nord, est), set(), []
         if suivi:
             suivi(0, len(tuiles))
         for rang, (i, j) in enumerate(tuiles):
             if continuer and not continuer():
                 raise VueRemplacee()
-            for troncon in self.charger_tuile(i, j, dossier):
+            for troncon in self.charger_tuile(i, j, dossier, **options):
                 if troncon["id"] not in vus:
                     vus.add(troncon["id"])
                     resultat.append(troncon)
