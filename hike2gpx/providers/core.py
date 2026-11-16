@@ -54,19 +54,28 @@ def _json(url):
     return donnees
 
 
-def _lignes(geometrie):
-    if not geometrie:
+def _point(p) -> bool:
+    return isinstance(p, (list, tuple)) and len(p) >= 2 \
+        and all(isinstance(v, (int, float)) and math.isfinite(v) for v in p[:2])
+
+
+def lignes(geometrie, arrondi: int | None = None) -> list:
+    """Lignes [[lat, lon], …] d'une géométrie Esri (paths) ou GeoJSON
+    (LineString, MultiLineString), points en lon, lat[, alt]. Un point non
+    numérique ou non fini est écarté, une ligne de moins de deux points aussi.
+    arrondi : décimales gardées (None : toutes)."""
+    if not isinstance(geometrie, dict):
         return []
-    if "paths" in geometrie:
-        lignes = geometrie["paths"]
-    elif geometrie.get("type") == "LineString":
-        lignes = [geometrie.get("coordinates", [])]
-    elif geometrie.get("type") == "MultiLineString":
-        lignes = geometrie.get("coordinates", [])
-    else:
-        return []
-    return [[[lat, lon] for lon, lat in points if math.isfinite(lat) and math.isfinite(lon)]
-            for points in lignes if len(points) >= 2]
+    genre, coordonnees = geometrie.get("type"), geometrie.get("coordinates")
+    brutes = geometrie["paths"] if "paths" in geometrie else [coordonnees] if genre == "LineString" \
+        else coordonnees if genre == "MultiLineString" else []
+    resultat = []
+    for ligne in brutes or ():
+        points = [[p[1], p[0]] if arrondi is None else [round(p[1], arrondi), round(p[0], arrondi)]
+                  for p in ligne or () if _point(p)]
+        if len(points) >= 2:
+            resultat.append(points)
+    return resultat
 
 
 @dataclass(frozen=True)
@@ -165,7 +174,7 @@ def _arcgis(couches, zone, accepter=lambda _: True):
                 identifiant = attrs.get("OBJECTID") or attrs.get("objectid") or attrs.get("FID")
                 if identifiant is None:
                     raise ErreurDonnees("Identifiant d'objet officiel absent.")
-                for rang, points in enumerate(_lignes(objet.get("geometry"))):
+                for rang, points in enumerate(lignes(objet.get("geometry"))):
                     if len(points) >= 2:
                         resultat.append({"id": f"{url.rsplit('/', 1)[-1]}:{identifiant}:{rang}",
                                          "nature": nature, "pts": points})

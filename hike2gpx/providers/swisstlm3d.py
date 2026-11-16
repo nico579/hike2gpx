@@ -2,7 +2,7 @@
 import urllib.parse
 
 from ..franchissements import ErreurDonnees
-from .core import _json, _lignes
+from .core import _json, lignes
 
 
 def lire(s, w, n, e):
@@ -26,7 +26,7 @@ def lire(s, w, n, e):
             if attrs.get("objektart") not in (15, 16, 17, 18) \
                     or attrs.get("verkehrsbeschraenkung") != 100:
                 continue
-            for rang, points in enumerate(_lignes(objet.get("geometry"))):
+            for rang, points in enumerate(lignes(objet.get("geometry"))):
                 if len(points) >= 2:
                     resultat.append({"id": f"{identifiant}:{rang}",
                                      "nature": f"Weg {attrs['objektart']}", "pts": points})

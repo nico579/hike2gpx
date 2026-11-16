@@ -11,11 +11,10 @@ franchissements.py, en tuiles de 0,05° ; cache de 30 jours, la BD TOPO
 from __future__ import annotations
 
 import logging
-import math
 import urllib.parse
 
 from ..franchissements import ErreurDonnees, VueRemplacee, bornes_tuile  # noqa: F401  (bdtopo.VueRemplacee)
-from .core import TTL_S, TuilesOfficielles, lire_json  # noqa: F401  (TTL_S : bdtopo.TTL_S)
+from .core import TTL_S, TuilesOfficielles, lignes, lire_json  # noqa: F401  (TTL_S : bdtopo.TTL_S)
 
 journal = logging.getLogger(__name__)
 
@@ -34,23 +33,8 @@ def interroger(parametres: dict, delai_s: float = 120.0) -> dict:
 
 
 def _lignes(geometrie) -> list:
-    """Lignes [[lat, lon], …] d'une géométrie GeoJSON (lon, lat[, alt])."""
-    if not isinstance(geometrie, dict):
-        return []
-    genre, coordonnees = geometrie.get("type"), geometrie.get("coordinates")
-    brutes = [coordonnees] if genre == "LineString" else coordonnees if genre == "MultiLineString" else []
-    lignes = []
-    for ligne in brutes or ():
-        points = []
-        for p in ligne:
-            if not (isinstance(p, list) and len(p) >= 2 and all(isinstance(v, (int, float)) for v in p[:2])
-                    and math.isfinite(p[0]) and math.isfinite(p[1])):
-                break
-            points.append([round(p[1], 6), round(p[0], 6)])
-        else:
-            if len(points) >= 2:
-                lignes.append(points)
-    return lignes
+    """Lignes [[lat, lon], …] d'une géométrie GeoJSON, au micro-degré (10 cm)."""
+    return lignes(geometrie, arrondi=6)
 
 
 def lire_tuile(i: int, j: int, interroger=interroger) -> list:
