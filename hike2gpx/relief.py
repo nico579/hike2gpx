@@ -196,4 +196,8 @@ def fabriquer(inst: brouter.Installation, boite: tuple, dossier: Path, cache_tui
     shutil.rmtree(dossier_hgt, ignore_errors=True)
     if r.returncode:
         raise brouter.ErreurBRouter(f"Relief impossible : {(r.stderr or r.stdout).strip()[-300:]}")
+    # Java peut manquer de mémoire et rendre quand même 0, en sautant des
+    # cellules : même contrôle que brouter.fabriquer_tuiles (audit BRouter B08).
+    if "OutOfMemoryError" in f"{r.stdout}{r.stderr}":
+        raise brouter.ErreurBRouter("Relief impossible : mémoire de Java insuffisante (-Xmx2g).")
     return sortie
