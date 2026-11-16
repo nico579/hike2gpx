@@ -4,6 +4,25 @@ import pytest
 
 from hike2gpx import franchissements as fr, geofabrik
 
+
+@pytest.mark.parametrize("tags, attendu", [
+    ({"highway": "path"}, True),
+    ({"highway": "via_ferrata"}, False),
+    ({"highway": "via_ferrata", "foot": "yes"}, True),
+    ({"highway": "platform", "foot": "yes"}, True),
+    ({"highway": "corridor", "foot": "yes"}, True),
+    ({"highway": "trunk", "foot": "yes"}, True),
+    ({"highway": "motorway_link", "foot": "yes"}, True),
+    ({"highway": "motorway", "foot": "no"}, False),
+    ({"highway": "abandoned", "foot": "yes"}, False),     # pas une voie, même ouverte aux piétons
+    ({"highway": "construction", "foot": "yes"}, False),
+    ({"foot": "yes"}, False),
+])
+def test_les_voies_exclues_ouvertes_aux_pietons_sont_praticables(tags, attendu):
+    # Audit BRouter B05 : le profil peut emprunter ces voies avec foot=yes,
+    # un lot enrichi les perdait (décision de Nico du 2026-11-16).
+    assert fr.praticable(tags) is attendu
+
 LAT0, LON0 = 43.3, 6.0
 KX = fr.M_PAR_DEGRE * math.cos(math.radians(LAT0))
 
