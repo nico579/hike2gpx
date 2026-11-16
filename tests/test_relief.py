@@ -1,7 +1,11 @@
+import subprocess
+import types
+
 import numpy as np
+import pytest
 from PIL import Image
 
-from hike2gpx import relief
+from hike2gpx import brouter, relief
 
 
 def terrarium(altitude: float) -> Image.Image:
@@ -60,3 +64,20 @@ def test_une_tuile_coupee_en_route_est_relue(tmp_path, monkeypatch):
     monkeypatch.setattr(relief.time, "sleep", lambda s: None)
     altitudes = relief.tuile(tmp_path, 2134, 1497, {(2134, 1497)})
     assert altitudes is not None and round(float(altitudes[0, 0])) in (812, 813)
+
+
+@pytest.mark.parametrize("sortie, attendu", [("", None), ("java.lang.OutOfMemoryError: Java heap space", "mémoire")])
+def test_une_erreur_memoire_de_java_n_est_pas_un_succes(tmp_path, monkeypatch, sortie, attendu):
+    # Audit BRouter B08 (2026-11-13) : Java peut manquer de mémoire et rendre 0,
+    # en sautant des cellules ; brouter.fabriquer_tuiles le guettait déjà.
+    monkeypatch.setattr(relief, "tuiles_zone", lambda *zone: set())
+    monkeypatch.setattr(relief, "hgt", lambda cache, lat, lon, voulues: np.zeros(1, dtype=">i2"))
+    monkeypatch.setattr(brouter, "java", lambda: "java")
+    monkeypatch.setattr(relief.enfants, "lancer",
+                        lambda *a, **o: subprocess.CompletedProcess(a, 0, stdout=sortie, stderr=""))
+    inst = types.SimpleNamespace(programme=tmp_path / "brouter", jar=tmp_path / "brouter.jar")
+    if attendu:
+        with pytest.raises(brouter.ErreurBRouter, match=attendu):
+            relief.fabriquer(inst, (40, 5, 45, 10), tmp_path / "case", tmp_path / "cache")
+    else:
+        assert relief.fabriquer(inst, (40, 5, 45, 10), tmp_path / "case", tmp_path / "cache").is_dir()

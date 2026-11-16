@@ -15,7 +15,6 @@ passerait.
 """
 from __future__ import annotations
 
-import hashlib
 import http.client
 import json
 import logging
@@ -179,20 +178,29 @@ def _telecharger(url: str, cible: Path, sha256: str | None = None, valider=None,
     """Publie cible une fois le fichier reçu en entier. Un transfert plus
     court que la longueur annoncée est refusé : lu par blocs, urllib ne le
     signale pas de lui-même (rapport du 2026-10-20 : un RD5 de 3 octets sur
-    10 publié comme installé). valider(fichier) : contrôle de son contenu."""
+    10 publié comme installé). valider(fichier) : contrôle de son contenu.
+
+    Le fichier partiel survit d'un essai à l'autre : après une coupure,
+    l'essai suivant demande la suite (Range), comme en_bloc.telecharger, au
+    lieu de repartir de zéro (audit BRouter B07, 2026-11-13)."""
+    cible.parent.mkdir(parents=True, exist_ok=True)
+    partiel = atomique.chemin_part(cible)
     derniere = None
-    for essai in range(ESSAIS):
-        try:
-            return _recevoir(url, cible, sha256, valider)
-        except urllib.error.HTTPError as exc:
-            if exc.code < 500 and exc.code != 429:
-                raise ErreurBRouter(f"Téléchargement impossible : {url} ({exc}).") from exc
-            derniere = exc
-        except (OSError, http.client.HTTPException) as exc:     # délai, coupure (IncompleteRead) comprise
-            derniere = exc
-        if essai < ESSAIS - 1:
-            journal.info("%s en échec (%s), nouvel essai", url, derniere)
-            pause(PAUSE_S * (essai + 1))
+    try:
+        for essai in range(ESSAIS):
+            try:
+                return _recevoir(url, cible, partiel, sha256, valider)
+            except urllib.error.HTTPError as exc:
+                if exc.code < 500 and exc.code != 429:
+                    raise ErreurBRouter(f"Téléchargement impossible : {url} ({exc}).") from exc
+                derniere = exc
+            except (OSError, http.client.HTTPException) as exc:     # délai, coupure (IncompleteRead) comprise
+                derniere = exc
+            if essai < ESSAIS - 1:
+                journal.info("%s en échec (%s), nouvel essai", url, derniere)
+                pause(PAUSE_S * (essai + 1))
+    finally:
+        partiel.unlink(missing_ok=True)
     raise ErreurBRouter(f"Téléchargement impossible : {url} ({derniere}).") from derniere
 
 
@@ -210,30 +218,32 @@ def taille_segment(nom: str) -> int | None:
     return octets or None
 
 
-def _recevoir(url: str, cible: Path, sha256: str | None, valider) -> Path:
-    """Un essai de _telecharger. Les erreurs réseau remontent telles quelles,
-    un contenu faux en ErreurBRouter."""
-    cible.parent.mkdir(parents=True, exist_ok=True)
-    partiel = atomique.chemin_part(cible)
-    empreinte = hashlib.sha256()
-    demande = urllib.request.Request(url, headers={"User-Agent": f"hike2gpx/{__version__}"})
-    try:
-        recu = 0
-        with urllib.request.urlopen(demande, timeout=60) as reponse, open(partiel, "wb") as sortie:
-            annonce = (getattr(reponse, "headers", None) or {}).get("Content-Length")
+def _recevoir(url: str, cible: Path, partiel: Path, sha256: str | None, valider) -> Path:
+    """Un essai de _telecharger, qui reprend partiel s'il a déjà des octets.
+    Les erreurs réseau remontent telles quelles (partiel gardé pour l'essai
+    suivant), un contenu faux en ErreurBRouter."""
+    deja = partiel.stat().st_size if partiel.exists() else 0
+    entetes = {"User-Agent": f"hike2gpx/{__version__}", **({"Range": f"bytes={deja}-"} if deja else {})}
+    recu = 0
+    with urllib.request.urlopen(urllib.request.Request(url, headers=entetes), timeout=60) as reponse:
+        en_tetes = getattr(reponse, "headers", None) or {}
+        annonce = en_tetes.get("Content-Length")
+        suite = deja and getattr(reponse, "status", 200) == 206
+        if suite and not str(en_tetes.get("Content-Range", "")).startswith(f"bytes {deja}-"):
+            partiel.unlink(missing_ok=True)         # une autre plage que celle demandée : on repart de zéro
+            raise ConnectionError(f"plage inattendue ({en_tetes.get('Content-Range')})")
+        with open(partiel, "ab" if suite else "wb") as sortie:
             while bloc := reponse.read(1 << 20):
-                empreinte.update(bloc)
                 sortie.write(bloc)
                 recu += len(bloc)
-        if annonce is not None and str(annonce).isdigit() and recu != int(annonce):
-            raise ConnectionError(f"transfert interrompu, {recu} octets sur {annonce}")
-        if sha256 and empreinte.hexdigest() != sha256:
-            raise ErreurBRouter(f"Empreinte inattendue pour {url} : téléchargement refusé.")
-        if valider is not None and not valider(partiel):
-            raise ErreurBRouter(f"Fichier reçu incomplet ou illisible : {url}.")
-        atomique.remplacer(partiel, cible)
-    finally:
-        partiel.unlink(missing_ok=True)
+    if annonce is not None and str(annonce).isdigit() and recu != int(annonce):
+        raise ConnectionError(f"transfert interrompu, {recu} octets sur {annonce}")
+    from .lot import empreinte     # à la demande : lot charge numpy et shapely
+    if sha256 and empreinte(partiel) != sha256:
+        raise ErreurBRouter(f"Empreinte inattendue pour {url} : téléchargement refusé.")
+    if valider is not None and not valider(partiel):
+        raise ErreurBRouter(f"Fichier reçu incomplet ou illisible : {url}.")
+    atomique.remplacer(partiel, cible)
     return cible
 
 
@@ -258,11 +268,8 @@ class Installation:
         """L'archive épinglée, reprise telle quelle si elle est déjà là et intacte."""
         archive = self.racine / f"brouter-{VERSION}.zip"
         if archive.is_file():
-            empreinte = hashlib.sha256()
-            with open(archive, "rb") as f:
-                while bloc := f.read(1 << 20):
-                    empreinte.update(bloc)
-            if empreinte.hexdigest() == ARCHIVE_SHA256:
+            from .lot import empreinte
+            if empreinte(archive) == ARCHIVE_SHA256:
                 return archive
         return _telecharger(ARCHIVE_URL, archive, ARCHIVE_SHA256)
 
