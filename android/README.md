@@ -79,8 +79,9 @@ recentre la carte sur le GPS, avec le point bleu et son halo de précision. Le
 démarrage d'une trace passe par « Enregistrer un parcours » : pendant
 l'enregistrement, un bouton rond rouge apparaît en bas à droite pour arrêter
 (carré) sans rouvrir le menu, et le GPX est rangé dans
-`traces/`, avec l'heure et l'altitude de chaque point. La page « Gestion des
-itinéraires » règle l'enregistrement : distance minimale entre deux points
+`traces/`, puis dans Téléchargements, avec l'heure et l'altitude de chaque
+point. La page « Gestion des itinéraires » règle l'enregistrement : distance
+minimale entre deux points
 (10 m), durée minimale (10 s) et déviation GPS maximale (100 m). Un point n'est
 retenu que si le GPS est plus précis que la déviation, et si la distance et la
 durée depuis le point précédent sont toutes deux atteintes ; le premier point
@@ -105,12 +106,18 @@ Pendant l'enregistrement, le bandeau donne la distance, la durée et le dénivel
 D+/D− calculé sur le modèle de terrain. Le calcul ne lit que le cache de
 relief : en randonnée, le téléphone n'a pas de réseau. Si le cache ne couvre pas
 encore le parcours, le dénivelé reste absent du bandeau, sans arrêter la trace.
-À l'export, le GPX est relu et les altitudes sont remplacées par celles du
-modèle de terrain : IGN LiDAR HD si le réseau est là et qu'il couvre la trace,
-sinon Mapterhorn, son cache d'abord, puis le réseau s'il le faut ; sans relief
-complet, le fichier part tel qu'il a été enregistré. Le D+ du bandeau, lu
-hors ligne sur Mapterhorn, peut donc différer de quelques mètres de celui de
-l'export. La description du GPX porte alors le D+ et le D− du relief.
+À l'arrêt, le dénivelé est refait avec tout le relief disponible : IGN LiDAR HD
+si le réseau est là et qu'il couvre la trace, sinon Mapterhorn, son cache
+d'abord, puis le réseau s'il le faut. Le GPX relu reçoit ces altitudes, sa
+description porte le D+ et le D−, et le fichier enrichi remplace celui de
+`traces/` ; sur Android 10 et plus, il est aussi écrit dans Téléchargements.
+Le bilan qui suit détaille le parcours : distance, durée, D+, D−, altitude
+minimale et maximale, durée de marche du modèle de Tobler et source du relief,
+puis propose « Partager » : le GPX part vers une application de cloud, de
+courriel ou de messagerie, avec une autorisation de lecture limitée au partage.
+Sans relief complet, le fichier brut reste et le bilan le dit ; avant Android
+10, « Exporter le GPX » ouvre le sélecteur de fichiers, Téléchargements
+demandant une permission.
 
 « Ma bibliothèque », dans le menu, liste l'historique des traces : chaque
 fichier de `traces/` affiche sa date et sa taille réelle, avec un bouton
