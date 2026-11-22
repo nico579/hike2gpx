@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Le seul dossier que les applications de partage peuvent lire : les traces enregistrées. -->
+<paths>
+    <external-files-path name="traces" path="traces/" />
+    <files-path name="traces-internes" path="traces/" />
+</paths>
