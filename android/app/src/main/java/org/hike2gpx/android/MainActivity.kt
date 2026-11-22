@@ -11,6 +11,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Dialog
 import android.Manifest
+import android.content.ClipData
 import android.content.ContentValues
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -45,6 +46,7 @@ import android.os.SystemClock
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import androidx.annotation.RequiresApi
+import androidx.core.content.FileProvider
 import android.database.sqlite.SQLiteDatabase
 import android.view.Gravity
 import android.view.KeyEvent
@@ -2879,6 +2881,8 @@ class MainActivity : Activity() {
             return
         }
         try {
+            // Le GPX brut est écrit tout de suite : la trace est à l'abri même si
+            // le recalcul du dénivelé échoue ou si l'écran s'en va.
             fichier?.writeText(Gpx.ecrireTrace(trace.points, fichier.nameWithoutExtension))
             fichier?.let { EnregistrementGps.terminer(it) }
         } catch (e: Exception) {
@@ -2889,16 +2893,112 @@ class MainActivity : Activity() {
         }
         fichierTrace = fichier
         appliquerAffichage()
-        val resume = resumeTrace(trace)
-        etat.text = resume
-        // Comme un tracé planifié : directement dans Téléchargements, sans rien demander.
-        exporterTrace(fichier)
+        etat.setText(R.string.trace_denivele_calcul)
+        terminerTrace(trace, fichier)
+    }
+
+    /**
+     * La fin d'un enregistrement : le dénivelé est refait avec tout le relief
+     * disponible, le cache d'abord puis le réseau, comme à l'export. Le GPX
+     * enrichi remplace le fichier brut et part dans Téléchargements (Android 10
+     * et plus) ; le bilan détaille ensuite le parcours et propose le partage.
+     * Sans relief complet, le fichier brut reste et le bilan le dit.
+     */
+    private fun terminerTrace(trace: TraceGps, fichier: File?) {
+        val points = trace.points
+        EXECUTEUR_TRACE.execute {
+            val enrichi = fichier?.let { f ->
+                gpxEnrichi(points, f)?.also { resultat ->
+                    try {
+                        f.writeText(resultat.first)
+                    } catch (e: Exception) {
+                        // Le GPX brut déjà écrit reste : la trace n'est pas perdue.
+                    }
+                }
+            }
+            val octets = enrichi?.first?.toByteArray()
+                ?: try {
+                    fichier?.readBytes()
+                } catch (e: Exception) {
+                    null
+                }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                trace.profil = enrichi?.second
+                etat.text = resumeTrace(trace)
+                val adresse = if (octets != null && fichier != null &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                    ecrireTelechargements(fichier.name, octets) else null
+                montrerBilanTrace(trace, fichier, enrichi?.second, adresse)
+            }
+        }
+    }
+
+    /** Le détail du parcours, puis le partage du GPX (cloud, courriel, messagerie…). */
+    private fun montrerBilanTrace(trace: TraceGps, fichier: File?,
+                                  profil: ProfilAltimetrique?, adresse: Uri?) {
+        val lignes = mutableListOf(getString(R.string.trace_detail_base,
+            pointsTexte(trace.taille), distanceTexte(trace.distance), dureeTexte(trace.duree)))
+        if (profil != null) {
+            lignes.add(getString(R.string.trace_detail_denivele, profil.monteeM, profil.descenteM))
+            lignes.add(getString(R.string.trace_detail_altitudes,
+                profil.altitudeMinM, profil.altitudeMaxM))
+            lignes.add(getString(R.string.trace_detail_marche,
+                dureeTexte(profil.dureeMarcheS * 1_000L)))
+            lignes.add(getString(R.string.trace_detail_relief, profil.modele))
+        } else if (trace.taille >= 2) {
+            lignes.add(getString(R.string.trace_detail_sans_denivele))
+        }
+        lignes.add(if (adresse != null)
+            getString(R.string.trace_dans_telechargements, fichier?.name ?: "")
+        else
+            getString(R.string.trace_detail_fichier, fichier?.name ?: ""))
         AlertDialog.Builder(this)
             .setTitle(R.string.trace_titre)
-            .setMessage(listOf(resume, getString(R.string.trace_dans_telechargements, fichier?.name ?: ""))
-                .joinToString("\n"))
-            .setPositiveButton(R.string.fermer, null)
+            .setMessage(lignes.joinToString("\n"))
+            .setPositiveButton(R.string.trace_partager) { _, _ ->
+                partagerTrace(fichier, adresse, resumeTrace(trace))
+            }
+            .apply {
+                // Avant Android 10, Téléchargements demande une permission : le
+                // sélecteur de fichiers reste proposé pour enregistrer le GPX.
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q)
+                    setNeutralButton(R.string.trace_exporter) { _, _ -> exporterTrace(fichier) }
+            }
+            .setNegativeButton(R.string.fermer, null)
             .show()
+    }
+
+    /**
+     * Le partage du GPX : l'adresse de Téléchargements quand le fichier y est,
+     * sinon celle du dossier des traces par le FileProvider. L'autorisation de
+     * lecture ne dure que le temps du partage.
+     */
+    private fun partagerTrace(fichier: File?, adresse: Uri?, resume: String) {
+        val nom = fichier?.name ?: "trace.gpx"
+        val uri = adresse ?: try {
+            fichier?.let { FileProvider.getUriForFile(this, "$packageName.traces", it) }
+        } catch (e: Exception) {
+            null
+        }
+        if (uri == null) {
+            Toast.makeText(this, R.string.trace_partage_aucune, Toast.LENGTH_LONG).show()
+            return
+        }
+        val envoi = Intent(Intent.ACTION_SEND).apply {
+            type = "application/gpx+xml"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, fichier?.nameWithoutExtension ?: nom)
+            putExtra(Intent.EXTRA_TEXT, resume)
+            // Certaines applications ne lisent l'autorisation que par le clipData.
+            clipData = ClipData.newRawUri(nom, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivity(Intent.createChooser(envoi, getString(R.string.trace_partage_titre)))
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.trace_partage_aucune, Toast.LENGTH_LONG).show()
+        }
     }
 
     /**
@@ -3022,7 +3122,7 @@ class MainActivity : Activity() {
                 null
             }
             val points = texte?.let { Gpx.lireTrace(it) } ?: emptyList()
-            val enrichi = preparerGpxEnrichi(points, fichier)
+            val enrichi = gpxEnrichi(points, fichier)?.first
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
                 contenuExport = enrichi?.toByteArray()
@@ -3031,7 +3131,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun preparerGpxEnrichi(points: List<PointTrace>, fichier: File): String? {
+    /** Le GPX enrichi et son profil, ou null sans relief complet. */
+    private fun gpxEnrichi(points: List<PointTrace>, fichier: File): Pair<String, ProfilAltimetrique>? {
         if (points.size < 2) return null
         // Une instance neuve : le calcul du tracé peut lire le relief en même
         // temps, et Mapterhorn n'est pas partagé entre deux tâches.
@@ -3039,7 +3140,7 @@ class MainActivity : Activity() {
         return try {
             val (enrichis, profil) = Gpx.enrichir(points, sources)
             Gpx.ecrireTrace(enrichis, fichier.nameWithoutExtension,
-                getString(R.string.trace_gpx_desc, profil.monteeM, profil.descenteM))
+                getString(R.string.trace_gpx_desc, profil.monteeM, profil.descenteM)) to profil
         } catch (e: Exception) {
             null        // aucun relief complet : le GPX reste tel quel
         }
@@ -3056,10 +3157,10 @@ class MainActivity : Activity() {
      * Android 10 et plus (les appelants testent la version) : le GPX va directement
      * dans Téléchargements (MediaStore, sans permission ni sélecteur), comme sur le
      * PC. Avant, il faudrait une permission d'écriture : le sélecteur de fichiers reste.
-     * Vrai si le fichier est écrit ; sinon l'erreur est dans le bandeau. Pas de message de succès.
+     * Rend l'adresse du fichier écrit, ou null avec l'erreur au bandeau. Pas de message de succès.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun ecrireTelechargements(nom: String, octets: ByteArray): Boolean {
+    private fun ecrireTelechargements(nom: String, octets: ByteArray): Uri? {
         return try {
             val valeurs = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, nom)
@@ -3070,10 +3171,10 @@ class MainActivity : Activity() {
                 ?: throw IOException("MediaStore")
             contentResolver.openOutputStream(adresse)?.use { it.write(octets) }
             notifierExport(nom, adresse)
-            true
+            adresse
         } catch (e: Exception) {
             etat.text = texte(e)
-            false
+            null
         }
     }
 
@@ -3115,7 +3216,7 @@ class MainActivity : Activity() {
             val octets = contenuExport ?: fichierTrace?.takeIf { it.isFile }?.readBytes()
             contenuExport = null
             // Le « calcul du dénivelé » qui précédait s'efface : le fichier est dans Téléchargements.
-            if (octets == null || ecrireTelechargements(nom, octets)) etat.text = ""
+            if (octets == null || ecrireTelechargements(nom, octets) != null) etat.text = ""
             return
         }
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {

@@ -109,18 +109,22 @@ Pendant l'enregistrement, le bandeau donne la distance, la durée et le dénivel
 D+/D− calculé sur le modèle de terrain. Le calcul ne lit que le cache de
 relief : en randonnée, le téléphone n'a pas de réseau. Si le cache ne couvre pas
 encore le parcours, le dénivelé reste absent du bandeau, sans arrêter la trace.
-À l'export, le GPX est relu et les altitudes sont remplacées par celles du
-modèle de terrain : IGN LiDAR HD si le réseau est là et qu'il couvre la trace,
-sinon Mapterhorn, son cache d'abord, puis le réseau s'il le faut ; sans relief
-complet, le fichier part tel qu'il a été enregistré. Le D+ du bandeau, lu
-hors ligne sur Mapterhorn, peut donc différer de quelques mètres de celui de
-l'export. La description du GPX porte alors le D+ et le D− du relief.
 
-À l'arrêt de l'enregistrement, la trace part d'elle-même dans
-« Téléchargements », comme un itinéraire planifié, et une boîte en donne le
-résumé. Une trace interrompue (application tuée, batterie vide) est refaite
-au lancement suivant et y part de même. L'application en garde une copie
-dans son dossier `traces/`, que « Vider le cache » ne touche pas.
+À l'arrêt, le dénivelé est refait avec tout le relief disponible : IGN LiDAR HD
+si le réseau est là et qu'il couvre la trace, sinon Mapterhorn, son cache
+d'abord, puis le réseau s'il le faut. Le GPX relu reçoit ces altitudes, sa
+description porte le D+ et le D−, et le fichier enrichi remplace celui de
+`traces/` ; sur Android 10 et plus, il est aussi écrit dans Téléchargements.
+Le bilan qui suit détaille le parcours : distance, durée, D+, D−, altitude
+minimale et maximale, durée de marche du modèle de Tobler et source du relief,
+puis propose « Partager » : le GPX part vers une application de cloud, de
+courriel ou de messagerie, avec une autorisation de lecture limitée au partage.
+Sans relief complet, le fichier brut reste et le bilan le dit ; avant Android
+10, « Exporter le GPX » ouvre le sélecteur de fichiers, Téléchargements
+demandant une permission. Une trace interrompue (application tuée, batterie
+vide) est refaite au lancement suivant et part de même dans Téléchargements.
+L'application en garde une copie dans son dossier `traces/`, que « Vider le
+cache » ne touche pas.
 
 Les lots du serveur se téléchargent d'eux-mêmes : l'application lit les
 catalogues à son lancement, et quand un parcours touche une case dont le lot

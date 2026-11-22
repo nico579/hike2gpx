@@ -25,6 +25,12 @@
             android:authorities="${applicationId}.maj" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/maj_chemins" />
         </provider>
+        <!-- Le partage d'une trace enregistrée : seule l'application choisie par
+             l'utilisateur lit le GPX, par une autorisation temporaire. -->
+        <provider android:name=".FournisseurTraces"
+            android:authorities="${applicationId}.traces" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/trace_chemins" />
+        </provider>
         <service android:name=".ServiceTrace" android:exported="false"
             android:foregroundServiceType="location" />
         <!-- configChanges : une rotation ne recrée pas l'écran pendant un téléchargement. -->
