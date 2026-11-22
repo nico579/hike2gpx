@@ -8,7 +8,7 @@ réseau local, et calcule l'itinéraire lui-même avec BRouter, sans réseau.
 
 L'écran est celui de la page du PC : la carte d'abord, en plein écran. Un
 bouton à trois traits, en bas à gauche, ouvre le menu : « Recherche », « Gestion
-des cartes », « Gestion des itinéraires », « Importer un GPX ou un KML »,
+des cartes », « Gestion des itinéraires », « Mes traces », « Importer un GPX ou un KML »,
 « Enregistrer un parcours », « Planifier un itinéraire », « Réglages » et
 « Aide ». La carte reste seule tant qu'on n'a pas choisi un mode ; « Aide »
 ouvre sur GitHub le mode d'emploi général, celui du PC, pour la version installée et
@@ -22,6 +22,19 @@ de la trace, arrête la planification et propose d'enregistrer le parcours en
 GPX ; un second choix de « Planifier un itinéraire » le fait aussi. Les doigts
 verts des points disparaissent alors : seule la trace GPX reste sur la carte,
 sans être effacée.
+
+La page « Mes traces » réunit tous les GPX que l'application garde dans
+`traces/`, en trois sections : les itinéraires planifiés et enregistrés en GPX
+(`itineraire-…`), les fichiers importés (`importe-…`) et les traces GPS
+(`trace-…`). Un fichier importé y est copié tel quel quand c'est un GPX, ou
+converti en GPX quand c'est un KML (ses segments, sans le trait qui les joint).
+Toucher une ligne donne son détail : nombre de points, distance, D+ et D−,
+altitudes minimale et maximale, et durée. La durée est celle des heures du
+fichier quand il en porte — une trace GPS, pauses comprises —, sinon celle de
+marche du modèle de Tobler. Le dénivelé vient du relief (IGN LiDAR HD puis
+Mapterhorn) ; hors ligne, ou sans couverture, il est calculé avec les altitudes
+du fichier, lissées et cumulées comme celles du relief. La fiche propose aussi
+le partage du GPX.
 
 Le menu « Recherche » ouvre le champ de la page : il recentre la carte sur
 une ville ou sur des coordonnées « lat, lon », sans poser de point. Les

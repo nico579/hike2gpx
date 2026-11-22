@@ -99,6 +99,32 @@ object Denivele {
     private fun valide(altitude: Double) = altitude.isFinite() && altitude in -1000.0..9000.0
 
     fun calculer(coordonnees: List<DoubleArray>, sources: List<SourceRelief>): ProfilAltimetrique {
+        val (grille, x, garde) = echantillon(coordonnees)
+        val lons = DoubleArray(garde.size) { coordonnees[garde[it]][0] }
+        val lats = DoubleArray(garde.size) { coordonnees[garde[it]][1] }
+        val latsGrille = DoubleArray(grille.size) { interpole(grille[it], x, lats) }
+        val lonsGrille = DoubleArray(grille.size) { interpole(grille[it], x, lons) }
+        val (source, altitudes) = obtenir(sources, latsGrille, lonsGrille)
+        return profil(grille, altitudes, source.nom)
+    }
+
+    /**
+     * Le profil d'altitudes déjà connues — celles d'un GPX relu — échantillonné,
+     * lissé et cumulé comme celles du relief, sans aucune source extérieure :
+     * un fichier se détaille ainsi hors ligne. [nom] dit d'où elles viennent.
+     */
+    fun calculerAltitudes(coordonnees: List<DoubleArray>, altitudes: DoubleArray,
+                          nom: String): ProfilAltimetrique {
+        if (coordonnees.size != altitudes.size) throw ErreurDenivele("altitudes incomplètes")
+        if (!altitudes.all(::valide)) throw ErreurDenivele("altitudes du GPX invalides")
+        val (grille, x, garde) = echantillon(coordonnees)
+        val z = DoubleArray(garde.size) { altitudes[garde[it]] }
+        val altGrille = DoubleArray(grille.size) { interpole(grille[it], x, z) }
+        return profil(grille, altGrille, nom)
+    }
+
+    /** La grille de 5 m d'un tracé, les distances de ses points gardés, et ces points. */
+    private fun echantillon(coordonnees: List<DoubleArray>): Triple<DoubleArray, DoubleArray, List<Int>> {
         if (coordonnees.size < 2) throw ErreurDenivele("tracé trop court")
         val distances = distances(coordonnees)
         val garde = mutableListOf<Int>()
@@ -108,17 +134,16 @@ object Denivele {
 
         val x = DoubleArray(garde.size) { distances[garde[it]] }
         if (x.last() <= 0.0) throw ErreurDenivele("tracé sans longueur")
-        val lons = DoubleArray(garde.size) { coordonnees[garde[it]][0] }
-        val lats = DoubleArray(garde.size) { coordonnees[garde[it]][1] }
 
         val n = ceil(x.last() / PAS).toInt()
         val grille = DoubleArray(n + 1)
         for (i in 0 until n) grille[i] = i * PAS
         grille[n] = x.last()
+        return Triple(grille, x, garde)
+    }
 
-        val latsGrille = DoubleArray(grille.size) { interpole(grille[it], x, lats) }
-        val lonsGrille = DoubleArray(grille.size) { interpole(grille[it], x, lons) }
-        val (source, altitudes) = obtenir(sources, latsGrille, lonsGrille)
+    /** Le profil de gpx2elev : lissage gaussien, hystérésis de 2 m, puis Tobler. */
+    private fun profil(grille: DoubleArray, altitudes: DoubleArray, modele: String): ProfilAltimetrique {
         val lisse = gaussienne(grille, altitudes)
         val gain = totaux(lisse, ancres(lisse))
         val duree = dureeTobler(grille, lisse)
@@ -128,7 +153,7 @@ object Denivele {
             altitudeMinM = minimum(lisse).roundToInt(),
             altitudeMaxM = maximum(lisse).roundToInt(),
             dureeMarcheS = Math.round(duree),
-            modele = source.nom,
+            modele = modele,
             distancesM = grille.copyOf(),
             altitudesM = lisse.copyOf(),
         )

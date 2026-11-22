@@ -5,6 +5,6 @@ import androidx.core.content.FileProvider
 /**
  * Le FileProvider des traces : il ne partage que le dossier `traces/`, pour
  * qu'une application de cloud, de courriel ou de messagerie puisse lire le
- * GPX proposé à la fin d'un enregistrement.
+ * GPX proposé à la fin d'un enregistrement ou depuis « Mes traces ».
  */
 class FournisseurTraces : FileProvider()
