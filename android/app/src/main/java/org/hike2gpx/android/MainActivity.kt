@@ -361,10 +361,13 @@ class MainActivity : Activity() {
             }))
             // Un double tap sur la carte masque les bandeaux et laisse la carte
             // seule, un second les ramène (geste de Locus Map). Il ne pose pas
-            // de point : osmdroid réserve le simple tap au-dessus.
+            // de point : osmdroid réserve le simple tap au-dessus. En
+            // planification, il ne masque rien : deux points posés coup sur
+            // coup emportaient la barre Retirer / Effacer / Revenir.
             overlays.add(object : Overlay() {
                 override fun onDoubleTap(e: MotionEvent, mapView: MapView): Boolean {
-                    basculerBandeaux(); return true
+                    if (!modePlan) basculerBandeaux()
+                    return true
                 }
             })
             addMapListener(object : MapListener {
@@ -1959,7 +1962,10 @@ class MainActivity : Activity() {
             colonne.addView(ligne)
         }
 
-        dialogue.setContentView(colonne)
+        // Le panneau défile : sur un petit écran, ou avec une police agrandie,
+        // les dernières entrées (« Planifier un itinéraire », « Réglages »,
+        // « Aide ») resteraient sous le bord bas, invisibles et intouchables.
+        dialogue.setContentView(ScrollView(this).apply { addView(colonne) })
         dialogue.show()
         dialogue.window?.apply {
             setBackgroundDrawable(ColorDrawable(0x00000000))
@@ -1974,9 +1980,12 @@ class MainActivity : Activity() {
         val seuil = dp(96).toFloat()
         var depart = 0f
         var glisse = 0f
-        poignee.setOnTouchListener { _, evenement ->
+        poignee.setOnTouchListener { vue, evenement ->
             when (evenement.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    // Le panneau défile : le geste de la poignée ne doit pas
+                    // devenir un défilement avant de refermer.
+                    vue.parent?.requestDisallowInterceptTouchEvent(true)
                     depart = evenement.rawY
                     glisse = 0f
                     true
@@ -1987,6 +1996,7 @@ class MainActivity : Activity() {
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    vue.parent?.requestDisallowInterceptTouchEvent(false)
                     if (glisse > seuil)
                         dialogue.dismiss()
                     else
@@ -2063,6 +2073,9 @@ class MainActivity : Activity() {
         modePlan = !modePlan
         modeRecherche = false
         rechercheRepliee = false
+        // La planification se commande au menu : sa barre doit être là, même
+        // si un double tap avait masqué les bandeaux pour laisser la carte seule.
+        if (modePlan) bandeauxMasques = false
         majBoutonTrace()
         if (modePlan) {
             dessinerPoints()

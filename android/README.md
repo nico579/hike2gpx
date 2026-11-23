@@ -85,7 +85,9 @@ Lever le doigt efface les deux.
 
 Un double tap sur la carte masque les deux bandeaux et
 laisse la carte seule ; un second double tap les ramène. L'échelle et
-l'attribution OSM restent visibles : elles font partie de la carte.
+l'attribution OSM restent visibles : elles font partie de la carte. En
+planification, le double tap ne masque rien : la barre Retirer / Effacer /
+Revenir reste en place quand deux points se posent coup sur coup.
 
 Les deux boutons ronds du bas, à gauche, sont alignés à l'horizontale et
 semi-transparents : celui à trois traits ouvre le menu, et celui de la position
