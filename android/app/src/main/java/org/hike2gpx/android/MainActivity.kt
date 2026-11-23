@@ -224,6 +224,8 @@ class MainActivity : Activity() {
     private var dialogueTraces: AlertDialog? = null
     /** La page « Mes traces » du menu : les GPX planifiés, importés et enregistrés. */
     private var fenetreTraces: LinearLayout? = null
+    /** La fiche d'un GPX, ouverte tout de suite puis remplie quand le calcul finit. */
+    private var dialogueDetail: AlertDialog? = null
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
     private var apkEnAttente: File? = null
     private var attenteAutorisation = false
@@ -1632,16 +1634,48 @@ class MainActivity : Activity() {
             ?: base.removePrefix(PREFIXE_IMPORT)
     }
 
-    /** Le détail d'un GPX de traces/, calculé hors de l'écran : le relief peut venir du réseau. */
+    /**
+     * Le détail d'un GPX de traces/, calculé hors de l'écran : le relief peut
+     * venir du réseau. La fiche s'ouvre aussitôt, avec « Calcul du détail »,
+     * puis se remplit : sur un long parcours ou un réseau lent, le tap restait
+     * sinon sans le moindre signe, comme s'il n'avait rien fait.
+     */
     private fun montrerDetail(f: File) {
-        etat.setText(R.string.trace_detail_calcul)
-        EXECUTEUR_DENIVELE.execute {
-            val detail = detailDe(f)
+        if (dialogueDetail != null) return
+        var detail: DetailTrace? = null
+        val dialogue = AlertDialog.Builder(this)
+            .setTitle(nomTrace(f))
+            .setMessage(R.string.trace_detail_calcul)
+            .setPositiveButton(R.string.fermer, null)
+            .setNeutralButton(R.string.trace_partager) { _, _ ->
+                partagerTrace(f, null, detail?.let { texteDetail(it) } ?: "")
+            }
+            .setOnDismissListener { dialogueDetail = null }
+            .create()
+        dialogueDetail = dialogue
+        dialogue.show()
+        // Le détail a son propre fil : celui du dénivelé d'itinéraire peut être
+        // encore occupé par un long parcours, et la fiche attendrait derrière.
+        EXECUTEUR_DETAILS.execute {
+            // D'abord les altitudes du fichier, sans réseau : une trace GPS ou
+            // un GPX importé qui en porte donne son détail tout de suite. Le
+            // relief le remplace ensuite, quand il a répondu.
+            val rapide = detailDe(f, relief = false)
+            if (rapide?.denivele == true) runOnUiThread {
+                if (isDestroyed || dialogueDetail !== dialogue) return@runOnUiThread
+                detail = rapide
+                dialogue.setMessage(texteDetail(rapide))
+            }
+            val calcule = detailDe(f)
             runOnUiThread {
-                if (isDestroyed) return@runOnUiThread
-                etat.text = ""
-                if (detail == null) Toast.makeText(this, R.string.trace_illisible, Toast.LENGTH_LONG).show()
-                else afficherDetail(f, detail)
+                if (isDestroyed || dialogueDetail !== dialogue) return@runOnUiThread
+                if (calcule == null) {
+                    dialogue.dismiss()
+                    Toast.makeText(this, R.string.trace_illisible, Toast.LENGTH_LONG).show()
+                } else {
+                    detail = calcule
+                    dialogue.setMessage(texteDetail(calcule))
+                }
             }
         }
     }
@@ -1650,15 +1684,17 @@ class MainActivity : Activity() {
      * Le détail d'un GPX : ses points relus, le dénivelé du relief (IGN LiDAR
      * HD puis Mapterhorn) ou, à défaut, de ses propres altitudes, et sa durée —
      * celle des heures quand le fichier en porte (une trace GPS), sinon celle
-     * de marche de Tobler.
+     * de marche de Tobler. Avec [relief] à false, aucune source n'est lue :
+     * seules les altitudes du fichier servent, sans réseau.
      */
-    private fun detailDe(f: File): DetailTrace? = try {
+    private fun detailDe(f: File, relief: Boolean = true): DetailTrace? = try {
         val texte = f.readText()
         val points = Gpx.lireTrace(texte)
         // Un GPX importé peut avoir plusieurs trkseg : le trait qui les joint n'existe pas.
         val segments = runCatching { TracesImportees.lire(texte, f.nameWithoutExtension) }
             .getOrDefault(emptyList()).flatMap { it.segments }
-        val sources = sourcesRelief(Mapterhorn(donnees, reseau = reseauDisponible()))
+        val sources = if (relief) sourcesRelief(Mapterhorn(donnees, reseau = reseauDisponible()))
+            else emptyList()
         val nomAltitudes = getString(R.string.detail_altitudes_fichier)
         when {
             segments.size > 1 -> DetailTrace.calculerSegments(segments, sources, nomAltitudes)
@@ -1670,8 +1706,8 @@ class MainActivity : Activity() {
         null
     }
 
-    /** La fiche d'un GPX de traces/ : distance, dénivelé, durée, et le partage du fichier. */
-    private fun afficherDetail(f: File, d: DetailTrace) {
+    /** Les lignes de la fiche d'un GPX : distance, dénivelé, durée et relief. */
+    private fun texteDetail(d: DetailTrace): String {
         val duree = when {
             d.dureeS == null -> getString(R.string.detail_sans_duree)
             d.dureeReelle -> getString(R.string.detail_duree_reelle, dureeTexte(d.dureeS * 1_000L))
@@ -1686,12 +1722,7 @@ class MainActivity : Activity() {
             lignes += getString(R.string.trace_detail_sans_denivele)
         }
         d.modele?.let { lignes += getString(R.string.trace_detail_relief, it) }
-        AlertDialog.Builder(this)
-            .setTitle(nomTrace(f))
-            .setMessage(lignes.joinToString("\n"))
-            .setPositiveButton(R.string.fermer, null)
-            .setNeutralButton(R.string.trace_partager) { _, _ -> partagerTrace(f, null, lignes.joinToString("\n")) }
-            .show()
+        return lignes.joinToString("\n")
     }
 
     /**
@@ -3806,6 +3837,9 @@ class MainActivity : Activity() {
         // reste calculable pendant qu'ils se lisent.
         private val EXECUTEUR_CALQUES = Executors.newSingleThreadExecutor()
         private val EXECUTEUR_DENIVELE = Executors.newSingleThreadExecutor()
+        // La fiche d'un GPX de « Mes traces » : son calcul ne fait pas la queue
+        // derrière le dénivelé d'un itinéraire encore en cours.
+        private val EXECUTEUR_DETAILS = Executors.newSingleThreadExecutor()
         // La trace GPS et son export se suivent ; le calcul du dénivelé live
         // n'empêche pas l'écran de répondre.
         private val EXECUTEUR_TRACE = Executors.newSingleThreadExecutor()

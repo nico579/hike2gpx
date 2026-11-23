@@ -28,8 +28,9 @@ La page « Mes traces » réunit tous les GPX que l'application garde dans
 (`itineraire-…`), les fichiers importés (`importe-…`) et les traces GPS
 (`trace-…`). Un fichier importé y est copié tel quel quand c'est un GPX, ou
 converti en GPX quand c'est un KML (ses segments, sans le trait qui les joint).
-Toucher une ligne donne son détail : nombre de points, distance, D+ et D−,
-altitudes minimale et maximale, et durée. La durée est celle des heures du
+Toucher une ligne ouvre aussitôt sa fiche — nombre de points, distance, D+ et
+D−, altitudes minimale et maximale, et durée — qui se remplit le temps du
+calcul. La durée est celle des heures du
 fichier quand il en porte — une trace GPS, pauses comprises —, sinon celle de
 marche du modèle de Tobler. Le dénivelé vient du relief (IGN LiDAR HD puis
 Mapterhorn) ; hors ligne, ou sans couverture, il est calculé avec les altitudes
