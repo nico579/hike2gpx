@@ -1,6 +1,7 @@
 package org.hike2gpx.android
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -73,5 +74,24 @@ class GpxTest {
         val texte = Gpx.ecrireTrace(trace(), "trace <&>", "D+ 10 m < D− 0 m & plus")
         assertTrue(texte.contains("<name>trace &lt;&amp;&gt;</name>"))
         assertTrue(texte.contains("<desc>D+ 10 m &lt; D− 0 m &amp; plus</desc>"))
+    }
+
+    @Test fun les_segments_ecrits_se_relisent() {
+        // Un KML importé devient un GPX d'un trkseg par segment, que lireTrace relit.
+        val segments = listOf(
+            listOf(0.0 to 0.0, 0.0 to 0.01),
+            listOf(1.0 to 1.0, 1.0 to 1.01),
+        )
+        val texte = Gpx.ecrireSegments(segments, "importe-essai")
+        assertTrue(texte.contains("<name>importe-essai</name>"))
+        assertEquals(2, Regex("<trkseg>").findAll(texte).count())
+        val relus = Gpx.lireTrace(texte)
+        assertEquals(4, relus.size)
+        assertEquals(0.0, relus[0].lat, 0.0)
+        assertEquals(0.01, relus[1].lon, 0.0)
+        assertEquals(1.0, relus[2].lat, 0.0)
+        assertEquals(1.01, relus[3].lon, 0.0)
+        assertNull(relus[0].altitude)
+        assertEquals(0L, relus[0].instant)
     }
 }

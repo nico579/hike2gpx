@@ -28,6 +28,25 @@ object Gpx {
     }
 
     /**
+     * Plusieurs segments dans une même trace, un `<trkseg>` chacun : c'est ce
+     * qu'un KML importé devient pour rester dans `traces/`, ses segments sans
+     * le trait qui les joint. Les points s'écrivent sans altitude, comme ils
+     * sont lus, et se relisent avec [lireTrace].
+     */
+    fun ecrireSegments(segments: List<List<Pair<Double, Double>>>, nom: String = "hike2gpx"): String {
+        val gpx = StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+            .append("<gpx version=\"1.1\" creator=\"hike2gpx\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
+            .append("<trk><name>").append(echapper(nom)).append("</name>\n")
+        for (segment in segments) {
+            gpx.append("<trkseg>\n")
+            for ((lat, lon) in segment)
+                gpx.append("<trkpt lat=\"").append(lat).append("\" lon=\"").append(lon).append("\"></trkpt>\n")
+            gpx.append("</trkseg>\n")
+        }
+        return gpx.append("</trk></gpx>\n").toString()
+    }
+
+    /**
      * Une trace enregistrée, avec l'heure de chaque point (Locus Map les garde
      * aussi) : le GPX produit se relit dans les autres applications. [description]
      * porte le dénivelé gpx2elev quand il a été calculé à l'export.

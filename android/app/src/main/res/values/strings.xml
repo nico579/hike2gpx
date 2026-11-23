@@ -31,6 +31,13 @@
     <string name="import_duree">Time: %1$s</string>
     <string name="plan_sans_zone_titre">No routing area here</string>
     <string name="menu_itineraires">Route management</string>
+    <string name="menu_traces">My tracks</string>
+    <string name="traces_aucune">No GPX yet: planned routes, imported files and GPS tracks are kept here.</string>
+    <string name="traces_planifies">Planned routes</string>
+    <string name="traces_importees">Imported files</string>
+    <string name="traces_enregistrees">GPS tracks</string>
+    <string name="trace_nom_itineraire">Route of %1$s</string>
+    <string name="trace_nom_enregistree">Track of %1$s</string>
     <string name="menu_aide">Help</string>
     <string name="menu_enregistrer">Record a track</string>
     <string name="menu_arreter">Stop recording</string>
@@ -260,6 +267,12 @@
     <string name="trace_detail_relief">Elevation data: %1$s</string>
     <string name="trace_detail_sans_denivele">Elevation not computed: the elevation data is incomplete.</string>
     <string name="trace_detail_fichier">File: %1$s</string>
+    <string name="trace_detail_calcul">Computing the detail…</string>
+    <string name="trace_illisible">This GPX holds no readable track.</string>
+    <string name="detail_duree_reelle">%1$s (elapsed)</string>
+    <string name="detail_duree_marche">%1$s (estimated walking)</string>
+    <string name="detail_sans_duree">duration unknown</string>
+    <string name="detail_altitudes_fichier">file elevations</string>
     <string name="trace_exporter">Export the GPX</string>
     <string name="trace_partager">Share</string>
     <string name="trace_partage_titre">Share the track</string>

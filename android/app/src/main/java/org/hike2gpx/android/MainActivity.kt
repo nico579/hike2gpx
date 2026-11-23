@@ -221,6 +221,9 @@ class MainActivity : Activity() {
     private var dialogueItineraires: AlertDialog? = null
     /** La page « Itinéraires » du menu, refaite après chaque téléchargement ou suppression. */
     private var fenetreItineraires: LinearLayout? = null
+    private var dialogueTraces: AlertDialog? = null
+    /** La page « Mes traces » du menu : les GPX planifiés, importés et enregistrés. */
+    private var fenetreTraces: LinearLayout? = null
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
     private var apkEnAttente: File? = null
     private var attenteAutorisation = false
@@ -1320,6 +1323,7 @@ class MainActivity : Activity() {
     private fun refermerPages() {
         dialogueCartes?.dismiss()
         dialogueItineraires?.dismiss()
+        dialogueTraces?.dismiss()
     }
 
     /** Le lot touché : la page se referme et la carte cadre sa zone (comme sur le PC). */
@@ -1562,6 +1566,131 @@ class MainActivity : Activity() {
         }
     }
 
+    // ------------------------------------------------------------------ mes traces
+
+    /**
+     * La page « Mes traces » du menu : tous les GPX gardés dans `traces/`, les
+     * itinéraires planifiés, les fichiers importés et les traces GPS, chacun
+     * avec son détail (distance, dénivelé, durée) et le partage du fichier.
+     */
+    private fun ouvrirTraces() {
+        val colonne = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+        }
+        fenetreTraces = colonne
+        remplirTraces()
+        dialogueTraces = AlertDialog.Builder(this)
+            .setTitle(R.string.menu_traces)
+            .setView(ScrollView(this).apply { addView(colonne) })
+            .setPositiveButton(R.string.fermer, null)
+            .setOnDismissListener { fenetreTraces = null; dialogueTraces = null }
+            .show()
+    }
+
+    /** Le contenu de la page « Mes traces » : trois sections, les plus récentes d'abord. */
+    private fun remplirTraces() {
+        val colonne = fenetreTraces ?: return
+        colonne.removeAllViews()
+        val fichiers = tracesEnregistrees()
+        if (fichiers.isEmpty()) {
+            colonne.addView(TextView(this).apply { setText(R.string.traces_aucune) })
+            return
+        }
+        // Le préfixe du nom dit d'où vient le fichier, comme à l'enregistrement.
+        val sections = listOf(
+            R.string.traces_planifies to fichiers.filter { it.name.startsWith(PREFIXE_ITINERAIRE) },
+            R.string.traces_importees to fichiers.filter { it.name.startsWith(PREFIXE_IMPORT) },
+            R.string.traces_enregistrees to fichiers.filter {
+                !it.name.startsWith(PREFIXE_ITINERAIRE) && !it.name.startsWith(PREFIXE_IMPORT)
+            },
+        )
+        for ((titreSection, liste) in sections) {
+            if (liste.isEmpty()) continue
+            titre(colonne, titreSection)
+            for (f in liste) colonne.addView(TextView(this).apply {
+                text = nomTrace(f)
+                zoneCliquable { montrerDetail(f) }
+            })
+        }
+    }
+
+    /** Le nom lisible d'un fichier de traces/ : la date d'un itinéraire ou d'une trace, le nom d'un import. */
+    private fun nomTrace(f: File): String {
+        val base = f.nameWithoutExtension
+        val horodatage = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+        val lisible = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        fun date(prefixe: String, format: Int): String? =
+            if (!base.startsWith(prefixe)) null
+            else runCatching { horodatage.parse(base.removePrefix(prefixe)) }.getOrNull()
+                ?.let { getString(format, lisible.format(it)) }
+        return date(PREFIXE_ITINERAIRE, R.string.trace_nom_itineraire)
+            ?: date(PREFIXE_TRACE, R.string.trace_nom_enregistree)
+            ?: base.removePrefix(PREFIXE_IMPORT)
+    }
+
+    /** Le détail d'un GPX de traces/, calculé hors de l'écran : le relief peut venir du réseau. */
+    private fun montrerDetail(f: File) {
+        etat.setText(R.string.trace_detail_calcul)
+        EXECUTEUR_DENIVELE.execute {
+            val detail = detailDe(f)
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                etat.text = ""
+                if (detail == null) Toast.makeText(this, R.string.trace_illisible, Toast.LENGTH_LONG).show()
+                else afficherDetail(f, detail)
+            }
+        }
+    }
+
+    /**
+     * Le détail d'un GPX : ses points relus, le dénivelé du relief (IGN LiDAR
+     * HD puis Mapterhorn) ou, à défaut, de ses propres altitudes, et sa durée —
+     * celle des heures quand le fichier en porte (une trace GPS), sinon celle
+     * de marche de Tobler.
+     */
+    private fun detailDe(f: File): DetailTrace? = try {
+        val texte = f.readText()
+        val points = Gpx.lireTrace(texte)
+        // Un GPX importé peut avoir plusieurs trkseg : le trait qui les joint n'existe pas.
+        val segments = runCatching { TracesImportees.lire(texte, f.nameWithoutExtension) }
+            .getOrDefault(emptyList()).flatMap { it.segments }
+        val sources = sourcesRelief(Mapterhorn(donnees, reseau = reseauDisponible()))
+        val nomAltitudes = getString(R.string.detail_altitudes_fichier)
+        when {
+            segments.size > 1 -> DetailTrace.calculerSegments(segments, sources, nomAltitudes)
+            points.size >= 2 -> DetailTrace.calculer(points, sources, nomAltitudes)
+            // Un fichier fait de routes (rte) n'a pas de trkpt : ses segments se lisent quand même.
+            else -> segments.firstOrNull()?.let { DetailTrace.calculerSegments(listOf(it), sources, nomAltitudes) }
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** La fiche d'un GPX de traces/ : distance, dénivelé, durée, et le partage du fichier. */
+    private fun afficherDetail(f: File, d: DetailTrace) {
+        val duree = when {
+            d.dureeS == null -> getString(R.string.detail_sans_duree)
+            d.dureeReelle -> getString(R.string.detail_duree_reelle, dureeTexte(d.dureeS * 1_000L))
+            else -> getString(R.string.detail_duree_marche, dureeTexte(d.dureeS * 1_000L))
+        }
+        val lignes = mutableListOf(
+            getString(R.string.trace_detail_base, pointsTexte(d.points), distanceTexte(d.distanceM), duree))
+        if (d.denivele) {
+            lignes += getString(R.string.trace_detail_denivele, d.monteeM!!, d.descenteM!!)
+            lignes += getString(R.string.trace_detail_altitudes, d.altitudeMinM!!, d.altitudeMaxM!!)
+        } else {
+            lignes += getString(R.string.trace_detail_sans_denivele)
+        }
+        d.modele?.let { lignes += getString(R.string.trace_detail_relief, it) }
+        AlertDialog.Builder(this)
+            .setTitle(nomTrace(f))
+            .setMessage(lignes.joinToString("\n"))
+            .setPositiveButton(R.string.fermer, null)
+            .setNeutralButton(R.string.trace_partager) { _, _ -> partagerTrace(f, null, lignes.joinToString("\n")) }
+            .show()
+    }
+
     /**
      * Les lots qu'un PC propose et qui manquent au téléphone, sans ceux que le
      * serveur publie déjà (il les fait venir de lui-même) : ce que seul un PC
@@ -1790,6 +1919,7 @@ class MainActivity : Activity() {
             Triple(R.drawable.ic_recherche, R.string.menu_recherche, ::ouvrirRecherche),
             Triple(R.drawable.ic_carte, R.string.menu_cartes, ::ouvrirCartes),
             Triple(R.drawable.ic_itineraires, R.string.menu_itineraires, ::ouvrirItineraires),
+            Triple(R.drawable.ic_traces, R.string.menu_traces, ::ouvrirTraces),
             Triple(R.drawable.ic_importer,
                 if (nomImport == null) R.string.menu_importer else R.string.menu_retirer_import,
                 ::basculerImport),
@@ -2543,12 +2673,16 @@ class MainActivity : Activity() {
         etat.setText(R.string.import_lecture)
         EXECUTEUR_TRACE.execute {
             val nom = nomAffiche(adresse)
+            var octets: ByteArray? = null
             val traces = try {
-                val octets = contentResolver.openInputStream(adresse)?.use { it.readBytes() } ?: ByteArray(0)
-                if (octets.size > IMPORT_MAX_OCTETS) null else TracesImportees.lire(String(octets, Charsets.UTF_8), nom)
+                val lus = contentResolver.openInputStream(adresse)?.use { it.readBytes() }
+                octets = lus
+                if (lus == null || lus.size > IMPORT_MAX_OCTETS) null
+                else TracesImportees.lire(String(lus, Charsets.UTF_8), nom)
             } catch (e: Exception) {
                 null
             }
+            if (!traces.isNullOrEmpty()) garderImport(nom, octets, traces)
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
                 if (traces.isNullOrEmpty()) etat.setText(R.string.import_invalide) else afficherImport(traces, nom)
@@ -2848,7 +2982,7 @@ class MainActivity : Activity() {
 
     private fun demarrerEnregistrement() {
         val dossier = dossierTraces().apply { mkdirs() }
-        val nom = "trace-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
+        val nom = PREFIXE_TRACE + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
         val trace = TraceGps(reglages.distanceMin, reglages.dureeMin * 1_000L, reglages.precisionMax)
         EnregistrementGps.demarrer(trace, File(dossier, nom))
         // Le service tient le GPS écran éteint ; sans la notification (refusée
@@ -3096,6 +3230,33 @@ class MainActivity : Activity() {
     private fun dossierTraces(): File =
         File(getExternalFilesDir(null) ?: filesDir, "traces")
 
+    /**
+     * Un GPX gardé dans `traces/`, pour la page « Mes traces » : l'itinéraire
+     * planifié et le fichier importé y entrent avec leur propre préfixe, à
+     * côté des traces GPS (« trace-… »).
+     */
+    private fun garderTrace(nom: String, texte: String) {
+        try {
+            val dossier = dossierTraces().apply { mkdirs() }
+            File(dossier, nom).writeText(texte)
+        } catch (e: Exception) {
+            // traces/ est un confort : sans lui, l'export et l'import restent intacts.
+        }
+    }
+
+    /**
+     * Le fichier importé reste dans `traces/` sous « importe-… » : un GPX y est
+     * copié tel quel (il garde ses heures et ses altitudes), un KML converti en
+     * GPX (ses segments, sans le trait qui les joint).
+     */
+    private fun garderImport(nom: String, octets: ByteArray?, traces: List<TraceImportee>) {
+        val base = nom.substringBeforeLast('.').ifEmpty { "import" }
+            .replace(Regex("[^\\p{L}\\p{N}._-]"), "-")
+        val texte = if (nom.endsWith(".gpx", true) && octets != null) String(octets, Charsets.UTF_8)
+            else Gpx.ecrireSegments(traces.flatMap { it.segments }, traces.firstOrNull()?.nom ?: base)
+        garderTrace(PREFIXE_IMPORT + base + ".gpx", texte)
+    }
+
     private fun tracesEnregistrees(): List<File> =
         dossierTraces().listFiles { f -> f.isFile && f.extension.equals("gpx", true) }
             ?.sortedByDescending { it.lastModified() } ?: emptyList()
@@ -3250,10 +3411,13 @@ class MainActivity : Activity() {
             etat.setText(R.string.rien_a_exporter); return
         }
         // Horodaté comme la trace GPS (« trace-… »), avec son propre préfixe pour ne pas les confondre.
-        val nom = "itineraire-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
+        val nom = PREFIXE_ITINERAIRE + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".gpx"
         val coordonnees = dernier?.coordonnees ?: return
+        val texte = Gpx.ecrire(coordonnees)
+        // Il reste aussi dans traces/ : la page « Mes traces » le détaille et le partage.
+        garderTrace(nom, texte)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ecrireTelechargements(nom, Gpx.ecrire(coordonnees).toByteArray())
+            ecrireTelechargements(nom, texte.toByteArray())
             return
         }
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -3607,6 +3771,10 @@ class MainActivity : Activity() {
         /** Le jaune du GPX importé et son liseré, ceux de la page du PC. */
         private const val COULEUR_GPX = 0xffffe14a.toInt()
         private const val COULEUR_GPX_BORD = 0xff344132.toInt()
+        /** Les préfixes des GPX de traces/ : la page « Mes traces » les range par section. */
+        private const val PREFIXE_ITINERAIRE = "itineraire-"
+        private const val PREFIXE_IMPORT = "importe-"
+        private const val PREFIXE_TRACE = "trace-"
         private const val IMPORT_MAX_OCTETS = 20_000_000
         private const val PERMISSION_POSITION = 3
         private const val PERMISSION_NOTIFICATIONS = 4

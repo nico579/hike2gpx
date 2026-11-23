@@ -29,6 +29,13 @@
     <string name="import_duree">Durée : %1$s</string>
     <string name="plan_sans_zone_titre">Pas de zone de routage ici</string>
     <string name="menu_itineraires">Gestion des itinéraires</string>
+    <string name="menu_traces">Mes traces</string>
+    <string name="traces_aucune">Aucun GPX pour le moment : les itinéraires planifiés, les fichiers importés et les traces GPS se rangent ici.</string>
+    <string name="traces_planifies">Itinéraires planifiés</string>
+    <string name="traces_importees">Fichiers importés</string>
+    <string name="traces_enregistrees">Traces GPS</string>
+    <string name="trace_nom_itineraire">Itinéraire du %1$s</string>
+    <string name="trace_nom_enregistree">Trace du %1$s</string>
     <string name="menu_aide">Aide</string>
     <string name="menu_enregistrer">Enregistrer un parcours</string>
     <string name="menu_arreter">Arrêter l’enregistrement</string>
@@ -258,6 +265,12 @@
     <string name="trace_detail_relief">Relief : %1$s</string>
     <string name="trace_detail_sans_denivele">Dénivelé non calculé : les données d’altitude sont incomplètes.</string>
     <string name="trace_detail_fichier">Fichier : %1$s</string>
+    <string name="trace_detail_calcul">Calcul du détail…</string>
+    <string name="trace_illisible">Ce GPX ne contient pas de tracé lisible.</string>
+    <string name="detail_duree_reelle">%1$s (parcours)</string>
+    <string name="detail_duree_marche">%1$s (marche estimée)</string>
+    <string name="detail_sans_duree">durée inconnue</string>
+    <string name="detail_altitudes_fichier">altitudes du fichier</string>
     <string name="trace_exporter">Exporter le GPX</string>
     <string name="trace_partager">Partager</string>
     <string name="trace_partage_titre">Partager le parcours</string>
