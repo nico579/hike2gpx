@@ -3100,9 +3100,12 @@ class MainActivity : Activity() {
                 } catch (e: Exception) {
                     null
                 }
+            // Sans relief complet (hors réseau, hors couverture), le bilan
+            // prend le dénivelé des altitudes du GPS, lissé comme le relief.
+            val profil = enrichi?.second ?: profilFichier(points)
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
-                trace.profil = enrichi?.second
+                trace.profil = profil
                 etat.text = resumeTrace(trace)
                 val adresse = if (octets != null && fichier != null &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
@@ -3192,11 +3195,14 @@ class MainActivity : Activity() {
             return
         }
         val points = trace.points
+        val coordonnees = points.map { doubleArrayOf(it.lon, it.lat) }
         EXECUTEUR_TRACE.execute {
             val profil = try {
-                Denivele.calculer(points.map { doubleArrayOf(it.lon, it.lat) }, reliefTrace)
+                Denivele.calculer(coordonnees, reliefTrace)
             } catch (e: Exception) {
-                null
+                // Hors réseau et sans tuiles en cache : les altitudes du GPS,
+                // lissées et cumulées comme celles du relief (méthode de gpx2elev).
+                profilFichier(points)
             }
             runOnUiThread {
                 traceOccupe.set(false)
@@ -3211,6 +3217,21 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    /**
+     * Le dénivelé des seules altitudes d'un GPX ou d'une trace GPS, lissé et
+     * cumulé comme celles du relief : la méthode de gpx2elev, sans réseau.
+     * Les altitudes manquantes d'une position sont comblées ; sans aucune,
+     * il n'y a rien à calculer.
+     */
+    private fun profilFichier(points: List<PointTrace>): ProfilAltimetrique? = try {
+        val altitudes = Denivele.completer(points.map { it.altitude })
+        if (altitudes == null) null
+        else Denivele.calculerAltitudes(points.map { doubleArrayOf(it.lon, it.lat) }, altitudes,
+            getString(R.string.detail_altitudes_fichier))
+    } catch (e: Exception) {
+        null
     }
 
     private fun dessinerTraceEnregistree() {

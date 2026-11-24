@@ -30,7 +30,8 @@ class DetailTraceTest {
     @Test fun une_trace_horodatee_garde_sa_duree_de_parcours() {
         val detail = DetailTrace.calculer(trace(), listOf(relief), "fichier")
         assertTrue(detail.dureeReelle)
-        assertEquals(60_000L, detail.dureeS)
+        // La durée est en secondes, comme le champ : 60 s entre les deux points.
+        assertEquals(60L, detail.dureeS)
         assertEquals(1_111.95, detail.distanceM, 0.5)
         assertEquals("Relief d'essai", detail.modele)
     }
@@ -62,6 +63,30 @@ class DetailTraceTest {
         assertNull(detail.monteeM)
         assertNull(detail.descenteM)
         assertNull(detail.modele)
+    }
+
+    @Test fun hors_reseau_une_altitude_manquante_est_comblee() {
+        // La position du milieu n'a pas d'altitude : la droite entre 100 et 120
+        // donne 110, et le dénivelé se calcule quand même, lissé comme le relief.
+        val points = listOf(
+            PointTrace(0.0, 0.0, 100.0, 0L),
+            PointTrace(0.0, 0.005, null, 0L),
+            PointTrace(0.0, 0.01, 120.0, 0L),
+        )
+        val detail = DetailTrace.calculer(points, emptyList(), "altitudes du fichier")
+        assertTrue(detail.denivele)
+        assertEquals(20, detail.monteeM)
+        assertEquals(0, detail.descenteM)
+        assertEquals(100, detail.altitudeMinM)
+        assertEquals(120, detail.altitudeMaxM)
+    }
+
+    @Test fun les_trous_d_altitude_se_comblent_aux_extremites() {
+        assertEquals(listOf(5.0, 10.0, 15.0, 20.0, 25.0),
+            Denivele.completer(listOf(5.0, null, 15.0, null, 25.0))!!.toList())
+        assertEquals(listOf(5.0, 5.0, 5.0),
+            Denivele.completer(listOf(null, 5.0, null))!!.toList())
+        assertNull(Denivele.completer(listOf(null, null)))
     }
 
     @Test fun les_segments_d_une_trace_importee_s_additionnent() {
