@@ -123,6 +123,28 @@ object Denivele {
         return profil(grille, altGrille, nom)
     }
 
+    /**
+     * Les altitudes d'un tracé, les trous comblés d'une droite entre deux
+     * positions connues : un GPS perd parfois l'altitude d'une position, et
+     * sans cela tout le dénivelé du fichier serait perdu. Une altitude connue
+     * avant ou après le trou prend la valeur du point connu le plus proche.
+     * Null quand le tracé n'en porte aucune.
+     */
+    fun completer(altitudes: List<Double?>): DoubleArray? {
+        val connus = altitudes.indices.filter { altitudes[it] != null }
+        if (connus.isEmpty()) return null
+        val valeurs = DoubleArray(altitudes.size)
+        for (i in connus) valeurs[i] = altitudes[i]!!
+        for (i in 0 until connus.first()) valeurs[i] = valeurs[connus.first()]
+        for ((a, b) in connus.zipWithNext()) {
+            val va = valeurs[a]
+            val vb = valeurs[b]
+            for (i in a + 1 until b) valeurs[i] = va + (vb - va) * (i - a) / (b - a)
+        }
+        for (i in connus.last() until altitudes.size) valeurs[i] = valeurs[connus.last()]
+        return valeurs
+    }
+
     /** La grille de 5 m d'un tracé, les distances de ses points gardés, et ces points. */
     private fun echantillon(coordonnees: List<DoubleArray>): Triple<DoubleArray, DoubleArray, List<Int>> {
         if (coordonnees.size < 2) throw ErreurDenivele("tracé trop court")

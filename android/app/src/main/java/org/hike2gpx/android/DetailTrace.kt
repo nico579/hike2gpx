@@ -43,11 +43,13 @@ data class DetailTrace(
             val altimetrie = try {
                 Denivele.calculer(coordonnees, sources)
             } catch (e: Exception) {
-                val altitudes = points.map { it.altitude }
-                if (altitudes.any { it == null }) null
+                // Hors réseau, ou sans relief : les altitudes du fichier, les
+                // trous d'une position comblés, lissées et cumulées comme
+                // celles du relief (la méthode de gpx2elev).
+                val altitudes = Denivele.completer(points.map { it.altitude })
+                if (altitudes == null) null
                 else try {
-                    Denivele.calculerAltitudes(coordonnees,
-                        DoubleArray(altitudes.size) { altitudes[it]!! }, nomAltitudes)
+                    Denivele.calculerAltitudes(coordonnees, altitudes, nomAltitudes)
                 } catch (e: Exception) {
                     null
                 }
@@ -59,7 +61,9 @@ data class DetailTrace(
                 descenteM = altimetrie?.descenteM,
                 altitudeMinM = altimetrie?.altitudeMinM,
                 altitudeMaxM = altimetrie?.altitudeMaxM,
-                dureeS = if (reelle) instants.last() - instants.first() else altimetrie?.dureeMarcheS,
+                // [dureeS] est en secondes ; les instants sont en millisecondes.
+                dureeS = if (reelle) (instants.last() - instants.first()) / 1_000L
+                         else altimetrie?.dureeMarcheS,
                 dureeReelle = reelle,
                 modele = altimetrie?.modele,
             )

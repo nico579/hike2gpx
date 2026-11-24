@@ -34,7 +34,8 @@ calcul. La durée est celle des heures du
 fichier quand il en porte — une trace GPS, pauses comprises —, sinon celle de
 marche du modèle de Tobler. Le dénivelé vient du relief (IGN LiDAR HD puis
 Mapterhorn) ; hors ligne, ou sans couverture, il est calculé avec les altitudes
-du fichier, lissées et cumulées comme celles du relief. La fiche propose aussi
+du fichier, les trous d'une position comblés, lissées et cumulées comme celles
+du relief. La fiche propose aussi
 le partage du GPX.
 
 Le menu « Recherche » ouvre le champ de la page : il recentre la carte sur
@@ -124,11 +125,15 @@ cache la notification sans arrêter la trace.
 Pendant l'enregistrement, le bandeau donne la distance, la durée et le dénivelé
 D+/D− calculé sur le modèle de terrain. Le calcul ne lit que le cache de
 relief : en randonnée, le téléphone n'a pas de réseau. Si le cache ne couvre pas
-encore le parcours, le dénivelé reste absent du bandeau, sans arrêter la trace.
+encore le parcours, le dénivelé est calculé avec les altitudes du GPS, lissées
+et cumulées comme celles du relief (la méthode de gpx2elev), sans arrêter la
+trace.
 
 À l'arrêt, le dénivelé est refait avec tout le relief disponible : IGN LiDAR HD
 si le réseau est là et qu'il couvre la trace, sinon Mapterhorn, son cache
-d'abord, puis le réseau s'il le faut. Le GPX relu reçoit ces altitudes, sa
+d'abord, puis le réseau s'il le faut. Sans relief complet, le bilan prend le
+dénivelé des altitudes du GPS, lissé de la même façon. Le GPX relu reçoit ces
+altitudes, sa
 description porte le D+ et le D−, et le fichier enrichi remplace celui de
 `traces/` ; sur Android 10 et plus, il est aussi écrit dans Téléchargements.
 Le bilan qui suit détaille le parcours : distance, durée, D+, D−, altitude
