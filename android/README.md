@@ -36,7 +36,10 @@ marche du modèle de Tobler. Le dénivelé vient du relief (IGN LiDAR HD puis
 Mapterhorn) ; hors ligne, ou sans couverture, il est calculé avec les altitudes
 du fichier, les trous d'une position comblés, lissées et cumulées comme celles
 du relief. La fiche propose aussi
-le partage du GPX.
+le partage du GPX. Chaque ligne porte une case à cocher : « Voir sur la carte »
+dessine les traces cochées, chacune dans sa couleur, et referme la page ;
+« Supprimer » les efface après confirmation, sauf la trace en cours
+d'enregistrement.
 
 Le menu « Recherche » ouvre le champ de la page : il recentre la carte sur
 une ville ou sur des coordonnées « lat, lon », sans poser de point. Les

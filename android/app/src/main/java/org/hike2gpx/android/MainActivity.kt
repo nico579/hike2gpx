@@ -226,6 +226,10 @@ class MainActivity : Activity() {
     private var fenetreTraces: LinearLayout? = null
     /** La fiche d'un GPX, ouverte tout de suite puis remplie quand le calcul finit. */
     private var dialogueDetail: AlertDialog? = null
+    /** Les traces cochées dans « Mes traces », par nom de fichier ; la sélection suit les rafraîchissements. */
+    private val tracesCochees = linkedSetOf<String>()
+    /** L'affichage vient de « Mes traces » : le menu propose de le masquer, pas de retirer un import. */
+    private var importDepuisTraces = false
     /** L'APK de mise à jour vérifié, qui attend l'installateur (ou l'autorisation d'installer). */
     private var apkEnAttente: File? = null
     private var attenteAutorisation = false
@@ -1598,10 +1602,38 @@ class MainActivity : Activity() {
         val colonne = fenetreTraces ?: return
         colonne.removeAllViews()
         val fichiers = tracesEnregistrees()
+        // Une trace effacée hors de la page ne reste pas cochée.
+        tracesCochees.retainAll(fichiers.map { it.name }.toSet())
         if (fichiers.isEmpty()) {
             colonne.addView(TextView(this).apply { setText(R.string.traces_aucune) })
             return
         }
+        // Les deux actions portent sur les traces cochées : les voir sur la
+        // carte, ou les effacer. Elles restent visibles, grisées sans coche,
+        // pour que la page dise ce qu'elle sait faire.
+        val voir = Button(this).apply {
+            setText(R.string.traces_voir)
+            setOnClickListener { voirTracesCochees() }
+        }.avecIcone(R.drawable.ic_btn_chercher)
+        val supprimer = Button(this).apply {
+            setText(R.string.supprimer)
+            setOnClickListener { confirmerSuppressionTraces() }
+        }.avecIcone(R.drawable.ic_btn_supprimer, rouge = true)
+        fun majActions() {
+            voir.isEnabled = tracesCochees.isNotEmpty()
+            supprimer.isEnabled = tracesCochees.isNotEmpty()
+        }
+        majActions()
+        colonne.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(voir, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(supprimer, LinearLayout.LayoutParams(0, -2, 1f))
+        })
+        colonne.addView(TextView(this).apply {
+            setText(R.string.traces_cochez)
+            textSize = 13f
+            setPadding(0, dp(4), 0, 0)
+        })
         // Le préfixe du nom dit d'où vient le fichier, comme à l'enregistrement.
         val sections = listOf(
             R.string.traces_planifies to fichiers.filter { it.name.startsWith(PREFIXE_ITINERAIRE) },
@@ -1613,11 +1645,154 @@ class MainActivity : Activity() {
         for ((titreSection, liste) in sections) {
             if (liste.isEmpty()) continue
             titre(colonne, titreSection)
-            for (f in liste) colonne.addView(TextView(this).apply {
-                text = nomTrace(f)
-                zoneCliquable { montrerDetail(f) }
-            })
+            for (f in liste) {
+                val ligne = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                val coche = CheckBox(this).apply {
+                    isChecked = f.name in tracesCochees
+                    contentDescription = nomTrace(f)
+                    setOnCheckedChangeListener { _, v ->
+                        if (v) tracesCochees.add(f.name) else tracesCochees.remove(f.name)
+                        majActions()
+                    }
+                }
+                ligne.addView(coche)
+                // La ligne elle-même ouvre la fiche, comme avant : la case ne
+                // prend que son carré pour ne pas cacher le détail.
+                ligne.addView(TextView(this).apply {
+                    text = nomTrace(f)
+                    zoneCliquable { montrerDetail(f) }
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                colonne.addView(ligne)
+            }
         }
+    }
+
+    /** Les fichiers cochés de « Mes traces », dans l'ordre de la page. */
+    private fun tracesCocheesFichiers(): List<File> =
+        tracesEnregistrees().filter { it.name in tracesCochees }
+
+    /**
+     * Affiche les traces cochées sur la carte, chacune dans sa couleur : la
+     * page se referme pour laisser voir le dessin, et un toucher sur une trace
+     * ouvre sa fiche. La lecture se fait hors de l'écran, un GPX pouvant peser
+     * plusieurs mégaoctets.
+     */
+    private fun voirTracesCochees() {
+        val fichiers = tracesCocheesFichiers()
+        if (fichiers.isEmpty()) return
+        refermerPages()
+        EXECUTEUR_DETAILS.execute {
+            val choix = fichiers.mapNotNull { f ->
+                runCatching { TracesImportees.lire(f.readText(), f.nameWithoutExtension) }
+                    .getOrNull()?.takeIf { it.isNotEmpty() }?.let { f to it }
+            }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                if (choix.isEmpty()) Toast.makeText(this, R.string.trace_illisible, Toast.LENGTH_LONG).show()
+                else afficherTracesChoisies(choix)
+            }
+        }
+    }
+
+    /**
+     * Dessine les traces choisies dans « Mes traces », une couleur par fichier :
+     * le liseré sombre les détache du fond, comme l'import d'un GPX. La vue se
+     * cadre sur l'ensemble, et le menu peut les masquer d'un coup.
+     */
+    private fun afficherTracesChoisies(choix: List<Pair<File, List<TraceImportee>>>) {
+        retirerImport()
+        val densite = resources.displayMetrics.density
+        var sud = 90.0; var nord = -90.0; var ouest = 180.0; var est = -180.0
+        fun ajouter(ligne: Polyline) {
+            carte.overlays.add(1 + tracesImportees.size, ligne)        // au-dessus des calques, sous le tracé
+            tracesImportees.add(ligne)
+        }
+        choix.forEachIndexed { i, (_, traces) ->
+            val couleur = COULEURS_TRACES[i % COULEURS_TRACES.size]
+            for (t in traces) for (segment in t.segments) {
+                val points = segment.map { GeoPoint(it.first, it.second) }
+                ajouter(Polyline(carte).apply {
+                    setPoints(points)
+                    outlinePaint.color = COULEUR_GPX_BORD
+                    outlinePaint.strokeWidth = 7 * densite
+                    outlinePaint.pathEffect = DashPathEffect(floatArrayOf(9 * densite, 6 * densite), 0f)
+                    relatedObject = t
+                })
+                ajouter(Polyline(carte).apply {
+                    setPoints(points)
+                    outlinePaint.color = couleur
+                    outlinePaint.strokeWidth = 4 * densite
+                    outlinePaint.strokeCap = Paint.Cap.ROUND
+                    outlinePaint.pathEffect = DashPathEffect(floatArrayOf(9 * densite, 6 * densite), 0f)
+                    relatedObject = t
+                })
+                for ((lat, lon) in segment) {
+                    sud = minOf(sud, lat); nord = maxOf(nord, lat); ouest = minOf(ouest, lon); est = maxOf(est, lon)
+                }
+            }
+        }
+        nomImport = if (choix.size == 1) choix[0].first.nameWithoutExtension
+            else getString(R.string.traces_nom_plusieurs, choix.size)
+        importGpx = true
+        importDepuisTraces = true
+        etat.text = ""
+        majLegende()
+        if (nord >= sud) carte.zoomToBoundingBox(BoundingBox(nord, est, sud, ouest), true, dp(30))
+        carte.invalidate()
+    }
+
+    /**
+     * Supprime les traces cochées après confirmation. La trace en cours
+     * d'enregistrement s'écrit encore : elle est écartée, et la carte oublie
+     * celles qui y étaient dessinées.
+     */
+    private fun confirmerSuppressionTraces() {
+        val fichiers = tracesCocheesFichiers()
+        if (fichiers.isEmpty()) return
+        val enCours = EnregistrementGps.fichier?.takeIf { EnregistrementGps.actif }
+        val supprimables = fichiers.filter { it != enCours }
+        if (supprimables.isEmpty()) {
+            Toast.makeText(this, R.string.traces_en_cours, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (supprimables.size < fichiers.size)
+            Toast.makeText(this, R.string.traces_en_cours, Toast.LENGTH_LONG).show()
+        val message = if (supprimables.size == 1)
+            getString(R.string.traces_supprimer_message, nomTrace(supprimables[0]))
+        else getString(R.string.traces_supprimer_message_plusieurs, supprimables.size)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.traces_supprimer_titre)
+            .setMessage(message)
+            .setPositiveButton(R.string.supprimer) { _, _ ->
+                var effaces = 0
+                for (f in supprimables) if (f.delete()) effaces++
+                oublierTracesAffichees(supprimables.map { it.nameWithoutExtension }.toSet())
+                tracesCochees.removeAll(supprimables.map { it.name }.toSet())
+                remplirTraces()
+                Toast.makeText(this,
+                    resources.getQuantityString(R.plurals.traces_supprimees, effaces, effaces),
+                    Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Retire de la carte les traces affichées dont le fichier vient d'être effacé. */
+    private fun oublierTracesAffichees(noms: Set<String>) {
+        val retirees = tracesImportees.filter { (it.relatedObject as? TraceImportee)?.nom in noms }
+        if (retirees.isEmpty()) return
+        retirees.forEach { carte.overlays.remove(it) }
+        tracesImportees.removeAll(retirees)
+        if (tracesImportees.isEmpty()) {
+            nomImport = null
+            importGpx = false
+            importDepuisTraces = false
+        }
+        majLegende()
+        carte.invalidate()
     }
 
     /** Le nom lisible d'un fichier de traces/ : la date d'un itinéraire ou d'une trace, le nom d'un import. */
@@ -1955,7 +2130,11 @@ class MainActivity : Activity() {
             Triple(R.drawable.ic_itineraires, R.string.menu_itineraires, ::ouvrirItineraires),
             Triple(R.drawable.ic_traces, R.string.menu_traces, ::ouvrirTraces),
             Triple(R.drawable.ic_importer,
-                if (nomImport == null) R.string.menu_importer else R.string.menu_retirer_import,
+                when {
+                    nomImport == null -> R.string.menu_importer
+                    importDepuisTraces -> R.string.menu_masquer_traces
+                    else -> R.string.menu_retirer_import
+                },
                 ::basculerImport),
             Triple(R.drawable.ic_enregistrer,
                 if (enregistre) R.string.menu_arreter else R.string.menu_enregistrer,
@@ -2784,6 +2963,7 @@ class MainActivity : Activity() {
         tracesImportees.clear()
         nomImport = null
         importGpx = false
+        importDepuisTraces = false
         majLegende()
         carte.invalidate()
     }
@@ -3836,6 +4016,12 @@ class MainActivity : Activity() {
         /** Le jaune du GPX importé et son liseré, ceux de la page du PC. */
         private const val COULEUR_GPX = 0xffffe14a.toInt()
         private const val COULEUR_GPX_BORD = 0xff344132.toInt()
+        /** Une couleur par trace cochée dans « Mes traces » : le jaune d'abord, celui d'un GPX seul. */
+        private val COULEURS_TRACES = intArrayOf(
+            COULEUR_GPX,
+            0xff4fc3f7.toInt(), 0xff81c784.toInt(), 0xffff8a65.toInt(),
+            0xffba68c8.toInt(), 0xfff06292.toInt(), 0xff4db6ac.toInt(), 0xffffd54f.toInt(),
+        )
         /** Les préfixes des GPX de traces/ : la page « Mes traces » les range par section. */
         private const val PREFIXE_ITINERAIRE = "itineraire-"
         private const val PREFIXE_IMPORT = "importe-"
