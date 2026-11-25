@@ -32,6 +32,14 @@
     <string name="plan_sans_zone_titre">No routing area here</string>
     <string name="menu_itineraires">Route management</string>
     <string name="menu_traces">My tracks</string>
+    <string name="menu_masquer_traces">Hide the tracks</string>
+    <string name="traces_voir">View on the map</string>
+    <string name="traces_cochez">Check tracks to view them on the map or delete them.</string>
+    <string name="traces_supprimer_titre">Delete tracks</string>
+    <string name="traces_supprimer_message">Delete %1$s from the phone? The file will be erased.</string>
+    <string name="traces_supprimer_message_plusieurs">Delete %1$d tracks from the phone? Their files will be erased.</string>
+    <string name="traces_en_cours">The track being recorded cannot be deleted.</string>
+    <string name="traces_nom_plusieurs">%1$d tracks</string>
     <string name="traces_aucune">No GPX yet: planned routes, imported files and GPS tracks are kept here.</string>
     <string name="traces_planifies">Planned routes</string>
     <string name="traces_importees">Imported files</string>
@@ -282,6 +290,10 @@
     <plurals name="trace_points">
         <item quantity="one">%1$d point</item>
         <item quantity="other">%1$d points</item>
+    </plurals>
+    <plurals name="traces_supprimees">
+        <item quantity="one">%1$d track deleted.</item>
+        <item quantity="other">%1$d tracks deleted.</item>
     </plurals>
     <string name="position_recherchee">Looking for the GPS position…</string>
     <string name="position_refusee">Position refused: allow location for hike2gpx.</string>

@@ -30,6 +30,14 @@
     <string name="plan_sans_zone_titre">Pas de zone de routage ici</string>
     <string name="menu_itineraires">Gestion des itinéraires</string>
     <string name="menu_traces">Mes traces</string>
+    <string name="menu_masquer_traces">Masquer les traces</string>
+    <string name="traces_voir">Voir sur la carte</string>
+    <string name="traces_cochez">Cochez des traces pour les voir sur la carte ou les supprimer.</string>
+    <string name="traces_supprimer_titre">Supprimer les traces</string>
+    <string name="traces_supprimer_message">Supprimer %1$s du téléphone ? Le fichier sera effacé.</string>
+    <string name="traces_supprimer_message_plusieurs">Supprimer %1$d traces du téléphone ? Leurs fichiers seront effacés.</string>
+    <string name="traces_en_cours">La trace en cours d’enregistrement ne peut pas être supprimée.</string>
+    <string name="traces_nom_plusieurs">%1$d traces</string>
     <string name="traces_aucune">Aucun GPX pour le moment : les itinéraires planifiés, les fichiers importés et les traces GPS se rangent ici.</string>
     <string name="traces_planifies">Itinéraires planifiés</string>
     <string name="traces_importees">Fichiers importés</string>
@@ -280,6 +288,10 @@
     <plurals name="trace_points">
         <item quantity="one">%1$d point</item>
         <item quantity="other">%1$d points</item>
+    </plurals>
+    <plurals name="traces_supprimees">
+        <item quantity="one">%1$d trace supprimée.</item>
+        <item quantity="other">%1$d traces supprimées.</item>
     </plurals>
     <string name="position_recherchee">Recherche de la position GPS…</string>
     <string name="position_refusee">Position refusée : autorisez la localisation pour hike2gpx.</string>
