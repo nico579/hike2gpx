@@ -99,7 +99,9 @@ function charger(preferences = {}, documentGpx = null) {
     setTimeout(callback, ms) { minuteurs.push({ callback, ms }); return minuteurs.length; },
     clearTimeout(id) { if (minuteurs[id - 1]) minuteurs[id - 1].annule = true; },
     setInterval() { return 1; }, clearInterval() {}, requestAnimationFrame(f) { f(); },
-     L: { map() { return carte; }, layerGroup: couche, canvas: couche,
+     L: { map() { return carte; }, layerGroup: couche,
+       canvas: (...args) => Object.assign(couche(), { type: "canvas", args }),
+       svg: (...args) => Object.assign(couche(), { type: "svg", args }),
        popup: (options) => ({ options, setLatLng(latlng) { this.latlng = latlng; return this; },
          setContent(content) { this.content = content; return this; },
          openOn(map) { map.popup = this; return this; } }),
@@ -151,6 +153,7 @@ function charger(preferences = {}, documentGpx = null) {
      + " debutLecture, finLecture, suivreLectures, afficherDonnees, construireFonds, choisirPays,"
     + " fond: () => fondActif, fonds: () => couchesFonds, controle: () => controleFonds, restaurerCalques,"
     + " preparerFleches, afficherFleches, fleches, traceGpxImporte, bulleTraceImportee, TEXTES, providers: window.HIKE2GPX_MAP_PROVIDERS,"
+    + " renduImport, renduObstacles,"
     + " grilleCases, chargerLots, chargerFonds, preparerCase, suivreLot, casesVisibles, nomCase, nomCarre, boiteCase,"
     + " horsLigne, activerHorsLigne, dessinerCases, lancerSuivant, sourceAGarder,"
     + " bornesTuile, basculerPartage, selectionGrille, adresseArchive, nomArchive, enregistrerReglages, lireNomTrace, couleurKml, verifierZonePlanification, majLegende, coucheCalque,"
@@ -1379,6 +1382,7 @@ test("le calque OSM montre clôtures et franchissements sans itinéraire", async
   assert.deepEqual(couches.slice(1).map((c) => c.options.fillColor), ["#ef6c00", "#d32f2f", "#fdd835"],
     "le chemin non raccordé en jaune, à part des franchissements");
   assert.ok(couches.slice(1).every((c) => c.options.pane === "obstaclesOsm"));
+  assert.ok(couches.slice(1).every((c) => c.options.renderer === page.renduObstacles));
   // Puis une vue sans zone de routage : la carte de fond seule, sans les chemins d'avant
   // (Nico, 2026-11-13, à Montréal : « Supprimer » l'affichage à la volée).
   page.CALQUES.osm.charge = null;
@@ -1389,6 +1393,17 @@ test("le calque OSM montre clôtures et franchissements sans itinéraire", async
   await ailleurs;
   assert.equal(page.CALQUES.osm.groupe.layers.length, 0);
   assert.equal(page.CALQUES.osm.charge, null, "redemandé à la vue suivante");
+});
+
+test("le pane des obstacles, au-dessus des traces importées, ne porte pas de canevas", () => {
+  // Un canevas occupe tout son pane et intercepte les clics : celui des
+  // obstacles (452) rendait incliquables les traces d'un KML, dessinées dans le
+  // canevas juste en dessous (449). Nico, 2026-11-26 : « quand j'importe ce kml,
+  // je ne peux pas cliquer sur les traces pour avoir le détail ».
+  const { page } = charger();
+  assert.equal(page.renduImport.type, "canvas", "les traces importées gardent leur canevas");
+  assert.equal(page.renduObstacles.type, "svg", "les obstacles restent cliquables, sans masquer les traces");
+  assert.equal(page.renduObstacles.args[0].pane, "obstaclesOsm");
 });
 
 test("calques : la vue seule, une vue quittée coupée, rien de relu dans les tuiles déjà lues", async () => {
