@@ -1023,7 +1023,10 @@ const renduImport = L.canvas({ pane: "gpxImporte", tolerance: 6 });
 let nomGpxImporte = null;
 let sequenceImportGpx = 0;
 const rendu = L.canvas({ padding: 0.2 });
-const renduObstacles = L.canvas({ padding: 0.2, pane: "obstaclesOsm" });
+// Les obstacles se dessinent en SVG : un canevas occupe tout le pane et
+// capterait les clics destinés aux traces importées, dont le canevas est juste
+// en dessous (Nico, 2026-11-26 : « je ne peux pas cliquer sur les traces »).
+const renduObstacles = L.svg({ padding: 0.2, pane: "obstaclesOsm" });
 // Le zoom à partir duquel les calques se dessinent : réglable (Réglages), de 14, où
 // le lot et le serveur n'ont plus de tuile plus large, à 19. 14 par défaut au grand
 // écran du PC ; le téléphone, plus lent, en demande 16.
