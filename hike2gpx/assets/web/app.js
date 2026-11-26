@@ -103,10 +103,18 @@ const TEXTES = {
     "gpx.erreur": "Impossible de charger ce fichier : {message}",
     "gpx.invalide": "fichier GPX ou KML invalide, ou sans tracé.",
     "trace.date": "Date : {date}",
+    "trace.points": "Points : {n}",
     "trace.distance": "Distance : {km}",
     "trace.denivele": "Dénivelé : + {plus} m / − {moins} m ({modele})",
     "trace.deniveleNom": "Dénivelé : + {plus} m",
+    "trace.altitudes": "Altitude : de {min} m à {max} m",
     "trace.duree": "Durée : {duree}",
+    "trace.dureeParcours": "Durée : {duree} (parcours)",
+    "trace.dureeMarche": "Durée : {duree} (marche estimée)",
+    "trace.calcul": "Calcul du détail…",
+    "trace.sansDenivele": "Dénivelé non calculé : les données d'altitude sont incomplètes.",
+    "trace.deniveleIndisponible": "Dénivelé non calculé : {erreur}",
+    "trace.altitudesFichier": "altitudes du fichier",
     "gpx.tropGrand": "fichier trop volumineux (20 Mo maximum).",
     "option.strict": "Inclure les blocages à vérifier",
     "option.cheminsRoutables": "Inclure les chemins {nom}",
@@ -385,10 +393,18 @@ const TEXTES = {
     "gpx.erreur": "Unable to load this file: {message}",
     "gpx.invalide": "invalid GPX or KML file, or no track found.",
     "trace.date": "Date: {date}",
+    "trace.points": "Points: {n}",
     "trace.distance": "Distance: {km}",
     "trace.denivele": "Elevation: + {plus} m / − {moins} m ({modele})",
     "trace.deniveleNom": "Elevation gain: + {plus} m",
+    "trace.altitudes": "Altitude: {min} m to {max} m",
     "trace.duree": "Time: {duree}",
+    "trace.dureeParcours": "Time: {duree} (elapsed)",
+    "trace.dureeMarche": "Time: {duree} (estimated walking)",
+    "trace.calcul": "Computing the detail…",
+    "trace.sansDenivele": "Elevation not computed: the elevation data is incomplete.",
+    "trace.deniveleIndisponible": "Elevation not computed: {erreur}",
+    "trace.altitudesFichier": "file elevations",
     "gpx.tropGrand": "file too large (20 MB maximum).",
     "option.strict": "Include crossings to check",
     "option.cheminsRoutables": "Include {nom} paths",
@@ -2787,31 +2803,60 @@ function exporter() {
   setTimeout(() => URL.revokeObjectURL(lien.href), 1000);
 }
 
+// Le texte d'un enfant direct d'un point GPX (ele, time), ou null : les
+// extensions d'un trkpt ne doivent pas se faire passer pour son altitude.
+function texteEnfantGpx(element, nom) {
+  for (const enfant of element.children || []) {
+    if (enfant.localName === nom) return enfant.textContent;
+  }
+  return null;
+}
+
 function lireTracesGpx(source) {
   const xml = new DOMParser().parseFromString(source, "application/xml");
   if (xml.documentElement?.localName !== "gpx" || xml.getElementsByTagName("parsererror").length) {
     throw new Error(t("gpx.invalide"));
   }
   const segments = [];
-  const lirePoints = (parent, nom) => Array.from(parent.getElementsByTagNameNS("*", nom), (point) => {
-    const latitude = point.getAttribute("lat");
-    const longitude = point.getAttribute("lon");
-    const lat = Number(latitude);
-    const lon = Number(longitude);
-    if (!latitude?.trim() || !longitude?.trim() || !Number.isFinite(lat) || !Number.isFinite(lon)
-      || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error(t("gpx.invalide"));
-    return [lat, lon];
-  });
+  const heures = [];
+  const lirePoints = (parent, nom) => {
+    const instants = [];
+    const points = Array.from(parent.getElementsByTagNameNS("*", nom), (point) => {
+      const latitude = point.getAttribute("lat");
+      const longitude = point.getAttribute("lon");
+      const lat = Number(latitude);
+      const lon = Number(longitude);
+      if (!latitude?.trim() || !longitude?.trim() || !Number.isFinite(lat) || !Number.isFinite(lon)
+        || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error(t("gpx.invalide"));
+      // L'altitude et l'heure servent au détail de la trace ; la géométrie
+      // reste [lat, lon], Leaflet lit l'altitude quand elle est là.
+      const texteAltitude = texteEnfantGpx(point, "ele");
+      const altitude = texteAltitude ? Number(texteAltitude) : NaN;
+      const texteInstant = texteEnfantGpx(point, "time");
+      const instant = texteInstant ? Date.parse(texteInstant) : NaN;
+      instants.push(Number.isFinite(instant) ? instant : null);
+      const coordonnee = [lat, lon];
+      if (Number.isFinite(altitude)) coordonnee.push(altitude);
+      return coordonnee;
+    });
+    return { points, instants };
+  };
   for (const segment of xml.getElementsByTagNameNS("*", "trkseg")) {
-    const points = lirePoints(segment, "trkpt");
-    if (points.length) segments.push(points);
+    const { points, instants } = lirePoints(segment, "trkpt");
+    if (points.length) {
+      segments.push(points);
+      heures.push(instants);
+    }
   }
   for (const route of xml.getElementsByTagNameNS("*", "rte")) {
-    const points = lirePoints(route, "rtept");
-    if (points.length) segments.push(points);
+    const { points, instants } = lirePoints(route, "rtept");
+    if (points.length) {
+      segments.push(points);
+      heures.push(instants);
+    }
   }
   if (!segments.length) throw new Error(t("gpx.invalide"));
-  return segments;
+  return { segments, heures };
 }
 
 // KML (Google Earth, Géoportail, gpx2dash…) : une trace par Placemark, avec la
@@ -2846,8 +2891,12 @@ function lireTracesKml(source) {
       const points = [];
       const brut = ligne.getElementsByTagNameNS("*", "coordinates")[0]?.textContent || "";
       for (const triplet of brut.trim().split(/\s+/)) {
-        const [lon, lat] = triplet.split(",").map(Number);
-        if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) points.push([lat, lon]);
+        const [lon, lat, alt] = triplet.split(",").map(Number);
+        if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+          const coordonnee = [lat, lon];
+          if (Number.isFinite(alt)) coordonnee.push(alt);
+          points.push(coordonnee);
+        }
       }
       if (points.length > 1) segments.push(points);
     }
@@ -2858,7 +2907,10 @@ function lireTracesKml(source) {
       try { infos[donnee.getAttribute("name")] = JSON.parse(valeur); } catch { infos[donnee.getAttribute("name")] = valeur; }
     }
     const lien = (enfant(repere, "styleUrl")?.textContent || "").trim().replace(/^#/, "");
-    traces.push({ nom: (enfant(repere, "name")?.textContent || "").trim(), segments, style: styles.get(lien) || {}, infos });
+    // Un KML ne porte pas d'heure par point : sa durée vient du nom, et le
+    // détail la complète par le relief.
+    traces.push({ nom: (enfant(repere, "name")?.textContent || "").trim(), segments, heures: [],
+      kml: true, style: styles.get(lien) || {}, infos });
   }
   if (!traces.length) throw new Error(t("gpx.invalide"));
   return traces;
@@ -2884,28 +2936,201 @@ function longueurTrace(segments) {
   return metres;
 }
 
-// La bulle d'une trace importée : son nom, sa date, sa distance, son dénivelé, sa durée.
-function bulleTraceImportee(trace) {
-  const div = document.createElement("div");
-  div.className = "bulle";
-  const lu = lireNomTrace(trace.nom);
+// Les altitudes d'un tracé, dans l'ordre des segments ; null quand le point
+// n'en porte pas. Un KML met souvent 0 en troisième coordonnée : ce n'est pas
+// une altitude, et tout le fichier est alors réputé sans altitude.
+function altitudesTrace(trace) {
+  let altitudes = [];
+  for (const points of trace.segments || []) {
+    for (const point of points) {
+      const altitude = Array.isArray(point) ? Number(point[2]) : NaN;
+      altitudes.push(Number.isFinite(altitude) ? altitude : null);
+    }
+  }
+  if (trace.kml && altitudes.every((altitude) => altitude == null || altitude === 0)) {
+    altitudes = altitudes.map(() => null);
+  }
+  return altitudes;
+}
+
+// La durée des heures du fichier, comme Android : tous les points horodatés,
+// dans l'ordre, du premier au dernier. Null quand le fichier n'en porte pas.
+function dureeDesHeures(trace, points) {
+  const instants = (trace.heures || []).flat();
+  if (points < 2 || instants.length !== points
+    || !instants.every((instant) => Number.isFinite(instant) && instant > 0)) return null;
+  for (let i = 1; i < instants.length; i++) if (instants[i] < instants[i - 1]) return null;
+  if (instants.at(-1) <= instants[0]) return null;
+  return { dureeS: Math.round((instants.at(-1) - instants[0]) / 1000), dureeReelle: true,
+    dureeSource: "parcours", premierInstant: instants[0] };
+}
+
+// Ce qu'un fichier dit de lui-même : ses points, sa distance, ses altitudes,
+// le dénivelé exact d'un KML de gpx2dash et sa durée (heures ou nom).
+function detailFichierTrace(trace) {
+  const segments = trace.segments || [];
+  const points = segments.reduce((total, segment) => total + segment.length, 0);
+  const lu = lireNomTrace(trace.nom || "");
+  // La distance du nom vient du GPX complet ; la géométrie d'un KML est souvent simplifiée.
+  const detail = { points, distanceM: lu.km != null ? lu.km * 1000 : longueurTrace(segments),
+    monteeM: null, descenteM: null, altitudeMinM: null, altitudeMaxM: null,
+    dureeS: null, dureeReelle: false, dureeSource: null, modele: null, premierInstant: null, lu };
+  const exact = trace.infos?.denivele_exact;
+  if (exact && Number.isFinite(exact.Dplus_m) && Number.isFinite(exact.Dmoins_m)) {
+    detail.monteeM = Math.round(exact.Dplus_m);
+    detail.descenteM = Math.round(exact.Dmoins_m);
+    detail.modele = typeof trace.infos.modele === "string" ? trace.infos.modele : "gpx2elev";
+  } else if (lu.dplus != null) {
+    detail.monteeM = lu.dplus;
+  }
+  let mini = Infinity, maxi = -Infinity;
+  for (const altitude of altitudesTrace(trace)) {
+    if (altitude == null || altitude < -1000 || altitude > 9000) continue;
+    mini = Math.min(mini, altitude);
+    maxi = Math.max(maxi, altitude);
+  }
+  if (mini !== Infinity) {
+    detail.altitudeMinM = Math.round(mini);
+    detail.altitudeMaxM = Math.round(maxi);
+  }
+  const duree = dureeDesHeures(trace, points);
+  if (duree) Object.assign(detail, duree);
+  else if (lu.minutes != null) {
+    detail.dureeS = lu.minutes * 60;
+    detail.dureeReelle = true;
+    detail.dureeSource = "nom";
+  }
+  return detail;
+}
+
+// Les points d'un tracé au format attendu par gpx2elev : longitude, latitude,
+// altitude quand le fichier en donne une.
+function coordonneesTrace(trace) {
+  const altitudes = altitudesTrace(trace);
+  let rang = 0;
+  return (trace.segments || []).map((segment) => segment.map((point) => {
+    const [lat, lon] = point;
+    const coordonnee = [lon, lat];
+    // Le « 0 » d'un KML sans relief n'est pas une altitude : altitudesTrace
+    // l'a déjà écarté, pour que le repli du serveur ne rende pas un profil plat.
+    const altitude = altitudes[rang++];
+    if (altitude != null) coordonnee.push(altitude);
+    return coordonnee;
+  })).filter((segment) => segment.length >= 2);
+}
+
+// Le dénivelé du relief (gpx2elev), segment par segment : le trait qui joint
+// deux segments d'un KML n'existe pas. La durée de marche ne remplace pas
+// celle des heures du fichier, ni celle de son nom.
+async function calculerReliefTrace(trace, base) {
+  let montee = 0, descente = 0, mini = Infinity, maxi = -Infinity, duree = 0, modele = null, calcule = false;
+  let erreur = null;
+  for (const coordonnees of coordonneesTrace(trace)) {
+    let r;
+    try {
+      r = await api("denivele", { coordonnees, repli_fichier: true });
+    } catch (e) {
+      erreur = e.message;
+      break;
+    }
+    if (r.erreur) {
+      erreur = r.erreur;
+      break;
+    }
+    montee += r.montee_m;
+    descente += r.descente_m;
+    mini = Math.min(mini, r.altitude_min_m);
+    maxi = Math.max(maxi, r.altitude_max_m);
+    duree += r.duree_marche_s || 0;
+    if (r.depuis_fichier) modele = t("trace.altitudesFichier");
+    else if (!modele && r.modele) modele = r.modele;
+    calcule = true;
+  }
+  if (!calcule) {
+    trace.detailRelief = null;
+    trace.detailErreur = erreur;
+    return;
+  }
+  const detail = { ...base, monteeM: Math.round(montee), descenteM: Math.round(descente),
+    altitudeMinM: Math.round(mini), altitudeMaxM: Math.round(maxi), modele: modele || base.modele };
+  if (!base.dureeReelle && duree > 0) {
+    detail.dureeS = Math.round(duree);
+    detail.dureeReelle = false;
+    detail.dureeSource = "marche";
+  }
+  trace.detailRelief = detail;
+  trace.detailErreur = null;
+}
+
+// Le détail d'une trace importée, calculé une seule fois pour toutes ses bulles.
+function chargerReliefTrace(trace) {
+  if (trace.detailRelief !== undefined) return Promise.resolve(trace.detailRelief);
+  if (trace.detailPromesse) return trace.detailPromesse;
+  if (!trace.detailFichier) trace.detailFichier = detailFichierTrace(trace);
+  const base = trace.detailFichier;
+  // Un KML de gpx2dash porte déjà le dénivelé exact et son modèle : inutile de relire le relief.
+  if (base.modele != null && base.monteeM != null && base.descenteM != null) {
+    trace.detailRelief = base;
+    return Promise.resolve(base);
+  }
+  trace.detailPromesse = calculerReliefTrace(trace, base).finally(() => { trace.detailPromesse = null; });
+  return trace.detailPromesse;
+}
+
+// Les lignes de la fiche d'une trace importée, comme sur le téléphone.
+function lignesDetailTrace(trace) {
+  const d = trace.detailRelief || trace.detailFichier || detailFichierTrace(trace);
+  const lu = d.lu || lireNomTrace(trace.nom || "");
   const lignes = [];
   if (lu.date) {
     const jour = lu.date.toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR",
       { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
     lignes.push(t("trace.date", { date: lu.heure ? `${jour}, ${lu.heure}` : jour }));
+  } else if (d.premierInstant) {
+    const date = new Date(d.premierInstant);
+    const jour = date.toLocaleDateString(langue === "en" ? "en-GB" : "fr-FR",
+      { day: "numeric", month: "long", year: "numeric" });
+    const heure = date.toLocaleTimeString(langue === "en" ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit" });
+    lignes.push(t("trace.date", { date: `${jour}, ${heure}` }));
   }
-  // La distance du nom vient du GPX complet ; la géométrie d'un KML est souvent simplifiée.
-  lignes.push(t("trace.distance", { km: km(lu.km != null ? lu.km * 1000 : longueurTrace(trace.segments)) }));
-  const d = trace.infos.denivele_exact;
-  if (d && Number.isFinite(d.Dplus_m) && Number.isFinite(d.Dmoins_m)) {
-    const modele = typeof trace.infos.modele === "string" ? trace.infos.modele : "gpx2elev";
-    lignes.push(t("trace.denivele", { plus: Math.round(d.Dplus_m), moins: Math.round(d.Dmoins_m), modele }));
-  } else if (lu.dplus != null) {
-    lignes.push(t("trace.deniveleNom", { plus: lu.dplus }));
+  lignes.push(t("trace.points", { n: d.points }));
+  lignes.push(t("trace.distance", { km: km(d.distanceM) }));
+  if (d.monteeM != null && d.descenteM != null) {
+    lignes.push(t("trace.denivele", { plus: d.monteeM, moins: d.descenteM, modele: d.modele || "gpx2elev" }));
+  } else if (d.monteeM != null) {
+    lignes.push(t("trace.deniveleNom", { plus: d.monteeM }));
   }
-  if (lu.minutes != null) lignes.push(t("trace.duree", { duree: dureeLongue(lu.minutes * 60) }));
-  div.append(paragraphe(lu.titre || trace.nom, true), ...lignes.map((l) => paragraphe(l)));
+  if (d.altitudeMinM != null && d.altitudeMaxM != null) {
+    lignes.push(t("trace.altitudes", { min: d.altitudeMinM, max: d.altitudeMaxM }));
+  }
+  if (d.dureeS != null) {
+    const cle = d.dureeSource === "marche" ? "trace.dureeMarche"
+      : d.dureeSource === "parcours" ? "trace.dureeParcours" : "trace.duree";
+    lignes.push(t(cle, { duree: dureeLongue(d.dureeS) }));
+  }
+  if (trace.detailPromesse) {
+    lignes.push(t("trace.calcul"));
+  } else if (trace.detailRelief !== undefined && d.monteeM == null) {
+    lignes.push(trace.detailErreur
+      ? t("trace.deniveleIndisponible", { erreur: ts(trace.detailErreur) }) : t("trace.sansDenivele"));
+  }
+  return lignes;
+}
+
+// La bulle d'une trace importée : son nom, sa date, ses points, sa distance,
+// son dénivelé, ses altitudes et sa durée. Le relief complète la fiche sans
+// attendre : « Calcul du détail… » s'affiche, puis les chiffres arrivent.
+function bulleTraceImportee(trace) {
+  const div = document.createElement("div");
+  div.className = "bulle";
+  const lu = trace.detailFichier?.lu || lireNomTrace(trace.nom || "");
+  div.append(paragraphe(lu.titre || trace.nom || "", true));
+  const fiche = document.createElement("div");
+  fiche.className = "trace-detail";
+  div.append(fiche);
+  const remplir = () => fiche.replaceChildren(...lignesDetailTrace(trace).map((ligne) => paragraphe(ligne)));
+  chargerReliefTrace(trace).then(remplir, () => {});
+  remplir();
   // Le retrait là où l'on regarde la trace, pas seulement dans le menu.
   const retirer = document.createElement("button");
   retirer.type = "button";
@@ -2923,7 +3148,9 @@ async function chargerGpx(fichier) {
     if (fichier.size > 20_000_000) throw new Error(t("gpx.tropGrand"));
     const texte = await fichier.text();
     const kml = /\.kml$/i.test(fichier.name) || /<kml[\s>]/.test(texte.slice(0, 1000));
-    const traces = kml ? lireTracesKml(texte) : [{ segments: lireTracesGpx(texte) }];
+    const nom = fichier.name.replace(/\.(gpx|kml)$/i, "") || fichier.name;
+    const traces = kml ? lireTracesKml(texte)
+      : [{ nom, kml: false, style: {}, infos: {}, ...lireTracesGpx(texte) }];
     if (sequence !== sequenceImportGpx) return;
     traceGpxImporte.clearLayers();
     let minLat = 90, minLon = 180, maxLat = -90, maxLon = -180;
@@ -2935,10 +3162,14 @@ async function chargerGpx(fichier) {
             opacity: trace.style.opacite ?? 1, weight: trace.style.epaisseur || 4, bubblingMouseEvents: false })
             .bindPopup(() => bulleTraceImportee(trace)).addTo(traceGpxImporte);
         } else {
+          // Le liseré sombre élargit la cible du clic ; les deux traits ouvrent
+          // la même fiche, comme le clic sur une trace du téléphone.
           L.polyline(points, { pane: "gpxImporte", color: "#344132", weight: 7, opacity: 0.9,
-            dashArray: "9 6", interactive: false }).addTo(traceGpxImporte);
+            dashArray: "9 6", bubblingMouseEvents: false })
+            .bindPopup(() => bulleTraceImportee(trace)).addTo(traceGpxImporte);
           L.polyline(points, { pane: "gpxImporte", color: "#ffe14a", weight: 4, opacity: 1,
-            dashArray: "9 6", interactive: false, leg: "gpx" }).addTo(traceGpxImporte);
+            dashArray: "9 6", bubblingMouseEvents: false, leg: "gpx" })
+            .bindPopup(() => bulleTraceImportee(trace)).addTo(traceGpxImporte);
         }
         for (const [lat, lon] of points) {
           minLat = Math.min(minLat, lat); minLon = Math.min(minLon, lon);
@@ -2946,7 +3177,7 @@ async function chargerGpx(fichier) {
         }
       }
     }
-    nomGpxImporte = fichier.name.replace(/\.(gpx|kml)$/i, "") || fichier.name;
+    nomGpxImporte = nom;
     traceGpxImporte.addTo(carte);
     if (controleFonds) controleFonds.addOverlay(traceGpxImporte, echapper(nomGpxImporte));
     else construireFonds();

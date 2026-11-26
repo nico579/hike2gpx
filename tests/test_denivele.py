@@ -76,6 +76,36 @@ def test_aucun_modele_disponible(tmp_path):
         denivele.calculer(trace_est_ouest(), tmp_path, lecteur=Panne())
 
 
+def test_repli_sur_les_altitudes_du_fichier(tmp_path):
+    coordonnees = trace_est_ouest()
+    for point, altitude in zip(coordonnees, np.linspace(100, 200, len(coordonnees))):
+        point[2] = altitude
+    r = denivele.calculer(coordonnees, tmp_path, lecteur=Panne(), replier_fichier=True)
+    assert r["montee_m"] == pytest.approx(100, abs=2) and r["descente_m"] <= 1
+    assert (r["altitude_min_m"], r["altitude_max_m"]) == (100, 200)
+    assert r["modele"] == denivele.MODELE_FICHIER and r["depuis_fichier"] is True
+    assert r["depuis_le_cache"] is False
+    # Sans repli, l'absence de relief reste une erreur, comme pour un itinéraire.
+    with pytest.raises(denivele.ErreurDenivele):
+        denivele.calculer(coordonnees, tmp_path, lecteur=Panne())
+
+
+def test_repli_fichier_comble_les_altitudes_manquantes(tmp_path):
+    coordonnees = trace_est_ouest()
+    for point, altitude in zip(coordonnees, np.linspace(100, 200, len(coordonnees))):
+        point[2] = altitude
+    del coordonnees[5][2:]      # un GPS perd parfois l'altitude d'une position
+    r = denivele.calculer(coordonnees, tmp_path, lecteur=Panne(), replier_fichier=True)
+    assert r["montee_m"] == pytest.approx(100, abs=2)
+    assert (r["altitude_min_m"], r["altitude_max_m"]) == (100, 200)
+
+
+def test_repli_fichier_sans_aucune_altitude(tmp_path):
+    coordonnees = [[c[0], c[1]] for c in trace_est_ouest()]
+    with pytest.raises(denivele.ErreurDenivele):
+        denivele.calculer(coordonnees, tmp_path, lecteur=Panne(), replier_fichier=True)
+
+
 @pytest.mark.parametrize("coordonnees", [None, [], [[6.0, 43.3]], [[6.0, 43.3], ["x", 43.3]],
                                          [[6.0, 43.3], [6.0, 95.0]], [[6.0, 43.3], [6.0, float("nan")]]])
 def test_trace_invalide(coordonnees):

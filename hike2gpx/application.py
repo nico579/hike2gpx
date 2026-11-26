@@ -669,10 +669,14 @@ class Application:
         l'itinéraire affiché : le calcul de l'itinéraire n'attend pas le
         modèle de terrain."""
         from . import denivele      # numpy et rasterio ne se chargent qu'au premier calcul
+        payload = payload or {}
+        # Le repli sur les altitudes du fichier n'est demandé que par la fiche
+        # d'une trace importée ; un itinéraire garde l'erreur d'un relief absent.
+        options = {"replier_fichier": True} if payload.get("repli_fichier") else {}
         with self._verrou_denivele:
             debut = time.monotonic()
             try:
-                resultat = denivele.calculer((payload or {}).get("coordonnees"), self.dossier)
+                resultat = denivele.calculer(payload.get("coordonnees"), self.dossier, **options)
             except (ValueError, denivele.ErreurDenivele) as exc:
                 journal.warning("Dénivelé en erreur après %.1f s : %s", time.monotonic() - debut, exc)
                 return {"erreur": str(exc)}

@@ -12,12 +12,14 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import numpy as np
 from gpx2elev import core
 from gpx2elev.providers import MissingCoverage, Repository
 
 POINTS_MAX = 200_000
 PROFIL_MAX_POINTS = 500
 PAS_TOBLER_M = 20.0
+MODELE_FICHIER = "altitudes du fichier"
 
 
 class ErreurDenivele(RuntimeError):
@@ -85,16 +87,73 @@ def duree_tobler(profil, *, hors_sentier: bool = False) -> float:
     return secondes
 
 
-def calculer(coordonnees, dossier, *, en_ligne: bool = True, lecteur=None) -> dict:
+def completer_altitudes(points) -> list | None:
+    """Les altitudes d'un tracé, les trous comblés d'une droite entre deux
+    positions connues, comme sur le téléphone : un GPS perd parfois l'altitude
+    d'une position, et sans cela tout le dénivelé du fichier serait perdu. Une
+    altitude connue avant ou après le trou prend la valeur du point connu le
+    plus proche. None quand le tracé n'en porte aucune, ou qu'une altitude
+    sort des bornes admises (−1000 à 9000 m)."""
+    altitudes = [float(c[2]) if len(c) > 2 and isinstance(c[2], (int, float)) and math.isfinite(c[2])
+                 else None for c in points]
+    connus = [i for i, altitude in enumerate(altitudes) if altitude is not None]
+    if not connus:
+        return None
+    valeurs = list(altitudes)
+    for i in range(connus[0]):
+        valeurs[i] = altitudes[connus[0]]
+    for debut, fin in zip(connus, connus[1:]):
+        for i in range(debut + 1, fin):
+            valeurs[i] = altitudes[debut] + (altitudes[fin] - altitudes[debut]) * (i - debut) / (fin - debut)
+    for i in range(connus[-1], len(altitudes)):
+        valeurs[i] = altitudes[connus[-1]]
+    return valeurs if all(-1000 <= altitude <= 9000 for altitude in valeurs) else None
+
+
+def profil_fichier(preparee, points) -> np.ndarray | None:
+    """Le profil d'altitudes du fichier, échantillonné et lissé sur la même
+    grille que gpx2elev ; None quand le fichier n'en porte aucune. Les
+    coordonnées sont celles du GPX relu (arrondies comme lui), pour que la
+    grille garde exactement le même nombre d'échantillons."""
+    altitudes = completer_altitudes(points)
+    if altitudes is None:
+        return None
+    debut, segments = 0, []
+    for segment in preparee.track.segments:
+        fin = debut + len(segment.coordinates)
+        segments.append(core.Segment(segment.coordinates, np.asarray(altitudes[debut:fin], dtype=float)))
+        debut = fin
+    if debut != len(altitudes):
+        return None
+    preparee_fichier = core.prepare(core.Track(segments))
+    if preparee_fichier.sample_count != preparee.sample_count:
+        return None
+    return np.concatenate([segment.gpx_elevations for segment in preparee_fichier.segments])
+
+
+def calculer(coordonnees, dossier, *, en_ligne: bool = True, lecteur=None,
+             replier_fichier: bool = False) -> dict:
     """Montée, descente et altitudes extrêmes du tracé selon gpx2elev.
-    `lecteur` remplace la lecture des modèles de terrain (essais)."""
-    preparee = core.prepare(core.parse_gpx(gpx(valider(coordonnees))))
+    `lecteur` remplace la lecture des modèles de terrain (essais). Avec
+    `replier_fichier`, un tracé qu'aucun modèle ne couvre se détaille avec ses
+    propres altitudes, comme sur le téléphone."""
+    points = valider(coordonnees)
+    preparee = core.prepare(core.parse_gpx(gpx(points)))
     depot = Repository(Path(dossier) / "gpx2elev", reader=lecteur)
+    depuis_fichier = False
     try:
-        serie = depot.obtain(preparee.coordinates, online=en_ligne)
-        calcul = core.compute(preparee, serie.values)
-    except MissingCoverage as exc:
-        raise ErreurDenivele(str(exc).splitlines()[0] or "Aucun modèle de terrain disponible.") from exc
+        try:
+            serie = depot.obtain(preparee.coordinates, online=en_ligne)
+        except MissingCoverage as exc:
+            valeurs = profil_fichier(preparee, points) if replier_fichier else None
+            if valeurs is None:
+                raise ErreurDenivele(str(exc).splitlines()[0] or "Aucun modèle de terrain disponible.") from exc
+            depuis_fichier = True
+            modele, depuis_le_cache = MODELE_FICHIER, False
+        else:
+            valeurs = serie.values
+            modele, depuis_le_cache = serie.source.label, serie.from_cache
+        calcul = core.compute(preparee, valeurs)
     finally:
         depot.close()
     # Courbe issue des altitudes lissées par gpx2elev, réduite pour la page.
@@ -109,5 +168,5 @@ def calculer(coordonnees, dossier, *, en_ligne: bool = True, lecteur=None) -> di
         profil.append(derniere)
     return {"montee_m": round(calcul.gain.up), "descente_m": round(calcul.gain.down),
             "altitude_min_m": round(calcul.minimum), "altitude_max_m": round(calcul.maximum),
-            "modele": serie.source.label, "protocole": core.PROTOCOL, "depuis_le_cache": serie.from_cache,
-            "profil": profil, "duree_marche_s": duree_marche_s}
+            "modele": modele, "protocole": core.PROTOCOL, "depuis_le_cache": depuis_le_cache,
+            "depuis_fichier": depuis_fichier, "profil": profil, "duree_marche_s": duree_marche_s}
