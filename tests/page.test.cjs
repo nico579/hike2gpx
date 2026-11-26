@@ -36,7 +36,8 @@ function charger(preferences = {}, documentGpx = null) {
   };
   const couche = () => ({ handlers: {}, layers: [], addTo(parent) { this.addedTo = parent; parent.layers?.push(this); return this; },
     // Un marqueur se déplace et ouvre sa bulle seulement en planification : ces deux états se lisent ici.
-    bindPopup() { this.popupLie = true; return this; }, unbindPopup() { this.popupLie = false; return this; },
+    bindPopup(contenu) { this.popupLie = true; this.popupContenu = contenu; return this; },
+    unbindPopup() { this.popupLie = false; return this; },
     dragging: { actif: true, enable() { this.actif = true; }, disable() { this.actif = false; } },
     bindTooltip() { return this; },
     on(name, handler) { this.handlers[name] = handler; return this; }, setIcon() { return this; }, clearLayers() { this.layers = []; }, remove() { this.removed = true; if (this.addedTo?.layers) this.addedTo.layers = this.addedTo.layers.filter((c) => c !== this); }, closePopup() {} });
@@ -569,6 +570,104 @@ test("le nom du fichier GPX est échappé dans le contrôle Leaflet", async () =
     files: [{ name: "<b>rando</b>.gpx", size: 250, text: async () => "<gpx/>" }], value: "" } });
   assert.equal(page.controle().calques["&lt;b&gt;rando&lt;/b&gt;"], page.traceGpxImporte);
   assert.equal(page.controle().calques["<b>rando</b>"], undefined);
+});
+
+// Un GPX avec ses altitudes et ses heures : le détail se lit sans relief.
+function documentGpxDetail() {
+  const point = (lat, lon, altitude, heure) => ({
+    hasAttribute: (nom) => nom === "lat" || nom === "lon",
+    getAttribute: (nom) => nom === "lat" ? String(lat) : String(lon),
+    children: [
+      ...(altitude == null ? [] : [{ localName: "ele", textContent: String(altitude) }]),
+      ...(heure == null ? [] : [{ localName: "time", textContent: heure }]),
+    ],
+  });
+  return { documentElement: { localName: "gpx" }, getElementsByTagName: () => [],
+    getElementsByTagNameNS(_ns, nom) {
+      if (nom === "trkseg") return [{ getElementsByTagNameNS: (_n, tag) => tag === "trkpt"
+        ? [point(43.3, 6, 100, "2026-09-20T09:03:00Z"),
+          point(43.31, 6.02, 300, "2026-09-20T10:03:00Z")]
+        : [] }];
+      return [];
+    } };
+}
+
+test("cliquer une trace GPX importée ouvre son détail, comme sur le téléphone", async () => {
+  const { page, elements } = charger({}, documentGpxDetail());
+  await elements.get("fichierGpx").ecouteurs.change[0]({ target: {
+    files: [{ name: "rando.gpx", size: 250, text: async () => "<gpx/>" }], value: "rando.gpx" } });
+  // Le liseré et le trait jaune ouvrent tous deux la fiche.
+  assert.equal(page.traceGpxImporte.layers.length, 2);
+  for (const ligne of page.traceGpxImporte.layers) assert.equal(ligne.popupLie, true);
+  const bulle = page.traceGpxImporte.layers[1].popupContenu();
+  const fiche = bulle.enfants.find((e) => e.className === "trace-detail");
+  const textes = fiche.enfants.map((e) => e.textContent);
+  assert.ok(textes.includes("Points : 2"));
+  assert.ok(textes.includes("Distance : 1,00 km"));
+  assert.ok(textes.includes("Altitude : de 100 m à 300 m"));
+  assert.ok(textes.includes("Durée : 1 h (parcours)"), "la durée vient des heures du fichier");
+});
+
+test("le détail d'un KML de gpx2dash garde son D+ exact, sa date et sa durée", () => {
+  const { page, requetes } = charger();
+  const trace = { nom: "2020-12-13_LA ROQUEBRUSSANNE_8.7KM_D+350M_2H18", kml: true,
+    segments: [[[43.3, 6, 120], [43.31, 6.02, 460]]], heures: [], infos: {
+      denivele_exact: { Dplus_m: 349.8, Dmoins_m: 349.9 }, modele: "IGN LiDAR HD" } };
+  const bulle = page.bulleTraceImportee(trace);
+  const fiche = bulle.enfants.find((e) => e.className === "trace-detail");
+  const textes = fiche.enfants.map((e) => e.textContent);
+  assert.ok(textes.includes("Points : 2"));
+  assert.ok(textes.includes("Distance : 8,70 km"));
+  assert.ok(textes.includes("Dénivelé : + 350 m / − 350 m (IGN LiDAR HD)"));
+  assert.ok(textes.includes("Altitude : de 120 m à 460 m"));
+  assert.ok(textes.includes("Durée : 2 h 18"));
+  assert.equal(requetes.filter((r) => r.url === "/api/denivele").length, 0,
+    "le dénivelé exact du KML suffit");
+});
+
+test("le détail d'un GPX sans altitudes se complète par le relief gpx2elev", async () => {
+  const { page, requetes } = charger();
+  const trace = { nom: "rando", segments: [[[43.3, 6], [43.31, 6.02]]], heures: [[null, null]], infos: {} };
+  const bulle = page.bulleTraceImportee(trace);
+  const fiche = bulle.enfants.find((e) => e.className === "trace-detail");
+  assert.ok(fiche.enfants.some((e) => e.textContent === "Calcul du détail…"));
+  const demande = requetes.findLast((r) => r.url === "/api/denivele");
+  assert.deepEqual(JSON.parse(demande.options.body),
+    { coordonnees: [[6, 43.3], [6.02, 43.31]], repli_fichier: true });
+  repondre(demande, { montee_m: 120, descente_m: 100, altitude_min_m: 210, altitude_max_m: 540,
+    modele: "IGN LiDAR HD", duree_marche_s: 7200, profil: [] });
+  await tic(); await tic(); await tic();
+  const textes = fiche.enfants.map((e) => e.textContent);
+  assert.ok(textes.includes("Dénivelé : + 120 m / − 100 m (IGN LiDAR HD)"));
+  assert.ok(textes.includes("Altitude : de 210 m à 540 m"));
+  assert.ok(textes.includes("Durée : 2 h (marche estimée)"));
+  page.bulleTraceImportee(trace);
+  assert.equal(requetes.filter((r) => r.url === "/api/denivele").length, 1,
+    "rouvrir la fiche ne relit pas le relief");
+});
+
+test("un relief absent se replie sur les altitudes du fichier, dites comme telles", async () => {
+  const { page, requetes } = charger();
+  const trace = { nom: "rando", segments: [[[43.3, 6, 100], [43.31, 6.02, 300]]], heures: [], infos: {} };
+  const bulle = page.bulleTraceImportee(trace);
+  const fiche = bulle.enfants.find((e) => e.className === "trace-detail");
+  const demande = requetes.findLast((r) => r.url === "/api/denivele");
+  assert.deepEqual(JSON.parse(demande.options.body),
+    { coordonnees: [[6, 43.3, 100], [6.02, 43.31, 300]], repli_fichier: true });
+  repondre(demande, { montee_m: 200, descente_m: 0, altitude_min_m: 100, altitude_max_m: 300,
+    modele: "altitudes du fichier", depuis_fichier: true, duree_marche_s: 3600, profil: [] });
+  await tic(); await tic(); await tic();
+  assert.ok(fiche.enfants.some((e) =>
+    e.textContent === "Dénivelé : + 200 m / − 0 m (altitudes du fichier)"));
+});
+
+test("un KML sans relief n'envoie pas ses zéros comme altitudes", () => {
+  const { page, requetes } = charger();
+  page.bulleTraceImportee({ nom: "kml", kml: true, segments: [[[43.3, 6, 0], [43.31, 6.02, 0]]],
+    heures: [], infos: {} });
+  const demande = requetes.findLast((r) => r.url === "/api/denivele");
+  assert.deepEqual(JSON.parse(demande.options.body),
+    { coordonnees: [[6, 43.3], [6.02, 43.31]], repli_fichier: true });
 });
 
 test("le bouton Réglages demande l'ouverture du dossier des journaux", async () => {
